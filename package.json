@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
+    "icons": "node scripts/make-icons.mjs",
     "dev:worker": "wrangler dev --config wrangler.jsonc",
     "deploy:dev": "npm run build && sst deploy --stage dev",
     "deploy:prod": "npm run build && sst deploy --stage production",
