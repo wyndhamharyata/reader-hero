@@ -1,7 +1,8 @@
-import { useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { runApp } from "@/lib/hooks";
+import { probeLayout } from "@/lib/layout-probe";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
@@ -33,6 +34,23 @@ export function ReaderBody({
 }: Props): ReactElement {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    probeLayout("mount");
+    const onResize = () => probeLayout("resize");
+    const onOrient = () => probeLayout("orientation");
+    const onVisual = () => probeLayout("visual");
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onOrient);
+    window.visualViewport?.addEventListener("resize", onVisual);
+    window.visualViewport?.addEventListener("scroll", onVisual);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onOrient);
+      window.visualViewport?.removeEventListener("resize", onVisual);
+      window.visualViewport?.removeEventListener("scroll", onVisual);
+    };
+  }, []);
 
   const total = Math.max(1, parsed.blocks.length - 1);
   const scanned = meta.parseState === "scanned";
@@ -89,7 +107,7 @@ export function ReaderBody({
         )}
       </div>
 
-      <footer className={footerClass}>
+      <footer className={footerClass} data-footer>
         <div className="flex items-center gap-3">
           <span className="w-10 text-xs opacity-70">{percentLabel}</span>
           <progress
