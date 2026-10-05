@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { runApp } from "@/lib/hooks";
-import { probeLayout } from "@/lib/layout-probe";
+import { layoutSnapshot, probeLayout } from "@/lib/layout-probe";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
@@ -34,12 +34,17 @@ export function ReaderBody({
 }: Props): ReactElement {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
+  const [debug, setDebug] = useState("");
 
   useEffect(() => {
-    probeLayout("mount");
-    const onResize = () => probeLayout("resize");
-    const onOrient = () => probeLayout("orientation");
-    const onVisual = () => probeLayout("visual");
+    const report = (reason: string) => {
+      probeLayout(reason);
+      setDebug(layoutSnapshot());
+    };
+    report("mount");
+    const onResize = () => report("resize");
+    const onOrient = () => report("orientation");
+    const onVisual = () => report("visual");
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onOrient);
     window.visualViewport?.addEventListener("resize", onVisual);
@@ -117,6 +122,12 @@ export function ReaderBody({
           />
         </div>
       </footer>
+
+      {debug !== "" && (
+        <div className="fixed inset-x-0 top-0 z-[60] bg-black/80 p-1 pt-[max(0.25rem,env(safe-area-inset-top))] font-mono text-[8px] leading-tight break-all text-white">
+          {debug}
+        </div>
+      )}
     </>
   );
 }

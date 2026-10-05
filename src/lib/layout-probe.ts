@@ -24,7 +24,7 @@ function rect(selector: string): string | null {
   return `${Math.round(box.top)}..${Math.round(box.bottom)} (h${Math.round(box.height)})`;
 }
 
-function snapshot(): string {
+export function layoutSnapshot(): string {
   const header = document.querySelector("header");
   const headerStyle = header === null ? null : getComputedStyle(header);
   const vv = window.visualViewport;
@@ -45,5 +45,5 @@ function snapshot(): string {
 }
 
 export function probeLayout(reason: string): void {
-  void log("layout.probe", `${reason} ${snapshot()}`);
+  void log("layout.probe", `${reason} ${layoutSnapshot()}`);
 }
