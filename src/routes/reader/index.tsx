@@ -5,13 +5,11 @@ import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } 
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
-import { HeaderMenu } from "./_Menu";
+import { Sidebar } from "./_Sidebar";
 import { LoadError } from "./_LoadError";
 import { ReaderBody, type Mode } from "./_ReaderBody";
-import { SettingsSheet } from "./_SettingsSheet";
-import { TocDrawer } from "./_TocDrawer";
 import type { JumpRequest } from "./_ReaderView";
-import { ArrowLeftIcon } from "./_icons";
+import { ArrowLeftIcon, Bars3Icon } from "./_icons";
 
 export function ReaderRoute() {
   const { id } = useParams();
@@ -31,7 +29,6 @@ export function ReaderRoute() {
 
   const [chrome, setChrome] = useState(true);
   const [tocOpen, setTocOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("reader");
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
@@ -77,10 +74,7 @@ export function ReaderRoute() {
 
   const toggleMode = () => setMode(mode === "reader" ? "original" : "reader");
   const toggleChrome = () => setChrome((value) => !value);
-  const openToc = () => setTocOpen(true);
   const closeToc = () => setTocOpen(false);
-  const openSettings = () => setSettingsOpen(true);
-  const closeSettings = () => setSettingsOpen(false);
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
     setMode("reader");
@@ -98,12 +92,14 @@ export function ReaderRoute() {
           <ArrowLeftIcon />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
-        <HeaderMenu
-          modeLabel={modeLabel}
-          onContents={openToc}
-          onToggleMode={toggleMode}
-          onSettings={openSettings}
-        />
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm btn-square"
+          aria-label="Menu"
+          onClick={() => setTocOpen(true)}
+        >
+          <Bars3Icon />
+        </button>
       </header>
 
       <div className={contentClass}>
@@ -144,8 +140,16 @@ export function ReaderRoute() {
         </div>
       )}
 
-      <TocDrawer open={tocOpen} toc={toc} onSelect={selectToc} onClose={closeToc} />
-      <SettingsSheet open={settingsOpen} settings={settings} onChange={update} onClose={closeSettings} />
+      <Sidebar
+        open={tocOpen}
+        toc={toc}
+        modeLabel={modeLabel}
+        settings={settings}
+        onSelect={selectToc}
+        onToggleMode={toggleMode}
+        onSettingsChange={update}
+        onClose={closeToc}
+      />
     </div>
   );
 }
