@@ -17,6 +17,7 @@ import type {
 } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 import { log } from "@/lib/log";
+import { envProbe } from "@/lib/env-probe";
 import { collectImageBoxes, type ImagePaint } from "@/lib/pdf/image-boxes";
 import { captureWarnings, record } from "@/lib/perf";
 
@@ -306,6 +307,7 @@ export class PdfClient extends Context.Service<
     PdfClient.of({
       load: Effect.fn("PdfClient.load")(function* (data: ArrayBuffer) {
         const started = performance.now();
+        envProbe();
         const origin = (globalThis as { location?: { origin: string } }).location?.origin ?? "";
         // Enable pdf.js's WASM decoders (JPEG 2000, JBIG2, ICC/qcms). Without a
         // served wasmUrl they silently fall back to slow pure-JS decoding.
