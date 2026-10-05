@@ -89,14 +89,17 @@ export function ReaderBody({
         )}
       </div>
 
+      <div className="absolute inset-x-0 bottom-9 z-20 px-4">
+        <progress
+          className="progress progress-primary h-1.5 w-full"
+          value={position}
+          max={total}
+        />
+      </div>
+
       <footer className={footerClass}>
         <div className="flex items-center gap-3">
           <span className="w-10 text-xs opacity-70">{percentLabel}</span>
-          <progress
-            className="progress progress-primary h-1.5 flex-1"
-            value={position}
-            max={total}
-          />
         </div>
       </footer>
     </>
