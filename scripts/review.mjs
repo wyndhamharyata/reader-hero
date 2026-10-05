@@ -13,7 +13,7 @@ const take = (name) => {
 };
 
 const base = take("--base") ?? "HEAD";
-const model = take("--model");
+const model = take("--model") ?? "opencode-go/deepseek-v4.1-flash#high";
 const session = take("--session");
 const out = take("--out");
 const json = argv.includes("--json");
@@ -41,8 +41,7 @@ const prompt = [
   "Report only what should change, in the three-section format.",
 ].join("\n");
 
-const args = ["run", "--agent", "reviewer", "--auto"];
-if (model !== null) args.push("--model", model);
+const args = ["run", "--agent", "reviewer", "--auto", "--model", model];
 if (session !== null) args.push("--session", session);
 if (json) args.push("--format", "json");
 args.push(prompt);
