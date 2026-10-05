@@ -21,11 +21,10 @@ export interface StorageEstimate {
   readonly quota: number;
 }
 
-export interface StoreUpdate {
-  readonly bookId: string;
-  /** The image that became available, or null when the book meta changed. */
-  readonly imageId: string | null;
-}
+export type StoreUpdate =
+  | { readonly kind: "image"; readonly bookId: string; readonly imageId: string }
+  | { readonly kind: "meta"; readonly bookId: string }
+  | { readonly kind: "parsed"; readonly bookId: string };
 
 const imageRange = (bookId: string): IDBKeyRange =>
   IDBKeyRange.bound(`${bookId}/`, `${bookId}/\uffff`);
@@ -85,7 +84,7 @@ export class BookStore extends Context.Service<
 
       const putMeta = Effect.fn("BookStore.putMeta")(function* (meta: BookMeta) {
         yield* attempt("putMeta", () => db.put("books", meta));
-        yield* PubSub.publish(updateBus, { bookId: meta.id, imageId: null });
+        yield* PubSub.publish(updateBus, { kind: "meta", bookId: meta.id });
       });
 
       const putFile = Effect.fn("BookStore.putFile")(
@@ -108,6 +107,7 @@ export class BookStore extends Context.Service<
       const putParsed = Effect.fn("BookStore.putParsed")(
         function* (id: string, parsed: ParsedBook) {
           yield* attempt("putParsed", () => db.put("parsed", parsed, id));
+          yield* PubSub.publish(updateBus, { kind: "parsed", bookId: id });
         },
       );
 
@@ -130,7 +130,7 @@ export class BookStore extends Context.Service<
               `${bookId}/${image.id}`,
             ),
           );
-          yield* PubSub.publish(updateBus, { bookId, imageId: image.id });
+          yield* PubSub.publish(updateBus, { kind: "image", bookId, imageId: image.id });
         },
       );
 

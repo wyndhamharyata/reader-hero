@@ -38,7 +38,12 @@ export function ReaderImage({ bookId, imageId }: Props) {
       Effect.gen(function* () {
         const store = yield* BookStore;
         yield* store.updates().pipe(
-          Stream.filter((update) => update.bookId === bookId && update.imageId === imageId),
+          Stream.filter(
+            (update) =>
+              update.kind === "image" &&
+              update.bookId === bookId &&
+              update.imageId === imageId,
+          ),
           Stream.runForEach(() => Effect.sync(load)),
         );
       }),

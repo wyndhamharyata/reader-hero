@@ -2,7 +2,6 @@ import { Effect } from "effect";
 import { BookMeta, ParsedBook } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import type { BookNotFound, PdfFailure } from "@/domain/errors";
-import { isScanned } from "@/lib/pdf/assemble";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 import { extractBook, type ParseProgress } from "./extract";
@@ -27,12 +26,11 @@ export function parseBook(
     yield* store.putParsed(id, result.parsed);
 
     const meta = yield* store.get(id);
-    const scanned = isScanned(result.parsed.charCount, result.parsed.pageCount);
     const next = new BookMeta({
       ...meta,
-      parseState: scanned ? "scanned" : "ready",
+      parseState: result.scanned ? "scanned" : "ready",
       charCount: result.parsed.charCount,
-      figures: result.hasFigures ? "pending" : "none",
+      figures: result.scanned ? "none" : "pending",
     });
     yield* store.putMeta(next);
 

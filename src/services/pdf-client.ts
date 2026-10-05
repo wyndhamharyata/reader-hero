@@ -10,6 +10,7 @@ import type {
 import type { ImagePlacement, OutlineItem, PageImage, PageText, RawTextItem } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 import { collectImageBoxes } from "@/lib/pdf/image-boxes";
+import { captureWarnings, record } from "@/lib/perf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -117,9 +118,21 @@ export class PdfClient extends Context.Service<
     PdfClient,
     PdfClient.of({
       load: Effect.fn("PdfClient.load")(function* (data: ArrayBuffer) {
+        const started = performance.now();
         const task = pdfjs.getDocument({ data });
-        const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure });
-        return { proxy, task, numPages: proxy.numPages };
+        const captured = yield* Effect.tryPromise({
+          try: () => captureWarnings(() => task.promise),
+          catch: pdfFailure,
+        });
+        record("pdf.load", performance.now() - started, `${captured.result.numPages} pages`);
+        record(
+          "pdf.worker",
+          0,
+          captured.warnings.some((warning) => /fake worker/i.test(warning))
+            ? "FAKE (main thread)"
+            : "worker",
+        );
+        return { proxy: captured.result, task, numPages: captured.result.numPages };
       }),
 
       readPage: Effect.fn("PdfClient.readPage")(function* (handle: PdfHandle, page: number) {

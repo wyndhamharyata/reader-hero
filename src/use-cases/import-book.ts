@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure, UnsupportedFile, type PdfFailure } from "@/domain/errors";
 import { newId } from "@/lib/id";
-import { isScanned } from "@/lib/pdf/assemble";
+import { record } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { extractBook, type ParseProgress } from "./extract";
@@ -44,6 +44,7 @@ export function addPdf(
   return Effect.gen(function* () {
     if (!isPdf(file)) return yield* new UnsupportedFile({ name: file.name });
 
+    const started = performance.now();
     const store = yield* BookStore;
     const pdf = yield* PdfClient;
 
@@ -71,14 +72,14 @@ export function addPdf(
     const result = yield* extractBook(handle, onProgress);
     yield* store.putParsed(id, result.parsed);
 
-    const scanned = isScanned(result.parsed.charCount, result.parsed.pageCount);
     const ready = new BookMeta({
       ...meta,
-      parseState: scanned ? "scanned" : "ready",
+      parseState: result.scanned ? "scanned" : "ready",
       charCount: result.parsed.charCount,
-      figures: result.hasFigures ? "pending" : "none",
+      figures: result.scanned ? "none" : "pending",
     });
     yield* store.putMeta(ready);
+    record("import.total", performance.now() - started, ready.title);
 
     return ready;
   });

@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   BookMeta,
   type FigureState,
+  type ImagePlacement,
   type PageImage,
+  type PageText,
+  type ParsedBook,
   type StoredImage,
 } from "@/domain/book";
 import { BookStore } from "@/services/book-store";
@@ -12,23 +15,38 @@ import { renderFigures } from "@/use-cases/render-figures";
 
 const handle: PdfHandle = { proxy: {} as never, task: {} as never, numPages: 1 };
 
+const placement: ImagePlacement = { id: "1-0", page: 1, x: 100, y: 400, width: 200, height: 100 };
+
 const pageImage: PageImage = {
-  id: "1-0",
-  page: 1,
-  x: 0,
-  y: 0,
-  width: 100,
-  height: 50,
+  ...placement,
   blob: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
 };
 
+const pageText: PageText = {
+  page: 1,
+  width: 600,
+  height: 800,
+  items: [
+    {
+      str: "a".repeat(200),
+      x: 0,
+      y: 700,
+      width: 100,
+      height: 12,
+      fontSize: 12,
+      fontFamily: "",
+      hasEOL: false,
+    },
+  ],
+};
+
 interface Harness {
-  readonly state: { meta: BookMeta; images: StoredImage[] };
+  readonly state: { meta: BookMeta; images: StoredImage[]; parsed: ParsedBook | null };
   readonly layer: Layer.Layer<BookStore | PdfClient>;
 }
 
 function harness(figures: FigureState): Harness {
-  const state = {
+  const state: Harness["state"] = {
     meta: new BookMeta({
       id: "b1",
       title: "T",
@@ -36,10 +54,11 @@ function harness(figures: FigureState): Harness {
       fileSize: 0,
       pageCount: 1,
       parseState: "ready",
-      charCount: 10,
+      charCount: 200,
       figures,
     }),
-    images: [] as StoredImage[],
+    images: [],
+    parsed: null,
   };
 
   const bookStore = Layer.succeed(
@@ -53,7 +72,10 @@ function harness(figures: FigureState): Harness {
         }),
       putFile: () => Effect.void,
       getFile: () => Effect.succeed(new Blob([new Uint8Array([1])], { type: "application/pdf" })),
-      putParsed: () => Effect.void,
+      putParsed: (_id, parsed) =>
+        Effect.sync(() => {
+          state.parsed = parsed;
+        }),
       getParsed: () => Effect.die("not used"),
       putImage: (_bookId, image) =>
         Effect.sync(() => {
@@ -74,8 +96,8 @@ function harness(figures: FigureState): Harness {
     PdfClient,
     PdfClient.of({
       load: () => Effect.succeed(handle),
-      readPage: () => Effect.die("not used"),
-      readPlacements: () => Effect.succeed([]),
+      readPage: () => Effect.succeed(pageText),
+      readPlacements: () => Effect.succeed([placement]),
       readImages: () => Effect.succeed([pageImage]),
       render: () => Effect.void,
       readOutline: () => Effect.succeed([]),
@@ -88,13 +110,14 @@ function harness(figures: FigureState): Harness {
 }
 
 describe("renderFigures", () => {
-  it("given pending figures, stores them and marks the book ready", async () => {
+  it("given pending figures, renders them, re-assembles with image blocks, and marks ready", async () => {
     const { state, layer } = harness("pending");
 
     await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
 
     expect(state.images).toHaveLength(1);
     expect(state.images[0]?.id).toBe("1-0");
+    expect(state.parsed?.blocks.some((block) => block.imageId === "1-0")).toBe(true);
     expect(state.meta.figures).toBe("ready");
   });
 
@@ -104,6 +127,7 @@ describe("renderFigures", () => {
     await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
 
     expect(state.images).toHaveLength(0);
+    expect(state.parsed).toBeNull();
     expect(state.meta.figures).toBe("ready");
   });
 });

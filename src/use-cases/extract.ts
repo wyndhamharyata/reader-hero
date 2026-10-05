@@ -1,7 +1,8 @@
 import { Effect, Stream } from "effect";
-import type { ImagePlacement, PageText, ParsedBook } from "@/domain/book";
+import type { PageText, ParsedBook } from "@/domain/book";
 import type { PdfFailure } from "@/domain/errors";
 import { assembleBook, isScanned } from "@/lib/pdf/assemble";
+import { record, timed } from "@/lib/perf";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 
 export interface ParseProgress {
@@ -11,7 +12,7 @@ export interface ParseProgress {
 
 export interface ExtractResult {
   readonly parsed: ParsedBook;
-  readonly hasFigures: boolean;
+  readonly scanned: boolean;
 }
 
 const READ_CONCURRENCY = 2;
@@ -20,8 +21,10 @@ const countChars = (text: PageText): number =>
   text.items.reduce((sum, item) => sum + item.str.length, 0);
 
 /**
- * Reads text and figure placements (no rendering) so the reflowed book is ready
- * immediately. Figure pixels are rendered later by `renderFigures`.
+ * Reads text only, so the reflowed book is ready fast. Figure placement
+ * detection is deliberately left out: `getOperatorList` decodes every image,
+ * which is the expensive part of parsing. `renderFigures` does that in the
+ * background and then re-assembles the book with image blocks.
  */
 export function extractBook(
   handle: PdfHandle,
@@ -30,37 +33,31 @@ export function extractBook(
   return Effect.gen(function* () {
     const pdf = yield* PdfClient;
     const total = pdf.pageCount(handle);
+    const started = performance.now();
 
-    const extracts = yield* Stream.range(1, total).pipe(
+    const texts = yield* Stream.range(1, total).pipe(
       Stream.mapEffect(
         (page) =>
-          Effect.gen(function* () {
-            const text = yield* pdf.readPage(handle, page);
-            const placements = yield* pdf.readPlacements(handle, page).pipe(
-              Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<ImagePlacement>)),
-            );
-            yield* Effect.sync(() => onProgress({ page, total }));
-            return { text, placements };
-          }),
+          timed("parse.text", pdf.readPage(handle, page), () => `p${page}`).pipe(
+            Effect.tap(() => Effect.sync(() => onProgress({ page, total }))),
+          ),
         { concurrency: READ_CONCURRENCY },
       ),
       Stream.runCollect,
     );
 
     const outline = yield* pdf.readOutline(handle);
-    const rawCharCount = extracts.reduce((sum, entry) => sum + countChars(entry.text), 0);
-
-    // A scanned book has almost no text; its pages are full-page images that the
-    // reader shows in the original view, so figures are neither placed nor rendered.
+    const rawCharCount = texts.reduce((sum, text) => sum + countChars(text), 0);
     const scanned = isScanned(rawCharCount, total);
-    const pages = extracts.map((entry) => ({
-      text: entry.text,
-      images: scanned ? [] : entry.placements,
-    }));
 
-    const parsed = assembleBook(pages, outline);
-    const hasFigures = pages.some((page) => page.images.length > 0);
+    const assembleStart = performance.now();
+    const parsed = assembleBook(
+      texts.map((text) => ({ text, images: [] })),
+      outline,
+    );
+    record("parse.assemble", performance.now() - assembleStart, `${parsed.blocks.length} blocks`);
+    record("parse.total", performance.now() - started, `${total} pages`);
 
-    return { parsed, hasFigures };
+    return { parsed, scanned };
   }).pipe(Effect.ensuring(PdfClient.use((pdf) => pdf.release(handle))));
 }

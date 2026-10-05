@@ -1,5 +1,7 @@
 import { Effect, Stream } from "effect";
-import { BookMeta, type PageImage } from "@/domain/book";
+import { BookMeta, type ImagePlacement, type PageImage } from "@/domain/book";
+import { assembleBook } from "@/lib/pdf/assemble";
+import { record, timed } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 
@@ -8,9 +10,12 @@ const IMAGE_CONCURRENCY = 2;
 const inFlight = new Set<string>();
 
 /**
- * Renders and stores figure pixels for a book. Runs detached from the import so
- * the book is readable first; safe to call repeatedly, since it no-ops when the
- * book has no pending figures or a job is already running.
+ * Finds and renders figure pixels in the background, then re-assembles the book
+ * with image blocks and replaces the stored parse. Placement detection lives
+ * here (not in `extractBook`) because `getOperatorList` decodes every image.
+ *
+ * Safe to call repeatedly: no-ops when the book has no pending figures or a job
+ * is already running.
  */
 export function renderFigures(
   bookId: string,
@@ -39,15 +44,32 @@ export function renderFigures(
     const handle = yield* pdf.load(data).pipe(Effect.catchCause(() => Effect.succeed(null)));
     if (handle === null) return;
 
-    yield* Effect.gen(function* () {
+    const started = performance.now();
+    const outcome = yield* Effect.gen(function* () {
       const total = pdf.pageCount(handle);
-      yield* Stream.range(1, total).pipe(
+      const entries = yield* Stream.range(1, total).pipe(
         Stream.mapEffect(
           (page) =>
-            pdf.readImages(handle, page).pipe(
-              Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<PageImage>)),
-              Effect.tap((images) =>
-                Effect.forEach(images, (image) =>
+            Effect.gen(function* () {
+              const text = yield* timed(
+                "figures.text",
+                pdf.readPage(handle, page),
+                () => `p${page}`,
+              );
+              const placements = yield* timed(
+                "figures.placements",
+                pdf.readPlacements(handle, page),
+                (value) => `p${page}:${value.length}`,
+              ).pipe(Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<ImagePlacement>)));
+              const images = yield* timed(
+                "figures.render",
+                pdf.readImages(handle, page),
+                () => `p${page}`,
+              ).pipe(Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<PageImage>)));
+
+              yield* Effect.forEach(
+                images,
+                (image) =>
                   store
                     .putImage(bookId, {
                       id: image.id,
@@ -56,20 +78,45 @@ export function renderFigures(
                       height: image.height,
                     })
                     .pipe(Effect.catchCause(() => Effect.void)),
-                ),
-              ),
-            ),
+                { concurrency: 4 },
+              );
+
+              return { text, placements };
+            }),
           { concurrency: IMAGE_CONCURRENCY },
         ),
-        Stream.runDrain,
+        Stream.runCollect,
       );
-    }).pipe(Effect.ensuring(pdf.release(handle)));
+
+      const outline = yield* pdf
+        .readOutline(handle)
+        .pipe(Effect.catchCause(() => Effect.succeed([])));
+      const parsed = assembleBook(
+        entries.map((entry) => ({ text: entry.text, images: entry.placements })),
+        outline,
+      );
+      const imageCount = entries.reduce((sum, entry) => sum + entry.placements.length, 0);
+      return { parsed, imageCount };
+    }).pipe(
+      Effect.ensuring(pdf.release(handle)),
+      Effect.catchCause(() => Effect.succeed(null)),
+    );
+
+    if (outcome === null) return;
+
+    if (outcome.imageCount > 0) {
+      yield* timed("figures.store", store.putParsed(bookId, outcome.parsed)).pipe(
+        Effect.catchCause(() => Effect.void),
+      );
+    }
 
     const latest = yield* store.get(bookId).pipe(Effect.catchCause(() => Effect.succeed(null)));
     if (latest !== null) {
       yield* store
-        .putMeta(new BookMeta({ ...latest, figures: "ready" }))
+        .putMeta(new BookMeta({ ...latest, figures: outcome.imageCount > 0 ? "ready" : "none" }))
         .pipe(Effect.catchCause(() => Effect.void));
     }
+
+    record("figures.total", performance.now() - started, `${outcome.imageCount} images`);
   }).pipe(Effect.ensuring(Effect.sync(() => inFlight.delete(bookId))));
 }

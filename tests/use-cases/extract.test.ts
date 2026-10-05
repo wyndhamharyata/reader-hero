@@ -1,54 +1,46 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import type { ImagePlacement, PageText, RawTextItem } from "@/domain/book";
+import type { PageText, RawTextItem } from "@/domain/book";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { extractBook } from "@/use-cases/extract";
 
-const handle: PdfHandle = { proxy: {} as never, task: {} as never, numPages: 2 };
+const handle: PdfHandle = { proxy: {} as never, task: {} as never, numPages: 1 };
 
-const bodyItem = (): RawTextItem => ({
+const item = (): RawTextItem => ({
   str: "a".repeat(200),
   x: 0,
   y: 700,
-  width: 300,
+  width: 100,
   height: 12,
   fontSize: 12,
   fontFamily: "",
   hasEOL: false,
 });
 
-const pageWith = (page: number, items: ReadonlyArray<RawTextItem>): PageText => ({
-  page,
-  width: 600,
-  height: 800,
-  items,
-});
-
-const cover: ImagePlacement = { id: "1-0", page: 1, x: 100, y: 400, width: 200, height: 100 };
+const pageText = (page: number): PageText => ({ page, width: 600, height: 800, items: [item()] });
 
 const stubLayer = Layer.succeed(
   PdfClient,
   PdfClient.of({
     load: () => Effect.die("not used"),
-    readPage: (_handle, page) => Effect.succeed(pageWith(page, page === 1 ? [] : [bodyItem()])),
-    readPlacements: (_handle, page) => Effect.succeed(page === 1 ? [cover] : []),
+    readPage: (_handle, page) => Effect.succeed(pageText(page)),
+    readPlacements: () => Effect.succeed([]),
     readImages: () => Effect.succeed([]),
     render: () => Effect.void,
     readOutline: () => Effect.succeed([]),
     release: () => Effect.void,
-    pageCount: () => 2,
+    pageCount: () => 1,
   }),
 );
 
 describe("extractBook", () => {
-  it("given a text-less cover page, places its figure without rendering it", async () => {
+  it("given a text page, assembles text blocks without reading figures", async () => {
     const result = await Effect.runPromise(
       extractBook(handle, () => {}).pipe(Effect.provide(stubLayer)),
     );
 
-    expect(result.hasFigures).toBe(true);
-    const imageBlock = result.parsed.blocks.find((block) => block.kind === "image");
-    expect(imageBlock?.imageId).toBe("1-0");
-    expect(result.parsed.pageCount).toBe(2);
+    expect(result.scanned).toBe(false);
+    expect(result.parsed.blocks.every((block) => block.kind !== "image")).toBe(true);
+    expect(result.parsed.charCount).toBeGreaterThan(0);
   });
 });

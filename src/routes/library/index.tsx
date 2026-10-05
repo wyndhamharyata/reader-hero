@@ -13,6 +13,7 @@ import { renderFigures } from "@/use-cases/render-figures";
 import { BookCard } from "./_BookCard";
 import { BusyOverlay } from "./_BusyOverlay";
 import { InstallHint } from "./_InstallHint";
+import { PerfPanel } from "./_PerfPanel";
 
 const showInstallHint = isIosBrowser && !isInstalled;
 
@@ -30,7 +31,17 @@ export function LibraryRoute() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [perfOpen, setPerfOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const taps = useRef(0);
+
+  const onBadgeTap = () => {
+    taps.current += 1;
+    if (taps.current >= 5) {
+      taps.current = 0;
+      setPerfOpen(true);
+    }
+  };
 
   useEffect(() => {
     void runApp(importInboxOnce()).then((count) => {
@@ -43,7 +54,7 @@ export function LibraryRoute() {
       Effect.gen(function* () {
         const store = yield* BookStore;
         yield* store.updates().pipe(
-          Stream.filter((update) => update.imageId === null),
+          Stream.filter((update) => update.kind === "meta"),
           Stream.runForEach(() => Effect.sync(() => reload())),
         );
       }),
@@ -108,7 +119,9 @@ export function LibraryRoute() {
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-4 pb-28">
       <header className="flex items-center justify-between gap-3 pt-2">
         <h1 className="text-2xl font-bold">Reader Hero</h1>
-        <span className="badge badge-ghost badge-sm">offline</span>
+        <button type="button" className="badge badge-ghost badge-sm" onClick={onBadgeTap}>
+          offline
+        </button>
       </header>
 
       {message !== null && (
@@ -170,6 +183,7 @@ export function LibraryRoute() {
       </button>
 
       {busy && <BusyOverlay progress={progress} />}
+      {perfOpen && <PerfPanel onClose={() => setPerfOpen(false)} />}
     </main>
   );
 }

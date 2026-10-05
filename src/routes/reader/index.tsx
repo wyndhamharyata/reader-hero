@@ -1,10 +1,10 @@
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ReadingProgress } from "@/domain/book";
 import { describeCause, describeError } from "@/lib/describe-error";
 import { formatPercent } from "@/lib/format";
-import { forkApp, runApp, useAppEffect, useSettings } from "@/lib/hooks";
+import { forkApp, runApp, stopFiber, useAppEffect, useSettings } from "@/lib/hooks";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { parseBook } from "@/use-cases/parse-book";
@@ -69,6 +69,19 @@ export function ReaderRoute() {
       forkApp(renderFigures(bookId));
     }
   }, [data, bookId]);
+
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.gen(function* () {
+        const store = yield* BookStore;
+        yield* store.updates().pipe(
+          Stream.filter((update) => update.kind === "parsed" && update.bookId === bookId),
+          Stream.runForEach(() => Effect.sync(() => reload())),
+        );
+      }),
+    );
+    return () => stopFiber(fiber);
+  }, [bookId, reload]);
 
   const onPosition = useCallback(
     (blockIndex: number) => {
