@@ -89,7 +89,7 @@ export function ReaderBody({
         )}
       </div>
 
-      <div className="absolute inset-x-0 bottom-9 z-20 px-4">
+      <div className="absolute inset-x-0 top-0 z-40 h-1.5">
         <progress
           className="progress progress-primary h-1.5 w-full"
           value={position}
