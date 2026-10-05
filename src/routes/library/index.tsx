@@ -99,7 +99,7 @@ export function LibraryRoute() {
   const actionLabel = busy ? "Working…" : "Add PDF";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-28">
+    <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-28">
       <header className="flex items-center justify-between gap-3 pt-2">
         <h1 className="text-2xl font-bold">Reader Hero</h1>
         <OfflineBadge />
