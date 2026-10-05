@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure, UnsupportedFile, type PdfFailure } from "@/domain/errors";
+import { newId } from "@/lib/id";
 import { isScanned } from "@/lib/pdf/assemble";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
@@ -53,7 +54,7 @@ export function addPdf(
 
     const handle = yield* pdf.load(data);
     const info = yield* readInfo(handle);
-    const id = crypto.randomUUID();
+    const id = newId();
 
     const meta = new BookMeta({
       id,

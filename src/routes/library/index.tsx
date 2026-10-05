@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
-import { describeError } from "@/lib/describe-error";
+import { describeCause } from "@/lib/describe-error";
 import { formatSize } from "@/lib/format";
 import { runApp, useAppEffect } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
@@ -43,7 +43,7 @@ export function LibraryRoute() {
     setMessage(null);
     const program = Effect.forEach(files, (file) =>
       addPdf(file, setProgress).pipe(
-        Effect.catch((error) => Effect.sync(() => setMessage(describeError(error, file.name)))),
+        Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, file.name)))),
       ),
     ).pipe(
       Effect.ensuring(
@@ -66,7 +66,7 @@ export function LibraryRoute() {
     setBusy(true);
     setMessage(null);
     const program = parseBook(id, setProgress).pipe(
-      Effect.catch((error) => Effect.sync(() => setMessage(describeError(error, "This book")))),
+      Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, "This book")))),
     );
     void runApp(program).then(() => {
       setBusy(false);

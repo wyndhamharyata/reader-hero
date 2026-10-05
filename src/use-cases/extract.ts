@@ -32,7 +32,7 @@ export function extractBook(
             let images: ReadonlyArray<PageImage> = [];
             if (text.items.length > 0) {
               images = yield* pdf.readImages(handle, page).pipe(
-                Effect.catch(() => Effect.succeed([] as ReadonlyArray<PageImage>)),
+                Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<PageImage>)),
               );
             }
             yield* Effect.sync(() => onProgress({ page, total }));
