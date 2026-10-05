@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const argv = process.argv.slice(2);
 
@@ -19,29 +21,60 @@ const out = take("--out");
 const json = argv.includes("--json");
 const files = argv.filter((arg) => !arg.startsWith("--"));
 
-const inRepo = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
-  encoding: "utf8",
-}).stdout?.trim() === "true";
+const runGit = (...args) => {
+  const result = spawnSync("git", args, { encoding: "utf8" });
+  return { ok: result.status === 0, out: result.stdout ?? "" };
+};
+
+const inRepo = runGit("rev-parse", "--is-inside-work-tree").out.trim() === "true";
 
 if (!inRepo && files.length === 0) {
   console.error("review: not a git repository. Run `git init` or pass file paths to review.");
   process.exit(2);
 }
 
-const scope =
-  files.length > 0
-    ? `Only these files: ${files.join(", ")}.`
-    : `The working tree diff against ${base}.`;
+const pathArgs = files.length > 0 ? ["--", ...files] : [];
+const baseOk = runGit("rev-parse", "--verify", "--quiet", base).ok;
+const diffArgs = baseOk ? [base] : [];
+const scope = baseOk
+  ? `Working tree against ${base}.`
+  : `Base ${base} not found; reviewing the working tree.`;
+
+const bundle = [
+  "# Review scope",
+  "",
+  scope,
+  files.length > 0 ? `Files: ${files.join(", ")}` : "",
+  "",
+  "## git status --short",
+  "",
+  runGit("status", "--short").out,
+  "",
+  "## diff --stat",
+  "",
+  runGit("diff", ...diffArgs, "--stat", ...pathArgs).out,
+  "",
+  "## diff",
+  "",
+  runGit("diff", ...diffArgs, ...pathArgs).out,
+  "",
+  "## diff --cached",
+  "",
+  runGit("diff", "--cached", ...pathArgs).out,
+].join("\n");
+
+const dir = mkdtempSync(join(tmpdir(), "reader-hero-review-"));
+const diffPath = join(dir, "diff.md");
+writeFileSync(diffPath, bundle);
 
 const prompt = [
   "Review the current changes against your ruleset.",
-  `Scope: ${scope}`,
-  "",
-  `Run \`git diff ${base}\` and \`git status\` to see the change, then read the affected files.`,
-  "Report only what should change, in the three-section format.",
+  `The diff is attached at ${diffPath}. Read it first.`,
+  "Files listed under `git status --short` as untracked (`??`) are not in the diff; read them directly.",
+  "Read the affected files for context, then report only what should change, in the three-section format.",
 ].join("\n");
 
-const args = ["run", "--agent", "reviewer", "--auto", "--model", model];
+const args = ["run", "--agent", "reviewer", "--auto", "--model", model, "--file", diffPath];
 if (session !== null) args.push("--session", session);
 if (json) args.push("--format", "json");
 args.push(prompt);
@@ -58,4 +91,5 @@ if (out !== null) {
   if (result.stderr) process.stderr.write(result.stderr);
 }
 
+rmSync(dir, { recursive: true, force: true });
 process.exit(result.status ?? 1);
