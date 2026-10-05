@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { runApp } from "@/lib/hooks";
-import { probeLayout } from "@/lib/layout-probe";
+import { layoutSnapshot, probeLayout } from "@/lib/layout-probe";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
@@ -34,11 +34,20 @@ export function ReaderBody({
 }: Props): ReactElement {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
+  const [debug, setDebug] = useState("");
 
   useEffect(() => {
-    probeLayout("mount");
-    const onResize = () => probeLayout("resize");
-    const onOrient = () => probeLayout("orientation");
+    const report = (reason: string) => {
+      probeLayout(reason);
+      try {
+        setDebug(layoutSnapshot());
+      } catch {
+        // Diagnostics only.
+      }
+    };
+    report("mount");
+    const onResize = () => report("resize");
+    const onOrient = () => report("orientation");
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onOrient);
     return () => {
@@ -53,7 +62,7 @@ export function ReaderBody({
   const initialBlock = progress?.blockIndex ?? 0;
   const currentPage = parsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
-  const footerClass = `absolute inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-transform ${chrome ? "" : "translate-y-full"}`;
+  const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-transform ${chrome ? "" : "translate-y-full"}`;
 
   const onPosition = (blockIndex: number) => {
     setPosition(blockIndex);
@@ -94,7 +103,7 @@ export function ReaderBody({
         )}
 
         {scanned && mode === "reader" && (
-          <div className="absolute inset-x-0 top-[calc(4rem+env(safe-area-inset-top))] z-20 px-3">
+          <div className="fixed inset-x-0 top-[calc(4rem+env(safe-area-inset-top))] z-20 px-3">
             <div className="alert alert-warning py-2 text-xs">
               <span>No text layer found. Showing the original pages.</span>
             </div>
@@ -112,6 +121,12 @@ export function ReaderBody({
           />
         </div>
       </footer>
+
+      {debug !== "" && (
+        <div className="fixed inset-x-0 top-0 z-[60] bg-black/80 p-1 pt-[max(0.25rem,env(safe-area-inset-top))] font-mono text-[8px] leading-tight break-all text-white">
+          {debug}
+        </div>
+      )}
     </>
   );
 }

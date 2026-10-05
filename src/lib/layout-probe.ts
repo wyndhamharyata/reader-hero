@@ -62,5 +62,11 @@ export function layoutSnapshot(): string {
 }
 
 export function probeLayout(reason: string): void {
-  void log("layout.probe", `${reason} ${layoutSnapshot()}`);
+  let detail = "";
+  try {
+    detail = layoutSnapshot();
+  } catch (error) {
+    detail = `snapshot failed: ${String(error)}`;
+  }
+  void log("layout.probe", `${reason} ${detail}`);
 }

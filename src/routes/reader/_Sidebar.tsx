@@ -44,7 +44,7 @@ export function Sidebar({
   const larger = Math.min(MAX_FONT_SIZE, settings.fontSize + 1);
 
   return (
-    <div className="absolute inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close" onClick={onClose} />
       <aside className="relative z-10 flex h-full w-80 max-w-[85%] flex-col bg-base-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center justify-between">
