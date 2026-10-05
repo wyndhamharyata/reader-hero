@@ -12,7 +12,19 @@ const precacheUrls = self.__WB_MANIFEST.map((entry) => entry.url);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(precacheUrls)),
+    (async () => {
+      const cache = await caches.open(CACHE);
+      await cache.addAll(
+        precacheUrls
+          .filter((url) => url !== "index.html")
+          .map((url) => new Request(url, { cache: "reload" })),
+      );
+      // Cloudflare answers /index.html with a 307 to /, and Safari refuses a navigation answered
+      // by a redirected response, so the shell is stored from / instead.
+      const shell = await fetch(new Request("/", { cache: "reload" }));
+      if (!shell.ok) throw new Error(`Shell fetch failed: ${shell.status}`);
+      await cache.put(INDEX, shell);
+    })(),
   );
 });
 
@@ -46,8 +58,10 @@ async function handleShare(request: Request): Promise<Response> {
 async function handleNavigate(request: Request): Promise<Response> {
   try {
     const response = await fetch(request);
-    const cache = await caches.open(CACHE);
-    await cache.put(INDEX, response.clone());
+    if (response.ok && !response.redirected) {
+      const cache = await caches.open(CACHE);
+      await cache.put(INDEX, response.clone());
+    }
     return response;
   } catch {
     const cached = await caches.match(INDEX);
