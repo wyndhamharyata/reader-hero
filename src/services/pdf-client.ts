@@ -17,6 +17,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 const IMAGE_RENDER_SCALE = 1.5;
 const MAX_IMAGE_DIM = 1400;
 const MAX_RENDER_SIDE = 2000;
+const MAX_RENDER_RATIO = 1.5;
 
 export interface PdfHandle {
   readonly proxy: PDFDocumentProxy;
@@ -231,7 +232,7 @@ export class PdfClient extends Context.Service<
           if (context === null) {
             return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
           }
-          const ratio = Math.min(3, globalThis.devicePixelRatio || 1);
+          const ratio = Math.min(MAX_RENDER_RATIO, globalThis.devicePixelRatio || 1);
           const viewport = pageProxy.getViewport({ scale: scale * ratio });
           canvas.width = Math.floor(viewport.width);
           canvas.height = Math.floor(viewport.height);

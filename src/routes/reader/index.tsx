@@ -148,6 +148,7 @@ export function ReaderRoute() {
   const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100/95 px-4 py-2 backdrop-blur transition-transform ${chrome ? "" : "translate-y-full"}`;
   const loadError = state.status === "error" ? state.error : null;
   const canRebuild = loadError !== null && loadError._tag === "ParsedMissing";
+  const contentClass = chrome ? "h-full pt-12 pb-14" : "h-full";
 
   return (
     <div className="h-dvh bg-base-100">
@@ -167,7 +168,7 @@ export function ReaderRoute() {
         </button>
       </header>
 
-      <div className="h-full pt-12 pb-14">
+      <div className={contentClass}>
         {state.status === "loading" && (
           <div className="flex h-full items-center justify-center">
             <span className="loading loading-spinner" />
@@ -210,6 +211,7 @@ export function ReaderRoute() {
             bookId={bookId}
             pageCount={data.meta.pageCount}
             initialPage={currentPage}
+            showChrome={chrome}
             onPageChange={onOriginalPage}
           />
         )}

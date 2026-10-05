@@ -11,10 +11,11 @@ interface Props {
   bookId: string;
   pageCount: number;
   initialPage: number;
+  showChrome: boolean;
   onPageChange: (page: number) => void;
 }
 
-export function OriginalView({ bookId, pageCount, initialPage, onPageChange }: Props) {
+export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPageChange }: Props) {
   const [handle, setHandle] = useState<PdfHandle | null>(null);
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
   const [current, setCurrent] = useState(initialPage);
@@ -111,7 +112,7 @@ export function OriginalView({ bookId, pageCount, initialPage, onPageChange }: P
         </div>
       )}
 
-      {handle !== null && (
+      {handle !== null && showChrome && (
         <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
           <span className="badge badge-neutral badge-sm">
             Page {current} of {pageCount}
