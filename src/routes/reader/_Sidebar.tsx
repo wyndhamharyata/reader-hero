@@ -46,7 +46,7 @@ export function Sidebar({
   return (
     <div className="absolute inset-0 z-50 flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/40" aria-label="Close" onClick={onClose} />
-      <aside className="relative z-10 flex h-full w-80 max-w-[85%] flex-col bg-base-100 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <aside className="relative z-10 flex h-full w-80 max-w-[85%] flex-col bg-base-100 p-4 pt-[max(1rem,var(--safe-top))] pb-[max(1rem,var(--safe-bottom))]">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Menu</h2>
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>

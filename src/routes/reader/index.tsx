@@ -96,10 +96,10 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const headerClass = `absolute inset-x-0 top-0 z-30 flex flex-col border-b border-base-300 bg-base-100 px-2 pb-2 pt-[calc(env(safe-area-inset-top)+1.25rem)] transition-transform ${chrome ? "" : "-translate-y-full"}`;
+  const headerClass = `absolute inset-x-0 top-0 z-30 flex flex-col border-b border-base-300 bg-base-100 px-2 pb-2 pt-[calc(var(--safe-top)+1.25rem)] transition-transform ${chrome ? "" : "-translate-y-full"}`;
   const contentClass = chrome
-    ? "h-full pt-[calc(5.5rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
-    : "h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]";
+    ? "h-full pt-[calc(5.5rem+var(--safe-top))] pb-[var(--safe-bottom)]"
+    : "h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)]";
 
   return (
     <div className="relative h-[var(--app-height)] bg-base-100">
@@ -161,7 +161,7 @@ export function ReaderRoute() {
       </div>
 
       {message !== null && (
-        <div className="absolute inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 px-3">
+        <div className="absolute inset-x-0 bottom-[calc(4rem+var(--safe-bottom))] z-40 px-3">
           <div className="alert alert-warning py-2 text-sm">
             <span>{message}</span>
           </div>

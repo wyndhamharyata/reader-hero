@@ -1,6 +1,6 @@
 import { runApp } from "@/lib/hooks";
 import { log } from "@/lib/log";
-import { isInstalled } from "@/lib/platform";
+import { isInstalled, isIosBrowser } from "@/lib/platform";
 
 let started = false;
 
@@ -48,12 +48,18 @@ export function initViewport(): void {
   if (!isInstalled) return;
 
   const root = document.documentElement;
+  if (isIosBrowser) {
+    // The frozen viewport already ends above the phantom toolbar strip, so the
+    // home-indicator inset would offset the UI a second time.
+    root.style.setProperty("--safe-bottom", "0px");
+  }
   const freeze = (reason: string): void => {
     const inner = window.innerHeight;
     const dvh = unitHeight("dvh");
     const height = dvh > 0 ? Math.min(inner, dvh) : inner;
     root.style.setProperty("--app-height", `${height}px`);
-    void runApp(log("viewport.freeze", `${reason} use:${height} ${metrics()}`));
+    const bottom = getComputedStyle(root).getPropertyValue("--safe-bottom").trim();
+    void runApp(log("viewport.freeze", `${reason} use:${height} ui-bottom:${bottom} ${metrics()}`));
   };
 
   freeze("init");

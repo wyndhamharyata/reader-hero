@@ -65,7 +65,7 @@ export function ReaderBody({
       )}
 
       {scanned && mode === "reader" && (
-        <div className="absolute inset-x-0 top-[calc(5.5rem+env(safe-area-inset-top))] z-20 px-3">
+        <div className="absolute inset-x-0 top-[calc(5.5rem+var(--safe-top))] z-20 px-3">
           <div className="alert alert-warning py-2 text-xs">
             <span>No text layer found. Showing the original pages.</span>
           </div>

@@ -116,10 +116,12 @@
 }
 
 :root {
-  /* Live default; in installed mode viewport.ts freezes this to the first
-     measured height so iOS cannot relayout the app when its phantom toolbar
-     hides on scroll. */
+  /* Live defaults; in installed iOS mode viewport.ts freezes the height and
+     drops the bottom inset (the frozen viewport already ends above the
+     phantom toolbar strip). */
   --app-height: 100dvh;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html,

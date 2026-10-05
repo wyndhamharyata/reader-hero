@@ -99,7 +99,7 @@ export function LibraryRoute() {
   const actionLabel = busy ? "Working…" : "Add PDF";
 
   return (
-    <main className="mx-auto flex min-h-[var(--app-height)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(env(safe-area-inset-top)+1.25rem)] pb-28">
+    <main className="mx-auto flex min-h-[var(--app-height)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] pb-28">
       <header className="flex items-center justify-between gap-3 pt-2">
         <h1 className="text-2xl font-bold">Reader Hero</h1>
         <OfflineBadge />
@@ -141,7 +141,7 @@ export function LibraryRoute() {
 
       <button
         type="button"
-        className="btn btn-primary fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        className="btn btn-primary fixed bottom-[max(1.5rem,var(--safe-bottom))] left-1/2 z-40 -translate-x-1/2 shadow-lg"
         onClick={() => input.current?.click()}
         disabled={busy}
       >
