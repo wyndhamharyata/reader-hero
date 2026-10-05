@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { runApp } from "@/lib/hooks";
-import { layoutSnapshot, probeLayout } from "@/lib/layout-probe";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
@@ -34,27 +33,6 @@ export function ReaderBody({
 }: Props): ReactElement {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
-  const [debug, setDebug] = useState("");
-
-  useEffect(() => {
-    const report = (reason: string) => {
-      probeLayout(reason);
-      try {
-        setDebug(layoutSnapshot());
-      } catch {
-        // Diagnostics only.
-      }
-    };
-    report("mount");
-    const onResize = () => report("resize");
-    const onOrient = () => report("orientation");
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onOrient);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onOrient);
-    };
-  }, []);
 
   const total = Math.max(1, parsed.blocks.length - 1);
   const scanned = meta.parseState === "scanned";
@@ -62,7 +40,7 @@ export function ReaderBody({
   const initialBlock = progress?.blockIndex ?? 0;
   const currentPage = parsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
-  const footerClass = `absolute inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 ${chrome ? "" : "translate-y-full"}`;
+  const footerClass = `absolute inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 transition-transform ${chrome ? "" : "translate-y-full"}`;
 
   const onPosition = (blockIndex: number) => {
     setPosition(blockIndex);
@@ -111,7 +89,7 @@ export function ReaderBody({
         )}
       </div>
 
-      <footer className={footerClass} data-footer>
+      <footer className={footerClass}>
         <div className="flex items-center gap-3">
           <span className="w-10 text-xs opacity-70">{percentLabel}</span>
           <progress
@@ -121,12 +99,6 @@ export function ReaderBody({
           />
         </div>
       </footer>
-
-      {debug !== "" && (
-        <div className="absolute inset-x-0 bottom-20 z-[60] bg-black/80 p-1 font-mono text-[8px] leading-tight break-all text-white">
-          {debug}
-        </div>
-      )}
     </>
   );
 }
