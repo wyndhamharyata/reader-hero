@@ -1,0 +1,6 @@
+dist/
+dev-dist/
+.sst/
+.wrangler/
+node_modules/
+package-lock.json
