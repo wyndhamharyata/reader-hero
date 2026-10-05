@@ -4,11 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, type ViteDevServer } from "vite";
+import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-/** Dev-only sink for logs beaconed from a device on the tailnet. */
-function deviceLogPlugin() {
+function deviceLogPlugin(): Plugin {
   const logFile = path.resolve("logs/device.log");
   return {
     name: "reader-hero:device-log",

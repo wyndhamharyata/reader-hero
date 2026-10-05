@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import type { ReactElement } from "react";
 import type { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
 import { describeError } from "@/lib/describe-error";
 
@@ -9,7 +10,7 @@ interface Props {
   onRebuild: () => void;
 }
 
-export function LoadError({ error, title, rebuilding, onRebuild }: Props) {
+export function LoadError({ error, title, rebuilding, onRebuild }: Props): ReactElement {
   const canRebuild = error._tag === "ParsedMissing";
 
   return (

@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import { formatSize } from "@/lib/format";
 import type { StorageEstimate } from "@/services/book-store";
 
@@ -5,7 +6,7 @@ interface Props {
   estimate: StorageEstimate | null;
 }
 
-export function StorageUsage({ estimate }: Props) {
+export function StorageUsage({ estimate }: Props): ReactElement {
   return (
     <>
       {estimate !== null && estimate.quota > 0 && (

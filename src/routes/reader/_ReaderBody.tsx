@@ -1,10 +1,8 @@
-import { Effect } from "effect";
-import { useRef, useState } from "react";
-import type { BookMeta, ParsedBook, ReaderSettings } from "@/domain/book";
-import { ReadingProgress } from "@/domain/book";
+import { useRef, useState, type ReactElement } from "react";
+import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { runApp } from "@/lib/hooks";
-import { BookStore } from "@/services/book-store";
+import { saveReadingProgress } from "@/use-cases/save-progress";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
 
@@ -32,7 +30,7 @@ export function ReaderBody({
   settings,
   jump,
   onToggleChrome,
-}: Props) {
+}: Props): ReactElement {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
 
@@ -48,14 +46,7 @@ export function ReaderBody({
     setPosition(blockIndex);
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      void runApp(
-        Effect.flatMap(BookStore, (store) =>
-          store.putProgress(
-            meta.id,
-            new ReadingProgress({ blockIndex, percent: blockIndex / total, updatedAt: Date.now() }),
-          ),
-        ),
-      );
+      void runApp(saveReadingProgress(meta.id, blockIndex, total));
     }, PROGRESS_SAVE_DELAY_MS);
   };
 

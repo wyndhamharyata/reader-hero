@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { AdjustmentsIcon, Bars3Icon, BookOpenIcon, ListBulletIcon } from "./_icons";
 
 interface Props {
@@ -8,7 +8,12 @@ interface Props {
   onSettings: () => void;
 }
 
-export function HeaderMenu({ modeLabel, onContents, onToggleMode, onSettings }: Props) {
+export function HeaderMenu({
+  modeLabel,
+  onContents,
+  onToggleMode,
+  onSettings,
+}: Props): ReactElement {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

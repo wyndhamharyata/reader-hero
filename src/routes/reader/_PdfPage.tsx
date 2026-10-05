@@ -1,8 +1,9 @@
 import { Effect } from "effect";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactElement, type RefObject } from "react";
 import type { PageSize } from "@/domain/book";
 import { forkApp, stopFiber } from "@/lib/hooks";
-import { PdfClient, type PdfHandle } from "@/services/pdf-client";
+import { renderPdfPage } from "@/use-cases/render-page";
+import type { PdfHandle } from "@/services/pdf-client";
 
 const RENDER_SCALE = 1;
 const VISIBLE_MARGIN = "600px 0px";
@@ -13,7 +14,7 @@ interface Props {
   root: RefObject<HTMLDivElement | null>;
 }
 
-export function PdfPage({ handle, size, root }: Props) {
+export function PdfPage({ handle, size, root }: Props): ReactElement {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [visible, setVisible] = useState(false);
@@ -45,7 +46,7 @@ export function PdfPage({ handle, size, root }: Props) {
     }
 
     const fiber = forkApp(
-      Effect.flatMap(PdfClient, (pdf) => pdf.render(handle, size.page, canvas, RENDER_SCALE)).pipe(
+      renderPdfPage(handle, size.page, canvas, RENDER_SCALE).pipe(
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
       ),
     );

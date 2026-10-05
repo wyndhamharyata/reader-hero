@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { BookMeta } from "@/domain/book";
 
 interface Props {
@@ -6,7 +7,7 @@ interface Props {
   books: ReadonlyArray<BookMeta>;
 }
 
-export function LibraryStatus({ loading, failed, books }: Props) {
+export function LibraryStatus({ loading, failed, books }: Props): ReactElement {
   const empty = !loading && !failed && books.length === 0;
 
   return (

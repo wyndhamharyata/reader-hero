@@ -1,50 +1,26 @@
-import { Effect, Stream } from "effect";
-import { useEffect, useRef, useState } from "react";
-import type { ImageRecord } from "@/domain/book";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { forkApp, stopFiber } from "@/lib/hooks";
-import { BookStore } from "@/services/book-store";
+import { watchBookImage } from "@/use-cases/book-image";
 
 interface Props {
   bookId: string;
   imageId: string;
 }
 
-export function ReaderImage({ bookId, imageId }: Props) {
+export function ReaderImage({ bookId, imageId }: Props): ReactElement {
   const [url, setUrl] = useState<string | null>(null);
   const [ratio, setRatio] = useState<number | null>(null);
   const urlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const applyImage = (image: ImageRecord | null) =>
-      Effect.sync(() => {
+    const fiber = forkApp(
+      watchBookImage(bookId, imageId, (image) => {
         if (image === null) return;
         if (urlRef.current !== null) URL.revokeObjectURL(urlRef.current);
         const objectUrl = URL.createObjectURL(image.blob);
         urlRef.current = objectUrl;
         setUrl(objectUrl);
         setRatio(image.height === 0 ? null : image.width / image.height);
-      });
-
-    const fiber = forkApp(
-      Effect.gen(function* () {
-        const store = yield* BookStore;
-        const pull = () =>
-          store.getImage(bookId, imageId).pipe(
-            Effect.catchTag("StorageFailure", () => Effect.succeed(null)),
-          );
-
-        yield* pull().pipe(Effect.flatMap(applyImage));
-
-        const updates = store.updates().pipe(
-          Stream.filter(
-            (update) =>
-              update.kind === "image" && update.bookId === bookId && update.imageId === imageId,
-          ),
-          Stream.mapEffect(pull),
-          Stream.mapEffect(applyImage),
-          Stream.runDrain,
-        );
-        yield* updates;
       }),
     );
 

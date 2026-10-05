@@ -1,3 +1,4 @@
+import { Schema } from "effect";
 import type { ImagePlacement } from "@/domain/book";
 
 const MIN_SIDE = 24;
@@ -20,17 +21,19 @@ export interface PdfMatrixUtil {
   transform(m1: number[], m2: number[]): number[];
 }
 
-export interface InlineImage {
-  readonly data?: Uint8ClampedArray;
-  readonly bitmap?: unknown;
-  readonly width: number;
-  readonly height: number;
-}
+export const imagePayloadFields = {
+  width: Schema.Number,
+  height: Schema.Number,
+  data: Schema.optional(Schema.Unknown),
+  bitmap: Schema.optional(Schema.Unknown),
+};
+
+const InlineImagePayload = Schema.Struct(imagePayloadFields);
+
+export type InlineImage = typeof InlineImagePayload.Type;
 
 export interface ImagePaint extends ImagePlacement {
-  /** Object id in the page or common object store (`paintImageXObject`). */
   readonly name?: string;
-  /** Inline image data carried by the operator itself (`paintInlineImageXObject`). */
   readonly inline?: InlineImage;
 }
 
@@ -69,13 +72,34 @@ const unitSquareBox = (matrix: Matrix, id: string, page: number): ImagePlacement
   return { id, page, x, y, width, height };
 };
 
+const objectName = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const inlineImage = (value: unknown): InlineImage | undefined => {
+  const decoded = Schema.decodeUnknownOption(InlineImagePayload)(value);
+  return decoded._tag === "Some" ? decoded.value : undefined;
+};
+
+const pushPaint = (
+  paints: ImagePaint[],
+  ctm: Matrix,
+  page: number,
+  index: number,
+  source: Pick<ImagePaint, "name" | "inline">,
+): void => {
+  if (paints.length >= MAX_IMAGES) return;
+  const box = unitSquareBox(ctm, `${page}-${index}`, page);
+  if (box === null) return;
+  paints.push({ ...box, ...source });
+};
+
 export function collectImageBoxes(
   opList: ImageOperatorList,
   page: number,
   ops: PdfOps,
   util: PdfMatrixUtil,
 ): ImagePaint[] {
-  const boxes: ImagePaint[] = [];
+  const paints: ImagePaint[] = [];
   const stack: Matrix[] = [];
   let ctm: Matrix = IDENTITY;
   let index = 0;
@@ -98,25 +122,16 @@ export function collectImageBoxes(
       continue;
     }
     if (fn === ops.paintImageXObject) {
-      if (boxes.length >= MAX_IMAGES) break;
-      const box = unitSquareBox(ctm, `${page}-${index}`, page);
-      if (box !== null) {
-        const name = args[0];
-        boxes.push({ ...box, name: typeof name === "string" ? name : undefined });
-      }
+      pushPaint(paints, ctm, page, index, { name: objectName(args[0]) });
       index += 1;
       continue;
     }
     if (fn === ops.paintInlineImageXObject) {
-      if (boxes.length >= MAX_IMAGES) break;
-      const box = unitSquareBox(ctm, `${page}-${index}`, page);
-      const inline = args[0];
-      if (box !== null && inline !== undefined) {
-        boxes.push({ ...box, inline: inline as InlineImage });
-      }
+      const inline = inlineImage(args[0]);
+      if (inline !== undefined) pushPaint(paints, ctm, page, index, { inline });
       index += 1;
     }
   }
 
-  return boxes;
+  return paints;
 }

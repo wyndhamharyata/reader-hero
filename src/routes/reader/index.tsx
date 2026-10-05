@@ -1,12 +1,10 @@
 import { Effect } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
-import type { BookNotFound, PdfFailure, StorageFailure } from "@/domain/errors";
-import { describeError } from "@/lib/describe-error";
-import { runApp, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
+import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
-import { parseBook } from "@/use-cases/parse-book";
+import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { HeaderMenu } from "./_Menu";
 import { LoadError } from "./_LoadError";
 import { ReaderBody, type Mode } from "./_ReaderBody";
@@ -54,6 +52,11 @@ export function ReaderRoute() {
     };
   }, []);
 
+  useEffect(() => {
+    const fiber = forkApp(watchParsedBook(bookId, () => reload()));
+    return () => stopFiber(fiber);
+  }, [bookId, reload]);
+
   const data = state.status === "done" ? state.value : null;
   const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
   useFigureJobs(pendingBooks);
@@ -65,10 +68,7 @@ export function ReaderRoute() {
   const rebuild = () => {
     setRebuilding(true);
     setMessage(null);
-    const report = (error: BookNotFound | PdfFailure | StorageFailure) =>
-      Effect.sync(() => setMessage(describeError(error, "This book")));
-    const program = parseBook(bookId, () => {}).pipe(
-      Effect.catchTags({ BookNotFound: report, PdfFailure: report, StorageFailure: report }),
+    const program = reparseBook(bookId, () => {}, setMessage).pipe(
       Effect.ensuring(Effect.sync(() => setRebuilding(false))),
       Effect.tap(() => Effect.sync(() => reload())),
     );
