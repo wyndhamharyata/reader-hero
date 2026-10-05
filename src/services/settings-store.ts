@@ -43,15 +43,16 @@ export class SettingsStore extends Context.Service<
 
       const changes = () => SubscriptionRef.changes(ref);
 
-      const update = Effect.fn("SettingsStore.update")(function* (
-        patch: Partial<ReaderSettings>,
-      ) {
+      const update = Effect.fn("SettingsStore.update")(function* (patch: Partial<ReaderSettings>) {
         const current = yield* SubscriptionRef.get(ref);
         const next = new ReaderSettings({
           theme: patch.theme ?? current.theme,
           font: patch.font ?? current.font,
           fontSize: patch.fontSize ?? current.fontSize,
           lineHeight: patch.lineHeight ?? current.lineHeight,
+          libraryView: patch.libraryView ?? current.libraryView,
+          textWidth: patch.textWidth ?? current.textWidth,
+          textAlign: patch.textAlign ?? current.textAlign,
         });
         yield* Effect.tryPromise({
           try: () => db.put("settings", next, SETTINGS_KEY),

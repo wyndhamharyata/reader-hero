@@ -7,11 +7,11 @@ import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
-import { Sidebar } from "./_Sidebar";
+import { MenuSheet } from "./_MenuSheet";
 import { LoadError } from "./_LoadError";
 import { ReaderBody, type Mode } from "./_ReaderBody";
 import type { JumpRequest } from "./_ReaderView";
-import { ArrowLeftIcon, Bars3Icon } from "./_icons";
+import { ArrowLeftIcon, Bars3Icon } from "@/components/icons";
 
 export function ReaderRoute() {
   const { id } = useParams();
@@ -96,38 +96,13 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const headerClass = `absolute inset-x-0 top-0 z-30 flex flex-col border-b border-base-300 bg-base-100 px-2 pb-2 pt-[calc(var(--safe-top)+1.25rem)] transition-transform ${chrome ? "" : "-translate-y-full"}`;
+  const barClass = `absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.25rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${chrome ? "" : "translate-y-full md:-translate-y-full"}`;
   const contentClass = chrome
-    ? "h-full pt-[calc(5.5rem+var(--safe-top))] pb-[var(--safe-bottom)]"
-    : "h-full pt-[var(--safe-top)] pb-[var(--safe-bottom)]";
+    ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"
+    : "h-full pt-[var(--safe-top)]";
 
   return (
     <div className="relative h-[var(--app-height)] bg-base-100">
-      <header className={headerClass}>
-        <div className="flex items-center gap-1">
-          <Link to="/" className="btn btn-ghost btn-sm btn-square" aria-label="Back to library">
-            <ArrowLeftIcon />
-          </Link>
-          <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-square"
-            aria-label="Menu"
-            onClick={() => setTocOpen(true)}
-          >
-            <Bars3Icon />
-          </button>
-        </div>
-        <div className="mt-1 flex items-center gap-3">
-          <span className="w-10 text-xs opacity-70">{percentLabel}</span>
-          <progress
-            className="progress progress-primary h-1.5 flex-1"
-            value={position}
-            max={total}
-          />
-        </div>
-      </header>
-
       <div className={contentClass}>
         {state.status === "loading" && (
           <div className="flex h-full items-center justify-center">
@@ -136,12 +111,7 @@ export function ReaderRoute() {
         )}
 
         {loadError !== null && (
-          <LoadError
-            error={loadError}
-            title={title}
-            rebuilding={rebuilding}
-            onRebuild={rebuild}
-          />
+          <LoadError error={loadError} title={title} rebuilding={rebuilding} onRebuild={rebuild} />
         )}
 
         {data !== null && (
@@ -160,15 +130,44 @@ export function ReaderRoute() {
         )}
       </div>
 
+      <nav className={barClass}>
+        <div className="flex items-center gap-1">
+          <Link
+            to="/"
+            className="btn btn-square btn-ghost md:btn-sm"
+            aria-label="Back to library"
+          >
+            <ArrowLeftIcon />
+          </Link>
+          <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
+          <button
+            type="button"
+            className="btn btn-square btn-ghost md:btn-sm"
+            aria-label="Menu"
+            onClick={() => setTocOpen(true)}
+          >
+            <Bars3Icon />
+          </button>
+        </div>
+        <div className="flex items-center gap-3 px-2 md:px-0">
+          <span className="w-10 text-xs opacity-70">{percentLabel}</span>
+          <progress
+            className="progress h-1.5 flex-1 progress-primary"
+            value={position}
+            max={total}
+          />
+        </div>
+      </nav>
+
       {message !== null && (
-        <div className="absolute inset-x-0 bottom-[calc(4rem+var(--safe-bottom))] z-40 px-3">
-          <div className="alert alert-warning py-2 text-sm">
+        <div className="absolute inset-x-0 bottom-[calc(6rem+var(--safe-bottom))] z-40 px-3 md:bottom-[calc(4rem+var(--safe-bottom))]">
+          <div className="alert py-2 text-sm alert-warning">
             <span>{message}</span>
           </div>
         </div>
       )}
 
-      <Sidebar
+      <MenuSheet
         open={tocOpen}
         toc={toc}
         modeLabel={modeLabel}

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
 import { ReaderImage } from "./_ReaderImage";
 
@@ -41,14 +41,51 @@ export function ReaderView({
   onToggleChrome,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  const anchorRef = useRef<{ element: Element; offset: number } | null>(null);
+  const restoredRef = useRef(false);
 
+  // Saved progress only places the first open; later reloads (figures landing) must not move the reader.
   useEffect(() => {
     const container = containerRef.current;
-    if (container === null) return;
+    if (container === null || restoredRef.current) return;
+    restoredRef.current = true;
     container
       .querySelector<HTMLElement>(`[data-block="${initialBlock}"]`)
       ?.scrollIntoView({ block: "start" });
   }, [initialBlock]);
+
+  // Safari has no CSS scroll anchoring, so keep the block at the top of the screen in place by hand
+  // when content above it changes height (a figure inserted or loaded, a font size change).
+  useEffect(() => {
+    const container = containerRef.current;
+    const article = articleRef.current;
+    if (container === null || article === null) return;
+
+    const measure = () => {
+      const box = container.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 8);
+      const element = hit?.closest("[data-block]");
+      if (element === null || element === undefined || !container.contains(element)) return;
+      anchorRef.current = { element, offset: element.getBoundingClientRect().top - box.top };
+    };
+    const restore = () => {
+      const anchor = anchorRef.current;
+      if (anchor === null || !anchor.element.isConnected) return;
+      const top =
+        anchor.element.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      container.scrollTop += top - anchor.offset;
+    };
+
+    measure();
+    container.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(restore);
+    observer.observe(article);
+    return () => {
+      container.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (jump === null) return;
@@ -95,13 +132,27 @@ export function ReaderView({
     onToggleChrome();
   };
 
+  // Keys must survive figures being inserted earlier in the book, or React reuses every later node
+  // for different content and each image after the insertion reloads.
+  const seen = new Map<string, number>();
   const nodes = parsed.blocks.map((block, index) => {
     const imageId = block.imageId;
+    const base =
+      imageId !== undefined
+        ? `image:${imageId}`
+        : `${block.kind}:${block.page}:${block.text.slice(0, 48)}`;
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
     const image =
       block.kind === "image" && imageId !== undefined ? (
-        <ReaderImage key={index} bookId={bookId} imageId={imageId} />
+        <ReaderImage bookId={bookId} imageId={imageId} />
       ) : null;
-    return { index, className: blockClass(block), node: image ?? block.text };
+    return {
+      index,
+      key: `${base}#${count}`,
+      className: blockClass(block),
+      node: image ?? block.text,
+    };
   });
 
   return (
@@ -111,12 +162,22 @@ export function ReaderView({
       onClick={handleClick}
     >
       <article
-        className="reader-body mx-auto max-w-prose px-4 pt-4 pb-4"
+        ref={articleRef}
+        className="reader-body mx-auto max-w-prose px-4 pt-4 pb-[calc(1rem+var(--safe-bottom))] md:max-w-[var(--text-width)]"
         data-font={settings.font}
-        style={{ fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight }}
+        style={
+          {
+            fontSize: `${settings.fontSize}px`,
+            lineHeight: settings.lineHeight,
+            textAlign: settings.textAlign,
+            // Justified lines without hyphenation leave wide gaps between words.
+            hyphens: settings.textAlign === "justify" ? "auto" : undefined,
+            "--text-width": `${settings.textWidth}ch`,
+          } as CSSProperties
+        }
       >
         {nodes.map((entry) => (
-          <div key={entry.index} data-block={entry.index} className={entry.className}>
+          <div key={entry.key} data-block={entry.index} className={entry.className}>
             {entry.node}
           </div>
         ))}

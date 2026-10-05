@@ -53,10 +53,13 @@ export function useAppEffect<A, E>(
 ): { readonly state: AsyncState<A, E>; readonly reload: () => void } {
   const [state, setState] = useState<AsyncState<A, E>>({ status: "loading" });
   const [nonce, setNonce] = useState(0);
+  const lastNonce = useRef(nonce);
 
   useEffect(() => {
     let active = true;
-    setState({ status: "loading" });
+    // A reload keeps the current value on screen until the new one arrives; only new deps show loading.
+    if (lastNonce.current === nonce) setState({ status: "loading" });
+    lastNonce.current = nonce;
     runtime.runPromise(effect).then(
       (value) => {
         if (active) setState({ status: "done", value });

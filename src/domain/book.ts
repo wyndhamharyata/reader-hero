@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
 
 export const ParseState = Schema.Literals(["pending", "parsing", "ready", "scanned", "failed"]);
 export type ParseState = typeof ParseState.Type;
@@ -64,11 +64,23 @@ export type ReaderTheme = typeof ReaderTheme.Type;
 export const ReaderFont = Schema.Literals(["serif", "sans"]);
 export type ReaderFont = typeof ReaderFont.Type;
 
-export class ReaderSettings extends Schema.Class<ReaderSettings>("reader-hero/domain/ReaderSettings")({
+export const TextAlign = Schema.Literals(["left", "right", "justify"]);
+export type TextAlign = typeof TextAlign.Type;
+
+export const LibraryView = Schema.Literals(["list", "grid"]);
+export type LibraryView = typeof LibraryView.Type;
+
+export class ReaderSettings extends Schema.Class<ReaderSettings>(
+  "reader-hero/domain/ReaderSettings",
+)({
   theme: ReaderTheme,
   font: ReaderFont,
   fontSize: Schema.Int,
   lineHeight: Schema.Number,
+  // Settings saved before these fields existed must still decode, or the user loses their theme.
+  libraryView: LibraryView.pipe(Schema.withDecodingDefaultKey(Effect.succeed<LibraryView>("list"))),
+  textWidth: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(65))),
+  textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
 }) {}
 
 export const DEFAULT_SETTINGS = new ReaderSettings({
@@ -76,6 +88,9 @@ export const DEFAULT_SETTINGS = new ReaderSettings({
   font: "serif",
   fontSize: 18,
   lineHeight: 1.6,
+  libraryView: "list",
+  textWidth: 65,
+  textAlign: "left",
 });
 
 export interface RawTextItem {

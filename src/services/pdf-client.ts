@@ -14,6 +14,7 @@ import type {
   PageSize,
   PageText,
   RawTextItem,
+  StoredImage,
 } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 import { log } from "@/lib/log";
@@ -263,10 +264,7 @@ const awaitObject = (
     IMAGE_LOOKUP_TIMEOUT,
   ).pipe(Effect.map((option) => (option._tag === "Some" ? option.value : undefined)));
 
-const lookupImage = (
-  pageProxy: PDFPageProxy,
-  name: string,
-): Effect.Effect<unknown | undefined> =>
+const lookupImage = (pageProxy: PDFPageProxy, name: string): Effect.Effect<unknown | undefined> =>
   Effect.gen(function* () {
     const primary = name.startsWith("g_") ? pageProxy.commonObjs : pageProxy.objs;
     const secondary = name.startsWith("g_") ? pageProxy.objs : pageProxy.commonObjs;
@@ -319,7 +317,11 @@ const rasterizeCrop = (
     );
     canvas.width = 0;
     canvas.height = 0;
-    yield* log("figures.fallback", `p${page}:${undecoded.length} cropped`, performance.now() - started);
+    yield* log(
+      "figures.fallback",
+      `p${page}:${undecoded.length} cropped`,
+      performance.now() - started,
+    );
 
     const cropped: PageImage[] = [];
     for (const crop of crops) {
@@ -338,13 +340,21 @@ export class PdfClient extends Context.Service<
   {
     load(data: ArrayBuffer): Effect.Effect<PdfHandle, PdfFailure>;
     readPage(handle: PdfHandle, page: number): Effect.Effect<PageText, PdfFailure>;
-    readImages(handle: PdfHandle, page: number): Effect.Effect<ReadonlyArray<PageImage>, PdfFailure>;
+    readImages(
+      handle: PdfHandle,
+      page: number,
+    ): Effect.Effect<ReadonlyArray<PageImage>, PdfFailure>;
     render(
       handle: PdfHandle,
       page: number,
       canvas: HTMLCanvasElement,
       scale: number,
     ): Effect.Effect<void, PdfFailure>;
+    thumbnail(
+      handle: PdfHandle,
+      page: number,
+      width: number,
+    ): Effect.Effect<Omit<StoredImage, "id"> | null, PdfFailure>;
     pageSizes(handle: PdfHandle): Effect.Effect<ReadonlyArray<PageSize>, PdfFailure>;
     readOutline(handle: PdfHandle): Effect.Effect<ReadonlyArray<OutlineItem>, PdfFailure>;
     release(handle: PdfHandle): Effect.Effect<void>;
@@ -464,28 +474,60 @@ export class PdfClient extends Context.Service<
         return images;
       }),
 
-      render: Effect.fn("PdfClient.render")(
-        function* (handle: PdfHandle, page: number, canvas: HTMLCanvasElement, scale: number) {
-          const pageProxy = yield* Effect.tryPromise({
-            try: () => handle.proxy.getPage(page),
-            catch: pdfFailure,
-          });
-          const context = canvas.getContext("2d");
-          if (context === null) {
-            return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
-          }
-          const ratio = Math.min(MAX_RENDER_RATIO, globalThis.devicePixelRatio || 1);
-          const viewport = pageProxy.getViewport({ scale: scale * ratio });
-          canvas.width = Math.floor(viewport.width);
-          canvas.height = Math.floor(viewport.height);
-          yield* Effect.tryPromise({
-            try: () =>
-              pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
-            catch: pdfFailure,
-          });
-        },
-      ),
+      render: Effect.fn("PdfClient.render")(function* (
+        handle: PdfHandle,
+        page: number,
+        canvas: HTMLCanvasElement,
+        scale: number,
+      ) {
+        const pageProxy = yield* Effect.tryPromise({
+          try: () => handle.proxy.getPage(page),
+          catch: pdfFailure,
+        });
+        const context = canvas.getContext("2d");
+        if (context === null) {
+          return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
+        }
+        const ratio = Math.min(MAX_RENDER_RATIO, globalThis.devicePixelRatio || 1);
+        const viewport = pageProxy.getViewport({ scale: scale * ratio });
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        yield* Effect.tryPromise({
+          try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
+          catch: pdfFailure,
+        });
+      }),
 
+      thumbnail: Effect.fn("PdfClient.thumbnail")(function* (
+        handle: PdfHandle,
+        page: number,
+        width: number,
+      ) {
+        const pageProxy = yield* Effect.tryPromise({
+          try: () => handle.proxy.getPage(page),
+          catch: pdfFailure,
+        });
+        const viewport = pageProxy.getViewport({
+          scale: width / pageProxy.getViewport({ scale: 1 }).width,
+        });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const context = canvas.getContext("2d");
+        if (context === null) {
+          return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
+        }
+        yield* Effect.tryPromise({
+          try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
+          catch: pdfFailure,
+        });
+        const blob = yield* toJpegBlob(canvas);
+        const size = { width: canvas.width, height: canvas.height };
+        canvas.width = 0;
+        canvas.height = 0;
+        yield* cleanupPage(pageProxy);
+        return blob === null ? null : { blob, ...size };
+      }),
       pageSizes: Effect.fn("PdfClient.pageSizes")(function* (handle: PdfHandle) {
         const pages = Array.from({ length: handle.numPages }, (_, index) => index + 1);
         const sizes = yield* Effect.forEach(

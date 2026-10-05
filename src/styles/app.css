@@ -116,12 +116,16 @@
 }
 
 :root {
-  /* Live defaults; in installed iOS mode viewport.ts freezes the height and
-     drops the bottom inset (the frozen viewport already ends above the
-     phantom toolbar strip). */
   --app-height: 100dvh;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Phones get 10% larger controls: daisyUI sizes every btn from --size-field, so the default btn is 44px. */
+@media (width < 48rem) {
+  [data-theme] {
+    --size-field: 0.275rem;
+  }
 }
 
 html,
@@ -130,14 +134,16 @@ body,
   height: 100%;
 }
 
-/* WKWebView samples the page background for the area beyond the frozen
-   viewport (the 59pt phantom-toolbar strip in installed mode). Leaving it
-   unset makes iOS reuse the app surface color, which erases the viewport
-   edge and reads as bottom padding. A distinct bar color restores the
-   boundary and matches the light header chrome. */
+/* WebKit bug 301108: iOS opens a standalone app one top inset short (793 of 852pt) and only
+   corrects it when the page is taller than that; 100lvh is the full screen, so after the
+   correction the page fits exactly and cannot scroll. */
 @media (display-mode: standalone) {
-  body {
-    background-color: var(--color-base-300);
+  :root {
+    --app-height: 100lvh;
+  }
+
+  html {
+    min-height: 100lvh;
   }
 }
 

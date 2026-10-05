@@ -108,7 +108,7 @@ export function OriginalView({
 
       {handle !== null && (
         <div ref={containerRef} className="h-full overflow-y-auto overscroll-contain bg-base-300">
-          <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-2">
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-2 pb-[calc(0.5rem+var(--safe-bottom))]">
             {sizes.map((size) => (
               <PdfPage key={size.page} handle={handle} size={size} root={containerRef} />
             ))}

@@ -102,6 +102,7 @@ function harness(figures: FigureState): Harness {
       pageSizes: () => Effect.succeed([]),
       readOutline: () => Effect.succeed([]),
       release: () => Effect.void,
+      thumbnail: () => Effect.succeed(null),
       pageCount: () => 1,
     }),
   );
