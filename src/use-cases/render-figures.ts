@@ -29,17 +29,15 @@ export function renderFigures(
         catch: (cause) => new StorageFailure({ operation: "readFile", cause }),
       });
 
-      log("figures.file", `${(data.byteLength / 1e6).toFixed(1)}MB`);
-      let codecs = "scan failed";
-      try {
-        codecs = scanCodecs(data);
-      } catch {
-        // Diagnostics only: never let the probe fail the job.
-      }
-      log("figures.codecs", codecs);
+      yield* log("figures.file", `${(data.byteLength / 1e6).toFixed(1)}MB`);
+      const codecs = yield* Effect.try({
+        try: () => scanCodecs(data),
+        catch: () => "scan failed",
+      }).pipe(Effect.catch(() => Effect.succeed("scan failed")));
+      yield* log("figures.codecs", codecs);
       const handle = yield* pdf.load(data);
 
-      log("figures.start", bookId);
+      yield* log("figures.start", bookId);
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);
 
@@ -100,14 +98,14 @@ export function renderFigures(
                   yield* store.putParsed(bookId, assembleBook(assemblePages, outline));
                   published += 1;
                 }
-                log("figures.page", `p${page}:${images.length}`, performance.now() - pageStarted);
+                yield* log("figures.page", `p${page}:${images.length}`, performance.now() - pageStarted);
               }),
             { concurrency: IMAGE_CONCURRENCY },
           ),
           Stream.runDrain,
         );
 
-        yield* Effect.sync(() => log("figures.assembled", `${published} partial updates`));
+        yield* log("figures.assembled", `${published} partial updates`);
         const assembled = [...pagesByPage.values()].map((entry) => ({
           text: entry.text,
           images: entry.images,
@@ -116,27 +114,20 @@ export function renderFigures(
       }).pipe(Effect.ensuring(pdf.release(handle)));
 
       yield* store.putParsed(bookId, parsed);
-      const images = parsed.blocks.filter((block) => block.kind === "image").length;
+      const imageCount = parsed.blocks.filter((block) => block.kind === "image").length;
       const latest = yield* store.get(bookId);
-      const figures = images > 0 ? "ready" : "none";
+      const figures = imageCount > 0 ? "ready" : "none";
       yield* store.putMeta(new BookMeta({ ...latest, figures }));
-      log(
-        "figures.total",
-        `${images} images in ${msSeconds(performance.now() - started)}s`,
-        performance.now() - started,
-      );
+      yield* log("figures.total", `${imageCount} images`, performance.now() - started);
     });
 
     return job.pipe(
       Effect.catchTags({
         BookNotFound: () => Effect.void,
-        PdfFailure: (error) =>
-          Effect.sync(() => log("figures.failed", `${error.reason}; job stays pending`)),
-        StorageFailure: (error) =>
-          Effect.sync(() => log("figures.failed", `${error.operation}; job stays pending`)),
+        PdfFailure: (error) => log("figures.failed", `${error.reason}; job stays pending`),
+        StorageFailure: (error) => log("figures.failed", `${error.operation}; job stays pending`),
       }),
     );
   });
 }
 
-const msSeconds = (ms: number): string => (ms / 1000).toFixed(1);

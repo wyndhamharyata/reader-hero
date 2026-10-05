@@ -1,19 +1,13 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState } from "react";
-import type {
-  BookNotFound,
-  PdfFailure,
-  StorageFailure,
-  UnsupportedFile,
-} from "@/domain/errors";
-import { describeError } from "@/lib/describe-error";
 import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "@/use-cases/extract";
-import { addPdf } from "@/use-cases/import-book";
+import { importPdfs } from "@/use-cases/import-pdfs";
 import { importInboxOnce } from "@/use-cases/import-inbox";
-import { parseBook } from "@/use-cases/parse-book";
+import { reparseBook } from "@/use-cases/parse-book";
+import { removeBook } from "@/use-cases/remove-book";
 import { BookCard } from "./_BookCard";
 import { BusyOverlay } from "./_BusyOverlay";
 import { InstallHint } from "./_InstallHint";
@@ -71,24 +65,12 @@ export function LibraryRoute() {
     if (files.length === 0) return;
     setBusy(true);
     setMessage(null);
-    const program = Effect.forEach(files, (file) => {
-      const report = (error: UnsupportedFile | PdfFailure | StorageFailure) =>
-        Effect.sync(() => setMessage(describeError(error, file.name)));
-      return addPdf(file, setProgress).pipe(
-        Effect.catchTags({
-          UnsupportedFile: report,
-          PdfFailure: report,
-          StorageFailure: report,
-        }),
-      );
-    }).pipe(
-      Effect.ensuring(
-        Effect.sync(() => {
-          setBusy(false);
-          setProgress(null);
-        }),
-      ),
-      Effect.andThen(Effect.flatMap(BookStore, (store) => store.requestPersistent())),
+    const settle = Effect.sync(() => {
+      setBusy(false);
+      setProgress(null);
+    });
+    const program = importPdfs(files, setProgress, setMessage).pipe(
+      Effect.ensuring(settle),
       Effect.tap(() => Effect.sync(() => reload())),
     );
     void runApp(program);
@@ -96,25 +78,19 @@ export function LibraryRoute() {
 
   const remove = (id: string) => {
     void runApp(
-      Effect.flatMap(BookStore, (store) => store.remove(id)).pipe(
-        Effect.tap(() => Effect.sync(() => reload())),
-      ),
+      removeBook(id).pipe(Effect.tap(() => Effect.sync(() => reload()))),
     );
   };
 
   const reparse = (id: string) => {
     setBusy(true);
     setMessage(null);
-    const report = (error: BookNotFound | PdfFailure | StorageFailure) =>
-      Effect.sync(() => setMessage(describeError(error, "This book")));
-    const program = parseBook(id, setProgress).pipe(
-      Effect.catchTags({ BookNotFound: report, PdfFailure: report, StorageFailure: report }),
-      Effect.ensuring(
-        Effect.sync(() => {
-          setBusy(false);
-          setProgress(null);
-        }),
-      ),
+    const settle = Effect.sync(() => {
+      setBusy(false);
+      setProgress(null);
+    });
+    const program = reparseBook(id, setProgress, setMessage).pipe(
+      Effect.ensuring(settle),
       Effect.tap(() => Effect.sync(() => reload())),
     );
     void runApp(program);

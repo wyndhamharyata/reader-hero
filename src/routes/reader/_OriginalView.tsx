@@ -1,12 +1,11 @@
 import { Effect } from "effect";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Link } from "react-router";
 import type { PageSize } from "@/domain/book";
-import { StorageFailure } from "@/domain/errors";
 import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
-import { BookStore } from "@/services/book-store";
-import { PdfClient, type PdfHandle } from "@/services/pdf-client";
+import { openOriginalPages, releaseOriginalPages } from "@/use-cases/open-book";
+import type { PdfHandle } from "@/services/pdf-client";
 import { PdfPage } from "./_PdfPage";
 
 interface Props {
@@ -17,7 +16,13 @@ interface Props {
   onPageChange: (page: number) => void;
 }
 
-export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPageChange }: Props) {
+export function OriginalView({
+  bookId,
+  pageCount,
+  initialPage,
+  showChrome,
+  onPageChange,
+}: Props): ReactElement {
   const [handle, setHandle] = useState<PdfHandle | null>(null);
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
   const [current, setCurrent] = useState(initialPage);
@@ -28,32 +33,20 @@ export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPag
 
   useEffect(() => {
     const markFailed = () => Effect.sync(() => setFailed(true));
-    const program = Effect.gen(function* () {
-      const store = yield* BookStore;
-      const pdf = yield* PdfClient;
-      const blob = yield* store.getFile(bookId);
-      const data = yield* Effect.tryPromise({
-        try: () => blob.arrayBuffer(),
-        catch: (cause) => new StorageFailure({ operation: "readFile", cause }),
-      });
-      const loaded = yield* pdf.load(data);
-      const pageSizes = yield* pdf.pageSizes(loaded);
-      return { loaded, pageSizes };
-    }).pipe(
-      Effect.tap(({ loaded, pageSizes }) =>
+    const program = openOriginalPages(bookId).pipe(
+      Effect.tap((pages) =>
         Effect.sync(() => {
-          handleRef.current = loaded;
-          setHandle(loaded);
-          setSizes(pageSizes);
+          handleRef.current = pages.handle;
+          setHandle(pages.handle);
+          setSizes(pages.sizes);
         }),
       ),
       Effect.catchTags({
         BookNotFound: markFailed,
-        PdfFailure: markFailed,
         StorageFailure: markFailed,
+        PdfFailure: markFailed,
       }),
     );
-
     const fiber = forkApp(program);
     return () => stopFiber(fiber);
   }, [bookId]);
@@ -62,7 +55,7 @@ export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPag
     return () => {
       const loaded = handleRef.current;
       if (loaded === null) return;
-      void forkApp(Effect.flatMap(PdfClient, (pdf) => pdf.release(loaded)));
+      void forkApp(releaseOriginalPages(loaded));
     };
   }, []);
 

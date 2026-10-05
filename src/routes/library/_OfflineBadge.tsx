@@ -1,8 +1,8 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import { offlineBadge } from "@/lib/badges";
 import { PerfPanel } from "./_PerfPanel";
 
-export function OfflineBadge() {
+export function OfflineBadge(): ReactElement {
   const taps = useRef(0);
   const [perfOpen, setPerfOpen] = useState(false);
 

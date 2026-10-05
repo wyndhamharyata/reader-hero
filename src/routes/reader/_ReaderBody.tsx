@@ -1,10 +1,8 @@
-import { Effect, Stream } from "effect";
-import { useEffect, useRef, useState } from "react";
-import type { BookMeta, ParsedBook, ReaderSettings } from "@/domain/book";
-import { ReadingProgress } from "@/domain/book";
+import { useRef, useState, type ReactElement } from "react";
+import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
-import { forkApp, runApp, stopFiber } from "@/lib/hooks";
-import { BookStore } from "@/services/book-store";
+import { runApp } from "@/lib/hooks";
+import { saveReadingProgress } from "@/use-cases/save-progress";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
 
@@ -32,39 +30,15 @@ export function ReaderBody({
   settings,
   jump,
   onToggleChrome,
-}: Props) {
+}: Props): ReactElement {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
-  const [liveParsed, setLiveParsed] = useState<ParsedBook | null>(null);
 
-  useEffect(() => {
-    const bookId = meta.id;
-    const fiber = forkApp(
-      Effect.gen(function* () {
-        const store = yield* BookStore;
-        yield* store.updates().pipe(
-          Stream.filter((update) => update.bookId === bookId && update.kind === "parsed"),
-          Stream.mapEffect(() =>
-            store.getParsed(bookId).pipe(Effect.catch(() => Effect.succeed(null))),
-          ),
-          Stream.runForEach((next) =>
-            Effect.sync(() => {
-              if (next !== null) setLiveParsed(next);
-            }),
-          ),
-        );
-      }),
-    );
-    return () => stopFiber(fiber);
-  }, [meta.id]);
-
-  const activeParsed = liveParsed ?? parsed;
-
-  const total = Math.max(1, activeParsed.blocks.length - 1);
+  const total = Math.max(1, parsed.blocks.length - 1);
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
   const initialBlock = progress?.blockIndex ?? 0;
-  const currentPage = activeParsed.blocks[position]?.page ?? 1;
+  const currentPage = parsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
   const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100/95 px-4 py-2 backdrop-blur transition-transform ${chrome ? "" : "translate-y-full"}`;
 
@@ -72,19 +46,12 @@ export function ReaderBody({
     setPosition(blockIndex);
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
-      void runApp(
-        Effect.flatMap(BookStore, (store) =>
-          store.putProgress(
-            meta.id,
-            new ReadingProgress({ blockIndex, percent: blockIndex / total, updatedAt: Date.now() }),
-          ),
-        ),
-      );
+      void runApp(saveReadingProgress(meta.id, blockIndex, total));
     }, PROGRESS_SAVE_DELAY_MS);
   };
 
   const onOriginalPage = (page: number) => {
-    const index = activeParsed.blocks.findIndex((block) => block.page >= page);
+    const index = parsed.blocks.findIndex((block) => block.page >= page);
     if (index >= 0) onPosition(index);
   };
 
@@ -94,7 +61,7 @@ export function ReaderBody({
         {!showOriginal && (
           <ReaderView
             bookId={meta.id}
-            parsed={activeParsed}
+            parsed={parsed}
             settings={settings}
             initialBlock={initialBlock}
             jump={jump}
