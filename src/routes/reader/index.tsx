@@ -82,9 +82,9 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const headerClass = `absolute inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] transition-transform ${chrome ? "" : "-translate-y-full"}`;
+  const headerClass = `absolute inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100 px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.75rem)] transition-transform ${chrome ? "" : "-translate-y-full"}`;
   const contentClass = chrome
-    ? "h-full pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
+    ? "h-full pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
     : "h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]";
 
   return (
