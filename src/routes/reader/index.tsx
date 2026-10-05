@@ -13,6 +13,7 @@ import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
 import { SettingsSheet } from "./_SettingsSheet";
 import { TocDrawer } from "./_TocDrawer";
+import { AdjustmentsIcon, ArrowLeftIcon, Bars3Icon, BookOpenIcon, ListBulletIcon } from "./_icons";
 
 type Mode = "reader" | "original";
 
@@ -40,9 +41,22 @@ export function ReaderRoute() {
   const [position, setPosition] = useState(0);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const saveTimer = useRef<number | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const initialized = useRef(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (menuRef.current !== null && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [menuOpen]);
 
   useEffect(() => {
     void runApp(requestWakeLock()).then((sentinel) => {
@@ -130,7 +144,15 @@ export function ReaderRoute() {
   const closeToc = () => setTocOpen(false);
   const openSettings = () => setSettingsOpen(true);
   const closeSettings = () => setSettingsOpen(false);
-  const toggleChrome = () => setChrome((value) => !value);
+  const toggleChrome = () => {
+    setChrome((value) => !value);
+    setMenuOpen(false);
+  };
+
+  const runMenu = (action: () => void) => () => {
+    setMenuOpen(false);
+    action();
+  };
 
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
@@ -142,7 +164,7 @@ export function ReaderRoute() {
   const total = parsed === null ? 1 : Math.max(1, parsed.blocks.length - 1);
   const percentLabel = parsed === null ? "" : formatPercent(position / total);
   const currentPage = parsed?.blocks[position]?.page ?? 1;
-  const modeLabel = mode === "reader" ? "Original" : "Reader";
+  const modeLabel = mode === "reader" ? "Original view" : "Reader view";
   const initialBlock = data?.progress?.blockIndex ?? 0;
   const headerClass = `fixed inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100/95 px-2 py-2 backdrop-blur transition-transform ${chrome ? "" : "-translate-y-full"}`;
   const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100/95 px-4 py-2 backdrop-blur transition-transform ${chrome ? "" : "translate-y-full"}`;
@@ -153,19 +175,42 @@ export function ReaderRoute() {
   return (
     <div className="h-dvh bg-base-100">
       <header className={headerClass}>
-        <Link to="/" className="btn btn-ghost btn-sm" aria-label="Back to library">
-          Back
+        <Link to="/" className="btn btn-ghost btn-sm btn-square" aria-label="Back to library">
+          <ArrowLeftIcon />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={openToc}>
-          Contents
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={toggleMode}>
-          {modeLabel}
-        </button>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={openSettings}>
-          Aa
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            aria-label="Menu"
+            onClick={() => setMenuOpen((value) => !value)}
+          >
+            <Bars3Icon />
+          </button>
+          {menuOpen && (
+            <ul className="menu absolute right-0 z-50 mt-1 w-48 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+              <li>
+                <button type="button" onClick={runMenu(openToc)}>
+                  <ListBulletIcon className="size-4" />
+                  Contents
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={runMenu(toggleMode)}>
+                  <BookOpenIcon className="size-4" />
+                  {modeLabel}
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={runMenu(openSettings)}>
+                  <AdjustmentsIcon className="size-4" />
+                  Text settings
+                </button>
+              </li>
+            </ul>
+          )}
+        </div>
       </header>
 
       <div className={contentClass}>
