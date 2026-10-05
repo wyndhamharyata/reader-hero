@@ -31,6 +31,7 @@ export class BookStore extends Context.Service<
     getProgress(id: string): Effect.Effect<ReadingProgress | null, StorageFailure>;
     remove(id: string): Effect.Effect<void, StorageFailure>;
     estimate(): Effect.Effect<StorageEstimate | null>;
+    requestPersistent(): Effect.Effect<boolean>;
     takeInbox(): Effect.Effect<ReadonlyArray<InboxFile>, StorageFailure>;
   }
 >()("reader-hero/BookStore") {
@@ -122,6 +123,12 @@ export class BookStore extends Context.Service<
         }).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
+      const requestPersistent = Effect.fn("BookStore.requestPersistent")(function* () {
+        return yield* attempt("requestPersistent", () => navigator.storage.persist()).pipe(
+          Effect.orElseSucceed(() => false),
+        );
+      });
+
       const takeInbox = Effect.fn("BookStore.takeInbox")(function* () {
         return yield* attempt("takeInbox", async () => {
           const tx = db.transaction("inbox", "readwrite");
@@ -145,6 +152,7 @@ export class BookStore extends Context.Service<
         getProgress,
         remove,
         estimate,
+        requestPersistent,
         takeInbox,
       });
     }),

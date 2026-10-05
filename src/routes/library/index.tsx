@@ -3,13 +3,17 @@ import { useEffect, useRef, useState } from "react";
 import { describeError } from "@/lib/describe-error";
 import { formatSize } from "@/lib/format";
 import { runApp, useAppEffect } from "@/lib/hooks";
-import { isInstalled, isIosBrowser, requestPersistentStorage } from "@/lib/storage";
+import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "@/use-cases/extract";
 import { addPdf } from "@/use-cases/import-book";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { parseBook } from "@/use-cases/parse-book";
 import { BookCard } from "./_BookCard";
+import { BusyOverlay } from "./_BusyOverlay";
+import { InstallHint } from "./_InstallHint";
+
+const showInstallHint = isIosBrowser && !isInstalled;
 
 export function LibraryRoute() {
   const { state, reload } = useAppEffect(
@@ -25,12 +29,7 @@ export function LibraryRoute() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [showInstallHint, setShowInstallHint] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setShowInstallHint(isIosBrowser() && !isInstalled());
-  }, []);
 
   useEffect(() => {
     void runApp(importInboxOnce()).then((count) => {
@@ -46,13 +45,17 @@ export function LibraryRoute() {
       addPdf(file, setProgress).pipe(
         Effect.catch((error) => Effect.sync(() => setMessage(describeError(error, file.name)))),
       ),
+    ).pipe(
+      Effect.ensuring(
+        Effect.sync(() => {
+          setBusy(false);
+          setProgress(null);
+        }),
+      ),
+      Effect.andThen(Effect.flatMap(BookStore, (store) => store.requestPersistent())),
+      Effect.tap(() => Effect.sync(() => reload())),
     );
-    void runApp(program).then(() => {
-      setBusy(false);
-      setProgress(null);
-      void runApp(requestPersistentStorage());
-      reload();
-    });
+    void runApp(program);
   };
 
   const remove = (id: string) => {
@@ -74,9 +77,6 @@ export function LibraryRoute() {
 
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
-  const progressLabel = progress === null ? "Preparing…" : `Reading page ${progress.page} of ${progress.total}`;
-  const progressValue = progress?.page ?? 0;
-  const progressMax = progress?.total ?? 1;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-4 pb-28">
@@ -91,11 +91,7 @@ export function LibraryRoute() {
         </div>
       )}
 
-      {showInstallHint && (
-        <div className="alert alert-info py-2 text-xs">
-          <span>Add Reader Hero to your Home Screen so iOS keeps your library offline.</span>
-        </div>
-      )}
+      <InstallHint show={showInstallHint} />
 
       {state.status === "loading" && <p className="opacity-70">Loading library…</p>}
 
@@ -147,21 +143,7 @@ export function LibraryRoute() {
         {busy ? "Working…" : "Add PDF"}
       </button>
 
-      {busy && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
-          <div className="card w-full max-w-xs bg-base-100">
-            <div className="card-body items-center gap-3">
-              <span className="loading loading-spinner" />
-              <p className="text-sm">{progressLabel}</p>
-              <progress
-                className="progress progress-primary w-full"
-                value={progressValue}
-                max={progressMax}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {busy && <BusyOverlay progress={progress} />}
     </main>
   );
 }
