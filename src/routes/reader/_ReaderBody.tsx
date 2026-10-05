@@ -1,9 +1,9 @@
-import { Effect } from "effect";
-import { useRef, useState } from "react";
+import { Effect, Stream } from "effect";
+import { useEffect, useRef, useState } from "react";
 import type { BookMeta, ParsedBook, ReaderSettings } from "@/domain/book";
 import { ReadingProgress } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
-import { runApp } from "@/lib/hooks";
+import { forkApp, runApp, stopFiber } from "@/lib/hooks";
 import { BookStore } from "@/services/book-store";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
@@ -35,12 +35,36 @@ export function ReaderBody({
 }: Props) {
   const [position, setPosition] = useState(0);
   const saveTimer = useRef<number | null>(null);
+  const [liveParsed, setLiveParsed] = useState<ParsedBook | null>(null);
 
-  const total = Math.max(1, parsed.blocks.length - 1);
+  useEffect(() => {
+    const bookId = meta.id;
+    const fiber = forkApp(
+      Effect.gen(function* () {
+        const store = yield* BookStore;
+        yield* store.updates().pipe(
+          Stream.filter((update) => update.bookId === bookId && update.kind === "parsed"),
+          Stream.mapEffect(() =>
+            store.getParsed(bookId).pipe(Effect.catch(() => Effect.succeed(null))),
+          ),
+          Stream.runForEach((next) =>
+            Effect.sync(() => {
+              if (next !== null) setLiveParsed(next);
+            }),
+          ),
+        );
+      }),
+    );
+    return () => stopFiber(fiber);
+  }, [meta.id]);
+
+  const activeParsed = liveParsed ?? parsed;
+
+  const total = Math.max(1, activeParsed.blocks.length - 1);
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
   const initialBlock = progress?.blockIndex ?? 0;
-  const currentPage = parsed.blocks[position]?.page ?? 1;
+  const currentPage = activeParsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
   const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100/95 px-4 py-2 backdrop-blur transition-transform ${chrome ? "" : "translate-y-full"}`;
 
@@ -60,7 +84,7 @@ export function ReaderBody({
   };
 
   const onOriginalPage = (page: number) => {
-    const index = parsed.blocks.findIndex((block) => block.page >= page);
+    const index = activeParsed.blocks.findIndex((block) => block.page >= page);
     if (index >= 0) onPosition(index);
   };
 
@@ -70,7 +94,7 @@ export function ReaderBody({
         {!showOriginal && (
           <ReaderView
             bookId={meta.id}
-            parsed={parsed}
+            parsed={activeParsed}
             settings={settings}
             initialBlock={initialBlock}
             jump={jump}

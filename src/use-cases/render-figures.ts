@@ -1,4 +1,5 @@
 import { Effect, Stream } from "effect";
+import type { PageImage } from "@/domain/book";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import { log } from "@/lib/log";
@@ -9,7 +10,6 @@ import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 
 const IMAGE_CONCURRENCY = 2;
-const IMAGE_STORE_CONCURRENCY = 4;
 
 export function renderFigures(
   bookId: string,
@@ -42,29 +42,17 @@ export function renderFigures(
       log("figures.start", bookId);
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);
-        const entries = yield* Stream.range(1, total).pipe(
+
+        // Text first: a full ParsedBook (sans images) is published so the
+        // reader has content immediately, instead of an empty outline.
+        const texts = yield* Stream.range(1, total).pipe(
           Stream.mapEffect(
             (page) =>
-              Effect.gen(function* () {
-                const pageStarted = performance.now();
-                const text = yield* timed(
-                  "figures.text",
-                  pdf.readPage(handle, page),
-                  () => `p${page}`,
-                );
-                const images = yield* timed(
-                  "figures.render",
-                  pdf.readImages(handle, page),
-                  (value) => `p${page}:${value.length}`,
-                );
-                yield* Effect.forEach(
-                  images,
-                  (image) => store.putImage(bookId, image),
-                  { concurrency: IMAGE_STORE_CONCURRENCY },
-                );
-                log("figures.page", `p${page}:${images.length}`, performance.now() - pageStarted);
-                return { text, images };
-              }),
+              timed(
+                "figures.text",
+                pdf.readPage(handle, page),
+                () => `p${page}`,
+              ),
             { concurrency: IMAGE_CONCURRENCY },
           ),
           Stream.runCollect,
@@ -73,10 +61,58 @@ export function renderFigures(
         const outline = yield* pdf
           .readOutline(handle)
           .pipe(Effect.catchTag("PdfFailure", () => Effect.succeed([])));
-        return assembleBook(
-          entries.map((entry) => ({ text: entry.text, images: entry.images })),
-          outline,
+
+        const pagesByPage = new Map<number, { text: (typeof texts)[number]; images: ReadonlyArray<PageImage> }>();
+        for (const text of texts) pagesByPage.set(text.page, { text, images: [] });
+
+        yield* store.putParsed(
+          bookId,
+          assembleBook(
+            texts.map((text) => ({ text, images: [] })),
+            outline,
+          ),
         );
+
+        // Images second: when a page with figures finishes, the parsed book is
+        // re-assembled with whatever is done and published. Each putParsed
+        // fires a `parsed` PubSub event that refreshes the reader incrementally.
+        let published = 0;
+        yield* Stream.range(1, total).pipe(
+          Stream.mapEffect(
+            (page) =>
+              Effect.gen(function* () {
+                const pageStarted = performance.now();
+                const images = yield* timed(
+                  "figures.render",
+                  pdf.readImages(handle, page),
+                  (value) => `p${page}:${value.length}`,
+                );
+                for (const image of images) {
+                  yield* store.putImage(bookId, image);
+                }
+                const entry = pagesByPage.get(page);
+                if (entry !== undefined) pagesByPage.set(page, { text: entry.text, images });
+                if (images.length > 0) {
+                  const assemblePages = [...pagesByPage.values()].map((entry) => ({
+                    text: entry.text,
+                    images: entry.images,
+                  }));
+                  yield* store.putParsed(bookId, assembleBook(assemblePages, outline));
+                  published += 1;
+                }
+                log("figures.page", `p${page}:${images.length}`, performance.now() - pageStarted);
+              }),
+            { concurrency: IMAGE_CONCURRENCY },
+          ),
+          Stream.runDrain,
+        );
+
+        yield* Effect.sync(() => log("figures.assembled", `${published} partial updates`));
+        const assembled = [...pagesByPage.values()].map((entry) => ({
+          text: entry.text,
+          images: entry.images,
+        }));
+        return assembleBook(assembled, outline);
       }).pipe(Effect.ensuring(pdf.release(handle)));
 
       yield* store.putParsed(bookId, parsed);
