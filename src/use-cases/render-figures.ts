@@ -46,6 +46,7 @@ export function renderFigures(
 
     const started = performance.now();
     const outcome = yield* Effect.gen(function* () {
+      let hadFailure = false;
       const total = pdf.pageCount(handle);
       const entries = yield* Stream.range(1, total).pipe(
         Stream.mapEffect(
@@ -60,12 +61,22 @@ export function renderFigures(
                 "figures.placements",
                 pdf.readPlacements(handle, page),
                 (value) => `p${page}:${value.length}`,
-              ).pipe(Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<ImagePlacement>)));
+              ).pipe(
+                Effect.catchCause(() => {
+                  hadFailure = true;
+                  return Effect.succeed([] as ReadonlyArray<ImagePlacement>);
+                }),
+              );
               const images = yield* timed(
                 "figures.render",
                 pdf.readImages(handle, page),
                 () => `p${page}`,
-              ).pipe(Effect.catchCause(() => Effect.succeed([] as ReadonlyArray<PageImage>)));
+              ).pipe(
+                Effect.catchCause(() => {
+                  hadFailure = true;
+                  return Effect.succeed([] as ReadonlyArray<PageImage>);
+                }),
+              );
 
               yield* Effect.forEach(
                 images,
@@ -77,7 +88,12 @@ export function renderFigures(
                       width: image.width,
                       height: image.height,
                     })
-                    .pipe(Effect.catchCause(() => Effect.void)),
+                    .pipe(
+                      Effect.catchCause(() => {
+                        hadFailure = true;
+                        return Effect.void;
+                      }),
+                    ),
                 { concurrency: 4 },
               );
 
@@ -96,18 +112,35 @@ export function renderFigures(
         outline,
       );
       const imageCount = entries.reduce((sum, entry) => sum + entry.placements.length, 0);
-      return { parsed, imageCount };
+      return { parsed, imageCount, hadFailure };
     }).pipe(
       Effect.ensuring(pdf.release(handle)),
       Effect.catchCause(() => Effect.succeed(null)),
     );
 
-    if (outcome === null) return;
+    // A hard failure leaves the job pending so a later load retries it.
+    if (outcome === null) {
+      record("figures.failed", performance.now() - started, "job aborted");
+      return;
+    }
 
-    if (outcome.imageCount > 0) {
-      yield* timed("figures.store", store.putParsed(bookId, outcome.parsed)).pipe(
-        Effect.catchCause(() => Effect.void),
-      );
+    // Only advance the state once the figure-aware parse is actually stored.
+    const stored =
+      outcome.imageCount > 0
+        ? yield* store.putParsed(bookId, outcome.parsed).pipe(
+            Effect.map(() => true),
+            Effect.catchCause(() => Effect.succeed(false)),
+          )
+        : true;
+    if (!stored) {
+      record("figures.failed", performance.now() - started, "parse not stored");
+      return;
+    }
+
+    // An empty result caused by failures is inconclusive: leave it pending.
+    if (outcome.imageCount === 0 && outcome.hadFailure) {
+      record("figures.failed", performance.now() - started, "placements unreadable");
+      return;
     }
 
     const latest = yield* store.get(bookId).pipe(Effect.catchCause(() => Effect.succeed(null)));

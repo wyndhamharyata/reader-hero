@@ -26,7 +26,6 @@ const stateClass: Record<ParseState, string> = {
 
 export function BookCard({ book, onRemove, onReparse }: Props) {
   const author = book.author ?? "";
-  const needsRebuild = book.parseState === "scanned" || book.parseState === "failed";
   const figuresPending = (book.figures ?? "none") === "pending";
 
   return (
@@ -48,11 +47,9 @@ export function BookCard({ book, onRemove, onReparse }: Props) {
         </p>
 
         <div className="card-actions justify-end">
-          {needsRebuild && (
-            <button type="button" className="btn btn-ghost btn-xs" onClick={() => onReparse(book.id)}>
-              Rebuild
-            </button>
-          )}
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => onReparse(book.id)}>
+            Rebuild
+          </button>
           <button
             type="button"
             className="btn btn-ghost btn-xs text-error"
