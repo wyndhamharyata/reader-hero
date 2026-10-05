@@ -39,8 +39,14 @@ export function layoutSnapshot(): string {
   const vv = window.visualViewport;
   const nav = navigator as Navigator & { standalone?: boolean };
   return JSON.stringify({
-    build: "chrome-opaque-3",
+    build: "chrome-opaque-4",
     standalone: nav.standalone ?? null,
+    ua: (navigator.userAgent.match(/OS (\d+[._]\d+)/) ?? [])[1] ?? "?",
+    agent: /CriOS|FxiOS|EdgiOS/.test(navigator.userAgent)
+      ? "other"
+      : /Safari/.test(navigator.userAgent)
+        ? "safari"
+        : "?",
     displayMode: window.matchMedia("(display-mode: standalone)").matches
       ? "standalone"
       : window.matchMedia("(display-mode: browser)").matches
@@ -58,6 +64,12 @@ export function layoutSnapshot(): string {
     headerBackdrop: headerStyle === null ? null : headerStyle.backdropFilter,
     headerBg: headerStyle === null ? null : headerStyle.backgroundColor,
     headerTransform: headerStyle === null ? null : headerStyle.transform,
+    headerColor: headerStyle === null ? null : headerStyle.color,
+    headerOpacity: headerStyle === null ? null : headerStyle.opacity,
+    titleColor: (() => {
+      const title = document.querySelector("header h1");
+      return title === null ? null : getComputedStyle(title).color;
+    })(),
   });
 }
 

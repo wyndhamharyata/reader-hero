@@ -62,7 +62,7 @@ export function ReaderBody({
   const initialBlock = progress?.blockIndex ?? 0;
   const currentPage = parsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
-  const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] transition-transform ${chrome ? "" : "translate-y-full"}`;
+  const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 transition-transform ${chrome ? "" : "translate-y-full"}`;
 
   const onPosition = (blockIndex: number) => {
     setPosition(blockIndex);
@@ -123,7 +123,7 @@ export function ReaderBody({
       </footer>
 
       {debug !== "" && (
-        <div className="fixed inset-x-0 top-0 z-[60] bg-black/80 p-1 pt-[max(0.25rem,env(safe-area-inset-top))] font-mono text-[8px] leading-tight break-all text-white">
+        <div className="fixed inset-x-0 bottom-20 z-[60] bg-black/80 p-1 font-mono text-[8px] leading-tight break-all text-white">
           {debug}
         </div>
       )}
