@@ -314,6 +314,9 @@ export class PdfClient extends Context.Service<
           useWorkerFetch: true,
           wasmUrl: `${origin}/wasm/`,
           iccUrl: `${origin}/icc/`,
+          // Safari exposes ImageDecoder in both contexts; make the preference
+          // explicit so the JPEG fast path cannot be lost to default merging.
+          isImageDecoderSupported: true,
         });
         const captured = yield* captureWarnings(
           Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }),
