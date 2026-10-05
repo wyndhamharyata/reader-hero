@@ -82,8 +82,10 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const headerClass = `fixed inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100/95 px-2 py-2 backdrop-blur transition-transform ${chrome ? "" : "-translate-y-full"}`;
-  const contentClass = chrome ? "h-full pt-12 pb-14" : "h-full";
+  const headerClass = `fixed inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100/95 px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur transition-transform ${chrome ? "" : "-translate-y-full"}`;
+  const contentClass = chrome
+    ? "h-full pt-[calc(3.5rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))]"
+    : "h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]";
 
   return (
     <div className="h-dvh bg-base-100">
@@ -133,7 +135,7 @@ export function ReaderRoute() {
       </div>
 
       {message !== null && (
-        <div className="fixed inset-x-0 bottom-16 z-40 px-3">
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 px-3">
           <div className="alert alert-warning py-2 text-sm">
             <span>{message}</span>
           </div>
