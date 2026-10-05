@@ -2,9 +2,11 @@ import { Effect } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
+import { formatPercent } from "@/lib/format";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
+import { saveReadingProgress } from "@/use-cases/save-progress";
 import { Sidebar } from "./_Sidebar";
 import { LoadError } from "./_LoadError";
 import { ReaderBody, type Mode } from "./_ReaderBody";
@@ -33,7 +35,9 @@ export function ReaderRoute() {
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [position, setPosition] = useState(0);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
+  const saveTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const program = requestWakeLock().pipe(
@@ -61,6 +65,16 @@ export function ReaderRoute() {
   const loadError = state.status === "error" ? state.error : null;
   const title = data?.meta.title ?? "Reader";
   const toc = data?.parsed.toc ?? [];
+  const total = data === null ? 1 : Math.max(1, data.parsed.blocks.length - 1);
+  const percentLabel = formatPercent(position / total);
+
+  const onPosition = (blockIndex: number) => {
+    setPosition(blockIndex);
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      void runApp(saveReadingProgress(bookId, blockIndex, total));
+    }, 400);
+  };
 
   const rebuild = () => {
     setRebuilding(true);
@@ -82,26 +96,36 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const headerClass = `absolute inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100 px-2 pb-2 pt-[calc(env(safe-area-inset-top)+1.25rem)] transition-transform ${chrome ? "" : "-translate-y-full"}`;
+  const headerClass = `absolute inset-x-0 top-0 z-30 flex flex-col border-b border-base-300 bg-base-100 px-2 pb-2 pt-[calc(env(safe-area-inset-top)+1.25rem)] transition-transform ${chrome ? "" : "-translate-y-full"}`;
   const contentClass = chrome
-    ? "h-full pt-[calc(4.5rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
+    ? "h-full pt-[calc(5.5rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))]"
     : "h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]";
 
   return (
     <div className="relative h-dvh bg-base-100">
       <header className={headerClass}>
-        <Link to="/" className="btn btn-ghost btn-sm btn-square" aria-label="Back to library">
-          <ArrowLeftIcon />
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm btn-square"
-          aria-label="Menu"
-          onClick={() => setTocOpen(true)}
-        >
-          <Bars3Icon />
-        </button>
+        <div className="flex items-center gap-1">
+          <Link to="/" className="btn btn-ghost btn-sm btn-square" aria-label="Back to library">
+            <ArrowLeftIcon />
+          </Link>
+          <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm btn-square"
+            aria-label="Menu"
+            onClick={() => setTocOpen(true)}
+          >
+            <Bars3Icon />
+          </button>
+        </div>
+        <div className="mt-1 flex items-center gap-3">
+          <span className="w-10 text-xs opacity-70">{percentLabel}</span>
+          <progress
+            className="progress progress-primary h-1.5 flex-1"
+            value={position}
+            max={total}
+          />
+        </div>
       </header>
 
       <div className={contentClass}>
@@ -125,6 +149,8 @@ export function ReaderRoute() {
             meta={data.meta}
             parsed={data.parsed}
             progress={data.progress}
+            position={position}
+            onPosition={onPosition}
             mode={mode}
             chrome={chrome}
             settings={settings}
