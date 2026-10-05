@@ -6,6 +6,7 @@
 
 declare module "sst" {
   export interface Resource {
+    "Web": import("@cloudflare/workers-types").Service
   }
 }
 

@@ -102,7 +102,7 @@ export function ReaderRoute() {
     : "h-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]";
 
   return (
-    <div className="relative h-dvh bg-base-100">
+    <div className="relative h-[var(--app-height)] bg-base-100">
       <header className={headerClass}>
         <div className="flex items-center gap-1">
           <Link to="/" className="btn btn-ghost btn-sm btn-square" aria-label="Back to library">
