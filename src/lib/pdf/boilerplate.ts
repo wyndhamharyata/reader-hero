@@ -1,3 +1,4 @@
+import type { ImagePlacement } from "@/domain/book";
 import type { PageLines, TextLine } from "./types";
 
 const BAND = 0.09;
@@ -11,6 +12,14 @@ function bandOf(line: TextLine, height: number): "top" | "bottom" | null {
   if (line.y > height * (1 - BAND)) return "top";
   if (line.y < height * BAND) return "bottom";
   return null;
+}
+
+export function isSmallBandImage(image: ImagePlacement, height: number): boolean {
+  if (height <= 0) return false;
+  const center = image.y + image.height / 2;
+  const inBand = center > height * (1 - BAND) || center < height * BAND;
+  if (!inBand) return false;
+  return image.height < height * 0.15;
 }
 
 export function dropBoilerplate(pages: ReadonlyArray<PageLines>): ReadonlyArray<PageLines> {

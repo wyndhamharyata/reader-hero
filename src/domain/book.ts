@@ -3,7 +3,7 @@ import { Schema } from "effect";
 export const ParseState = Schema.Literals(["pending", "parsing", "ready", "scanned", "failed"]);
 export type ParseState = typeof ParseState.Type;
 
-export const BlockKind = Schema.Literals(["heading", "paragraph"]);
+export const BlockKind = Schema.Literals(["heading", "paragraph", "image"]);
 export type BlockKind = typeof BlockKind.Type;
 
 export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
@@ -11,6 +11,7 @@ export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
   level: Schema.Int,
   text: Schema.String,
   page: Schema.Int,
+  imageId: Schema.optional(Schema.String),
 }) {}
 
 export class TocEntry extends Schema.Class<TocEntry>("reader-hero/domain/TocEntry")({
@@ -20,7 +21,7 @@ export class TocEntry extends Schema.Class<TocEntry>("reader-hero/domain/TocEntr
   depth: Schema.Int,
 }) {}
 
-export const PARSED_VERSION = 1;
+export const PARSED_VERSION = 2;
 
 export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/ParsedBook")({
   version: Schema.Int,
@@ -86,6 +87,32 @@ export interface PageText {
   readonly height: number;
   readonly items: ReadonlyArray<RawTextItem>;
 }
+
+export interface ImagePlacement {
+  readonly id: string;
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface PageImage extends ImagePlacement {
+  readonly blob: Blob;
+}
+
+export interface StoredImage {
+  readonly id: string;
+  readonly blob: Blob;
+  readonly width: number;
+  readonly height: number;
+}
+
+export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/ImageRecord")({
+  blob: Schema.instanceOf(Blob),
+  width: Schema.Int,
+  height: Schema.Int,
+}) {}
 
 export interface OutlineItem {
   readonly title: string;

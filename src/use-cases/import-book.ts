@@ -67,14 +67,15 @@ export function addPdf(
     });
 
     yield* store.putFile(id, file, meta);
-    const parsed = yield* extractBook(handle, onProgress);
-    yield* store.putParsed(id, parsed);
+    const result = yield* extractBook(handle, onProgress);
+    yield* store.putParsed(id, result.parsed);
+    yield* store.putImages(id, result.images);
 
-    const scanned = isScanned(parsed.charCount, parsed.pageCount);
+    const scanned = isScanned(result.parsed.charCount, result.parsed.pageCount);
     const ready = new BookMeta({
       ...meta,
       parseState: scanned ? "scanned" : "ready",
-      charCount: parsed.charCount,
+      charCount: result.parsed.charCount,
     });
     yield* store.putMeta(ready);
 

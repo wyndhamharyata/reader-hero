@@ -165,6 +165,7 @@ export function ReaderRoute() {
 
         {data !== null && mode === "reader" && parsed !== null && (
           <ReaderView
+            bookId={bookId}
             parsed={parsed}
             settings={settings}
             initialBlock={initialBlock}

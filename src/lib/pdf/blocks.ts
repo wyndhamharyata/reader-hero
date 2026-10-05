@@ -1,4 +1,4 @@
-import { median, type RawBlock, type TextLine } from "./types";
+import { median, type FlowItem, type RawBlock, type TextLine } from "./types";
 
 const HEADING_LEVELS: ReadonlyArray<{ readonly ratio: number; readonly level: number }> = [
   { ratio: 1.8, level: 1 },
@@ -41,12 +41,13 @@ function breaksAtPage(line: TextLine, previous: TextLine, bodyWidth: number): bo
   return endsSentence(previous.text);
 }
 
-export function buildBlocks(lines: ReadonlyArray<TextLine>): ReadonlyArray<RawBlock> {
-  if (lines.length === 0) return [];
+export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBlock> {
+  if (items.length === 0) return [];
 
-  const bodySize = median(lines.map((line) => line.fontSize));
-  const bodyWidth = median(lines.map((line) => line.width));
-  const leftEdge = Math.min(...lines.map((line) => line.x));
+  const textLines = items.flatMap((item) => (item.type === "text" ? [item.line] : []));
+  const bodySize = median(textLines.map((line) => line.fontSize));
+  const bodyWidth = median(textLines.map((line) => line.width));
+  const leftEdge = textLines.length > 0 ? Math.min(...textLines.map((line) => line.x)) : 0;
 
   const blocks: RawBlock[] = [];
   let current: { kind: "paragraph"; level: number; text: string; page: number } | null = null;
@@ -57,7 +58,21 @@ export function buildBlocks(lines: ReadonlyArray<TextLine>): ReadonlyArray<RawBl
     current = null;
   };
 
-  for (const line of lines) {
+  for (const item of items) {
+    if (item.type === "image") {
+      flush();
+      blocks.push({
+        kind: "image",
+        level: 0,
+        text: "",
+        page: item.image.page,
+        imageId: item.image.id,
+      });
+      previous = null;
+      continue;
+    }
+
+    const line = item.line;
     const level = headingLevel(line, bodySize);
     if (level > 0) {
       flush();

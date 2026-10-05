@@ -1,11 +1,15 @@
 import { Context, Effect, Layer } from "effect";
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
-import type { OutlineItem, PageText, RawTextItem } from "@/domain/book";
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, PageViewport } from "pdfjs-dist";
+import type { ImagePlacement, OutlineItem, PageImage, PageText, RawTextItem } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
+import { collectImageBoxes } from "@/lib/pdf/image-boxes";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+
+const IMAGE_RENDER_SCALE = 1.5;
+const MAX_IMAGE_DIM = 1400;
 
 export interface PdfHandle {
   readonly proxy: PDFDocumentProxy;
@@ -34,11 +38,43 @@ const pdfFailure = (cause: unknown): PdfFailure => {
   return new PdfFailure({ reason: "unknown", message });
 };
 
+const cropImage = (
+  source: HTMLCanvasElement,
+  viewport: PageViewport,
+  box: ImagePlacement,
+): Effect.Effect<Blob | null, PdfFailure> =>
+  Effect.gen(function* () {
+    const a = viewport.convertToViewportPoint(box.x, box.y);
+    const b = viewport.convertToViewportPoint(box.x + box.width, box.y + box.height);
+    const left = Math.max(0, Math.floor(Math.min(Number(a[0]), Number(b[0]))));
+    const top = Math.max(0, Math.floor(Math.min(Number(a[1]), Number(b[1]))));
+    const right = Math.min(viewport.width, Math.ceil(Math.max(Number(a[0]), Number(b[0]))));
+    const bottom = Math.min(viewport.height, Math.ceil(Math.max(Number(a[1]), Number(b[1]))));
+    const width = right - left;
+    const height = bottom - top;
+    if (width < 4 || height < 4) return null;
+
+    const out = document.createElement("canvas");
+    const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(width, height));
+    out.width = Math.max(1, Math.round(width * scale));
+    out.height = Math.max(1, Math.round(height * scale));
+    const context = out.getContext("2d");
+    if (context === null) return null;
+    context.drawImage(source, left, top, width, height, 0, 0, out.width, out.height);
+
+    return yield* Effect.tryPromise({
+      try: () =>
+        new Promise<Blob | null>((resolve) => out.toBlob((blob) => resolve(blob), "image/png")),
+      catch: pdfFailure,
+    });
+  });
+
 export class PdfClient extends Context.Service<
   PdfClient,
   {
     load(data: ArrayBuffer): Effect.Effect<PdfHandle, PdfFailure>;
     readPage(handle: PdfHandle, page: number): Effect.Effect<PageText, PdfFailure>;
+    readImages(handle: PdfHandle, page: number): Effect.Effect<ReadonlyArray<PageImage>, PdfFailure>;
     render(
       handle: PdfHandle,
       page: number,
@@ -88,6 +124,55 @@ export class PdfClient extends Context.Service<
         }
 
         return { page, width: viewport.width, height: viewport.height, items };
+      }),
+
+      readImages: Effect.fn("PdfClient.readImages")(function* (handle: PdfHandle, page: number) {
+        const pageProxy = yield* Effect.tryPromise({
+          try: () => handle.proxy.getPage(page),
+          catch: pdfFailure,
+        });
+        const opList = yield* Effect.tryPromise({
+          try: () => pageProxy.getOperatorList(),
+          catch: pdfFailure,
+        });
+
+        const boxes = collectImageBoxes(
+          { fnArray: opList.fnArray, argsArray: opList.argsArray },
+          page,
+          pdfjs.OPS,
+          pdfjs.Util,
+        );
+        if (boxes.length === 0) return [];
+
+        const viewport = pageProxy.getViewport({ scale: IMAGE_RENDER_SCALE });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const context = canvas.getContext("2d");
+        if (context === null) return [];
+
+        yield* Effect.tryPromise({
+          try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
+          catch: pdfFailure,
+        });
+
+        const cropped = yield* Effect.forEach(
+          boxes,
+          (box) => cropImage(canvas, viewport, box),
+          { concurrency: 4 },
+        ).pipe(
+          Effect.ensuring(
+            Effect.sync(() => {
+              canvas.width = 0;
+              canvas.height = 0;
+            }),
+          ),
+        );
+
+        return boxes.flatMap((box, index) => {
+          const blob = cropped[index];
+          return blob === undefined || blob === null ? [] : [{ ...box, blob }];
+        });
       }),
 
       render: Effect.fn("PdfClient.render")(

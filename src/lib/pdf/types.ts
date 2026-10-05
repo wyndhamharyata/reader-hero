@@ -1,4 +1,4 @@
-import type { BlockKind } from "@/domain/book";
+import type { BlockKind, ImagePlacement } from "@/domain/book";
 
 export interface TextLine {
   readonly page: number;
@@ -15,6 +15,17 @@ export interface RawBlock {
   readonly level: number;
   readonly text: string;
   readonly page: number;
+  readonly imageId?: string;
+}
+
+export type FlowItem =
+  | { readonly type: "text"; readonly line: TextLine }
+  | { readonly type: "image"; readonly image: ImagePlacement };
+
+export interface Positioned {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
 }
 
 export interface PageLines {

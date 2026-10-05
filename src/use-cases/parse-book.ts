@@ -22,19 +22,20 @@ export function parseBook(
     });
 
     const handle = yield* pdf.load(data);
-    const parsed = yield* extractBook(handle, onProgress);
+    const result = yield* extractBook(handle, onProgress);
 
-    yield* store.putParsed(id, parsed);
+    yield* store.putParsed(id, result.parsed);
+    yield* store.putImages(id, result.images);
 
     const meta = yield* store.get(id);
-    const scanned = isScanned(parsed.charCount, parsed.pageCount);
+    const scanned = isScanned(result.parsed.charCount, result.parsed.pageCount);
     const next = new BookMeta({
       ...meta,
       parseState: scanned ? "scanned" : "ready",
-      charCount: parsed.charCount,
+      charCount: result.parsed.charCount,
     });
     yield* store.putMeta(next);
 
-    return parsed;
+    return result.parsed;
   });
 }

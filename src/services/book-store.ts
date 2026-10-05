@@ -1,13 +1,28 @@
 import { Context, Effect, Layer } from "effect";
-import { BookMeta, ParsedBook, ReadingProgress } from "@/domain/book";
+import {
+  BookMeta,
+  ImageRecord,
+  PARSED_VERSION,
+  ParsedBook,
+  ReadingProgress,
+  type StoredImage,
+} from "@/domain/book";
 import { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
-import { decodeBookMeta, decodeParsedBook, decodeReadingProgress } from "@/lib/codecs";
+import {
+  decodeBookMeta,
+  decodeImageRecord,
+  decodeParsedBook,
+  decodeReadingProgress,
+} from "@/lib/codecs";
 import { openReaderDb, type InboxFile } from "@/lib/db";
 
 export interface StorageEstimate {
   readonly usage: number;
   readonly quota: number;
 }
+
+const imageRange = (bookId: string): IDBKeyRange =>
+  IDBKeyRange.bound(`${bookId}/`, `${bookId}/\uffff`);
 
 const attempt = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, StorageFailure> =>
   Effect.tryPromise({
@@ -27,6 +42,14 @@ export class BookStore extends Context.Service<
     getParsed(
       id: string,
     ): Effect.Effect<ParsedBook, BookNotFound | ParsedMissing | StorageFailure>;
+    putImages(
+      bookId: string,
+      images: ReadonlyArray<StoredImage>,
+    ): Effect.Effect<void, StorageFailure>;
+    getImage(
+      bookId: string,
+      imageId: string,
+    ): Effect.Effect<ImageRecord | null, StorageFailure>;
     putProgress(id: string, progress: ReadingProgress): Effect.Effect<void, StorageFailure>;
     getProgress(id: string): Effect.Effect<ReadingProgress | null, StorageFailure>;
     remove(id: string): Effect.Effect<void, StorageFailure>;
@@ -85,10 +108,37 @@ export class BookStore extends Context.Service<
       const getParsed = Effect.fn("BookStore.getParsed")(function* (id: string) {
         const row = yield* attempt("getParsed", () => db.get("parsed", id));
         if (row === undefined) return yield* new ParsedMissing({ id });
-        return yield* decodeParsedBook(row).pipe(
+        const parsed = yield* decodeParsedBook(row).pipe(
           Effect.mapError(() => new ParsedMissing({ id })),
         );
+        if (parsed.version !== PARSED_VERSION) return yield* new ParsedMissing({ id });
+        return parsed;
       });
+
+      const putImages = Effect.fn("BookStore.putImages")(
+        function* (bookId: string, images: ReadonlyArray<StoredImage>) {
+          yield* attempt("putImages", async () => {
+            const tx = db.transaction("images", "readwrite");
+            const store = tx.objectStore("images");
+            await store.delete(imageRange(bookId));
+            for (const image of images) {
+              await store.put(
+                new ImageRecord({ blob: image.blob, width: image.width, height: image.height }),
+                `${bookId}/${image.id}`,
+              );
+            }
+            await tx.done;
+          });
+        },
+      );
+
+      const getImage = Effect.fn("BookStore.getImage")(
+        function* (bookId: string, imageId: string) {
+          const row = yield* attempt("getImage", () => db.get("images", `${bookId}/${imageId}`));
+          if (row === undefined) return null;
+          return yield* decodeImageRecord(row).pipe(Effect.catch(() => Effect.succeed(null)));
+        },
+      );
 
       const putProgress = Effect.fn("BookStore.putProgress")(
         function* (id: string, progress: ReadingProgress) {
@@ -104,11 +154,15 @@ export class BookStore extends Context.Service<
 
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* attempt("remove", async () => {
-          const tx = db.transaction(["books", "files", "parsed", "progress"], "readwrite");
+          const tx = db.transaction(
+            ["books", "files", "parsed", "progress", "images"],
+            "readwrite",
+          );
           await tx.objectStore("books").delete(id);
           await tx.objectStore("files").delete(id);
           await tx.objectStore("parsed").delete(id);
           await tx.objectStore("progress").delete(id);
+          await tx.objectStore("images").delete(imageRange(id));
           await tx.done;
         });
       });
@@ -148,6 +202,8 @@ export class BookStore extends Context.Service<
         getFile,
         putParsed,
         getParsed,
+        putImages,
+        getImage,
         putProgress,
         getProgress,
         remove,

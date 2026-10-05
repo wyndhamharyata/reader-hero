@@ -3,14 +3,20 @@ import {
   PARSED_VERSION,
   ParsedBook,
   TocEntry,
+  type ImagePlacement,
   type OutlineItem,
   type PageText,
 } from "@/domain/book";
 import { buildBlocks } from "./blocks";
-import { dropBoilerplate } from "./boilerplate";
-import { orderPageLines } from "./columns";
+import { dropBoilerplate, isSmallBandImage } from "./boilerplate";
+import { orderFlow } from "./columns";
 import { buildLines } from "./lines";
-import type { PageLines } from "./types";
+import type { FlowItem, PageLines } from "./types";
+
+export interface PageExtract {
+  readonly text: PageText;
+  readonly images: ReadonlyArray<ImagePlacement>;
+}
 
 export function isScanned(charCount: number, pageCount: number): boolean {
   return charCount < Math.max(50, pageCount * 40);
@@ -33,19 +39,34 @@ function buildToc(outline: ReadonlyArray<OutlineItem>, blocks: ReadonlyArray<Blo
 }
 
 export function assembleBook(
-  pages: ReadonlyArray<PageText>,
+  pages: ReadonlyArray<PageExtract>,
   outline: ReadonlyArray<OutlineItem>,
 ): ParsedBook {
   const pageLines: PageLines[] = pages.map((page) => ({
-    page: page.page,
-    height: page.height,
-    lines: orderPageLines(buildLines(page), page.width),
+    page: page.text.page,
+    height: page.text.height,
+    lines: buildLines(page.text),
   }));
+  const cleaned = dropBoilerplate(pageLines);
 
-  const lines = dropBoilerplate(pageLines).flatMap((page) => page.lines);
-  const blocks = buildBlocks(lines).map(
-    (raw) => new Block({ kind: raw.kind, level: raw.level, text: raw.text, page: raw.page }),
+  const flow: FlowItem[] = [];
+  pages.forEach((page, index) => {
+    const lines = cleaned[index]?.lines ?? [];
+    const images = page.images.filter((image) => !isSmallBandImage(image, page.text.height));
+    flow.push(...orderFlow(lines, images, page.text.width));
+  });
+
+  const blocks = buildBlocks(flow).map(
+    (raw) =>
+      new Block({
+        kind: raw.kind,
+        level: raw.level,
+        text: raw.text,
+        page: raw.page,
+        imageId: raw.imageId,
+      }),
   );
+
   const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
 
   return new ParsedBook({

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
+import { ReaderImage } from "./_ReaderImage";
 
 export interface JumpRequest {
   readonly index: number;
@@ -7,6 +8,7 @@ export interface JumpRequest {
 }
 
 interface Props {
+  bookId: string;
   parsed: ParsedBook;
   settings: ReaderSettings;
   initialBlock: number;
@@ -23,12 +25,14 @@ const headingClass: Record<number, string> = {
 
 function blockClass(block: Block): string {
   if (block.kind === "heading") return headingClass[block.level] ?? headingClass[3] ?? "";
+  if (block.kind === "image") return "my-2";
   return "mt-4";
 }
 
 const VIEWPORT_FRACTION = 0.9;
 
 export function ReaderView({
+  bookId,
   parsed,
   settings,
   initialBlock,
@@ -91,6 +95,15 @@ export function ReaderView({
     onToggleChrome();
   };
 
+  const nodes = parsed.blocks.map((block, index) => {
+    const imageId = block.imageId;
+    const image =
+      block.kind === "image" && imageId !== undefined ? (
+        <ReaderImage key={index} bookId={bookId} imageId={imageId} />
+      ) : null;
+    return { index, className: blockClass(block), node: image ?? block.text };
+  });
+
   return (
     <div
       ref={containerRef}
@@ -102,9 +115,9 @@ export function ReaderView({
         data-font={settings.font}
         style={{ fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight }}
       >
-        {parsed.blocks.map((block, index) => (
-          <div key={index} data-block={index} className={blockClass(block)}>
-            {block.text}
+        {nodes.map((entry) => (
+          <div key={entry.index} data-block={entry.index} className={entry.className}>
+            {entry.node}
           </div>
         ))}
       </article>
