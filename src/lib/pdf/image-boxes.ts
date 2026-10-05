@@ -20,6 +20,21 @@ export interface PdfMatrixUtil {
   transform(m1: number[], m2: number[]): number[];
 }
 
+export interface InlineImage {
+  readonly data?: Uint8ClampedArray;
+  readonly bitmap?: unknown;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** A figure placement plus how to reach its already-decoded pixels. */
+export interface ImagePaint extends ImagePlacement {
+  /** Object id in the page or common object store (`paintImageXObject`). */
+  readonly name?: string;
+  /** Inline image data carried by the operator itself (`paintInlineImageXObject`). */
+  readonly inline?: InlineImage;
+}
+
 type Matrix = number[];
 
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
@@ -60,8 +75,8 @@ export function collectImageBoxes(
   page: number,
   ops: PdfOps,
   util: PdfMatrixUtil,
-): ImagePlacement[] {
-  const boxes: ImagePlacement[] = [];
+): ImagePaint[] {
+  const boxes: ImagePaint[] = [];
   const stack: Matrix[] = [];
   let ctm: Matrix = IDENTITY;
   let index = 0;
@@ -83,10 +98,23 @@ export function collectImageBoxes(
       ctm = util.transform(ctm, toMatrix(args));
       continue;
     }
-    if (fn === ops.paintImageXObject || fn === ops.paintInlineImageXObject) {
+    if (fn === ops.paintImageXObject) {
       if (boxes.length >= MAX_IMAGES) break;
       const box = unitSquareBox(ctm, `${page}-${index}`, page);
-      if (box !== null) boxes.push(box);
+      if (box !== null) {
+        const name = args[0];
+        boxes.push({ ...box, name: typeof name === "string" ? name : undefined });
+      }
+      index += 1;
+      continue;
+    }
+    if (fn === ops.paintInlineImageXObject) {
+      if (boxes.length >= MAX_IMAGES) break;
+      const box = unitSquareBox(ctm, `${page}-${index}`, page);
+      const inline = args[0];
+      if (box !== null && inline !== undefined) {
+        boxes.push({ ...box, inline: inline as InlineImage });
+      }
       index += 1;
     }
   }

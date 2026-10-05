@@ -1,7 +1,8 @@
 import { Effect, Stream } from "effect";
 import { BookMeta, type ImagePlacement, type PageImage } from "@/domain/book";
+import { log } from "@/lib/log";
 import { assembleBook } from "@/lib/pdf/assemble";
-import { record, timed } from "@/lib/perf";
+import { timed } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 
@@ -44,6 +45,7 @@ export function renderFigures(
     const handle = yield* pdf.load(data).pipe(Effect.catchCause(() => Effect.succeed(null)));
     if (handle === null) return;
 
+    log("figures.start", bookId);
     const started = performance.now();
     const outcome = yield* Effect.gen(function* () {
       let hadFailure = false;
@@ -97,6 +99,8 @@ export function renderFigures(
                 { concurrency: 4 },
               );
 
+              log("figures.page", `p${page}:${placements.length}`);
+
               return { text, placements };
             }),
           { concurrency: IMAGE_CONCURRENCY },
@@ -120,7 +124,7 @@ export function renderFigures(
 
     // A hard failure leaves the job pending so a later load retries it.
     if (outcome === null) {
-      record("figures.failed", performance.now() - started, "job aborted");
+      log("figures.failed", "job aborted");
       return;
     }
 
@@ -133,13 +137,13 @@ export function renderFigures(
           )
         : true;
     if (!stored) {
-      record("figures.failed", performance.now() - started, "parse not stored");
+      log("figures.failed", "parse not stored");
       return;
     }
 
     // An empty result caused by failures is inconclusive: leave it pending.
     if (outcome.imageCount === 0 && outcome.hadFailure) {
-      record("figures.failed", performance.now() - started, "placements unreadable");
+      log("figures.failed", "placements unreadable");
       return;
     }
 
@@ -150,6 +154,9 @@ export function renderFigures(
         .pipe(Effect.catchCause(() => Effect.void));
     }
 
-    record("figures.total", performance.now() - started, `${outcome.imageCount} images`);
+    log(
+      "figures.total",
+      `${outcome.imageCount} images in ${((performance.now() - started) / 1000).toFixed(1)}s`,
+    );
   }).pipe(Effect.ensuring(Effect.sync(() => inFlight.delete(bookId))));
 }

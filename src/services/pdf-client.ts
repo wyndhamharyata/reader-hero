@@ -9,7 +9,7 @@ import type {
 } from "pdfjs-dist";
 import type { ImagePlacement, OutlineItem, PageImage, PageSize, PageText, RawTextItem } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
-import { collectImageBoxes } from "@/lib/pdf/image-boxes";
+import { collectImageBoxes, type ImagePaint } from "@/lib/pdf/image-boxes";
 import { captureWarnings, record } from "@/lib/perf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -80,7 +80,7 @@ const cropImage = (
 const readBoxes = (
   pageProxy: PDFPageProxy,
   page: number,
-): Effect.Effect<ReadonlyArray<ImagePlacement>, PdfFailure> =>
+): Effect.Effect<ReadonlyArray<ImagePaint>, PdfFailure> =>
   Effect.gen(function* () {
     const opList = yield* Effect.tryPromise({
       try: () => pageProxy.getOperatorList(),
@@ -93,6 +93,96 @@ const readBoxes = (
       pdfjs.Util,
     );
   });
+
+const readImageData = (pageProxy: PDFPageProxy, name: string): unknown | undefined => {
+  const objects = name.startsWith("g_") ? pageProxy.commonObjs : pageProxy.objs;
+  try {
+    const data = objects.get(name);
+    return data ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Waits briefly for image objects the operator list loads asynchronously. */
+const lookupImage = (
+  pageProxy: PDFPageProxy,
+  name: string,
+): Effect.Effect<unknown | undefined> =>
+  Effect.gen(function* () {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const data = readImageData(pageProxy, name);
+      if (data !== undefined) return data;
+      yield* Effect.sleep("50 millis");
+    }
+    return undefined;
+  });
+
+const toImageData = (
+  source: { readonly data?: Uint8ClampedArray; readonly kind?: number },
+  width: number,
+  height: number,
+): ImageData | null => {
+  const data = source.data;
+  if (data === undefined) return null;
+  if (source.kind === pdfjs.ImageKind.RGBA_32BPP) {
+    return new ImageData(new Uint8ClampedArray(data), width, height);
+  }
+  if (source.kind === pdfjs.ImageKind.RGB_24BPP) {
+    const rgba = new Uint8ClampedArray(width * height * 4);
+    let src = 0;
+    for (let dest = 0; dest < rgba.length; dest += 4) {
+      rgba[dest] = data[src] ?? 0;
+      rgba[dest + 1] = data[src + 1] ?? 0;
+      rgba[dest + 2] = data[src + 2] ?? 0;
+      rgba[dest + 3] = 255;
+      src += 3;
+    }
+    return new ImageData(rgba, width, height);
+  }
+  return null;
+};
+
+const encodeImage = async (source: unknown): Promise<Blob | null> => {
+  const image = source as {
+    bitmap?: unknown;
+    data?: Uint8ClampedArray;
+    kind?: number;
+    width?: number;
+    height?: number;
+  };
+  const width = image.width ?? 0;
+  const height = image.height ?? 0;
+  if (width <= 0 || height <= 0) return null;
+
+  const native = document.createElement("canvas");
+  native.width = width;
+  native.height = height;
+  const nativeContext = native.getContext("2d");
+  if (nativeContext === null) return null;
+
+  if (image.bitmap instanceof ImageBitmap) {
+    nativeContext.drawImage(image.bitmap, 0, 0);
+  } else {
+    const imageData = toImageData(image, width, height);
+    if (imageData === null) return null;
+    nativeContext.putImageData(imageData, 0, 0);
+  }
+
+  const out = document.createElement("canvas");
+  const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(width, height));
+  out.width = Math.max(1, Math.round(width * scale));
+  out.height = Math.max(1, Math.round(height * scale));
+  const outContext = out.getContext("2d");
+  if (outContext === null) return null;
+  outContext.drawImage(native, 0, 0, out.width, out.height);
+
+  const mayHaveAlpha = image.bitmap !== undefined || image.kind === pdfjs.ImageKind.RGBA_32BPP;
+  const type = mayHaveAlpha ? "image/png" : "image/jpeg";
+  return await new Promise<Blob | null>((resolve) =>
+    out.toBlob((blob) => resolve(blob), type, type === "image/jpeg" ? 0.85 : undefined),
+  );
+};
 
 export class PdfClient extends Context.Service<
   PdfClient,
@@ -183,43 +273,69 @@ export class PdfClient extends Context.Service<
           try: () => handle.proxy.getPage(page),
           catch: pdfFailure,
         });
-        const boxes = yield* readBoxes(pageProxy, page);
-        if (boxes.length === 0) return [];
-
-        const base = pageProxy.getViewport({ scale: 1 });
-        const renderScale = Math.min(
-          IMAGE_RENDER_SCALE,
-          MAX_RENDER_SIDE / Math.max(base.width, base.height, 1),
-        );
-        const viewport = pageProxy.getViewport({ scale: renderScale });
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        const context = canvas.getContext("2d");
-        if (context === null) return [];
-
-        yield* Effect.tryPromise({
-          try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
+        const opList = yield* Effect.tryPromise({
+          try: () => pageProxy.getOperatorList(),
           catch: pdfFailure,
         });
-
-        const cropped = yield* Effect.forEach(
-          boxes,
-          (box) => cropImage(canvas, viewport, box),
-          { concurrency: 4 },
-        ).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              canvas.width = 0;
-              canvas.height = 0;
-            }),
-          ),
+        const paints = collectImageBoxes(
+          { fnArray: opList.fnArray, argsArray: opList.argsArray },
+          page,
+          pdfjs.OPS,
+          pdfjs.Util,
         );
+        if (paints.length === 0) return [];
 
-        return boxes.flatMap((box, index) => {
-          const blob = cropped[index];
-          return blob === undefined || blob === null ? [] : [{ ...box, blob }];
-        });
+        const images: PageImage[] = [];
+        const missing: ImagePaint[] = [];
+
+        // Fast path: the operator list already decoded these images.
+        for (const paint of paints) {
+          let source: unknown;
+          if (paint.inline !== undefined) source = paint.inline;
+          else if (paint.name !== undefined) source = yield* lookupImage(pageProxy, paint.name);
+
+          if (source === undefined) {
+            missing.push(paint);
+            continue;
+          }
+          const blob = yield* Effect.tryPromise({
+            try: () => encodeImage(source),
+            catch: pdfFailure,
+          });
+          if (blob === null) {
+            missing.push(paint);
+            continue;
+          }
+          images.push({ ...paint, blob });
+        }
+
+        // Fallback: rasterize the page once and crop what could not be decoded.
+        if (missing.length > 0) {
+          const base = pageProxy.getViewport({ scale: 1 });
+          const renderScale = Math.min(
+            IMAGE_RENDER_SCALE,
+            MAX_RENDER_SIDE / Math.max(base.width, base.height, 1),
+          );
+          const viewport = pageProxy.getViewport({ scale: renderScale });
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          const context = canvas.getContext("2d");
+          if (context !== null) {
+            yield* Effect.tryPromise({
+              try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
+              catch: pdfFailure,
+            });
+            for (const paint of missing) {
+              const blob = yield* cropImage(canvas, viewport, paint);
+              if (blob !== null) images.push({ ...paint, blob });
+            }
+          }
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+
+        return images;
       }),
 
       render: Effect.fn("PdfClient.render")(
