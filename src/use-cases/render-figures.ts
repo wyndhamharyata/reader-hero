@@ -2,6 +2,7 @@ import { Effect, Stream } from "effect";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import { log } from "@/lib/log";
+import { scanCodecs } from "@/lib/pdf/codecs";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { timed } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
@@ -29,6 +30,7 @@ export function renderFigures(
       });
       const handle = yield* pdf.load(data);
 
+      log("figures.codecs", scanCodecs(data));
       log("figures.start", bookId);
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);

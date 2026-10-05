@@ -362,7 +362,11 @@ export class PdfClient extends Context.Service<
         });
 
         const decodeStarted = performance.now();
-        const paints = yield* readBoxes(pageProxy, page);
+        const captured = yield* captureWarnings(readBoxes(pageProxy, page));
+        const paints = captured.result;
+        if (captured.warnings.length > 0) {
+          log("figures.warnings", `p${page}: ${captured.warnings.join(" | ")}`);
+        }
         log(
           "figures.decode",
           `p${page}:${paints.length}${largestImageDims(paints)}`,
