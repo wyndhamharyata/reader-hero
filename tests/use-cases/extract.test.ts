@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import type { PageImage, PageText, RawTextItem } from "@/domain/book";
+import type { ImagePlacement, PageText, RawTextItem } from "@/domain/book";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { extractBook } from "@/use-cases/extract";
 
@@ -24,22 +24,15 @@ const pageWith = (page: number, items: ReadonlyArray<RawTextItem>): PageText => 
   items,
 });
 
-const coverImage: PageImage = {
-  id: "1-0",
-  page: 1,
-  x: 100,
-  y: 400,
-  width: 200,
-  height: 100,
-  blob: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
-};
+const cover: ImagePlacement = { id: "1-0", page: 1, x: 100, y: 400, width: 200, height: 100 };
 
 const stubLayer = Layer.succeed(
   PdfClient,
   PdfClient.of({
     load: () => Effect.die("not used"),
     readPage: (_handle, page) => Effect.succeed(pageWith(page, page === 1 ? [] : [bodyItem()])),
-    readImages: (_handle, page) => Effect.succeed(page === 1 ? [coverImage] : []),
+    readPlacements: (_handle, page) => Effect.succeed(page === 1 ? [cover] : []),
+    readImages: () => Effect.succeed([]),
     render: () => Effect.void,
     readOutline: () => Effect.succeed([]),
     release: () => Effect.void,
@@ -48,13 +41,14 @@ const stubLayer = Layer.succeed(
 );
 
 describe("extractBook", () => {
-  it("given a text-less cover page, still extracts its image", async () => {
+  it("given a text-less cover page, places its figure without rendering it", async () => {
     const result = await Effect.runPromise(
       extractBook(handle, () => {}).pipe(Effect.provide(stubLayer)),
     );
 
-    expect(result.images).toHaveLength(1);
-    expect(result.images[0]?.id).toBe("1-0");
+    expect(result.hasFigures).toBe(true);
+    const imageBlock = result.parsed.blocks.find((block) => block.kind === "image");
+    expect(imageBlock?.imageId).toBe("1-0");
     expect(result.parsed.pageCount).toBe(2);
   });
 });

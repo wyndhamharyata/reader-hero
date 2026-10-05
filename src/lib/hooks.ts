@@ -13,6 +13,14 @@ export function runApp<A, E>(effect: Effect.Effect<A, E, AppServices>): Promise<
   return runtime.runPromise(effect);
 }
 
+export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>) {
+  return runtime.runFork(effect);
+}
+
+export function stopFiber(fiber: ReturnType<typeof forkApp>): void {
+  runtime.runFork(Fiber.interrupt(fiber));
+}
+
 export function useAppEffect<A, E>(
   effect: Effect.Effect<A, E, AppServices>,
   deps: DependencyList,

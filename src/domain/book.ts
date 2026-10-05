@@ -31,6 +31,9 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   toc: Schema.Array(TocEntry),
 }) {}
 
+export const FigureState = Schema.Literals(["none", "pending", "ready"]);
+export type FigureState = typeof FigureState.Type;
+
 export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMeta")({
   id: Schema.String,
   title: Schema.String,
@@ -40,6 +43,7 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   pageCount: Schema.Int,
   parseState: ParseState,
   charCount: Schema.Int,
+  figures: Schema.optional(FigureState),
 }) {}
 
 export class ReadingProgress extends Schema.Class<ReadingProgress>(

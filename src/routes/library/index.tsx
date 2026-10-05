@@ -1,14 +1,15 @@
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState } from "react";
 import { describeCause } from "@/lib/describe-error";
 import { formatSize } from "@/lib/format";
-import { runApp, useAppEffect } from "@/lib/hooks";
+import { forkApp, runApp, stopFiber, useAppEffect } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "@/use-cases/extract";
 import { addPdf } from "@/use-cases/import-book";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { parseBook } from "@/use-cases/parse-book";
+import { renderFigures } from "@/use-cases/render-figures";
 import { BookCard } from "./_BookCard";
 import { BusyOverlay } from "./_BusyOverlay";
 import { InstallHint } from "./_InstallHint";
@@ -37,12 +38,37 @@ export function LibraryRoute() {
     });
   }, [reload]);
 
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.gen(function* () {
+        const store = yield* BookStore;
+        yield* store.updates().pipe(
+          Stream.filter((update) => update.imageId === null),
+          Stream.runForEach(() => Effect.sync(() => reload())),
+        );
+      }),
+    );
+    return () => stopFiber(fiber);
+  }, [reload]);
+
+  useEffect(() => {
+    if (state.status !== "done") return;
+    for (const book of state.value.books) {
+      if ((book.figures ?? "none") === "pending") forkApp(renderFigures(book.id));
+    }
+  }, [state]);
+
   const importFiles = (files: ReadonlyArray<File>) => {
     if (files.length === 0) return;
     setBusy(true);
     setMessage(null);
     const program = Effect.forEach(files, (file) =>
       addPdf(file, setProgress).pipe(
+        Effect.tap((meta) =>
+          Effect.sync(() => {
+            if ((meta.figures ?? "none") === "pending") forkApp(renderFigures(meta.id));
+          }),
+        ),
         Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, file.name)))),
       ),
     ).pipe(

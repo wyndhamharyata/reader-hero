@@ -1,7 +1,12 @@
 import { Context, Effect, Layer } from "effect";
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import type { PDFDocumentLoadingTask, PDFDocumentProxy, PageViewport } from "pdfjs-dist";
+import type {
+  PDFDocumentLoadingTask,
+  PDFDocumentProxy,
+  PDFPageProxy,
+  PageViewport,
+} from "pdfjs-dist";
 import type { ImagePlacement, OutlineItem, PageImage, PageText, RawTextItem } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 import { collectImageBoxes } from "@/lib/pdf/image-boxes";
@@ -70,11 +75,32 @@ const cropImage = (
     });
   });
 
+const readBoxes = (
+  pageProxy: PDFPageProxy,
+  page: number,
+): Effect.Effect<ReadonlyArray<ImagePlacement>, PdfFailure> =>
+  Effect.gen(function* () {
+    const opList = yield* Effect.tryPromise({
+      try: () => pageProxy.getOperatorList(),
+      catch: pdfFailure,
+    });
+    return collectImageBoxes(
+      { fnArray: opList.fnArray, argsArray: opList.argsArray },
+      page,
+      pdfjs.OPS,
+      pdfjs.Util,
+    );
+  });
+
 export class PdfClient extends Context.Service<
   PdfClient,
   {
     load(data: ArrayBuffer): Effect.Effect<PdfHandle, PdfFailure>;
     readPage(handle: PdfHandle, page: number): Effect.Effect<PageText, PdfFailure>;
+    readPlacements(
+      handle: PdfHandle,
+      page: number,
+    ): Effect.Effect<ReadonlyArray<ImagePlacement>, PdfFailure>;
     readImages(handle: PdfHandle, page: number): Effect.Effect<ReadonlyArray<PageImage>, PdfFailure>;
     render(
       handle: PdfHandle,
@@ -127,22 +153,22 @@ export class PdfClient extends Context.Service<
         return { page, width: viewport.width, height: viewport.height, items };
       }),
 
+      readPlacements: Effect.fn("PdfClient.readPlacements")(
+        function* (handle: PdfHandle, page: number) {
+          const pageProxy = yield* Effect.tryPromise({
+            try: () => handle.proxy.getPage(page),
+            catch: pdfFailure,
+          });
+          return yield* readBoxes(pageProxy, page);
+        },
+      ),
+
       readImages: Effect.fn("PdfClient.readImages")(function* (handle: PdfHandle, page: number) {
         const pageProxy = yield* Effect.tryPromise({
           try: () => handle.proxy.getPage(page),
           catch: pdfFailure,
         });
-        const opList = yield* Effect.tryPromise({
-          try: () => pageProxy.getOperatorList(),
-          catch: pdfFailure,
-        });
-
-        const boxes = collectImageBoxes(
-          { fnArray: opList.fnArray, argsArray: opList.argsArray },
-          page,
-          pdfjs.OPS,
-          pdfjs.Util,
-        );
+        const boxes = yield* readBoxes(pageProxy, page);
         if (boxes.length === 0) return [];
 
         const base = pageProxy.getViewport({ scale: 1 });

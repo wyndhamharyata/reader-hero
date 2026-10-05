@@ -25,7 +25,6 @@ export function parseBook(
     const result = yield* extractBook(handle, onProgress);
 
     yield* store.putParsed(id, result.parsed);
-    yield* store.putImages(id, result.images);
 
     const meta = yield* store.get(id);
     const scanned = isScanned(result.parsed.charCount, result.parsed.pageCount);
@@ -33,6 +32,7 @@ export function parseBook(
       ...meta,
       parseState: scanned ? "scanned" : "ready",
       charCount: result.parsed.charCount,
+      figures: result.hasFigures ? "pending" : "none",
     });
     yield* store.putMeta(next);
 

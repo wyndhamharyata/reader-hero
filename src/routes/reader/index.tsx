@@ -2,12 +2,13 @@ import { Effect } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { ReadingProgress } from "@/domain/book";
-import { describeError } from "@/lib/describe-error";
+import { describeCause, describeError } from "@/lib/describe-error";
 import { formatPercent } from "@/lib/format";
-import { runApp, useAppEffect, useSettings } from "@/lib/hooks";
+import { forkApp, runApp, useAppEffect, useSettings } from "@/lib/hooks";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { parseBook } from "@/use-cases/parse-book";
+import { renderFigures } from "@/use-cases/render-figures";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
 import { SettingsSheet } from "./_SettingsSheet";
@@ -63,6 +64,12 @@ export function ReaderRoute() {
     }
   }, [data]);
 
+  useEffect(() => {
+    if (data !== null && (data.meta.figures ?? "none") === "pending") {
+      forkApp(renderFigures(bookId));
+    }
+  }, [data, bookId]);
+
   const onPosition = useCallback(
     (blockIndex: number) => {
       setPosition(blockIndex);
@@ -87,10 +94,11 @@ export function ReaderRoute() {
     setRebuilding(true);
     setMessage(null);
     const program = parseBook(bookId, () => {}).pipe(
-      Effect.catch((error) => Effect.sync(() => setMessage(describeError(error, "This book")))),
+      Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, "This book")))),
     );
     void runApp(program).then(() => {
       setRebuilding(false);
+      forkApp(renderFigures(bookId));
       reload();
     });
   };

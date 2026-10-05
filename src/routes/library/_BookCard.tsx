@@ -27,6 +27,7 @@ const stateClass: Record<ParseState, string> = {
 export function BookCard({ book, onRemove, onReparse }: Props) {
   const author = book.author ?? "";
   const needsRebuild = book.parseState === "scanned" || book.parseState === "failed";
+  const figuresPending = (book.figures ?? "none") === "pending";
 
   return (
     <li className="card bg-base-200">
@@ -43,6 +44,7 @@ export function BookCard({ book, onRemove, onReparse }: Props) {
 
         <p className="text-xs opacity-60">
           {book.pageCount} pages · {formatSize(book.fileSize)}
+          {figuresPending && " · rendering figures…"}
         </p>
 
         <div className="card-actions justify-end">

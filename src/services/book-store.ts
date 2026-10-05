@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, PubSub, Stream } from "effect";
 import {
   BookMeta,
   ImageRecord,
@@ -19,6 +19,12 @@ import { openReaderDb, type InboxFile } from "@/lib/db";
 export interface StorageEstimate {
   readonly usage: number;
   readonly quota: number;
+}
+
+export interface StoreUpdate {
+  readonly bookId: string;
+  /** The image that became available, or null when the book meta changed. */
+  readonly imageId: string | null;
 }
 
 const imageRange = (bookId: string): IDBKeyRange =>
@@ -42,10 +48,8 @@ export class BookStore extends Context.Service<
     getParsed(
       id: string,
     ): Effect.Effect<ParsedBook, BookNotFound | ParsedMissing | StorageFailure>;
-    putImages(
-      bookId: string,
-      images: ReadonlyArray<StoredImage>,
-    ): Effect.Effect<void, StorageFailure>;
+    putImage(bookId: string, image: StoredImage): Effect.Effect<void, StorageFailure>;
+    updates(): Stream.Stream<StoreUpdate>;
     getImage(
       bookId: string,
       imageId: string,
@@ -62,6 +66,7 @@ export class BookStore extends Context.Service<
     BookStore,
     Effect.gen(function* () {
       const db = yield* attempt("open", () => openReaderDb());
+      const updateBus = yield* PubSub.unbounded<StoreUpdate>();
 
       const list = Effect.fn("BookStore.list")(function* () {
         const rows = yield* attempt("list", () => db.getAll("books"));
@@ -80,6 +85,7 @@ export class BookStore extends Context.Service<
 
       const putMeta = Effect.fn("BookStore.putMeta")(function* (meta: BookMeta) {
         yield* attempt("putMeta", () => db.put("books", meta));
+        yield* PubSub.publish(updateBus, { bookId: meta.id, imageId: null });
       });
 
       const putFile = Effect.fn("BookStore.putFile")(
@@ -115,22 +121,20 @@ export class BookStore extends Context.Service<
         return parsed;
       });
 
-      const putImages = Effect.fn("BookStore.putImages")(
-        function* (bookId: string, images: ReadonlyArray<StoredImage>) {
-          yield* attempt("putImages", async () => {
-            const tx = db.transaction("images", "readwrite");
-            const store = tx.objectStore("images");
-            await store.delete(imageRange(bookId));
-            for (const image of images) {
-              await store.put(
-                new ImageRecord({ blob: image.blob, width: image.width, height: image.height }),
-                `${bookId}/${image.id}`,
-              );
-            }
-            await tx.done;
-          });
+      const putImage = Effect.fn("BookStore.putImage")(
+        function* (bookId: string, image: StoredImage) {
+          yield* attempt("putImage", () =>
+            db.put(
+              "images",
+              new ImageRecord({ blob: image.blob, width: image.width, height: image.height }),
+              `${bookId}/${image.id}`,
+            ),
+          );
+          yield* PubSub.publish(updateBus, { bookId, imageId: image.id });
         },
       );
+
+      const updates = () => Stream.fromPubSub(updateBus);
 
       const getImage = Effect.fn("BookStore.getImage")(
         function* (bookId: string, imageId: string) {
@@ -202,7 +206,8 @@ export class BookStore extends Context.Service<
         getFile,
         putParsed,
         getParsed,
-        putImages,
+        putImage,
+        updates,
         getImage,
         putProgress,
         getProgress,

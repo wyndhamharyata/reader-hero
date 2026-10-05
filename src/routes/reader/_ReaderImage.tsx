@@ -1,6 +1,6 @@
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState } from "react";
-import { runApp } from "@/lib/hooks";
+import { forkApp, runApp, stopFiber } from "@/lib/hooks";
 import { BookStore } from "@/services/book-store";
 
 interface Props {
@@ -15,19 +15,38 @@ export function ReaderImage({ bookId, imageId }: Props) {
 
   useEffect(() => {
     let active = true;
-    void runApp(
-      Effect.flatMap(BookStore, (store) => store.getImage(bookId, imageId)).pipe(
-        Effect.catch(() => Effect.succeed(null)),
-      ),
-    ).then((image) => {
-      if (!active || image === null) return;
-      const objectUrl = URL.createObjectURL(image.blob);
-      urlRef.current = objectUrl;
-      setUrl(objectUrl);
-      setRatio(image.height === 0 ? null : image.width / image.height);
-    });
+
+    const load = () => {
+      void runApp(
+        Effect.flatMap(BookStore, (store) => store.getImage(bookId, imageId)).pipe(
+          Effect.catchCause(() => Effect.succeed(null)),
+        ),
+      ).then((image) => {
+        if (!active || image === null) return;
+        if (urlRef.current !== null) URL.revokeObjectURL(urlRef.current);
+        const objectUrl = URL.createObjectURL(image.blob);
+        urlRef.current = objectUrl;
+        setUrl(objectUrl);
+        setRatio(image.height === 0 ? null : image.width / image.height);
+      });
+    };
+
+    load();
+
+    // Figures render in the background; fill this one in when it lands.
+    const fiber = forkApp(
+      Effect.gen(function* () {
+        const store = yield* BookStore;
+        yield* store.updates().pipe(
+          Stream.filter((update) => update.bookId === bookId && update.imageId === imageId),
+          Stream.runForEach(() => Effect.sync(load)),
+        );
+      }),
+    );
+
     return () => {
       active = false;
+      stopFiber(fiber);
       if (urlRef.current !== null) {
         URL.revokeObjectURL(urlRef.current);
         urlRef.current = null;
