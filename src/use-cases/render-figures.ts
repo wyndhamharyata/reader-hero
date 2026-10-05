@@ -28,9 +28,17 @@ export function renderFigures(
         try: () => blob.arrayBuffer(),
         catch: (cause) => new StorageFailure({ operation: "readFile", cause }),
       });
+
+      log("figures.file", `${(data.byteLength / 1e6).toFixed(1)}MB`);
+      let codecs = "scan failed";
+      try {
+        codecs = scanCodecs(data);
+      } catch {
+        // Diagnostics only: never let the probe fail the job.
+      }
+      log("figures.codecs", codecs);
       const handle = yield* pdf.load(data);
 
-      log("figures.codecs", scanCodecs(data));
       log("figures.start", bookId);
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);

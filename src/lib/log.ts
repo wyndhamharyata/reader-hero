@@ -3,6 +3,9 @@ import { record } from "@/lib/perf";
 const STORAGE_KEY = "reader-hero.log-url";
 const DEFAULT_ENDPOINT = "/__log";
 
+/** Consecutive beacon failures, for surfacing a broken log path on-device. */
+let unreachable = 0;
+
 /** Where logs are sent, or null outside a browser. */
 function destination(): string | null {
   const scope = globalThis as { location?: { search: string }; localStorage?: Storage };
@@ -30,5 +33,16 @@ export function log(name: string, detail = "", ms = 0): void {
     headers: { "Content-Type": "text/plain" },
     body: JSON.stringify({ at: Date.now(), name, detail, ms }),
     keepalive: true,
-  }).catch(() => {});
+  }).then(
+    () => {
+      unreachable = 0;
+    },
+    () => {
+      // Make a broken beacon path visible on the device instead of silent.
+      unreachable += 1;
+      if (unreachable <= 3 || unreachable % 100 === 0) {
+        record("log.beacon", 0, `unreachable x${unreachable}`);
+      }
+    },
+  );
 }

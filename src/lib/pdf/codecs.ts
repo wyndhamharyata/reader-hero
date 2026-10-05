@@ -16,8 +16,8 @@ const NEEDLES: ReadonlyArray<readonly [string, string]> = [
 
 const MAX_NEEDLE_LENGTH = 16;
 const CHUNK = 1 << 20;
-/** Hard cap so a pathological file cannot hang the scan. */
-const SCAN_LIMIT = 512 << 20;
+/** Hard cap so a pathological file cannot outlast the job. */
+const SCAN_LIMIT = 64 << 20;
 const MAX_HITS = 9999;
 
 const countWithin = (text: string, needle: string, limit: number): number => {
