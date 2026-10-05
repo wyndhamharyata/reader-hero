@@ -130,6 +130,17 @@ body,
   height: 100%;
 }
 
+/* WKWebView samples the page background for the area beyond the frozen
+   viewport (the 59pt phantom-toolbar strip in installed mode). Leaving it
+   unset makes iOS reuse the app surface color, which erases the viewport
+   edge and reads as bottom padding. A distinct bar color restores the
+   boundary and matches the light header chrome. */
+@media (display-mode: standalone) {
+  body {
+    background-color: var(--color-base-300);
+  }
+}
+
 body {
   overscroll-behavior-y: none;
 }
