@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 import * as pdfjs from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+const workerUrl = "/worker/pdf.worker.shimmed.min.mjs";
 import type {
   PDFDocumentLoadingTask,
   PDFDocumentProxy,
