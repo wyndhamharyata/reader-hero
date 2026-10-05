@@ -40,7 +40,7 @@ export function ReaderBody({
   const initialBlock = progress?.blockIndex ?? 0;
   const currentPage = parsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
-  const footerClass = `absolute inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 transition-transform ${chrome ? "" : "translate-y-full"}`;
+  const footerClass = `absolute inset-x-0 -bottom-2 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 transition-transform ${chrome ? "" : "translate-y-full"}`;
 
   const onPosition = (blockIndex: number) => {
     setPosition(blockIndex);
