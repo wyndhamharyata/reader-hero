@@ -10,6 +10,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const IMAGE_RENDER_SCALE = 1.5;
 const MAX_IMAGE_DIM = 1400;
+const MAX_RENDER_SIDE = 2000;
 
 export interface PdfHandle {
   readonly proxy: PDFDocumentProxy;
@@ -144,7 +145,12 @@ export class PdfClient extends Context.Service<
         );
         if (boxes.length === 0) return [];
 
-        const viewport = pageProxy.getViewport({ scale: IMAGE_RENDER_SCALE });
+        const base = pageProxy.getViewport({ scale: 1 });
+        const renderScale = Math.min(
+          IMAGE_RENDER_SCALE,
+          MAX_RENDER_SIDE / Math.max(base.width, base.height, 1),
+        );
+        const viewport = pageProxy.getViewport({ scale: renderScale });
         const canvas = document.createElement("canvas");
         canvas.width = Math.floor(viewport.width);
         canvas.height = Math.floor(viewport.height);

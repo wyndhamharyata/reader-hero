@@ -110,8 +110,8 @@ export interface StoredImage {
 
 export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/ImageRecord")({
   blob: Schema.instanceOf(Blob),
-  width: Schema.Int,
-  height: Schema.Int,
+  width: Schema.Number,
+  height: Schema.Number,
 }) {}
 
 export interface OutlineItem {

@@ -1,5 +1,5 @@
 import { Effect, Stream } from "effect";
-import type { ParsedBook, StoredImage } from "@/domain/book";
+import type { PageImage, ParsedBook, StoredImage } from "@/domain/book";
 import type { PdfFailure } from "@/domain/errors";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
@@ -29,7 +29,12 @@ export function extractBook(
         (page) =>
           Effect.gen(function* () {
             const text = yield* pdf.readPage(handle, page);
-            const images = yield* pdf.readImages(handle, page);
+            let images: ReadonlyArray<PageImage> = [];
+            if (text.items.length > 0) {
+              images = yield* pdf.readImages(handle, page).pipe(
+                Effect.catch(() => Effect.succeed([] as ReadonlyArray<PageImage>)),
+              );
+            }
             yield* Effect.sync(() => onProgress({ page, total }));
             return { text, images };
           }),
