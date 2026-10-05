@@ -62,7 +62,7 @@ export function ReaderBody({
   const initialBlock = progress?.blockIndex ?? 0;
   const currentPage = parsed.blocks[position]?.page ?? 1;
   const percentLabel = formatPercent(position / total);
-  const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 transition-transform ${chrome ? "" : "translate-y-full"}`;
+  const footerClass = `absolute inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100 px-4 pt-2 pb-2 ${chrome ? "" : "translate-y-full"}`;
 
   const onPosition = (blockIndex: number) => {
     setPosition(blockIndex);
@@ -103,7 +103,7 @@ export function ReaderBody({
         )}
 
         {scanned && mode === "reader" && (
-          <div className="fixed inset-x-0 top-[calc(4rem+env(safe-area-inset-top))] z-20 px-3">
+          <div className="absolute inset-x-0 top-[calc(4rem+env(safe-area-inset-top))] z-20 px-3">
             <div className="alert alert-warning py-2 text-xs">
               <span>No text layer found. Showing the original pages.</span>
             </div>
@@ -123,7 +123,7 @@ export function ReaderBody({
       </footer>
 
       {debug !== "" && (
-        <div className="fixed inset-x-0 bottom-20 z-[60] bg-black/80 p-1 font-mono text-[8px] leading-tight break-all text-white">
+        <div className="absolute inset-x-0 bottom-20 z-[60] bg-black/80 p-1 font-mono text-[8px] leading-tight break-all text-white">
           {debug}
         </div>
       )}
