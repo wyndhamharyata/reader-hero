@@ -92,6 +92,12 @@ export interface PageText {
   readonly items: ReadonlyArray<RawTextItem>;
 }
 
+export interface PageSize {
+  readonly page: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface ImagePlacement {
   readonly id: string;
   readonly page: number;

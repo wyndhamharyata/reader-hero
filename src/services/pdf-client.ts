@@ -7,7 +7,7 @@ import type {
   PDFPageProxy,
   PageViewport,
 } from "pdfjs-dist";
-import type { ImagePlacement, OutlineItem, PageImage, PageText, RawTextItem } from "@/domain/book";
+import type { ImagePlacement, OutlineItem, PageImage, PageSize, PageText, RawTextItem } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 import { collectImageBoxes } from "@/lib/pdf/image-boxes";
 import { captureWarnings, record } from "@/lib/perf";
@@ -109,6 +109,7 @@ export class PdfClient extends Context.Service<
       canvas: HTMLCanvasElement,
       scale: number,
     ): Effect.Effect<void, PdfFailure>;
+    pageSizes(handle: PdfHandle): Effect.Effect<ReadonlyArray<PageSize>, PdfFailure>;
     readOutline(handle: PdfHandle): Effect.Effect<ReadonlyArray<OutlineItem>, PdfFailure>;
     release(handle: PdfHandle): Effect.Effect<void>;
     pageCount(handle: PdfHandle): number;
@@ -241,6 +242,25 @@ export class PdfClient extends Context.Service<
           });
         },
       ),
+
+      pageSizes: Effect.fn("PdfClient.pageSizes")(function* (handle: PdfHandle) {
+        const pages = Array.from({ length: handle.numPages }, (_, index) => index + 1);
+        return yield* Effect.forEach(
+          pages,
+          (page) =>
+            Effect.gen(function* () {
+              const pageProxy = yield* Effect.tryPromise({
+                try: () => handle.proxy.getPage(page),
+                catch: pdfFailure,
+              });
+              const viewport = pageProxy.getViewport({ scale: 1 });
+              return { page, width: viewport.width, height: viewport.height };
+            }).pipe(
+              Effect.catchCause(() => Effect.succeed({ page, width: 612, height: 792 })),
+            ),
+          { concurrency: 8 },
+        );
+      }),
 
       readOutline: Effect.fn("PdfClient.readOutline")(function* (handle: PdfHandle) {
         const raw = yield* Effect.tryPromise({

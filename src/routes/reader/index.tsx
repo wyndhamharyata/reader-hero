@@ -103,6 +103,15 @@ export function ReaderRoute() {
     [bookId, parsed],
   );
 
+  const onOriginalPage = useCallback(
+    (page: number) => {
+      if (parsed === null) return;
+      const index = parsed.blocks.findIndex((block) => block.page >= page);
+      if (index >= 0) onPosition(index);
+    },
+    [parsed, onPosition],
+  );
+
   const rebuild = () => {
     setRebuilding(true);
     setMessage(null);
@@ -201,7 +210,7 @@ export function ReaderRoute() {
             bookId={bookId}
             pageCount={data.meta.pageCount}
             initialPage={currentPage}
-            onPageChange={() => {}}
+            onPageChange={onOriginalPage}
           />
         )}
 

@@ -27,6 +27,7 @@ const stubLayer = Layer.succeed(
     readPlacements: () => Effect.succeed([]),
     readImages: () => Effect.succeed([]),
     render: () => Effect.void,
+    pageSizes: () => Effect.succeed([]),
     readOutline: () => Effect.succeed([]),
     release: () => Effect.void,
     pageCount: () => 1,

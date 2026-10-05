@@ -1,9 +1,11 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
+import type { PageSize } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import { runApp } from "@/lib/hooks";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
+import { PdfPage } from "./_PdfPage";
 
 interface Props {
   bookId: string;
@@ -12,13 +14,13 @@ interface Props {
   onPageChange: (page: number) => void;
 }
 
-const RENDER_SCALE = 1;
-
 export function OriginalView({ bookId, pageCount, initialPage, onPageChange }: Props) {
   const [handle, setHandle] = useState<PdfHandle | null>(null);
-  const [page, setPage] = useState(initialPage);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
+  const [current, setCurrent] = useState(initialPage);
+  const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<PdfHandle | null>(null);
+  const didScroll = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -30,14 +32,20 @@ export function OriginalView({ bookId, pageCount, initialPage, onPageChange }: P
         try: () => blob.arrayBuffer(),
         catch: (cause) => new StorageFailure({ operation: "readFile", cause }),
       });
-      return yield* pdf.load(data);
+      const loaded = yield* pdf.load(data);
+      const pageSizes = yield* pdf.pageSizes(loaded);
+      return { loaded, pageSizes };
     });
 
-    void runApp(program).then((loaded) => {
-      if (!active) return;
-      handleRef.current = loaded;
-      setHandle(loaded);
-    });
+    void runApp(program).then(
+      (result) => {
+        if (!active) return;
+        handleRef.current = result.loaded;
+        setHandle(result.loaded);
+        setSizes(result.pageSizes);
+      },
+      () => {},
+    );
 
     return () => {
       active = false;
@@ -53,39 +61,63 @@ export function OriginalView({ bookId, pageCount, initialPage, onPageChange }: P
   }, []);
 
   useEffect(() => {
-    if (handle === null) return;
-    const canvas = canvasRef.current;
-    if (canvas === null) return;
-    void runApp(Effect.flatMap(PdfClient, (pdf) => pdf.render(handle, page, canvas, RENDER_SCALE)));
-  }, [handle, page]);
+    if (didScroll.current || sizes.length === 0) return;
+    const container = containerRef.current;
+    if (container === null) return;
+    didScroll.current = true;
+    container
+      .querySelector<HTMLElement>(`[data-page="${initialPage}"]`)
+      ?.scrollIntoView({ block: "start" });
+  }, [sizes, initialPage]);
 
-  const go = (next: number) => {
-    const clamped = Math.min(pageCount, Math.max(1, next));
-    setPage(clamped);
-    onPageChange(clamped);
-  };
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container === null || sizes.length === 0) return;
+    const wrappers = Array.from(container.querySelectorAll<HTMLElement>("[data-page]"));
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .map((entry) => Number(entry.target.getAttribute("data-page")));
+        if (visible.length === 0) return;
+        const page = Math.min(...visible);
+        setCurrent(page);
+        onPageChange(page);
+      },
+      { root: container, rootMargin: "-45% 0px -45% 0px", threshold: 0 },
+    );
+    wrappers.forEach((wrapper) => observer.observe(wrapper));
+    return () => observer.disconnect();
+  }, [sizes, onPageChange]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-1 items-start justify-center overflow-auto bg-base-300 p-2">
-        <canvas ref={canvasRef} className="max-w-full rounded-box bg-white shadow" />
-      </div>
-      <div className="flex items-center justify-center gap-3 p-3">
-        <button type="button" className="btn btn-sm" onClick={() => go(page - 1)} disabled={page <= 1}>
-          Previous
-        </button>
-        <span className="text-sm opacity-70">
-          Page {page} of {pageCount}
-        </span>
-        <button
-          type="button"
-          className="btn btn-sm"
-          onClick={() => go(page + 1)}
-          disabled={page >= pageCount}
+    <div className="relative h-full">
+      {handle === null && (
+        <div className="flex h-full items-center justify-center">
+          <span className="loading loading-spinner" />
+        </div>
+      )}
+
+      {handle !== null && (
+        <div
+          ref={containerRef}
+          className="h-full overflow-y-auto overscroll-contain bg-base-300"
         >
-          Next
-        </button>
-      </div>
+          <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-2">
+            {sizes.map((size) => (
+              <PdfPage key={size.page} handle={handle} size={size} root={containerRef} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {handle !== null && (
+        <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
+          <span className="badge badge-neutral badge-sm">
+            Page {current} of {pageCount}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

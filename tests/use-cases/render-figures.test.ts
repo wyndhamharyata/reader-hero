@@ -100,6 +100,7 @@ function harness(figures: FigureState): Harness {
       readPlacements: () => Effect.succeed([placement]),
       readImages: () => Effect.succeed([pageImage]),
       render: () => Effect.void,
+      pageSizes: () => Effect.succeed([]),
       readOutline: () => Effect.succeed([]),
       release: () => Effect.void,
       pageCount: () => 1,
