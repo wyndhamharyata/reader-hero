@@ -4,8 +4,15 @@ interface Props {
   progress: ParseProgress | null;
 }
 
+function labelFor(progress: ParseProgress | null): string {
+  if (progress === null) return "Preparing…";
+  if (progress.phase === "images") {
+    return `Rendering figures, page ${progress.page} of ${progress.total}`;
+  }
+  return `Reading page ${progress.page} of ${progress.total}`;
+}
+
 export function BusyOverlay({ progress }: Props) {
-  const label = progress === null ? "Preparing…" : `Reading page ${progress.page} of ${progress.total}`;
   const value = progress?.page ?? 0;
   const max = progress?.total ?? 1;
 
@@ -14,7 +21,7 @@ export function BusyOverlay({ progress }: Props) {
       <div className="card w-full max-w-xs bg-base-100">
         <div className="card-body items-center gap-3">
           <span className="loading loading-spinner" />
-          <p className="text-sm">{label}</p>
+          <p className="text-sm">{labelFor(progress)}</p>
           <progress className="progress progress-primary w-full" value={value} max={max} />
         </div>
       </div>
