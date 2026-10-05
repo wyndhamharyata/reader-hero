@@ -24,17 +24,34 @@ function rect(selector: string): string | null {
   return `${Math.round(box.top)}..${Math.round(box.bottom)} (h${Math.round(box.height)})`;
 }
 
+function measureUnit(unit: string): number {
+  const probe = document.createElement("div");
+  probe.style.cssText = `position:fixed;top:0;left:0;width:1px;height:100${unit};visibility:hidden;pointer-events:none`;
+  document.body.appendChild(probe);
+  const height = Math.round(probe.getBoundingClientRect().height);
+  probe.remove();
+  return height;
+}
+
 export function layoutSnapshot(): string {
   const header = document.querySelector("header");
   const headerStyle = header === null ? null : getComputedStyle(header);
   const vv = window.visualViewport;
+  const nav = navigator as Navigator & { standalone?: boolean };
   return JSON.stringify({
-    build: "chrome-opaque-2",
+    build: "chrome-opaque-3",
+    standalone: nav.standalone ?? null,
+    displayMode: window.matchMedia("(display-mode: standalone)").matches
+      ? "standalone"
+      : window.matchMedia("(display-mode: browser)").matches
+        ? "browser"
+        : "other",
     inner: `${window.innerWidth}x${window.innerHeight}`,
     client: `${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`,
     vv: vv === null ? null : `${Math.round(vv.width)}x${Math.round(vv.height)}@${Math.round(vv.offsetTop)}`,
     screen: `${window.screen.width}x${window.screen.height} avail ${window.screen.availHeight}`,
     dpr: window.devicePixelRatio,
+    units: `vh${measureUnit("vh")} dvh${measureUnit("dvh")} lvh${measureUnit("lvh")} svh${measureUnit("svh")}`,
     inset: envInsets(),
     headerRect: rect("header"),
     footerRect: rect("[data-footer]"),
