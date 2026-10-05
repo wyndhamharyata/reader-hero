@@ -111,7 +111,7 @@ export function ReaderView({
       onClick={handleClick}
     >
       <article
-        className="reader-body mx-auto max-w-prose px-5 pt-4 pb-40"
+        className="reader-body mx-auto max-w-prose px-5 pt-4 pb-4"
         data-font={settings.font}
         style={{ fontSize: `${settings.fontSize}px`, lineHeight: settings.lineHeight }}
       >

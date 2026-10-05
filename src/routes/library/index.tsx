@@ -141,7 +141,7 @@ export function LibraryRoute() {
 
       <button
         type="button"
-        className="btn btn-primary fixed bottom-[max(1.5rem,var(--safe-bottom))] left-1/2 z-40 -translate-x-1/2 shadow-lg"
+        className="btn btn-primary fixed bottom-[1.5rem] left-1/2 z-40 -translate-x-1/2 shadow-lg"
         onClick={() => input.current?.click()}
         disabled={busy}
       >
