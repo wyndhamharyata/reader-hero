@@ -1,10 +1,10 @@
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 import { BookMeta, ParsedBook } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import type { BookNotFound, PdfFailure } from "@/domain/errors";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
-import { extractBook, type ParseProgress } from "./extract";
+import { assembleExtract, extractPages, type ParseProgress } from "./extract";
 
 export function parseBook(
   id: string,
@@ -21,7 +21,11 @@ export function parseBook(
     });
 
     const handle = yield* pdf.load(data);
-    const result = yield* extractBook(handle, onProgress);
+    const pages = yield* extractPages(handle).pipe(
+      Stream.tap((read) => Effect.sync(() => onProgress({ page: read.page, total: read.total }))),
+      Stream.runCollect,
+    );
+    const result = yield* assembleExtract(handle, pages);
 
     yield* store.putParsed(id, result.parsed);
 

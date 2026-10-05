@@ -12,11 +12,6 @@ const randomBytes = (length: number): Uint8Array => {
   return bytes;
 };
 
-/**
- * Generates a RFC 4122 version 4 id without `crypto.randomUUID`, which is only
- * available in secure contexts. `crypto.getRandomValues` works everywhere,
- * including plain-IP origins.
- */
 export function newId(): string {
   const bytes = randomBytes(16);
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40;

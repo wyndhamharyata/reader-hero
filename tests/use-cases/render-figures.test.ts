@@ -97,7 +97,6 @@ function harness(figures: FigureState): Harness {
     PdfClient.of({
       load: () => Effect.succeed(handle),
       readPage: () => Effect.succeed(pageText),
-      readPlacements: () => Effect.succeed([placement]),
       readImages: () => Effect.succeed([pageImage]),
       render: () => Effect.void,
       pageSizes: () => Effect.succeed([]),

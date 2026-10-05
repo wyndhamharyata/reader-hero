@@ -44,7 +44,11 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   parseState: ParseState,
   charCount: Schema.Int,
   figures: Schema.optional(FigureState),
-}) {}
+}) {
+  get figuresPending(): boolean {
+    return this.figures === "pending";
+  }
+}
 
 export class ReadingProgress extends Schema.Class<ReadingProgress>(
   "reader-hero/domain/ReadingProgress",
@@ -92,11 +96,7 @@ export interface PageText {
   readonly items: ReadonlyArray<RawTextItem>;
 }
 
-export interface PageSize {
-  readonly page: number;
-  readonly width: number;
-  readonly height: number;
-}
+export type PageSize = Omit<PageText, "items">;
 
 export interface ImagePlacement {
   readonly id: string;
@@ -111,12 +111,9 @@ export interface PageImage extends ImagePlacement {
   readonly blob: Blob;
 }
 
-export interface StoredImage {
+export type StoredImage = Pick<ImageRecord, "blob" | "width" | "height"> & {
   readonly id: string;
-  readonly blob: Blob;
-  readonly width: number;
-  readonly height: number;
-}
+};
 
 export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/ImageRecord")({
   blob: Schema.instanceOf(Blob),

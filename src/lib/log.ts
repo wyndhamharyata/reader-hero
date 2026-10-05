@@ -21,14 +21,14 @@ function destination(): string | null {
  * server, so a device reached over the tailnet can be inspected from the
  * machine.
  */
-export function log(name: string, detail = ""): void {
-  record(name, 0, detail);
+export function log(name: string, detail = "", ms = 0): void {
+  record(name, ms, detail);
   const url = destination();
   if (url === null) return;
   void fetch(url, {
     method: "POST",
     headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ at: Date.now(), name, detail }),
+    body: JSON.stringify({ at: Date.now(), name, detail, ms }),
     keepalive: true,
   }).catch(() => {});
 }

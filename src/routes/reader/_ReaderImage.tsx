@@ -1,6 +1,7 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState } from "react";
-import { forkApp, runApp, stopFiber } from "@/lib/hooks";
+import type { ImageRecord } from "@/domain/book";
+import { forkApp, stopFiber } from "@/lib/hooks";
 import { BookStore } from "@/services/book-store";
 
 interface Props {
@@ -14,43 +15,40 @@ export function ReaderImage({ bookId, imageId }: Props) {
   const urlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let active = true;
-
-    const load = () => {
-      void runApp(
-        Effect.flatMap(BookStore, (store) => store.getImage(bookId, imageId)).pipe(
-          Effect.catchCause(() => Effect.succeed(null)),
-        ),
-      ).then((image) => {
-        if (!active || image === null) return;
+    const applyImage = (image: ImageRecord | null) =>
+      Effect.sync(() => {
+        if (image === null) return;
         if (urlRef.current !== null) URL.revokeObjectURL(urlRef.current);
         const objectUrl = URL.createObjectURL(image.blob);
         urlRef.current = objectUrl;
         setUrl(objectUrl);
         setRatio(image.height === 0 ? null : image.width / image.height);
       });
-    };
 
-    load();
-
-    // Figures render in the background; fill this one in when it lands.
     const fiber = forkApp(
       Effect.gen(function* () {
         const store = yield* BookStore;
-        yield* store.updates().pipe(
+        const pull = () =>
+          store.getImage(bookId, imageId).pipe(
+            Effect.catchTag("StorageFailure", () => Effect.succeed(null)),
+          );
+
+        yield* pull().pipe(Effect.flatMap(applyImage));
+
+        const updates = store.updates().pipe(
           Stream.filter(
             (update) =>
-              update.kind === "image" &&
-              update.bookId === bookId &&
-              update.imageId === imageId,
+              update.kind === "image" && update.bookId === bookId && update.imageId === imageId,
           ),
-          Stream.runForEach(() => Effect.sync(load)),
+          Stream.mapEffect(pull),
+          Stream.mapEffect(applyImage),
+          Stream.runDrain,
         );
+        yield* updates;
       }),
     );
 
     return () => {
-      active = false;
       stopFiber(fiber);
       if (urlRef.current !== null) {
         URL.revokeObjectURL(urlRef.current);

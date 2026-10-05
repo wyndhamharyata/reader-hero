@@ -17,7 +17,6 @@ export function record(name: string, ms: number, detail = ""): void {
   for (const listener of listeners) listener();
 }
 
-/** Times an effect and records it, whether it succeeds, fails, or is interrupted. */
 export function timed<A, E, R>(
   name: string,
   effect: Effect.Effect<A, E, R>,
@@ -37,21 +36,32 @@ export function timed<A, E, R>(
   });
 }
 
-/** Captures console warnings (pdf.js warns here when it falls back to a fake worker). */
-export async function captureWarnings<T>(
-  run: () => Promise<T>,
-): Promise<{ readonly result: T; readonly warnings: ReadonlyArray<string> }> {
-  const warnings: string[] = [];
-  const original = console.warn;
-  console.warn = (...args: unknown[]) => {
-    warnings.push(args.map((arg) => String(arg)).join(" "));
-    original.apply(console, args);
-  };
-  try {
-    return { result: await run(), warnings };
-  } finally {
-    console.warn = original;
-  }
+export function captureWarnings<A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<
+  { readonly result: A; readonly warnings: ReadonlyArray<string> },
+  E,
+  R
+> {
+  return Effect.scoped(
+    Effect.gen(function* () {
+      const warnings: string[] = [];
+      yield* Effect.acquireRelease(
+        Effect.sync(() => {
+          const previous = console.warn;
+          console.warn = (...args: unknown[]) => {
+            warnings.push(args.map((arg) => String(arg)).join(" "));
+            previous.apply(console, args);
+          };
+          return () => {
+            console.warn = previous;
+          };
+        }),
+        (restore) => Effect.sync(restore),
+      );
+      return { result: yield* effect, warnings };
+    }),
+  );
 }
 
 export function snapshot(): ReadonlyArray<PerfEntry> {

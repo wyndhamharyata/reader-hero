@@ -1,19 +1,25 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState } from "react";
-import { describeCause } from "@/lib/describe-error";
-import { formatSize } from "@/lib/format";
-import { forkApp, runApp, stopFiber, useAppEffect } from "@/lib/hooks";
+import type {
+  BookNotFound,
+  PdfFailure,
+  StorageFailure,
+  UnsupportedFile,
+} from "@/domain/errors";
+import { describeError } from "@/lib/describe-error";
+import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "@/use-cases/extract";
 import { addPdf } from "@/use-cases/import-book";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { parseBook } from "@/use-cases/parse-book";
-import { renderFigures } from "@/use-cases/render-figures";
 import { BookCard } from "./_BookCard";
 import { BusyOverlay } from "./_BusyOverlay";
 import { InstallHint } from "./_InstallHint";
-import { PerfPanel } from "./_PerfPanel";
+import { LibraryStatus } from "./_LibraryStatus";
+import { OfflineBadge } from "./_OfflineBadge";
+import { StorageUsage } from "./_StorageUsage";
 
 const showInstallHint = isIosBrowser && !isInstalled;
 
@@ -31,22 +37,21 @@ export function LibraryRoute() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [perfOpen, setPerfOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
-  const taps = useRef(0);
 
-  const onBadgeTap = () => {
-    taps.current += 1;
-    if (taps.current >= 5) {
-      taps.current = 0;
-      setPerfOpen(true);
-    }
-  };
+  const books = state.status === "done" ? state.value.books : [];
+  const estimate = state.status === "done" ? state.value.estimate : null;
+  useFigureJobs(books);
 
   useEffect(() => {
-    void runApp(importInboxOnce()).then((count) => {
-      if (count > 0) reload();
-    });
+    const program = importInboxOnce().pipe(
+      Effect.tap((count) =>
+        Effect.sync(() => {
+          if (count > 0) reload();
+        }),
+      ),
+    );
+    void runApp(program);
   }, [reload]);
 
   useEffect(() => {
@@ -62,27 +67,21 @@ export function LibraryRoute() {
     return () => stopFiber(fiber);
   }, [reload]);
 
-  useEffect(() => {
-    if (state.status !== "done") return;
-    for (const book of state.value.books) {
-      if ((book.figures ?? "none") === "pending") forkApp(renderFigures(book.id));
-    }
-  }, [state]);
-
   const importFiles = (files: ReadonlyArray<File>) => {
     if (files.length === 0) return;
     setBusy(true);
     setMessage(null);
-    const program = Effect.forEach(files, (file) =>
-      addPdf(file, setProgress).pipe(
-        Effect.tap((meta) =>
-          Effect.sync(() => {
-            if ((meta.figures ?? "none") === "pending") forkApp(renderFigures(meta.id));
-          }),
-        ),
-        Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, file.name)))),
-      ),
-    ).pipe(
+    const program = Effect.forEach(files, (file) => {
+      const report = (error: UnsupportedFile | PdfFailure | StorageFailure) =>
+        Effect.sync(() => setMessage(describeError(error, file.name)));
+      return addPdf(file, setProgress).pipe(
+        Effect.catchTags({
+          UnsupportedFile: report,
+          PdfFailure: report,
+          StorageFailure: report,
+        }),
+      );
+    }).pipe(
       Effect.ensuring(
         Effect.sync(() => {
           setBusy(false);
@@ -96,32 +95,38 @@ export function LibraryRoute() {
   };
 
   const remove = (id: string) => {
-    void runApp(Effect.flatMap(BookStore, (store) => store.remove(id))).then(() => reload());
+    void runApp(
+      Effect.flatMap(BookStore, (store) => store.remove(id)).pipe(
+        Effect.tap(() => Effect.sync(() => reload())),
+      ),
+    );
   };
 
   const reparse = (id: string) => {
     setBusy(true);
     setMessage(null);
+    const report = (error: BookNotFound | PdfFailure | StorageFailure) =>
+      Effect.sync(() => setMessage(describeError(error, "This book")));
     const program = parseBook(id, setProgress).pipe(
-      Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, "This book")))),
+      Effect.catchTags({ BookNotFound: report, PdfFailure: report, StorageFailure: report }),
+      Effect.ensuring(
+        Effect.sync(() => {
+          setBusy(false);
+          setProgress(null);
+        }),
+      ),
+      Effect.tap(() => Effect.sync(() => reload())),
     );
-    void runApp(program).then(() => {
-      setBusy(false);
-      setProgress(null);
-      reload();
-    });
+    void runApp(program);
   };
 
-  const books = state.status === "done" ? state.value.books : [];
-  const estimate = state.status === "done" ? state.value.estimate : null;
+  const actionLabel = busy ? "Working…" : "Add PDF";
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-2xl flex-col gap-4 p-4 pb-28">
       <header className="flex items-center justify-between gap-3 pt-2">
         <h1 className="text-2xl font-bold">Reader Hero</h1>
-        <button type="button" className="badge badge-ghost badge-sm" onClick={onBadgeTap}>
-          offline
-        </button>
+        <OfflineBadge />
       </header>
 
       {message !== null && (
@@ -132,22 +137,11 @@ export function LibraryRoute() {
 
       <InstallHint show={showInstallHint} />
 
-      {state.status === "loading" && <p className="opacity-70">Loading library…</p>}
-
-      {state.status === "error" && (
-        <div className="alert alert-error">
-          <span>Your library could not be loaded.</span>
-        </div>
-      )}
-
-      {state.status === "done" && books.length === 0 && (
-        <div className="rounded-box bg-base-200 p-8 text-center">
-          <p className="text-lg font-medium">No books yet</p>
-          <p className="mt-1 text-sm opacity-70">
-            Add a PDF and read it in a clean, reflowed view.
-          </p>
-        </div>
-      )}
+      <LibraryStatus
+        loading={state.status === "loading"}
+        failed={state.status === "error"}
+        books={books}
+      />
 
       <ul className="flex flex-col gap-3">
         {books.map((book) => (
@@ -155,11 +149,7 @@ export function LibraryRoute() {
         ))}
       </ul>
 
-      {estimate !== null && estimate.quota > 0 && (
-        <p className="text-center text-xs opacity-60">
-          Using {formatSize(estimate.usage)} of {formatSize(estimate.quota)}
-        </p>
-      )}
+      <StorageUsage estimate={estimate} />
 
       <input
         ref={input}
@@ -179,11 +169,10 @@ export function LibraryRoute() {
         onClick={() => input.current?.click()}
         disabled={busy}
       >
-        {busy ? "Working…" : "Add PDF"}
+        {actionLabel}
       </button>
 
       {busy && <BusyOverlay progress={progress} />}
-      {perfOpen && <PerfPanel onClose={() => setPerfOpen(false)} />}
     </main>
   );
 }

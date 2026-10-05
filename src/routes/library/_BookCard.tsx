@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { BookMeta, type ParseState } from "@/domain/book";
+import { BookMeta } from "@/domain/book";
+import { parseStateBadge } from "@/lib/badges";
 import { formatSize } from "@/lib/format";
 
 interface Props {
@@ -8,25 +9,9 @@ interface Props {
   onReparse: (id: string) => void;
 }
 
-const stateLabel: Record<ParseState, string> = {
-  pending: "Waiting",
-  parsing: "Building reader",
-  ready: "Ready",
-  scanned: "Scanned",
-  failed: "Failed",
-};
-
-const stateClass: Record<ParseState, string> = {
-  pending: "badge-neutral",
-  parsing: "badge-info",
-  ready: "badge-success",
-  scanned: "badge-warning",
-  failed: "badge-error",
-};
-
 export function BookCard({ book, onRemove, onReparse }: Props) {
   const author = book.author ?? "";
-  const figuresPending = (book.figures ?? "none") === "pending";
+  const badge = parseStateBadge[book.parseState];
 
   return (
     <li className="card bg-base-200">
@@ -36,14 +21,12 @@ export function BookCard({ book, onRemove, onReparse }: Props) {
             <h2 className="truncate text-lg font-semibold">{book.title}</h2>
             {author !== "" && <p className="truncate text-sm opacity-70">{author}</p>}
           </Link>
-          <span className={`badge badge-sm ${stateClass[book.parseState]}`}>
-            {stateLabel[book.parseState]}
-          </span>
+          <span className={badge.className}>{badge.label}</span>
         </div>
 
         <p className="text-xs opacity-60">
           {book.pageCount} pages · {formatSize(book.fileSize)}
-          {figuresPending && " · rendering figures…"}
+          {book.figuresPending && " · rendering figures…"}
         </p>
 
         <div className="card-actions justify-end">

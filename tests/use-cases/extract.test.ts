@@ -1,8 +1,8 @@
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import type { PageText, RawTextItem } from "@/domain/book";
+import type { PageImage, PageText, RawTextItem } from "@/domain/book";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
-import { extractBook } from "@/use-cases/extract";
+import { assembleExtract, extractPages } from "@/use-cases/extract";
 
 const handle: PdfHandle = { proxy: {} as never, task: {} as never, numPages: 1 };
 
@@ -19,13 +19,22 @@ const item = (): RawTextItem => ({
 
 const pageText = (page: number): PageText => ({ page, width: 600, height: 800, items: [item()] });
 
+const decodedImage: PageImage = {
+  id: "1-0",
+  page: 1,
+  x: 100,
+  y: 400,
+  width: 200,
+  height: 100,
+  blob: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
+};
+
 const stubLayer = Layer.succeed(
   PdfClient,
   PdfClient.of({
     load: () => Effect.die("not used"),
     readPage: (_handle, page) => Effect.succeed(pageText(page)),
-    readPlacements: () => Effect.succeed([]),
-    readImages: () => Effect.succeed([]),
+    readImages: () => Effect.succeed([decodedImage]),
     render: () => Effect.void,
     pageSizes: () => Effect.succeed([]),
     readOutline: () => Effect.succeed([]),
@@ -34,14 +43,17 @@ const stubLayer = Layer.succeed(
   }),
 );
 
-describe("extractBook", () => {
-  it("given a text page, assembles text blocks without reading figures", async () => {
+describe("extractBook with figures available", () => {
+  it("given a text page whose figure blobs are ready, emits no image blocks", async () => {
+    const pages = await Effect.runPromise(
+      extractPages(handle).pipe(Stream.runCollect, Effect.provide(stubLayer)),
+    );
     const result = await Effect.runPromise(
-      extractBook(handle, () => {}).pipe(Effect.provide(stubLayer)),
+      assembleExtract(handle, Array.from(pages)).pipe(Effect.provide(stubLayer)),
     );
 
     expect(result.scanned).toBe(false);
-    expect(result.parsed.blocks.every((block) => block.kind !== "image")).toBe(true);
+    expect(result.parsed.blocks.some((block) => block.kind === "image")).toBe(false);
     expect(result.parsed.charCount).toBeGreaterThan(0);
   });
 });

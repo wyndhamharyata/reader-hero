@@ -27,7 +27,6 @@ export interface InlineImage {
   readonly height: number;
 }
 
-/** A figure placement plus how to reach its already-decoded pixels. */
 export interface ImagePaint extends ImagePlacement {
   /** Object id in the page or common object store (`paintImageXObject`). */
   readonly name?: string;

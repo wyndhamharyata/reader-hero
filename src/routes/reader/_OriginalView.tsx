@@ -1,8 +1,10 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
 import type { PageSize } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
-import { runApp } from "@/lib/hooks";
+import { pageBadge } from "@/lib/badges";
+import { forkApp, stopFiber } from "@/lib/hooks";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { PdfPage } from "./_PdfPage";
@@ -19,12 +21,13 @@ export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPag
   const [handle, setHandle] = useState<PdfHandle | null>(null);
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
   const [current, setCurrent] = useState(initialPage);
+  const [failed, setFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<PdfHandle | null>(null);
   const didScroll = useRef(false);
 
   useEffect(() => {
-    let active = true;
+    const markFailed = () => Effect.sync(() => setFailed(true));
     const program = Effect.gen(function* () {
       const store = yield* BookStore;
       const pdf = yield* PdfClient;
@@ -36,28 +39,30 @@ export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPag
       const loaded = yield* pdf.load(data);
       const pageSizes = yield* pdf.pageSizes(loaded);
       return { loaded, pageSizes };
-    });
-
-    void runApp(program).then(
-      (result) => {
-        if (!active) return;
-        handleRef.current = result.loaded;
-        setHandle(result.loaded);
-        setSizes(result.pageSizes);
-      },
-      () => {},
+    }).pipe(
+      Effect.tap(({ loaded, pageSizes }) =>
+        Effect.sync(() => {
+          handleRef.current = loaded;
+          setHandle(loaded);
+          setSizes(pageSizes);
+        }),
+      ),
+      Effect.catchTags({
+        BookNotFound: markFailed,
+        PdfFailure: markFailed,
+        StorageFailure: markFailed,
+      }),
     );
 
-    return () => {
-      active = false;
-    };
+    const fiber = forkApp(program);
+    return () => stopFiber(fiber);
   }, [bookId]);
 
   useEffect(() => {
     return () => {
-      const current = handleRef.current;
-      if (current === null) return;
-      void runApp(Effect.flatMap(PdfClient, (pdf) => pdf.release(current)));
+      const loaded = handleRef.current;
+      if (loaded === null) return;
+      void forkApp(Effect.flatMap(PdfClient, (pdf) => pdf.release(loaded)));
     };
   }, []);
 
@@ -93,17 +98,23 @@ export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPag
 
   return (
     <div className="relative h-full">
-      {handle === null && (
+      {failed && (
+        <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+          <p className="opacity-80">The original pages could not be read.</p>
+          <Link to="/" className="btn btn-ghost btn-sm">
+            Back to library
+          </Link>
+        </div>
+      )}
+
+      {handle === null && !failed && (
         <div className="flex h-full items-center justify-center">
           <span className="loading loading-spinner" />
         </div>
       )}
 
       {handle !== null && (
-        <div
-          ref={containerRef}
-          className="h-full overflow-y-auto overscroll-contain bg-base-300"
-        >
+        <div ref={containerRef} className="h-full overflow-y-auto overscroll-contain bg-base-300">
           <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-2">
             {sizes.map((size) => (
               <PdfPage key={size.page} handle={handle} size={size} root={containerRef} />
@@ -114,7 +125,7 @@ export function OriginalView({ bookId, pageCount, initialPage, showChrome, onPag
 
       {handle !== null && showChrome && (
         <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
-          <span className="badge badge-neutral badge-sm">
+          <span className={pageBadge}>
             Page {current} of {pageCount}
           </span>
         </div>

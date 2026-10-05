@@ -1,11 +1,11 @@
-import { Effect } from "effect";
+import { Effect, Stream } from "effect";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure, UnsupportedFile, type PdfFailure } from "@/domain/errors";
 import { newId } from "@/lib/id";
 import { record } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
-import { extractBook, type ParseProgress } from "./extract";
+import { assembleExtract, extractPages, type ParseProgress } from "./extract";
 
 const isPdf = (file: File): boolean =>
   file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
@@ -69,7 +69,11 @@ export function addPdf(
     });
 
     yield* store.putFile(id, file, meta);
-    const result = yield* extractBook(handle, onProgress);
+    const pages = yield* extractPages(handle).pipe(
+      Stream.tap((read) => Effect.sync(() => onProgress({ page: read.page, total: read.total }))),
+      Stream.runCollect,
+    );
+    const result = yield* assembleExtract(handle, pages);
     yield* store.putParsed(id, result.parsed);
 
     const ready = new BookMeta({

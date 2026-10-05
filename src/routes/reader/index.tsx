@@ -1,21 +1,19 @@
-import { Effect, Stream } from "effect";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Effect } from "effect";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
-import { ReadingProgress } from "@/domain/book";
-import { describeCause, describeError } from "@/lib/describe-error";
-import { formatPercent } from "@/lib/format";
-import { forkApp, runApp, stopFiber, useAppEffect, useSettings } from "@/lib/hooks";
+import type { BookNotFound, PdfFailure, StorageFailure } from "@/domain/errors";
+import { describeError } from "@/lib/describe-error";
+import { runApp, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { parseBook } from "@/use-cases/parse-book";
-import { renderFigures } from "@/use-cases/render-figures";
-import { OriginalView } from "./_OriginalView";
-import { ReaderView, type JumpRequest } from "./_ReaderView";
+import { HeaderMenu } from "./_Menu";
+import { LoadError } from "./_LoadError";
+import { ReaderBody, type Mode } from "./_ReaderBody";
 import { SettingsSheet } from "./_SettingsSheet";
 import { TocDrawer } from "./_TocDrawer";
-import { AdjustmentsIcon, ArrowLeftIcon, Bars3Icon, BookOpenIcon, ListBulletIcon } from "./_icons";
-
-type Mode = "reader" | "original";
+import type { JumpRequest } from "./_ReaderView";
+import { ArrowLeftIcon } from "./_icons";
 
 export function ReaderRoute() {
   const { id } = useParams();
@@ -38,138 +36,59 @@ export function ReaderRoute() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("reader");
   const [jump, setJump] = useState<JumpRequest | null>(null);
-  const [position, setPosition] = useState(0);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const saveTimer = useRef<number | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
-  const initialized = useRef(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!menuOpen) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (menuRef.current !== null && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [menuOpen]);
-
-  useEffect(() => {
-    void runApp(requestWakeLock()).then((sentinel) => {
-      wakeRef.current = sentinel;
-    });
+    const program = requestWakeLock().pipe(
+      Effect.tap((sentinel) =>
+        Effect.sync(() => {
+          wakeRef.current = sentinel;
+        }),
+      ),
+    );
+    void runApp(program);
     return () => {
       releaseWakeLock(wakeRef.current);
     };
   }, []);
 
   const data = state.status === "done" ? state.value : null;
-  const parsed = data?.parsed ?? null;
+  const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
+  useFigureJobs(pendingBooks);
 
-  useEffect(() => {
-    if (initialized.current) return;
-    if (data !== null && data.meta.parseState === "scanned") {
-      setMode("original");
-      initialized.current = true;
-    }
-  }, [data]);
-
-  useEffect(() => {
-    if (data !== null && (data.meta.figures ?? "none") === "pending") {
-      forkApp(renderFigures(bookId));
-    }
-  }, [data, bookId]);
-
-  useEffect(() => {
-    const fiber = forkApp(
-      Effect.gen(function* () {
-        const store = yield* BookStore;
-        yield* store.updates().pipe(
-          Stream.filter((update) => update.kind === "parsed" && update.bookId === bookId),
-          Stream.runForEach(() => Effect.sync(() => reload())),
-        );
-      }),
-    );
-    return () => stopFiber(fiber);
-  }, [bookId, reload]);
-
-  const onPosition = useCallback(
-    (blockIndex: number) => {
-      setPosition(blockIndex);
-      const total = parsed === null ? 1 : Math.max(1, parsed.blocks.length - 1);
-      const percent = blockIndex / total;
-      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => {
-        void runApp(
-          Effect.flatMap(BookStore, (store) =>
-            store.putProgress(
-              bookId,
-              new ReadingProgress({ blockIndex, percent, updatedAt: Date.now() }),
-            ),
-          ),
-        );
-      }, 400);
-    },
-    [bookId, parsed],
-  );
-
-  const onOriginalPage = useCallback(
-    (page: number) => {
-      if (parsed === null) return;
-      const index = parsed.blocks.findIndex((block) => block.page >= page);
-      if (index >= 0) onPosition(index);
-    },
-    [parsed, onPosition],
-  );
+  const loadError = state.status === "error" ? state.error : null;
+  const title = data?.meta.title ?? "Reader";
+  const toc = data?.parsed.toc ?? [];
 
   const rebuild = () => {
     setRebuilding(true);
     setMessage(null);
+    const report = (error: BookNotFound | PdfFailure | StorageFailure) =>
+      Effect.sync(() => setMessage(describeError(error, "This book")));
     const program = parseBook(bookId, () => {}).pipe(
-      Effect.catchCause((cause) => Effect.sync(() => setMessage(describeCause(cause, "This book")))),
+      Effect.catchTags({ BookNotFound: report, PdfFailure: report, StorageFailure: report }),
+      Effect.ensuring(Effect.sync(() => setRebuilding(false))),
+      Effect.tap(() => Effect.sync(() => reload())),
     );
-    void runApp(program).then(() => {
-      setRebuilding(false);
-      forkApp(renderFigures(bookId));
-      reload();
-    });
+    void runApp(program);
   };
 
   const toggleMode = () => setMode(mode === "reader" ? "original" : "reader");
+  const toggleChrome = () => setChrome((value) => !value);
   const openToc = () => setTocOpen(true);
   const closeToc = () => setTocOpen(false);
   const openSettings = () => setSettingsOpen(true);
   const closeSettings = () => setSettingsOpen(false);
-  const toggleChrome = () => {
-    setChrome((value) => !value);
-    setMenuOpen(false);
-  };
-
-  const runMenu = (action: () => void) => () => {
-    setMenuOpen(false);
-    action();
-  };
-
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
     setMode("reader");
     setJump({ index: blockIndex, nonce: Date.now() });
   };
 
-  const title = data?.meta.title ?? "Reader";
-  const total = parsed === null ? 1 : Math.max(1, parsed.blocks.length - 1);
-  const percentLabel = parsed === null ? "" : formatPercent(position / total);
-  const currentPage = parsed?.blocks[position]?.page ?? 1;
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const initialBlock = data?.progress?.blockIndex ?? 0;
   const headerClass = `fixed inset-x-0 top-0 z-30 flex items-center gap-1 border-b border-base-300 bg-base-100/95 px-2 py-2 backdrop-blur transition-transform ${chrome ? "" : "-translate-y-full"}`;
-  const footerClass = `fixed inset-x-0 bottom-0 z-30 border-t border-base-300 bg-base-100/95 px-4 py-2 backdrop-blur transition-transform ${chrome ? "" : "translate-y-full"}`;
-  const loadError = state.status === "error" ? state.error : null;
-  const canRebuild = loadError !== null && loadError._tag === "ParsedMissing";
   const contentClass = chrome ? "h-full pt-12 pb-14" : "h-full";
 
   return (
@@ -179,38 +98,12 @@ export function ReaderRoute() {
           <ArrowLeftIcon />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
-        <div className="relative" ref={menuRef}>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-square"
-            aria-label="Menu"
-            onClick={() => setMenuOpen((value) => !value)}
-          >
-            <Bars3Icon />
-          </button>
-          {menuOpen && (
-            <ul className="menu absolute right-0 z-50 mt-1 w-48 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-              <li>
-                <button type="button" onClick={runMenu(openToc)}>
-                  <ListBulletIcon className="size-4" />
-                  Contents
-                </button>
-              </li>
-              <li>
-                <button type="button" onClick={runMenu(toggleMode)}>
-                  <BookOpenIcon className="size-4" />
-                  {modeLabel}
-                </button>
-              </li>
-              <li>
-                <button type="button" onClick={runMenu(openSettings)}>
-                  <AdjustmentsIcon className="size-4" />
-                  Text settings
-                </button>
-              </li>
-            </ul>
-          )}
-        </div>
+        <HeaderMenu
+          modeLabel={modeLabel}
+          onContents={openToc}
+          onToggleMode={toggleMode}
+          onSettings={openSettings}
+        />
       </header>
 
       <div className={contentClass}>
@@ -221,65 +114,27 @@ export function ReaderRoute() {
         )}
 
         {loadError !== null && (
-          <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-            <p className="opacity-80">{describeError(loadError, title)}</p>
-            {canRebuild && (
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={rebuild}
-                disabled={rebuilding}
-              >
-                Rebuild reader view
-              </button>
-            )}
-            <Link to="/" className="btn btn-ghost btn-sm">
-              Back to library
-            </Link>
-          </div>
+          <LoadError
+            error={loadError}
+            title={title}
+            rebuilding={rebuilding}
+            onRebuild={rebuild}
+          />
         )}
 
-        {data !== null && mode === "reader" && parsed !== null && (
-          <ReaderView
-            bookId={bookId}
-            parsed={parsed}
+        {data !== null && (
+          <ReaderBody
+            meta={data.meta}
+            parsed={data.parsed}
+            progress={data.progress}
+            mode={mode}
+            chrome={chrome}
             settings={settings}
-            initialBlock={initialBlock}
             jump={jump}
-            onPosition={onPosition}
             onToggleChrome={toggleChrome}
           />
         )}
-
-        {data !== null && mode === "original" && (
-          <OriginalView
-            bookId={bookId}
-            pageCount={data.meta.pageCount}
-            initialPage={currentPage}
-            showChrome={chrome}
-            onPageChange={onOriginalPage}
-          />
-        )}
-
-        {data !== null && data.meta.parseState === "scanned" && mode === "reader" && (
-          <div className="fixed inset-x-0 top-16 z-20 px-3">
-            <div className="alert alert-warning py-2 text-xs">
-              <span>No text layer found. Showing the original pages.</span>
-            </div>
-          </div>
-        )}
       </div>
-
-      <footer className={footerClass}>
-        <div className="flex items-center gap-3">
-          <span className="w-10 text-xs opacity-70">{percentLabel}</span>
-          <progress
-            className="progress progress-primary h-1.5 flex-1"
-            value={position}
-            max={total}
-          />
-        </div>
-      </footer>
 
       {message !== null && (
         <div className="fixed inset-x-0 bottom-16 z-40 px-3">
@@ -289,13 +144,8 @@ export function ReaderRoute() {
         </div>
       )}
 
-      <TocDrawer open={tocOpen} toc={parsed?.toc ?? []} onSelect={selectToc} onClose={closeToc} />
-      <SettingsSheet
-        open={settingsOpen}
-        settings={settings}
-        onChange={update}
-        onClose={closeSettings}
-      />
+      <TocDrawer open={tocOpen} toc={toc} onSelect={selectToc} onClose={closeToc} />
+      <SettingsSheet open={settingsOpen} settings={settings} onChange={update} onClose={closeSettings} />
     </div>
   );
 }

@@ -1,24 +1,50 @@
 import { Effect, Fiber, Stream } from "effect";
-import { useCallback, useEffect, useState, type DependencyList } from "react";
-import { DEFAULT_SETTINGS, ReaderSettings } from "@/domain/book";
+import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
+import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
 import { SettingsStore } from "@/services/settings-store";
+import { renderFigures } from "@/use-cases/render-figures";
 
 export type AsyncState<A, E> =
   | { readonly status: "loading" }
   | { readonly status: "done"; readonly value: A }
   | { readonly status: "error"; readonly error: E };
 
+export type Job = Fiber.Fiber<unknown, unknown>;
+
 export function runApp<A, E>(effect: Effect.Effect<A, E, AppServices>): Promise<A> {
   return runtime.runPromise(effect);
 }
 
-export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>) {
+export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>): Job {
   return runtime.runFork(effect);
 }
 
-export function stopFiber(fiber: ReturnType<typeof forkApp>): void {
+export function stopFiber(fiber: Job): void {
   runtime.runFork(Fiber.interrupt(fiber));
+}
+
+export function useFigureJobs(books: ReadonlyArray<BookMeta>): void {
+  const jobs = useRef(new Map<string, Job>());
+
+  useEffect(() => {
+    for (const book of books) {
+      if (!book.figuresPending || jobs.current.has(book.id)) continue;
+      const bookId = book.id;
+      const job = renderFigures(bookId).pipe(
+        Effect.ensuring(Effect.sync(() => jobs.current.delete(bookId))),
+      );
+      jobs.current.set(bookId, forkApp(job));
+    }
+  }, [books]);
+
+  useEffect(
+    () => () => {
+      for (const fiber of jobs.current.values()) stopFiber(fiber);
+      jobs.current.clear();
+    },
+    [],
+  );
 }
 
 export function useAppEffect<A, E>(
