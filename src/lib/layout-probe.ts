@@ -70,6 +70,14 @@ export function layoutSnapshot(): string {
       const title = document.querySelector("header h1");
       return title === null ? null : getComputedStyle(title).color;
     })(),
+    hitTop: (() => {
+      const el = document.elementFromPoint(200, 75);
+      return el === null ? null : `${el.tagName}.${el.className}`.slice(0, 60);
+    })(),
+    hitBottom: (() => {
+      const el = document.elementFromPoint(200, Math.max(0, window.innerHeight - 5));
+      return el === null ? null : `${el.tagName}.${el.className}`.slice(0, 60);
+    })(),
   });
 }
 
