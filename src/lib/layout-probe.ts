@@ -78,6 +78,25 @@ export function layoutSnapshot(): string {
       const el = document.elementFromPoint(200, Math.max(0, window.innerHeight - 5));
       return el === null ? null : `${el.tagName}.${el.className}`.slice(0, 60);
     })(),
+    ancestors: (() => {
+      const parts: string[] = [];
+      let el: Element | null = document.querySelector("header");
+      let depth = 0;
+      while (el !== null && depth < 8) {
+        const cs = getComputedStyle(el);
+        if (
+          cs.filter !== "none" ||
+          cs.opacity !== "1" ||
+          cs.mixBlendMode !== "normal" ||
+          cs.transform !== "none"
+        ) {
+          parts.push(`${el.tagName}:f=${cs.filter},o=${cs.opacity},t=${cs.transform}`);
+        }
+        el = el.parentElement;
+        depth += 1;
+      }
+      return parts.join(" | ") || "clean";
+    })(),
   });
 }
 
