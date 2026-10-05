@@ -142,11 +142,15 @@ export function Sidebar({
         </details>
 
         <h3 className="mt-4 text-sm font-semibold">Contents</h3>
-        <ul className="menu mt-1 min-h-0 flex-1 w-full overflow-y-auto">
+        <ul className="mt-1 flex min-h-0 w-full flex-1 flex-col overflow-y-auto">
           {toc.length === 0 && <li className="p-2 text-sm opacity-70">No table of contents found.</li>}
           {toc.map((entry, index) => (
-            <li key={index}>
-              <button type="button" onClick={() => onSelect(entry.blockIndex)}>
+            <li key={index} className="w-full shrink-0">
+              <button
+                type="button"
+                className="w-full rounded-field px-2 py-1.5 text-left text-sm whitespace-normal hover:bg-base-200"
+                onClick={() => onSelect(entry.blockIndex)}
+              >
                 {entry.title}
               </button>
             </li>
