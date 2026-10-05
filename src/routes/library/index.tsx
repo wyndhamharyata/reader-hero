@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { describeError } from "@/lib/describe-error";
 import { formatSize } from "@/lib/format";
 import { runApp, useAppEffect } from "@/lib/hooks";
+import { isInstalled, isIosBrowser, requestPersistentStorage } from "@/lib/storage";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "@/use-cases/extract";
 import { addPdf } from "@/use-cases/import-book";
@@ -24,7 +25,12 @@ export function LibraryRoute() {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showInstallHint, setShowInstallHint] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setShowInstallHint(isIosBrowser() && !isInstalled());
+  }, []);
 
   useEffect(() => {
     void runApp(importInboxOnce()).then((count) => {
@@ -44,6 +50,7 @@ export function LibraryRoute() {
     void runApp(program).then(() => {
       setBusy(false);
       setProgress(null);
+      void runApp(requestPersistentStorage());
       reload();
     });
   };
@@ -81,6 +88,12 @@ export function LibraryRoute() {
       {message !== null && (
         <div className="alert alert-warning">
           <span>{message}</span>
+        </div>
+      )}
+
+      {showInstallHint && (
+        <div className="alert alert-info py-2 text-xs">
+          <span>Add Reader Hero to your Home Screen so iOS keeps your library offline.</span>
         </div>
       )}
 
