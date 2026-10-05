@@ -91,6 +91,21 @@ const cropImage = (
     });
   });
 
+/** e.g. " 2481x3508" for the largest embedded image on the page. */
+const largestImageDims = (paints: ReadonlyArray<ImagePaint>): string => {
+  let width = 0;
+  let height = 0;
+  for (const paint of paints) {
+    const w = paint.imgWidth ?? 0;
+    const h = paint.imgHeight ?? 0;
+    if (w * h > width * height) {
+      width = Math.round(w);
+      height = Math.round(h);
+    }
+  }
+  return width > 0 ? ` ${width}x${height}` : "";
+};
+
 const readBoxes = (
   pageProxy: PDFPageProxy,
   page: number,
@@ -291,7 +306,15 @@ export class PdfClient extends Context.Service<
     PdfClient.of({
       load: Effect.fn("PdfClient.load")(function* (data: ArrayBuffer) {
         const started = performance.now();
-        const task = pdfjs.getDocument({ data });
+        const origin = (globalThis as { location?: { origin: string } }).location?.origin ?? "";
+        // Enable pdf.js's WASM decoders (JPEG 2000, JBIG2, ICC/qcms). Without a
+        // served wasmUrl they silently fall back to slow pure-JS decoding.
+        const task = pdfjs.getDocument({
+          data,
+          useWorkerFetch: true,
+          wasmUrl: `${origin}/wasm/`,
+          iccUrl: `${origin}/icc/`,
+        });
         const captured = yield* captureWarnings(
           Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }),
         );
@@ -340,7 +363,11 @@ export class PdfClient extends Context.Service<
 
         const decodeStarted = performance.now();
         const paints = yield* readBoxes(pageProxy, page);
-        log("figures.decode", `p${page}:${paints.length}`, performance.now() - decodeStarted);
+        log(
+          "figures.decode",
+          `p${page}:${paints.length}${largestImageDims(paints)}`,
+          performance.now() - decodeStarted,
+        );
         if (paints.length === 0) {
           yield* cleanupPage(pageProxy);
           return [];

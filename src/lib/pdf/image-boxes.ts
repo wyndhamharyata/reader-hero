@@ -32,6 +32,9 @@ export interface ImagePaint extends ImagePlacement {
   readonly name?: string;
   /** Inline image data carried by the operator itself (`paintInlineImageXObject`). */
   readonly inline?: InlineImage;
+  /** Pixel size of the embedded image, for decode-cost diagnostics. */
+  readonly imgWidth?: number;
+  readonly imgHeight?: number;
 }
 
 type Matrix = number[];
@@ -51,6 +54,9 @@ const applyPoint = (matrix: Matrix, x: number, y: number): readonly [number, num
   (matrix[0] ?? 0) * x + (matrix[2] ?? 0) * y + (matrix[4] ?? 0),
   (matrix[1] ?? 0) * x + (matrix[3] ?? 0) * y + (matrix[5] ?? 0),
 ];
+
+const numberOr = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined;
 
 const unitSquareBox = (matrix: Matrix, id: string, page: number): ImagePlacement | null => {
   const corners = [
@@ -102,7 +108,13 @@ export function collectImageBoxes(
       const box = unitSquareBox(ctm, `${page}-${index}`, page);
       if (box !== null) {
         const name = args[0];
-        boxes.push({ ...box, name: typeof name === "string" ? name : undefined });
+        // paintImageXObject args are [objId, width, height].
+        boxes.push({
+          ...box,
+          name: typeof name === "string" ? name : undefined,
+          imgWidth: numberOr(args[1]),
+          imgHeight: numberOr(args[2]),
+        });
       }
       index += 1;
       continue;
@@ -110,9 +122,14 @@ export function collectImageBoxes(
     if (fn === ops.paintInlineImageXObject) {
       if (boxes.length >= MAX_IMAGES) break;
       const box = unitSquareBox(ctm, `${page}-${index}`, page);
-      const inline = args[0];
+      const inline = args[0] as InlineImage | undefined;
       if (box !== null && inline !== undefined) {
-        boxes.push({ ...box, inline: inline as InlineImage });
+        boxes.push({
+          ...box,
+          inline,
+          imgWidth: numberOr(inline.width),
+          imgHeight: numberOr(inline.height),
+        });
       }
       index += 1;
     }

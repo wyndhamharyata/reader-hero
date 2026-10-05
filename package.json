@@ -7,8 +7,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "vite dev --host",
-    "build": "vite build",
+    "dev": "node scripts/copy-wasm.mjs && vite dev --host",
+    "build": "node scripts/copy-wasm.mjs && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.sw.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "vitest run",
