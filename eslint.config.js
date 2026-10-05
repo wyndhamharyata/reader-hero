@@ -10,6 +10,8 @@ export default tseslint.config(
       ".wrangler/**",
       "node_modules/**",
       "scripts/**",
+      "sst-env.d.ts",
+      "public/**",
     ],
   },
   {
