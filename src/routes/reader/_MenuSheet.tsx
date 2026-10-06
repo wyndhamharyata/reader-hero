@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import { AdjustmentsIcon, BookOpenIcon, ChevronDownIcon } from "@/components/icons";
 import type { ReaderSettings, TocEntry } from "@/domain/book";
+import { useSheetDrag } from "@/lib/use-sheet-drag";
 import { TextSettings } from "./_TextSettings";
 
 interface Props {
@@ -28,66 +29,7 @@ export function MenuSheet({
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const closeRef = useRef(onClose);
-
-  useEffect(() => {
-    closeRef.current = onClose;
-  });
-
-  // Native listeners: React registers touchmove as passive, so it cannot stop the list's own bounce.
-  useEffect(() => {
-    const sheet = sheetRef.current;
-    if (!open || sheet === null) return;
-    let startY = 0;
-    let startAt = 0;
-    let offset = 0;
-    let mode: "idle" | "drag" | "scroll" = "idle";
-
-    const onStart = (event: TouchEvent): void => {
-      mode = window.matchMedia("(width >= 48rem)").matches ? "scroll" : "idle";
-      startY = event.touches[0]?.clientY ?? 0;
-      startAt = event.timeStamp;
-      offset = 0;
-    };
-    const onMove = (event: TouchEvent): void => {
-      const y = event.touches[0]?.clientY;
-      if (mode === "scroll" || y === undefined) return;
-      const dy = y - startY;
-      if (mode === "idle") {
-        const list = listRef.current;
-        const inList = list !== null && list.contains(event.target as Node);
-        mode = dy > 0 && (!inList || list.scrollTop <= 0) ? "drag" : "scroll";
-        if (mode === "scroll") return;
-        sheet.style.transition = "none";
-      }
-      event.preventDefault();
-      offset = Math.max(0, dy);
-      sheet.style.transform = `translateY(${offset}px)`;
-    };
-    const onEnd = (event: TouchEvent): void => {
-      if (mode !== "drag") return;
-      mode = "idle";
-      const flick = offset > 30 && offset / Math.max(1, event.timeStamp - startAt) > 0.5;
-      sheet.style.transition = "transform 200ms ease-out";
-      if (offset < 100 && !flick) {
-        sheet.style.transform = "";
-        return;
-      }
-      sheet.style.transform = "translateY(100%)";
-      window.setTimeout(() => closeRef.current(), 200);
-    };
-
-    sheet.addEventListener("touchstart", onStart, { passive: true });
-    sheet.addEventListener("touchmove", onMove, { passive: false });
-    sheet.addEventListener("touchend", onEnd);
-    sheet.addEventListener("touchcancel", onEnd);
-    return () => {
-      sheet.removeEventListener("touchstart", onStart);
-      sheet.removeEventListener("touchmove", onMove);
-      sheet.removeEventListener("touchend", onEnd);
-      sheet.removeEventListener("touchcancel", onEnd);
-    };
-  }, [open]);
+  useSheetDrag(open, sheetRef, listRef, onClose);
 
   if (!open) return null;
 

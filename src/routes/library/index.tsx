@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { PlusIcon } from "@/components/icons";
+import { FunnelIcon, PlusIcon } from "@/components/icons";
 import {
   forkApp,
   runApp,
@@ -22,6 +22,7 @@ import { removeBook } from "@/use-cases/remove-book";
 import { BookCard } from "./_BookCard";
 import { BookTile } from "./_BookTile";
 import { FilterChips } from "./_FilterChips";
+import { FilterSheet } from "./_FilterSheet";
 import { ProgressPanel } from "./_ProgressPanel";
 import { InstallHint } from "./_InstallHint";
 import { LibraryStatus } from "./_LibraryStatus";
@@ -55,6 +56,7 @@ export function LibraryRoute(): ReactElement {
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const importJob = useRef<Job | null>(null);
   const [query, setQuery] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     status: null,
     series: null,
@@ -248,6 +250,17 @@ export function LibraryRoute(): ReactElement {
           {sortMenu}
           <button
             type="button"
+            className="btn relative btn-square"
+            aria-label="All filters"
+            onClick={() => setFiltersOpen(true)}
+          >
+            <FunnelIcon className="size-5" />
+            {shelf.filtered && (
+              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
+            )}
+          </button>
+          <button
+            type="button"
             className="btn flex-1 btn-primary"
             onClick={pickFiles}
             disabled={busy}
@@ -256,6 +269,14 @@ export function LibraryRoute(): ReactElement {
           </button>
         </div>
       </div>
+
+      <FilterSheet
+        open={filtersOpen}
+        shelf={shelf}
+        onToggle={toggleFilter}
+        onClear={clearFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
 
       {busy && (
         <ProgressPanel progress={progress} onCancel={importing ? cancelImport : undefined} />

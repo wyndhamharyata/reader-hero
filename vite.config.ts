@@ -46,7 +46,7 @@ export default defineConfig({
       injectRegister: null,
       manifest: false,
       injectManifest: {
-        globPatterns: ["**/*.{js,mjs,css,html,svg,png,webmanifest,wasm,icc}"],
+        globPatterns: ["**/*.{js,mjs,css,html,svg,png,json,wasm,icc}"],
         globIgnores: ["**/sw.js"],
       },
     }),
