@@ -1,13 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import type { ReaderFont, ReaderSettings, ReaderTheme, TextAlign, TocEntry } from "@/domain/book";
-import {
-  AdjustmentsIcon,
-  AlignJustifyIcon,
-  AlignLeftIcon,
-  AlignRightIcon,
-  BookOpenIcon,
-  ChevronDownIcon,
-} from "@/components/icons";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { AdjustmentsIcon, BookOpenIcon, ChevronDownIcon } from "@/components/icons";
+import type { ReaderSettings, TocEntry } from "@/domain/book";
+import { TextSettings } from "./_TextSettings";
 
 interface Props {
   open: boolean;
@@ -20,28 +14,6 @@ interface Props {
   onClose: () => void;
 }
 
-const themes: ReadonlyArray<{ value: ReaderTheme; label: string }> = [
-  { value: "rhlight", label: "Light" },
-  { value: "rhsepia", label: "Sepia" },
-  { value: "rhdark", label: "Dark" },
-];
-
-const fonts: ReadonlyArray<{ value: ReaderFont; label: string }> = [
-  { value: "serif", label: "Serif" },
-  { value: "sans", label: "Sans" },
-];
-
-const alignments: ReadonlyArray<{ value: TextAlign; label: string; icon: typeof AlignLeftIcon }> = [
-  { value: "left", label: "Align left", icon: AlignLeftIcon },
-  { value: "justify", label: "Justify", icon: AlignJustifyIcon },
-  { value: "right", label: "Align right", icon: AlignRightIcon },
-];
-
-const MIN_FONT_SIZE = 14;
-const MAX_FONT_SIZE = 30;
-const MIN_LINE_HEIGHT = 0.6;
-const MAX_LINE_HEIGHT = 2.0;
-
 export function MenuSheet({
   open,
   toc,
@@ -51,7 +23,7 @@ export function MenuSheet({
   onToggleMode,
   onSettingsChange,
   onClose,
-}: Props) {
+}: Props): ReactElement | null {
   // Collapsed on phones so the contents list gets the sheet's height; open in the desktop sidebar.
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
@@ -71,13 +43,13 @@ export function MenuSheet({
     let offset = 0;
     let mode: "idle" | "drag" | "scroll" = "idle";
 
-    const onStart = (event: TouchEvent) => {
+    const onStart = (event: TouchEvent): void => {
       mode = window.matchMedia("(width >= 48rem)").matches ? "scroll" : "idle";
       startY = event.touches[0]?.clientY ?? 0;
       startAt = event.timeStamp;
       offset = 0;
     };
-    const onMove = (event: TouchEvent) => {
+    const onMove = (event: TouchEvent): void => {
       const y = event.touches[0]?.clientY;
       if (mode === "scroll" || y === undefined) return;
       const dy = y - startY;
@@ -92,7 +64,7 @@ export function MenuSheet({
       offset = Math.max(0, dy);
       sheet.style.transform = `translateY(${offset}px)`;
     };
-    const onEnd = (event: TouchEvent) => {
+    const onEnd = (event: TouchEvent): void => {
       if (mode !== "drag") return;
       mode = "idle";
       const flick = offset > 30 && offset / Math.max(1, event.timeStamp - startAt) > 0.5;
@@ -119,11 +91,8 @@ export function MenuSheet({
 
   if (!open) return null;
 
-  const smaller = Math.max(MIN_FONT_SIZE, settings.fontSize - 1);
-  const larger = Math.min(MAX_FONT_SIZE, settings.fontSize + 1);
-  // Round to one decimal so repeated 0.1 steps do not drift (1.6 + 0.1 is 1.7000000000000002).
-  const tighter = Math.max(MIN_LINE_HEIGHT, Math.round((settings.lineHeight - 0.1) * 10) / 10);
-  const looser = Math.min(MAX_LINE_HEIGHT, Math.round((settings.lineHeight + 0.1) * 10) / 10);
+  // The panel opens upward on phones (sheet anchored at the bottom), so the chevron flips there.
+  const chevronTurn = textOpen ? "md:rotate-180" : "max-md:rotate-180";
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:flex-row">
@@ -178,141 +147,10 @@ export function MenuSheet({
           >
             <AdjustmentsIcon className="size-5 md:size-4" />
             <span className="flex-1 text-left">Text settings</span>
-            <ChevronDownIcon
-              className={`size-5 transition-transform md:size-4 ${textOpen ? "md:rotate-180" : "max-md:rotate-180"}`}
-            />
+            <ChevronDownIcon className={`size-5 transition-transform md:size-4 ${chevronTurn}`} />
           </button>
 
-          {textOpen && (
-            <div className="px-3 pt-3 md:pt-0 md:pb-3">
-              <section>
-                <p className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">Theme</p>
-                <div className="flex gap-2">
-                  {themes.map((theme) => (
-                    <button
-                      key={theme.value}
-                      type="button"
-                      className={
-                        settings.theme === theme.value ? "btn btn-active btn-sm" : "btn btn-sm"
-                      }
-                      onClick={() => onSettingsChange({ theme: theme.value })}
-                    >
-                      {theme.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="mt-3">
-                <p className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">Font</p>
-                <div className="flex gap-2">
-                  {fonts.map((font) => (
-                    <button
-                      key={font.value}
-                      type="button"
-                      className={
-                        settings.font === font.value ? "btn btn-active btn-sm" : "btn btn-sm"
-                      }
-                      onClick={() => onSettingsChange({ font: font.value })}
-                    >
-                      {font.label}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="mt-3">
-                <p className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">Size</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => onSettingsChange({ fontSize: smaller })}
-                    disabled={settings.fontSize <= MIN_FONT_SIZE}
-                  >
-                    A-
-                  </button>
-                  <span className="w-12 text-center text-sm">{settings.fontSize}px</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => onSettingsChange({ fontSize: larger })}
-                    disabled={settings.fontSize >= MAX_FONT_SIZE}
-                  >
-                    A+
-                  </button>
-                </div>
-              </section>
-
-              <section className="mt-3">
-                <p className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">
-                  Line spacing
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    aria-label="Less line spacing"
-                    onClick={() => onSettingsChange({ lineHeight: tighter })}
-                    disabled={settings.lineHeight <= MIN_LINE_HEIGHT}
-                  >
-                    −
-                  </button>
-                  <span className="w-12 text-center text-sm">{settings.lineHeight.toFixed(1)}</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    aria-label="More line spacing"
-                    onClick={() => onSettingsChange({ lineHeight: looser })}
-                    disabled={settings.lineHeight >= MAX_LINE_HEIGHT}
-                  >
-                    +
-                  </button>
-                </div>
-              </section>
-
-              <section className="mt-3">
-                <p className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">
-                  Alignment
-                </p>
-                <div className="flex gap-2">
-                  {alignments.map((alignment) => (
-                    <button
-                      key={alignment.value}
-                      type="button"
-                      className={
-                        settings.textAlign === alignment.value
-                          ? "btn btn-active btn-square btn-sm"
-                          : "btn btn-square btn-sm"
-                      }
-                      aria-label={alignment.label}
-                      aria-pressed={settings.textAlign === alignment.value}
-                      onClick={() => onSettingsChange({ textAlign: alignment.value })}
-                    >
-                      <alignment.icon className="size-5 md:size-4" />
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section className="mt-3 hidden md:block">
-                <p className="mb-2 flex justify-between text-xs font-medium tracking-wide uppercase opacity-60">
-                  <span>Line width</span>
-                  <span className="normal-case">{settings.textWidth} ch</span>
-                </p>
-                <input
-                  type="range"
-                  className="range w-full range-sm"
-                  min={40}
-                  max={120}
-                  step={5}
-                  value={settings.textWidth}
-                  aria-label="Line width"
-                  onChange={(event) => onSettingsChange({ textWidth: Number(event.target.value) })}
-                />
-              </section>
-            </div>
-          )}
+          {textOpen && <TextSettings settings={settings} onChange={onSettingsChange} />}
         </section>
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">

@@ -1,5 +1,6 @@
+import type { ReactElement } from "react";
 // The wordmark is Montserrat ExtraBold (SIL Open Font License 1.1), converted to outlines.
-export function Logo({ className }: { className?: string }) {
+export function Logo({ className }: { className?: string }): ReactElement {
   return (
     <svg viewBox="0 0 1225 208" className={className} role="img" aria-label="Reader Hero">
       <path

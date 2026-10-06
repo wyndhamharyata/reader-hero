@@ -55,21 +55,20 @@ export function ReaderView({
       ?.scrollIntoView({ block: "start" });
   }, [initialBlock]);
 
-  // Safari has no CSS scroll anchoring, so keep the block at the top of the screen in place by hand
-  // when content above it changes height (a figure inserted or loaded, a font size change).
+  // Safari has no CSS scroll anchoring: hold the top block in place when content above it resizes.
   useEffect(() => {
     const container = containerRef.current;
     const article = articleRef.current;
     if (container === null || article === null) return;
 
-    const measure = () => {
+    const measure = (): void => {
       const box = container.getBoundingClientRect();
       const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 8);
       const element = hit?.closest("[data-block]");
       if (element === null || element === undefined || !container.contains(element)) return;
       anchorRef.current = { element, offset: element.getBoundingClientRect().top - box.top };
     };
-    const restore = () => {
+    const restore = (): void => {
       const anchor = anchorRef.current;
       if (anchor === null || !anchor.element.isConnected) return;
       const top =
@@ -132,8 +131,7 @@ export function ReaderView({
     onToggleChrome();
   };
 
-  // Keys must survive figures being inserted earlier in the book, or React reuses every later node
-  // for different content and each image after the insertion reloads.
+  // Keys survive figures inserted earlier in the book; index keys made every later image reload.
   const seen = new Map<string, number>();
   const nodes = parsed.blocks.map((block, index) => {
     const imageId = block.imageId;
@@ -155,6 +153,9 @@ export function ReaderView({
     };
   });
 
+  // Justified lines without hyphenation leave wide gaps between words.
+  const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
+
   return (
     <div
       ref={containerRef}
@@ -170,8 +171,7 @@ export function ReaderView({
             fontSize: `${settings.fontSize}px`,
             lineHeight: settings.lineHeight,
             textAlign: settings.textAlign,
-            // Justified lines without hyphenation leave wide gaps between words.
-            hyphens: settings.textAlign === "justify" ? "auto" : undefined,
+            hyphens,
             "--text-width": `${settings.textWidth}ch`,
           } as CSSProperties
         }

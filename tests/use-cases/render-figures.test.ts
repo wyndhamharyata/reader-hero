@@ -12,6 +12,7 @@ import {
 } from "@/domain/book";
 import { ParsedMissing } from "@/domain/errors";
 import { BookStore } from "@/services/book-store";
+import { FigureSlots } from "@/services/figure-slots";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { renderFigures } from "@/use-cases/render-figures";
 
@@ -49,7 +50,7 @@ interface Harness {
     parsed: ParsedBook | null;
     renders: number;
   };
-  readonly layer: Layer.Layer<BookStore | PdfClient>;
+  readonly layer: Layer.Layer<BookStore | PdfClient | FigureSlots>;
 }
 
 function harness(figures: FigureState): Harness {
@@ -126,7 +127,7 @@ function harness(figures: FigureState): Harness {
     }),
   );
 
-  return { state, layer: Layer.merge(bookStore, pdfClient) };
+  return { state, layer: Layer.mergeAll(bookStore, pdfClient, FigureSlots.layer) };
 }
 
 describe("renderFigures", () => {

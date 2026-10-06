@@ -6,15 +6,14 @@ import { scanCodecs } from "@/lib/pdf/codecs";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { timed } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
+import { FigureSlots } from "@/services/figure-slots";
 import { PdfClient } from "@/services/pdf-client";
 
 const IMAGE_CONCURRENCY = 2;
 
-// At most 3 figure jobs across the app: each holds a whole PDF plus its decoded images, and iOS
-// kills the page when a large import starts a job for every new book at once.
-const figureLock = Semaphore.makeUnsafe(3);
-
-export function renderFigures(bookId: string): Effect.Effect<void, never, BookStore | PdfClient> {
+export function renderFigures(
+  bookId: string,
+): Effect.Effect<void, never, BookStore | PdfClient | FigureSlots> {
   return Effect.suspend(() => {
     const started = performance.now();
     const job = Effect.gen(function* () {
@@ -38,8 +37,7 @@ export function renderFigures(bookId: string): Effect.Effect<void, never, BookSt
       yield* log("figures.codecs", codecs);
       const handle = yield* pdf.load(data);
 
-      // Resume after the last page whose figures are all stored, so a job that restarts (the library
-      // stops its jobs when a book opens) keeps the figures already shown instead of starting over.
+      // Resume after the last fully stored page, so a restarted job keeps the figures already shown.
       const existing = yield* store
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
@@ -89,9 +87,7 @@ export function renderFigures(bookId: string): Effect.Effect<void, never, BookSt
         // Text plus any resumed figures first, so the reader has content immediately.
         yield* store.putParsed(bookId, assemble());
 
-        // Then each page in turn. A page with figures publishes the book again (a `parsed` event that
-        // refreshes the reader); runs of pages without figures publish every 25 pages, so the resume
-        // point keeps moving.
+        // Pages without figures still publish every 25 pages, so the resume point keeps moving.
         yield* Stream.range(resumeFrom + 1, total).pipe(
           Stream.mapEffect(
             (page) =>
@@ -137,13 +133,15 @@ export function renderFigures(bookId: string): Effect.Effect<void, never, BookSt
       yield* log("figures.total", `${imageCount} images`, performance.now() - started);
     });
 
-    return job.pipe(
-      Semaphore.withPermit(figureLock),
-      Effect.catchTags({
-        BookNotFound: () => Effect.void,
-        PdfFailure: (error) => log("figures.failed", `${error.reason}; job stays pending`),
-        StorageFailure: (error) => log("figures.failed", `${error.operation}; job stays pending`),
-      }),
+    return Effect.flatMap(FigureSlots, (slots) =>
+      job.pipe(
+        Semaphore.withPermit(slots),
+        Effect.catchTags({
+          BookNotFound: () => Effect.void,
+          PdfFailure: (error) => log("figures.failed", `${error.reason}; job stays pending`),
+          StorageFailure: (error) => log("figures.failed", `${error.operation}; job stays pending`),
+        }),
+      ),
     );
   });
 }

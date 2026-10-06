@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type DependencyList } from "r
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
 import { SettingsStore } from "@/services/settings-store";
+import { watchBookImage } from "@/use-cases/book-image";
 import { renderFigures } from "@/use-cases/render-figures";
 
 export type AsyncState<A, E> =
@@ -45,6 +46,31 @@ export function useFigureJobs(books: ReadonlyArray<BookMeta>): void {
     },
     [],
   );
+}
+
+export function useBookImage(
+  bookId: string,
+  imageId: string,
+): { readonly url: string | null; readonly ratio: number | null } {
+  const [image, setImage] = useState<{ url: string; ratio: number | null } | null>(null);
+
+  useEffect(() => {
+    let url: string | null = null;
+    const fiber = forkApp(
+      watchBookImage(bookId, imageId, (record) => {
+        if (record === null) return;
+        if (url !== null) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(record.blob);
+        setImage({ url, ratio: record.height === 0 ? null : record.width / record.height });
+      }),
+    );
+    return () => {
+      stopFiber(fiber);
+      if (url !== null) URL.revokeObjectURL(url);
+    };
+  }, [bookId, imageId]);
+
+  return { url: image?.url ?? null, ratio: image?.ratio ?? null };
 }
 
 export function useAppEffect<A, E>(

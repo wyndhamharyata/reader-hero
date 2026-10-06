@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactElement } from "react";
-import { Logo } from "@/components/Logo";
+import { Logo } from "./_Logo";
 import { PerfPanel } from "./_PerfPanel";
 
 // Five taps on the title open the on-device performance panel, a debug view with no other entry.

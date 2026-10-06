@@ -1,4 +1,4 @@
-import { Effect, Exit, Stream } from "effect";
+import { Effect, Exit, Option, Schema, Stream } from "effect";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure, UnsupportedFile, type PdfFailure } from "@/domain/errors";
 import { newId } from "@/lib/id";
@@ -12,30 +12,33 @@ const isPdf = (file: File): boolean =>
 
 const stripExtension = (name: string): string => name.replace(/\.pdf$/i, "").trim();
 
-interface BookInfo {
-  readonly title: string;
+// The PDF info dictionary is untrusted; each field decodes alone, so one bad field drops only itself.
+const decodeRecord = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown));
+const decodeText = Schema.decodeUnknownOption(Schema.String);
+
+function readInfo(handle: PdfHandle): Effect.Effect<{
+  readonly title?: string;
   readonly author?: string;
   readonly subject?: string;
   readonly keywords?: string;
-}
-
-function readInfo(handle: PdfHandle): Effect.Effect<BookInfo> {
+}> {
   return Effect.gen(function* () {
     const metadata = yield* Effect.tryPromise({
       try: () => handle.proxy.getMetadata(),
       catch: () => null,
     }).pipe(Effect.catch(() => Effect.succeed(null)));
 
-    if (metadata === null) return { title: "" };
-
-    const info = metadata.info as Record<string, unknown>;
-    const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
-    const optional = (value: unknown) => text(value) || undefined;
+    const info = Option.getOrElse(
+      decodeRecord(metadata?.info),
+      (): Readonly<Record<string, unknown>> => ({}),
+    );
+    const text = (key: string): string | undefined =>
+      Option.getOrUndefined(decodeText(info[key]))?.trim() || undefined;
     return {
-      title: text(info.Title),
-      author: optional(info.Author),
-      subject: optional(info.Subject),
-      keywords: optional(info.Keywords),
+      title: text("Title"),
+      author: text("Author"),
+      subject: text("Subject"),
+      keywords: text("Keywords"),
     };
   });
 }
@@ -63,7 +66,7 @@ export function addPdf(
 
       const meta = new BookMeta({
         id,
-        title: info.title || stripExtension(file.name) || "Untitled",
+        title: info.title ?? (stripExtension(file.name) || "Untitled"),
         author: info.author,
         subject: info.subject,
         keywords: info.keywords,

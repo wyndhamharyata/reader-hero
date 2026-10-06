@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { ParseProgress } from "@/use-cases/extract";
 
 interface Props {
@@ -6,7 +7,7 @@ interface Props {
 }
 
 // Not a blocking overlay: a large import takes minutes, and finished books stay usable meanwhile.
-export function ProgressPanel({ progress, onCancel }: Props) {
+export function ProgressPanel({ progress, onCancel }: Props): ReactElement {
   const file = progress?.file;
   const title =
     file !== undefined && file.count > 1 ? `Adding ${file.index} of ${file.count}` : "Working…";
