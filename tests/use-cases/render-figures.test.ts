@@ -48,6 +48,8 @@ interface Harness {
     meta: BookMeta;
     images: StoredImage[];
     parsed: ParsedBook | null;
+    parsedWrites: number;
+    checkpoint: number;
     renders: number;
   };
   readonly layer: Layer.Layer<BookStore | PdfClient | FigureSlots>;
@@ -67,6 +69,8 @@ function harness(figures: FigureState): Harness {
     }),
     images: [],
     parsed: null,
+    parsedWrites: 0,
+    checkpoint: 0,
     renders: 0,
   };
 
@@ -84,6 +88,7 @@ function harness(figures: FigureState): Harness {
       putParsed: (_id, parsed) =>
         Effect.sync(() => {
           state.parsed = parsed;
+          state.parsedWrites += 1;
         }),
       getParsed: () =>
         state.parsed === null
@@ -103,6 +108,11 @@ function harness(figures: FigureState): Harness {
       getProgress: () => Effect.succeed(null),
       getPrefs: () => Effect.succeed(null),
       putPrefs: () => Effect.void,
+      getFigureCheckpoint: () => Effect.succeed(state.checkpoint),
+      putFigureCheckpoint: (_id, through) =>
+        Effect.sync(() => {
+          state.checkpoint = through;
+        }),
       remove: () => Effect.void,
       estimate: () => Effect.succeed(null),
       requestPersistent: () => Effect.succeed(false),
@@ -150,12 +160,23 @@ describe("renderFigures", () => {
     const { state, layer } = harness("pending");
     state.parsed = first.state.parsed;
     state.images = first.state.images;
+    state.checkpoint = first.state.checkpoint;
 
     await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
 
     expect(state.renders).toBe(0);
     expect(state.parsed?.blocks.some((block) => block.imageId === "1-0")).toBe(true);
     expect(state.parsed?.figuresThrough).toBe(1);
+  });
+
+  it("given a finished page, moves the checkpoint without rewriting the book", async () => {
+    const { state, layer } = harness("pending");
+
+    await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
+
+    expect(state.checkpoint).toBe(1);
+    // Text first, then the first figures at once, then the finished book.
+    expect(state.parsedWrites).toBe(3);
   });
 
   it("given figures already ready, does nothing", async () => {

@@ -49,6 +49,8 @@ function parseBook(
     const result = yield* assembleExtract(handle, pages);
 
     yield* store.putParsed(id, result.parsed);
+    // A rebuilt book gets its figures again from page 1.
+    yield* store.putFigureCheckpoint(id, 0);
 
     const next = new BookMeta({
       ...stored,

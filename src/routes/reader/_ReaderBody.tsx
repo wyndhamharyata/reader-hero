@@ -1,4 +1,4 @@
-import type { ReactElement } from "react";
+import { useCallback, type ReactElement } from "react";
 import type {
   BookMeta,
   ParsedBook,
@@ -39,10 +39,14 @@ export function ReaderBody({
   const initialBlock = progress?.blockIndex ?? 0;
   const currentPage = parsed.blocks[position]?.page ?? 1;
 
-  const onOriginalPage = (page: number) => {
-    const index = parsed.blocks.findIndex((block) => block.page >= page);
-    if (index >= 0) onPosition(index);
-  };
+  // Stable, or every page change rebuilds the original view's observer over every page.
+  const onOriginalPage = useCallback(
+    (page: number) => {
+      const index = parsed.blocks.findIndex((block) => block.page >= page);
+      if (index >= 0) onPosition(index);
+    },
+    [parsed, onPosition],
+  );
 
   return (
     <div className="h-full">

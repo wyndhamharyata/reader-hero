@@ -43,6 +43,13 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
+// The figure job's resume point, kept apart from ParsedBook so each page can move it cheaply.
+export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
+  "reader-hero/domain/FigureCheckpoint",
+)({
+  through: Schema.Int,
+}) {}
+
 export const FigureState = Schema.Literals(["none", "pending", "ready"]);
 export type FigureState = typeof FigureState.Type;
 

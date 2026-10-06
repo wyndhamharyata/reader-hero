@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import type { PageText, RawTextItem } from "@/domain/book";
 import { assembleBook, isScanned } from "@/lib/pdf/assemble";
@@ -161,22 +162,24 @@ describe("isScanned", () => {
 });
 
 describe("assembleBook", () => {
-  it("given a heading and body across pages, builds ordered blocks", () => {
-    const book = assembleBook(
-      [
-        {
-          text: page(1, [
-            item("The Title", 0, 750, { fontSize: 20 }),
-            item("body text on the first page that runs long", 0, 700),
-          ]),
-          images: [],
-        },
-        {
-          text: page(2, [item("more body text on the second page", 0, 750)]),
-          images: [],
-        },
-      ],
-      [],
+  it("given a heading and body across pages, builds ordered blocks", async () => {
+    const book = await Effect.runPromise(
+      assembleBook(
+        [
+          {
+            text: page(1, [
+              item("The Title", 0, 750, { fontSize: 20 }),
+              item("body text on the first page that runs long", 0, 700),
+            ]),
+            images: [],
+          },
+          {
+            text: page(2, [item("more body text on the second page", 0, 750)]),
+            images: [],
+          },
+        ],
+        [],
+      ),
     );
 
     expect(book.pageCount).toBe(2);
@@ -184,17 +187,17 @@ describe("assembleBook", () => {
     expect(book.charCount).toBeGreaterThan(0);
   });
 
-  it("given an image between two paragraphs, places an image block between them", () => {
-    const book = assembleBook(
-      [
-        {
-          text: page(1, [item("before the figure", 0, 700), item("after the figure", 0, 600)]),
-          images: [
-            { id: "1-0", page: 1, x: 100, y: 650, width: 200, height: 30 },
-          ],
-        },
-      ],
-      [],
+  it("given an image between two paragraphs, places an image block between them", async () => {
+    const book = await Effect.runPromise(
+      assembleBook(
+        [
+          {
+            text: page(1, [item("before the figure", 0, 700), item("after the figure", 0, 600)]),
+            images: [{ id: "1-0", page: 1, x: 100, y: 650, width: 200, height: 30 }],
+          },
+        ],
+        [],
+      ),
     );
 
     expect(book.blocks.map((block) => block.kind)).toEqual(["paragraph", "image", "paragraph"]);

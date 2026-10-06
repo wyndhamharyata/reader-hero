@@ -27,8 +27,18 @@ export default defineConfig({
     outDir: "dist/client",
     emptyOutDir: true,
     target: "es2022",
-    // One bundle is expected: the service worker precaches it, so size costs only the first visit.
+    // The service worker precaches every chunk, so size costs only the first visit.
     chunkSizeWarningLimit: 1200,
+    rolldownOptions: {
+      output: {
+        // Libraries keep their hash across deploys, so an update downloads only the app chunk.
+        // pdf.js stays out of the group: a named chunk for it attracts Vite's preload helper,
+        // and the app then loads pdf.js at startup instead of on first use.
+        codeSplitting: {
+          groups: [{ name: "vendor", test: /node_modules[\\/](?!pdfjs-dist)/ }],
+        },
+      },
+    },
   },
   server: {
     host: true,

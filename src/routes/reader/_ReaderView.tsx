@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { memo, useEffect, useRef, type CSSProperties } from "react";
 import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
@@ -32,7 +32,8 @@ function blockClass(block: Block): string {
 
 const VIEWPORT_FRACTION = 0.9;
 
-export function ReaderView({
+// Memoised so the parent's per-position renders do not re-map every block of the book.
+export const ReaderView = memo(function ReaderView({
   bookId,
   parsed,
   settings,
@@ -185,4 +186,4 @@ export function ReaderView({
       </article>
     </div>
   );
-}
+});

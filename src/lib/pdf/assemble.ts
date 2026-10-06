@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import {
   Block,
   PARSED_VERSION,
@@ -38,43 +39,52 @@ function buildToc(outline: ReadonlyArray<OutlineItem>, blocks: ReadonlyArray<Blo
   return entries;
 }
 
+// Yields to the event loop between stages, so a long book does not freeze the import screen.
 export function assembleBook(
   pages: ReadonlyArray<PageExtract>,
   outline: ReadonlyArray<OutlineItem>,
-): ParsedBook {
-  const pageLines: PageLines[] = pages.map((page) => ({
-    page: page.text.page,
-    height: page.text.height,
-    lines: buildLines(page.text),
-  }));
-  const cleaned = dropBoilerplate(pageLines);
+): Effect.Effect<ParsedBook> {
+  return Effect.gen(function* () {
+    const pageLines: PageLines[] = [];
+    for (const [index, page] of pages.entries()) {
+      pageLines.push({
+        page: page.text.page,
+        height: page.text.height,
+        lines: buildLines(page.text),
+      });
+      if (index % 32 === 31) yield* Effect.yieldNow;
+    }
+    const cleaned = dropBoilerplate(pageLines);
+    yield* Effect.yieldNow;
 
-  const flow: FlowItem[] = [];
-  pages.forEach((page, index) => {
-    const lines = cleaned[index]?.lines ?? [];
-    const images = page.images.filter((image) => !isSmallBandImage(image, page.text.height));
-    flow.push(...orderFlow(lines, images, page.text.width));
-  });
+    const flow: FlowItem[] = [];
+    pages.forEach((page, index) => {
+      const lines = cleaned[index]?.lines ?? [];
+      const images = page.images.filter((image) => !isSmallBandImage(image, page.text.height));
+      flow.push(...orderFlow(lines, images, page.text.width));
+    });
+    yield* Effect.yieldNow;
 
-  const blocks = buildBlocks(flow).map(
-    (raw) =>
-      new Block({
-        kind: raw.kind,
-        level: raw.level,
-        text: raw.text,
-        page: raw.page,
-        imageId: raw.imageId,
-      }),
-  );
+    const blocks = buildBlocks(flow).map(
+      (raw) =>
+        new Block({
+          kind: raw.kind,
+          level: raw.level,
+          text: raw.text,
+          page: raw.page,
+          imageId: raw.imageId,
+        }),
+    );
 
-  const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
+    const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
 
-  return new ParsedBook({
-    version: PARSED_VERSION,
-    pageCount: pages.length,
-    charCount,
-    blocks,
-    toc: buildToc(outline, blocks),
-    figuresThrough: 0,
+    return new ParsedBook({
+      version: PARSED_VERSION,
+      pageCount: pages.length,
+      charCount,
+      blocks,
+      toc: buildToc(outline, blocks),
+      figuresThrough: 0,
+    });
   });
 }

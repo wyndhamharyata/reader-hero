@@ -51,7 +51,7 @@ export function assembleExtract(
     const texts = pages.map((page) => page.text);
     const charCount = texts.reduce((sum, text) => sum + countChars(text), 0);
     const scanned = isScanned(charCount, total);
-    const parsed = assembleBook(
+    const parsed = yield* assembleBook(
       texts.map((text) => ({ text, images: [] })),
       outline,
     );

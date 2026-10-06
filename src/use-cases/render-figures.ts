@@ -28,10 +28,12 @@ export function renderFigures(
       const handle = yield* pdf.load(data);
 
       // Resume after the last fully stored page, so a restarted job keeps the figures already shown.
+      // Books from before the checkpoint store carry the resume point in their parsed record.
       const existing = yield* store
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
-      const resumeFrom = existing?.figuresThrough ?? 0;
+      const checkpoint = yield* store.getFigureCheckpoint(bookId);
+      const resumeFrom = Math.max(checkpoint, existing?.figuresThrough ?? 0);
       const stored = resumeFrom === 0 ? [] : yield* store.listImages(bookId);
 
       const parsed = yield* Effect.gen(function* () {
@@ -63,18 +65,20 @@ export function renderFigures(
         }
 
         let through = resumeFrom;
-        let publishedThrough = resumeFrom;
+        let saved = resumeFrom;
+        // Zero, so the first page with figures publishes at once and the reader is not kept waiting.
+        let publishedAt = 0;
+        let unpublished = false;
         const done = new Set<number>();
         const assemble = () =>
-          new ParsedBook({
-            ...assembleBook([...pagesByPage.values()], outline),
-            figuresThrough: through,
-          });
+          Effect.map(
+            assembleBook([...pagesByPage.values()], outline),
+            (book) => new ParsedBook({ ...book, figuresThrough: through }),
+          );
 
         // Text plus any resumed figures first, so the reader has content immediately.
-        yield* store.putParsed(bookId, assemble());
+        yield* store.putParsed(bookId, yield* assemble());
 
-        // Pages without figures still publish every 25 pages, so the resume point keeps moving.
         yield* Stream.range(resumeFrom + 1, total).pipe(
           Stream.mapEffect(
             (page) =>
@@ -87,9 +91,19 @@ export function renderFigures(
                 if (entry !== undefined) pagesByPage.set(page, { text: entry.text, images });
                 done.add(page);
                 while (done.has(through + 1)) through += 1;
-                if (images.length > 0 || through - publishedThrough >= 25) {
-                  yield* store.putParsed(bookId, assemble());
-                  publishedThrough = through;
+                // The resume point is a small record of its own, so every page moves it without
+                // rewriting the whole book; iOS interrupts this job often.
+                if (through > saved) {
+                  saved = through;
+                  yield* store.putFigureCheckpoint(bookId, through);
+                }
+                if (images.length > 0) unpublished = true;
+                // An open reader reloads the whole book on each publish, so later figures land in
+                // batches at most every 2 seconds.
+                if (unpublished && Date.now() - publishedAt >= 2_000) {
+                  yield* store.putParsed(bookId, yield* assemble());
+                  publishedAt = Date.now();
+                  unpublished = false;
                 }
               }),
             { concurrency: IMAGE_CONCURRENCY },
@@ -97,7 +111,7 @@ export function renderFigures(
           Stream.runDrain,
         );
 
-        return assemble();
+        return yield* assemble();
       }).pipe(Effect.ensuring(pdf.release(handle)));
 
       yield* store.putParsed(bookId, parsed);

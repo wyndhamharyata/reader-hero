@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
 import type { PageText } from "@/domain/book";
@@ -38,9 +39,11 @@ describe("assembleBook with real pdf.js output", () => {
       },
     ]);
 
-    const book = assembleBook(
-      (await readPages(data)).map((text) => ({ text, images: [] })),
-      [],
+    const book = await Effect.runPromise(
+      assembleBook(
+        (await readPages(data)).map((text) => ({ text, images: [] })),
+        [],
+      ),
     );
 
     expect(book.pageCount).toBe(1);

@@ -2,6 +2,7 @@ import { Schema } from "effect";
 import {
   BookMeta,
   BookPrefs,
+  FigureCheckpoint,
   ImageRecord,
   ParsedBook,
   ReaderSettings,
@@ -14,3 +15,4 @@ export const decodeReadingProgress = Schema.decodeUnknownEffect(ReadingProgress)
 export const decodeReaderSettings = Schema.decodeUnknownEffect(ReaderSettings);
 export const decodeImageRecord = Schema.decodeUnknownEffect(ImageRecord);
 export const decodeBookPrefs = Schema.decodeUnknownEffect(BookPrefs);
+export const decodeFigureCheckpoint = Schema.decodeUnknownEffect(FigureCheckpoint);

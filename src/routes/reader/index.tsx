@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from "effect";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
 import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
@@ -43,6 +43,8 @@ export function ReaderRoute() {
   const [position, setPosition] = useState(0);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const pendingSave = useRef<(() => void) | null>(null);
+  const totalRef = useRef(1);
 
   useEffect(() => {
     const program = requestWakeLock().pipe(
@@ -68,16 +70,24 @@ export function ReaderRoute() {
   useFigureJobs(pendingBooks);
 
   // The book's saved choices, with this visit's changes on top until a reload reads them back.
-  const prefs: Partial<BookPrefs> = { ...data?.prefs, ...prefChanges };
-  const bookSettings = new ReaderSettings({
-    ...settings,
-    theme: prefs.theme ?? settings.theme,
-    font: prefs.font ?? settings.font,
-    fontSize: prefs.fontSize ?? settings.fontSize,
-    lineHeight: prefs.lineHeight ?? settings.lineHeight,
-    textAlign: prefs.textAlign ?? settings.textAlign,
-    textWidth: prefs.textWidth ?? settings.textWidth,
-  });
+  const prefs = useMemo<Partial<BookPrefs>>(
+    () => ({ ...data?.prefs, ...prefChanges }),
+    [data, prefChanges],
+  );
+  // Memoised so a position change does not hand the memoised reader view a new settings object.
+  const bookSettings = useMemo(
+    () =>
+      new ReaderSettings({
+        ...settings,
+        theme: prefs.theme ?? settings.theme,
+        font: prefs.font ?? settings.font,
+        fontSize: prefs.fontSize ?? settings.fontSize,
+        lineHeight: prefs.lineHeight ?? settings.lineHeight,
+        textAlign: prefs.textAlign ?? settings.textAlign,
+        textWidth: prefs.textWidth ?? settings.textWidth,
+      }),
+    [settings, prefs],
+  );
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
     [data],
@@ -113,14 +123,43 @@ export function ReaderRoute() {
   const toc = data?.parsed.toc ?? [];
   const total = data === null ? 1 : Math.max(1, data.parsed.blocks.length - 1);
   const percentLabel = formatPercent(position / total);
+  useEffect(() => {
+    totalRef.current = total;
+  }, [total]);
 
-  const onPosition = (blockIndex: number) => {
-    setPosition(blockIndex);
-    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      void runApp(saveReadingProgress(bookId, blockIndex, total));
-    }, 400);
-  };
+  // Stable, or every position change rebuilds the reader's observer over every block.
+  const onPosition = useCallback(
+    (blockIndex: number) => {
+      setPosition(blockIndex);
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+      const save = (): void => {
+        pendingSave.current = null;
+        saveTimer.current = null;
+        void runApp(saveReadingProgress(bookId, blockIndex, totalRef.current));
+      };
+      pendingSave.current = save;
+      saveTimer.current = window.setTimeout(save, 400);
+    },
+    [bookId],
+  );
+
+  // iOS suspends a hidden app and often kills it from there, so a pending save runs at once.
+  useEffect(() => {
+    const flush = (): void => {
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+      pendingSave.current?.();
+    };
+    const onVisibility = (): void => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   const rebuild = () => {
     setRebuilding(true);
@@ -133,7 +172,7 @@ export function ReaderRoute() {
   };
 
   const toggleMode = (): void => savePrefs({ mode: mode === "reader" ? "original" : "reader" });
-  const toggleChrome = () => setChrome((value) => !value);
+  const toggleChrome = useCallback(() => setChrome((value) => !value), []);
   const closeToc = () => setTocOpen(false);
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);

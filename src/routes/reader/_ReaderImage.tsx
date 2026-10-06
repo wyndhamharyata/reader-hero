@@ -18,6 +18,7 @@ export function ReaderImage({ bookId, imageId }: Props): ReactElement {
       src={url}
       alt=""
       loading="lazy"
+      decoding="async"
       className="mx-auto my-6 block h-auto w-full rounded-box bg-white"
       style={{ aspectRatio: ratio ?? undefined }}
     />

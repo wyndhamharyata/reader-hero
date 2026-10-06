@@ -2,6 +2,7 @@ import { Context, Effect, Layer, PubSub, Stream } from "effect";
 import {
   BookMeta,
   BookPrefs,
+  FigureCheckpoint,
   ImageRecord,
   PARSED_VERSION,
   ParsedBook,
@@ -12,6 +13,7 @@ import { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
 import {
   decodeBookMeta,
   decodeBookPrefs,
+  decodeFigureCheckpoint,
   decodeImageRecord,
   decodeParsedBook,
   decodeReadingProgress,
@@ -60,6 +62,8 @@ export class BookStore extends Context.Service<
     getProgress(id: string): Effect.Effect<ReadingProgress | null, StorageFailure>;
     getPrefs(id: string): Effect.Effect<BookPrefs | null, StorageFailure>;
     putPrefs(id: string, prefs: BookPrefs): Effect.Effect<void, StorageFailure>;
+    getFigureCheckpoint(id: string): Effect.Effect<number, StorageFailure>;
+    putFigureCheckpoint(id: string, through: number): Effect.Effect<void, StorageFailure>;
     remove(id: string): Effect.Effect<void, StorageFailure>;
     estimate(): Effect.Effect<StorageEstimate | null>;
     requestPersistent(): Effect.Effect<boolean>;
@@ -204,10 +208,30 @@ export class BookStore extends Context.Service<
         yield* attempt("putPrefs", () => db.put("prefs", prefs, id));
       });
 
+      const getFigureCheckpoint = Effect.fn("BookStore.getFigureCheckpoint")(function* (
+        id: string,
+      ) {
+        const row = yield* attempt("getFigureCheckpoint", () => db.get("figures", id));
+        if (row === undefined) return 0;
+        return yield* decodeFigureCheckpoint(row).pipe(
+          Effect.map((checkpoint) => checkpoint.through),
+          Effect.catch(() => Effect.succeed(0)),
+        );
+      });
+
+      const putFigureCheckpoint = Effect.fn("BookStore.putFigureCheckpoint")(function* (
+        id: string,
+        through: number,
+      ) {
+        yield* attempt("putFigureCheckpoint", () =>
+          db.put("figures", new FigureCheckpoint({ through }), id),
+        );
+      });
+
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* attempt("remove", async () => {
           const tx = db.transaction(
-            ["books", "files", "parsed", "progress", "images", "prefs"],
+            ["books", "files", "parsed", "progress", "images", "prefs", "figures"],
             "readwrite",
           );
           await tx.objectStore("books").delete(id);
@@ -216,6 +240,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("progress").delete(id);
           await tx.objectStore("images").delete(imageRange(id));
           await tx.objectStore("prefs").delete(id);
+          await tx.objectStore("figures").delete(id);
           await tx.done;
         });
       });
@@ -263,6 +288,8 @@ export class BookStore extends Context.Service<
         getProgress,
         getPrefs,
         putPrefs,
+        getFigureCheckpoint,
+        putFigureCheckpoint,
         remove,
         estimate,
         requestPersistent,
