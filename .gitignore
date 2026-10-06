@@ -10,3 +10,8 @@ dev-dist/
 .DS_Store
 *.tsbuildinfo
 logs/
+
+# Copied from pdfjs-dist by scripts/copy-wasm.mjs and scripts/build-worker-shim.mjs on dev and build
+public/worker/
+public/wasm/
+public/icc/
