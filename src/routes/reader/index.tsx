@@ -82,7 +82,9 @@ export function ReaderRoute() {
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
     [data],
   );
-  const mode: ReaderMode = prefs.mode ?? guessed;
+  // An EPUB has no pages to show, so it always reads in reader mode.
+  const epub = data?.meta.format === "epub";
+  const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
   useEffect(() => {
@@ -139,7 +141,7 @@ export function ReaderRoute() {
     setJump({ index: blockIndex, nonce: Date.now() });
   };
 
-  const modeLabel = mode === "reader" ? "Original view" : "Reader view";
+  const modeLabel = epub ? null : mode === "reader" ? "Original view" : "Reader view";
   const barClass = `absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.25rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${chrome ? "" : "translate-y-full md:-translate-y-full"}`;
   const contentClass = chrome
     ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"

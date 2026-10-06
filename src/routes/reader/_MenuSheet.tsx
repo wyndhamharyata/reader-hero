@@ -7,7 +7,7 @@ import { TextSettings } from "./_TextSettings";
 interface Props {
   open: boolean;
   toc: ReadonlyArray<TocEntry>;
-  modeLabel: string;
+  modeLabel: string | null;
   settings: ReaderSettings;
   onSelect: (blockIndex: number) => void;
   onToggleMode: () => void;
@@ -98,14 +98,16 @@ export function MenuSheet({
         </section>
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
-          <button
-            type="button"
-            className="btn flex-1 md:justify-start md:btn-ghost"
-            onClick={onToggleMode}
-          >
-            <BookOpenIcon className="size-5 md:size-4" />
-            {modeLabel}
-          </button>
+          {modeLabel !== null && (
+            <button
+              type="button"
+              className="btn flex-1 md:justify-start md:btn-ghost"
+              onClick={onToggleMode}
+            >
+              <BookOpenIcon className="size-5 md:size-4" />
+              {modeLabel}
+            </button>
+          )}
           <button type="button" className="btn btn-ghost md:hidden" onClick={() => dismiss()}>
             Close
           </button>

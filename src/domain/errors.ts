@@ -18,6 +18,10 @@ export class PdfFailure extends Schema.TaggedError<PdfFailure>()("PdfFailure", {
   message: Schema.String,
 }) {}
 
+export class EpubFailure extends Schema.TaggedError<EpubFailure>()("EpubFailure", {
+  reason: Schema.Literals(["corrupt", "drm", "fixed-layout"]),
+}) {}
+
 export class UnsupportedFile extends Schema.TaggedError<UnsupportedFile>()("UnsupportedFile", {
   name: Schema.String,
 }) {}

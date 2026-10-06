@@ -1,17 +1,28 @@
 import type {
   BookNotFound,
+  EpubFailure,
   ParsedMissing,
   PdfFailure,
   StorageFailure,
   UnsupportedFile,
 } from "@/domain/errors";
 
-type AppError = BookNotFound | ParsedMissing | PdfFailure | StorageFailure | UnsupportedFile;
+type AppError =
+  BookNotFound | EpubFailure | ParsedMissing | PdfFailure | StorageFailure | UnsupportedFile;
 
 export function describeError(error: AppError, name: string): string {
   switch (error._tag) {
     case "UnsupportedFile":
-      return `${name} is not a PDF.`;
+      return `${name} is not a PDF or EPUB.`;
+    case "EpubFailure":
+      switch (error.reason) {
+        case "drm":
+          return `${name} is protected by DRM.`;
+        case "fixed-layout":
+          return `${name} is a fixed-layout EPUB, which Reader Hero cannot show yet.`;
+        default:
+          return `${name} could not be read.`;
+      }
     case "PdfFailure":
       switch (error.reason) {
         case "password":

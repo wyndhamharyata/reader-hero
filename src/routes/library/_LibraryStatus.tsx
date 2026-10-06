@@ -24,7 +24,7 @@ export function LibraryStatus({ loading, failed, books }: Props): ReactElement {
         <div className="rounded-box bg-base-200 p-8 text-center">
           <p className="text-lg font-medium">No books yet</p>
           <p className="mt-1 text-sm opacity-70">
-            Add a PDF and read it in a clean, reflowed view.
+            Add a PDF or EPUB and read it in a clean, reflowed view.
           </p>
         </div>
       )}

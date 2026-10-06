@@ -15,7 +15,7 @@ import { buildShelf, type FilterGroup, type Filters } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
 import { ensureCovers } from "@/use-cases/book-image";
 import type { ParseProgress } from "@/use-cases/extract";
-import { importPdfs } from "@/use-cases/import-pdfs";
+import { importBooks } from "@/use-cases/import-books";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { reparseBook } from "@/use-cases/parse-book";
 import { removeBook } from "@/use-cases/remove-book";
@@ -72,7 +72,11 @@ export function LibraryRoute(): ReactElement {
   const reading = state.status === "done" ? state.value.reading : null;
   useFigureJobs(books);
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
-  const bookIds = books.map((book) => book.id).join(" ");
+  // An EPUB stores its cover at import.
+  const bookIds = books
+    .filter((book) => book.format !== "epub")
+    .map((book) => book.id)
+    .join(" ");
 
   useEffect(() => {
     if (bookIds === "") return;
@@ -118,7 +122,7 @@ export function LibraryRoute(): ReactElement {
       reload();
     });
     importJob.current = forkApp(
-      importPdfs(files, setProgress, setMessage).pipe(Effect.ensuring(settle)),
+      importBooks(files, setProgress, setMessage).pipe(Effect.ensuring(settle)),
     );
   };
 
@@ -144,7 +148,7 @@ export function LibraryRoute(): ReactElement {
     void runApp(program);
   };
 
-  const actionLabel = busy ? "Working…" : "Add PDF";
+  const actionLabel = busy ? "Working…" : "Add book";
   const grid = settings.libraryView === "grid";
   const shelf = useMemo(
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort),
@@ -233,7 +237,7 @@ export function LibraryRoute(): ReactElement {
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,application/epub+zip,.epub"
         multiple
         className="hidden"
         onChange={(event) => {

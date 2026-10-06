@@ -1,13 +1,18 @@
 import { Effect, Ref, Stream } from "effect";
-import { PdfFailure, type StorageFailure, type UnsupportedFile } from "@/domain/errors";
+import {
+  PdfFailure,
+  type EpubFailure,
+  type StorageFailure,
+  type UnsupportedFile,
+} from "@/domain/errors";
 import { describeError } from "@/lib/describe-error";
 import { BookStore } from "@/services/book-store";
 import type { PdfClient } from "@/services/pdf-client";
 import type { ParseProgress } from "./extract";
-import { addPdf } from "./import-book";
+import { addBook } from "./import-book";
 
-// One file at a time: each import holds a whole PDF in the pdf.js worker.
-export function importPdfs(
+// One file at a time: each import holds a whole book in memory.
+export function importBooks(
   files: ReadonlyArray<File>,
   onProgress: (progress: ParseProgress) => void,
   onMessage: (message: string) => void,
@@ -29,7 +34,9 @@ export function importPdfs(
       file: File,
       index: number,
     ): Effect.Effect<void, never, BookStore | PdfClient> => {
-      const report = (error: UnsupportedFile | PdfFailure | StorageFailure): Effect.Effect<void> =>
+      const report = (
+        error: UnsupportedFile | PdfFailure | EpubFailure | StorageFailure,
+      ): Effect.Effect<void> =>
         Ref.updateAndGet(tally, (current) => ({
           ...current,
           failures: [...current.failures, describeError(error, file.name)],
@@ -54,7 +61,7 @@ export function importPdfs(
         }
       });
       const progressFile = { index: index + 1, count: files.length, name: file.name };
-      const work = addPdf(file, (progress) => {
+      const work = addBook(file, (progress) => {
         lastProgress = Date.now();
         onProgress({ ...progress, file: progressFile });
       });
@@ -63,7 +70,12 @@ export function importPdfs(
         Effect.tap(() =>
           Ref.update(tally, (current) => ({ ...current, added: current.added + 1 })),
         ),
-        Effect.catchTags({ UnsupportedFile: report, PdfFailure: report, StorageFailure: report }),
+        Effect.catchTags({
+          UnsupportedFile: report,
+          PdfFailure: report,
+          EpubFailure: report,
+          StorageFailure: report,
+        }),
       );
     };
 

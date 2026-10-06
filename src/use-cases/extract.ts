@@ -8,6 +8,8 @@ import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 export interface ParseProgress {
   readonly page: number;
   readonly total: number;
+  // What `page` counts; a PDF counts pages, an EPUB counts chapters and then images.
+  readonly step?: "Chapter" | "Image";
   readonly file?: { readonly index: number; readonly count: number; readonly name: string };
 }
 

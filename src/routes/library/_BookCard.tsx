@@ -39,6 +39,7 @@ export function BookCard({ card, onRemove, onReparse }: Props): ReactElement {
           </div>
 
           <p className="text-xs opacity-60">
+            {book.format === "epub" && "~"}
             {book.pageCount} pages · {formatSize(book.fileSize)} · {formatPercent(card.percent)}
             {book.figuresPending && " · rendering figures…"}
           </p>

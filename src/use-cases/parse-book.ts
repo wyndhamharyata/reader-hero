@@ -1,16 +1,21 @@
 import { Effect, Stream } from "effect";
 import { BookMeta, ParsedBook } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
-import type { BookNotFound, PdfFailure } from "@/domain/errors";
+import type { BookNotFound, EpubFailure, PdfFailure } from "@/domain/errors";
 import { describeError } from "@/lib/describe-error";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 import { assembleExtract, extractPages, type ParseProgress } from "./extract";
+import { buildEpub } from "./import-epub";
 
 export function parseBook(
   id: string,
   onProgress: (progress: ParseProgress) => void,
-): Effect.Effect<ParsedBook, BookNotFound | PdfFailure | StorageFailure, BookStore | PdfClient> {
+): Effect.Effect<
+  ParsedBook,
+  BookNotFound | PdfFailure | EpubFailure | StorageFailure,
+  BookStore | PdfClient
+> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
     const pdf = yield* PdfClient;
@@ -20,6 +25,21 @@ export function parseBook(
       try: () => blob.arrayBuffer(),
       catch: (cause) => new StorageFailure({ operation: "readFile", cause }),
     });
+
+    const stored = yield* store.get(id);
+    if (stored.format === "epub") {
+      const book = yield* buildEpub(id, data, onProgress);
+      yield* store.putParsed(id, book.parsed);
+      yield* store.putMeta(
+        new BookMeta({
+          ...stored,
+          parseState: "ready",
+          pageCount: book.parsed.pageCount,
+          charCount: book.parsed.charCount,
+        }),
+      );
+      return book.parsed;
+    }
 
     const handle = yield* pdf.load(data);
     const pages = yield* extractPages(handle).pipe(
@@ -48,10 +68,15 @@ export function reparseBook(
   onProgress: (progress: ParseProgress) => void,
   onMessage: (message: string) => void,
 ): Effect.Effect<void, never, BookStore | PdfClient> {
-  const report = (error: BookNotFound | PdfFailure | StorageFailure) =>
+  const report = (error: BookNotFound | PdfFailure | EpubFailure | StorageFailure) =>
     Effect.sync(() => onMessage(describeError(error, "This book")));
   return parseBook(id, onProgress).pipe(
-    Effect.catchTags({ BookNotFound: report, PdfFailure: report, StorageFailure: report }),
+    Effect.catchTags({
+      BookNotFound: report,
+      PdfFailure: report,
+      EpubFailure: report,
+      StorageFailure: report,
+    }),
   );
 }
 

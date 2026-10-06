@@ -11,7 +11,10 @@ export function ProgressPanel({ progress, onCancel }: Props): ReactElement {
   const file = progress?.file;
   const title =
     file !== undefined && file.count > 1 ? `Adding ${file.index} of ${file.count}` : "Working…";
-  const pages = progress === null ? "Preparing…" : `Page ${progress.page} of ${progress.total}`;
+  const pages =
+    progress === null
+      ? "Preparing…"
+      : `${progress.step ?? "Page"} ${progress.page} of ${progress.total}`;
   const detail = file === undefined ? pages : `${file.name} · ${pages}`;
 
   return (

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { BookStore } from "@/services/book-store";
 import type { PdfClient } from "@/services/pdf-client";
-import { addPdf } from "./import-book";
+import { addBook } from "./import-book";
 
 let started = false;
 
@@ -15,8 +15,8 @@ export function importInboxOnce(): Effect.Effect<number, never, BookStore | PdfC
 
     let imported = 0;
     for (const entry of entries) {
-      const file = new File([entry.blob], entry.name, { type: "application/pdf" });
-      yield* addPdf(file, () => {}).pipe(
+      const file = new File([entry.blob], entry.name, { type: entry.blob.type });
+      yield* addBook(file, () => {}).pipe(
         Effect.tap(() => Effect.sync(() => (imported += 1))),
         Effect.catch(() => Effect.succeed(null)),
       );

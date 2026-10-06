@@ -1,16 +1,25 @@
 import { Effect, Exit, Option, Schema, Stream } from "effect";
 import { BookMeta } from "@/domain/book";
-import { StorageFailure, UnsupportedFile, type PdfFailure } from "@/domain/errors";
+import {
+  StorageFailure,
+  UnsupportedFile,
+  type EpubFailure,
+  type PdfFailure,
+} from "@/domain/errors";
 import { newId } from "@/lib/id";
 import { record } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { assembleExtract, extractPages, type ParseProgress } from "./extract";
+import { addEpub } from "./import-epub";
 
 const isPdf = (file: File): boolean =>
   file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
-const stripExtension = (name: string): string => name.replace(/\.pdf$/i, "").trim();
+const isEpub = (file: File): boolean =>
+  file.type === "application/epub+zip" || file.name.toLowerCase().endsWith(".epub");
+
+const stripExtension = (name: string): string => name.replace(/\.(pdf|epub)$/i, "").trim();
 
 // The PDF info dictionary is untrusted; each field decodes alone, so one bad field drops only itself.
 const decodeRecord = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown));
@@ -43,11 +52,18 @@ function readInfo(handle: PdfHandle): Effect.Effect<{
   });
 }
 
-export function addPdf(
+export function addBook(
   file: File,
   onProgress: (progress: ParseProgress) => void,
-): Effect.Effect<BookMeta, UnsupportedFile | PdfFailure | StorageFailure, BookStore | PdfClient> {
+): Effect.Effect<
+  BookMeta,
+  UnsupportedFile | PdfFailure | EpubFailure | StorageFailure,
+  BookStore | PdfClient
+> {
   return Effect.gen(function* () {
+    if (isEpub(file)) {
+      return yield* addEpub(file, stripExtension(file.name) || "Untitled", onProgress);
+    }
     if (!isPdf(file)) return yield* new UnsupportedFile({ name: file.name });
 
     const started = performance.now();

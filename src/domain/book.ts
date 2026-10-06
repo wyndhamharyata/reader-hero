@@ -12,6 +12,16 @@ export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
   text: Schema.String,
   page: Schema.Int,
   imageId: Schema.optional(Schema.String),
+  // Character ranges of `text`; only EPUB blocks carry them, so a PDF block renders as plain text.
+  marks: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        start: Schema.Int,
+        end: Schema.Int,
+        style: Schema.Literals(["bold", "italic"]),
+      }),
+    ),
+  ),
 }) {}
 
 export class TocEntry extends Schema.Class<TocEntry>("reader-hero/domain/TocEntry")({
@@ -44,6 +54,8 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   subject: Schema.optional(Schema.String),
   keywords: Schema.optional(Schema.String),
   fileName: Schema.optional(Schema.String),
+  // Books imported before EPUB support have no format and are PDFs.
+  format: Schema.optional(Schema.Literals(["pdf", "epub"])),
   addedAt: Schema.Int,
   fileSize: Schema.Int,
   pageCount: Schema.Int,
