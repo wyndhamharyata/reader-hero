@@ -11,8 +11,13 @@ export default $config({
     };
   },
   async run() {
-    const isProd = $app.stage === "production";
-    const host = isProd ? "pdf-hero.mwyndham.dev" : "pdf-hero-dev.mwyndham.dev";
+    // Only named stages own a domain; personal `sst dev` stages would otherwise claim the dev host.
+    const host =
+      $app.stage === "production"
+        ? "pdf-hero.mwyndham.dev"
+        : $app.stage === "dev"
+          ? "pdf-hero-dev.mwyndham.dev"
+          : undefined;
 
     const web = new sst.cloudflare.Worker("Web", {
       handler: "src/worker/index.ts",
