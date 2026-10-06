@@ -1,9 +1,13 @@
 import type { ReactElement } from "react";
-import type { BookMeta, ParsedBook, ReaderSettings, ReadingProgress } from "@/domain/book";
+import type {
+  BookMeta,
+  ParsedBook,
+  ReaderMode,
+  ReaderSettings,
+  ReadingProgress,
+} from "@/domain/book";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
-
-export type Mode = "reader" | "original";
 
 interface Props {
   meta: BookMeta;
@@ -11,7 +15,7 @@ interface Props {
   progress: ReadingProgress | null;
   position: number;
   onPosition: (blockIndex: number) => void;
-  mode: Mode;
+  mode: ReaderMode;
   chrome: boolean;
   settings: ReaderSettings;
   jump: JumpRequest | null;
@@ -61,6 +65,7 @@ export function ReaderBody({
           initialPage={currentPage}
           showChrome={chrome}
           onPageChange={onOriginalPage}
+          onToggleChrome={onToggleChrome}
         />
       )}
 

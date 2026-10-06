@@ -101,6 +101,8 @@ function harness(figures: FigureState): Harness {
         ),
       putProgress: () => Effect.void,
       getProgress: () => Effect.succeed(null),
+      getPrefs: () => Effect.succeed(null),
+      putPrefs: () => Effect.void,
       remove: () => Effect.void,
       estimate: () => Effect.succeed(null),
       requestPersistent: () => Effect.succeed(false),

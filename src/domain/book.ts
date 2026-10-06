@@ -95,6 +95,20 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
 }) {}
 
+export const ReaderMode = Schema.Literals(["reader", "original"]);
+export type ReaderMode = typeof ReaderMode.Type;
+
+// One book's own choices; a missing field falls back to the global ReaderSettings.
+export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookPrefs")({
+  mode: Schema.optional(ReaderMode),
+  theme: Schema.optional(ReaderTheme),
+  font: Schema.optional(ReaderFont),
+  fontSize: Schema.optional(Schema.Int),
+  lineHeight: Schema.optional(Schema.Number),
+  textAlign: Schema.optional(TextAlign),
+  textWidth: Schema.optional(Schema.Int),
+}) {}
+
 export const DEFAULT_SETTINGS = new ReaderSettings({
   theme: "rhlight",
   font: "serif",

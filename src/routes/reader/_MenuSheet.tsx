@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactElement } from "react";
 import { AdjustmentsIcon, BookOpenIcon, ChevronDownIcon } from "@/components/icons";
 import type { ReaderSettings, TocEntry } from "@/domain/book";
-import { useSheetDrag } from "@/lib/use-sheet-drag";
+import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { TextSettings } from "./_TextSettings";
 
 interface Props {
@@ -29,7 +29,8 @@ export function MenuSheet({
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  useSheetDrag(open, sheetRef, listRef, onClose);
+  const backdropRef = useRef<HTMLButtonElement>(null);
+  const { dismiss } = useBottomSheet(open, sheetRef, listRef, backdropRef, onClose);
 
   if (!open) return null;
 
@@ -40,19 +41,20 @@ export function MenuSheet({
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:flex-row">
       <button
         type="button"
-        className="absolute inset-0 bg-black/40"
+        ref={backdropRef}
+        className="absolute inset-0 bg-black/40 motion-safe:animate-fade-in"
         aria-label="Close"
-        onClick={onClose}
+        onClick={() => dismiss()}
       />
       <aside
         ref={sheetRef}
-        className="relative z-10 mx-auto flex max-h-[85%] w-full max-w-xl flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.25rem)] md:mx-0 md:h-full md:max-h-none md:w-80 md:max-w-[85%] md:rounded-none md:pt-[max(1rem,var(--safe-top))] md:pb-[var(--safe-bottom)]"
+        className="relative z-10 mx-auto flex max-h-[85%] w-full max-w-xl flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.25rem)] motion-safe:animate-sheet-up md:mx-0 md:h-full md:max-h-none md:w-80 md:max-w-[85%] md:rounded-none md:pt-[max(1rem,var(--safe-top))] md:pb-[var(--safe-bottom)] md:motion-safe:animate-slide-in"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
 
         <div className="hidden items-center justify-between md:order-1 md:flex">
           <h2 className="text-lg font-semibold">Menu</h2>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => dismiss()}>
             Close
           </button>
         </div>
@@ -71,7 +73,7 @@ export function MenuSheet({
                 <button
                   type="button"
                   className="w-full rounded-field px-2 py-2 text-left text-sm whitespace-normal hover:bg-base-200 md:py-1.5"
-                  onClick={() => onSelect(entry.blockIndex)}
+                  onClick={() => dismiss(() => onSelect(entry.blockIndex))}
                 >
                   {entry.title}
                 </button>
@@ -104,7 +106,7 @@ export function MenuSheet({
             <BookOpenIcon className="size-5 md:size-4" />
             {modeLabel}
           </button>
-          <button type="button" className="btn btn-ghost md:hidden" onClick={onClose}>
+          <button type="button" className="btn btn-ghost md:hidden" onClick={() => dismiss()}>
             Close
           </button>
         </div>

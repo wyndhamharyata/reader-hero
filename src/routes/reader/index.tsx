@@ -2,14 +2,16 @@ import { Effect } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
+import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
+import { guessMode } from "@/lib/guess-mode";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { MenuSheet } from "./_MenuSheet";
 import { LoadError } from "./_LoadError";
-import { ReaderBody, type Mode } from "./_ReaderBody";
+import { ReaderBody } from "./_ReaderBody";
 import type { JumpRequest } from "./_ReaderView";
 import { ArrowLeftIcon, Bars3Icon } from "@/components/icons";
 
@@ -24,14 +26,17 @@ export function ReaderRoute() {
       const meta = yield* store.get(bookId);
       const parsed = yield* store.getParsed(bookId);
       const progress = yield* store.getProgress(bookId);
-      return { meta, parsed, progress };
+      const prefs = yield* store
+        .getPrefs(bookId)
+        .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
+      return { meta, parsed, progress, prefs };
     }),
     [bookId],
   );
 
   const [chrome, setChrome] = useState(true);
   const [tocOpen, setTocOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("reader");
+  const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -62,6 +67,45 @@ export function ReaderRoute() {
   const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
   useFigureJobs(pendingBooks);
 
+  // The book's saved choices, with this visit's changes on top until a reload reads them back.
+  const prefs: Partial<BookPrefs> = { ...data?.prefs, ...prefChanges };
+  const bookSettings = new ReaderSettings({
+    ...settings,
+    theme: prefs.theme ?? settings.theme,
+    font: prefs.font ?? settings.font,
+    fontSize: prefs.fontSize ?? settings.fontSize,
+    lineHeight: prefs.lineHeight ?? settings.lineHeight,
+    textAlign: prefs.textAlign ?? settings.textAlign,
+    textWidth: prefs.textWidth ?? settings.textWidth,
+  });
+  const guessed = useMemo(
+    () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
+    [data],
+  );
+  const mode: ReaderMode = prefs.mode ?? guessed;
+
+  // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
+  useEffect(() => {
+    document.documentElement.dataset.theme = bookSettings.theme;
+  }, [bookSettings.theme, settings.theme]);
+
+  const savePrefs = (changes: Partial<BookPrefs>): void => {
+    const next = { ...prefChanges, ...changes };
+    setPrefChanges(next);
+    const saved = new BookPrefs({ ...data?.prefs, ...next });
+    void runApp(
+      Effect.flatMap(BookStore, (store) => store.putPrefs(bookId, saved)).pipe(Effect.ignore),
+    );
+  };
+  // A change saves to this book and to the global settings, so new books start from it.
+  const changeSettings = (patch: Partial<ReaderSettings>): void => {
+    const changes = Object.fromEntries(
+      Object.entries(patch).filter(([, value]) => value !== undefined),
+    ) as Partial<BookPrefs>;
+    savePrefs(changes);
+    update(patch);
+  };
+
   const loadError = state.status === "error" ? state.error : null;
   const title = data?.meta.title ?? "Reader";
   const toc = data?.parsed.toc ?? [];
@@ -86,12 +130,12 @@ export function ReaderRoute() {
     void runApp(program);
   };
 
-  const toggleMode = () => setMode(mode === "reader" ? "original" : "reader");
+  const toggleMode = (): void => savePrefs({ mode: mode === "reader" ? "original" : "reader" });
   const toggleChrome = () => setChrome((value) => !value);
   const closeToc = () => setTocOpen(false);
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
-    setMode("reader");
+    if (mode !== "reader") savePrefs({ mode: "reader" });
     setJump({ index: blockIndex, nonce: Date.now() });
   };
 
@@ -123,7 +167,7 @@ export function ReaderRoute() {
             onPosition={onPosition}
             mode={mode}
             chrome={chrome}
-            settings={settings}
+            settings={bookSettings}
             jump={jump}
             onToggleChrome={toggleChrome}
           />
@@ -132,11 +176,7 @@ export function ReaderRoute() {
 
       <nav className={barClass}>
         <div className="flex items-center gap-1">
-          <Link
-            to="/"
-            className="btn btn-square btn-ghost md:btn-sm"
-            aria-label="Back to library"
-          >
+          <Link to="/" className="btn btn-square btn-ghost md:btn-sm" aria-label="Back to library">
             <ArrowLeftIcon />
           </Link>
           <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
@@ -171,10 +211,10 @@ export function ReaderRoute() {
         open={tocOpen}
         toc={toc}
         modeLabel={modeLabel}
-        settings={settings}
+        settings={bookSettings}
         onSelect={selectToc}
         onToggleMode={toggleMode}
-        onSettingsChange={update}
+        onSettingsChange={changeSettings}
         onClose={closeToc}
       />
     </div>

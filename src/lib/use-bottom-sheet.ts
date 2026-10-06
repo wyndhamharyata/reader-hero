@@ -1,18 +1,50 @@
-import { useEffect, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 
-// Native listeners: React's touchmove is passive and cannot stop the scrolling list's own bounce.
-export function useSheetDrag(
+const closeMs = 200;
+
+// Slides a sheet out (down on phones, right for the desktop sidebar) and fades its backdrop, then closes.
+function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => void): void {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    done();
+    return;
+  }
+  const sideways = window.matchMedia("(width >= 48rem)").matches;
+  sheet.style.transition = `transform ${closeMs}ms ease-in`;
+  sheet.style.transform = sideways ? "translateX(100%)" : "translateY(100%)";
+  if (backdrop !== null) {
+    backdrop.style.transition = `opacity ${closeMs}ms ease-in`;
+    backdrop.style.opacity = "0";
+  }
+  window.setTimeout(done, closeMs);
+}
+
+export function useBottomSheet(
   open: boolean,
   sheetRef: RefObject<HTMLElement | null>,
   scrollRef: RefObject<HTMLElement | null>,
+  backdropRef: RefObject<HTMLElement | null>,
   onClose: () => void,
-): void {
+): { readonly dismiss: (then?: () => void) => void } {
   const closeRef = useRef(onClose);
 
   useEffect(() => {
     closeRef.current = onClose;
   });
 
+  const dismiss = useCallback(
+    (then?: () => void): void => {
+      const finish = (): void => {
+        closeRef.current();
+        then?.();
+      };
+      const sheet = sheetRef.current;
+      if (sheet === null) finish();
+      else slideOut(sheet, backdropRef.current, finish);
+    },
+    [sheetRef, backdropRef],
+  );
+
+  // Native listeners: React's touchmove is passive and cannot stop the scrolling list's own bounce.
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!open || sheet === null) return;
@@ -46,13 +78,12 @@ export function useSheetDrag(
       if (mode !== "drag") return;
       mode = "idle";
       const flick = offset > 30 && offset / Math.max(1, event.timeStamp - startAt) > 0.5;
-      sheet.style.transition = "transform 200ms ease-out";
       if (offset < 100 && !flick) {
+        sheet.style.transition = "transform 200ms ease-out";
         sheet.style.transform = "";
         return;
       }
-      sheet.style.transform = "translateY(100%)";
-      window.setTimeout(() => closeRef.current(), 200);
+      slideOut(sheet, backdropRef.current, () => closeRef.current());
     };
 
     sheet.addEventListener("touchstart", onStart, { passive: true });
@@ -65,5 +96,7 @@ export function useSheetDrag(
       sheet.removeEventListener("touchend", onEnd);
       sheet.removeEventListener("touchcancel", onEnd);
     };
-  }, [open, sheetRef, scrollRef]);
+  }, [open, sheetRef, scrollRef, backdropRef]);
+
+  return { dismiss };
 }

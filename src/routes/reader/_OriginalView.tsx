@@ -14,6 +14,7 @@ interface Props {
   initialPage: number;
   showChrome: boolean;
   onPageChange: (page: number) => void;
+  onToggleChrome: () => void;
 }
 
 export function OriginalView({
@@ -22,6 +23,7 @@ export function OriginalView({
   initialPage,
   showChrome,
   onPageChange,
+  onToggleChrome,
 }: Props): ReactElement {
   const [handle, setHandle] = useState<PdfHandle | null>(null);
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
@@ -107,7 +109,11 @@ export function OriginalView({
       )}
 
       {handle !== null && (
-        <div ref={containerRef} className="h-full overflow-y-auto overscroll-contain bg-base-300">
+        <div
+          ref={containerRef}
+          className="h-full overflow-y-auto overscroll-contain bg-base-300"
+          onClick={onToggleChrome}
+        >
           <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-2 pb-[calc(0.5rem+var(--safe-bottom))]">
             {sizes.map((size) => (
               <PdfPage key={size.page} handle={handle} size={size} root={containerRef} />

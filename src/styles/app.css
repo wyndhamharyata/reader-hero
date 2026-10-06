@@ -1,5 +1,27 @@
 @import "tailwindcss";
 
+@theme {
+  --animate-sheet-up: sheet-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-slide-in: slide-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade-in: fade-in 240ms ease-out;
+
+  @keyframes sheet-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes slide-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
 @plugin "daisyui" {
   themes: false;
 }

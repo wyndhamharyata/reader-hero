@@ -1,6 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type {
   BookMeta,
+  BookPrefs,
   ImageRecord,
   ParsedBook,
   ReaderSettings,
@@ -22,24 +23,32 @@ export interface ReaderDb extends DBSchema {
   settings: { key: string; value: ReaderSettings };
   inbox: { key: number; value: InboxFile };
   images: { key: string; value: ImageRecord };
+  prefs: { key: string; value: BookPrefs };
 }
 
 export const DB_NAME = "reader-hero";
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const SETTINGS_KEY = "app";
 
-export function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
-  return openDB<ReaderDb>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains("books")) db.createObjectStore("books", { keyPath: "id" });
-      if (!db.objectStoreNames.contains("files")) db.createObjectStore("files");
-      if (!db.objectStoreNames.contains("parsed")) db.createObjectStore("parsed");
-      if (!db.objectStoreNames.contains("progress")) db.createObjectStore("progress");
-      if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings");
-      if (!db.objectStoreNames.contains("inbox")) {
-        db.createObjectStore("inbox", { keyPath: "id", autoIncrement: true });
+export async function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
+  const db = await openDB<ReaderDb>(DB_NAME, DB_VERSION, {
+    upgrade(next) {
+      if (!next.objectStoreNames.contains("books"))
+        next.createObjectStore("books", { keyPath: "id" });
+      if (!next.objectStoreNames.contains("files")) next.createObjectStore("files");
+      if (!next.objectStoreNames.contains("parsed")) next.createObjectStore("parsed");
+      if (!next.objectStoreNames.contains("progress")) next.createObjectStore("progress");
+      if (!next.objectStoreNames.contains("settings")) next.createObjectStore("settings");
+      if (!next.objectStoreNames.contains("inbox")) {
+        next.createObjectStore("inbox", { keyPath: "id", autoIncrement: true });
       }
-      if (!db.objectStoreNames.contains("images")) db.createObjectStore("images");
+      if (!next.objectStoreNames.contains("images")) next.createObjectStore("images");
+      if (!next.objectStoreNames.contains("prefs")) next.createObjectStore("prefs");
+    },
+    // A newer version opening elsewhere waits for this connection; let go so its upgrade can run.
+    blocking() {
+      db.close();
     },
   });
+  return db;
 }

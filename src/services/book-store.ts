@@ -1,6 +1,7 @@
 import { Context, Effect, Layer, PubSub, Stream } from "effect";
 import {
   BookMeta,
+  BookPrefs,
   ImageRecord,
   PARSED_VERSION,
   ParsedBook,
@@ -10,6 +11,7 @@ import {
 import { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
 import {
   decodeBookMeta,
+  decodeBookPrefs,
   decodeImageRecord,
   decodeParsedBook,
   decodeReadingProgress,
@@ -56,6 +58,8 @@ export class BookStore extends Context.Service<
     >;
     putProgress(id: string, progress: ReadingProgress): Effect.Effect<void, StorageFailure>;
     getProgress(id: string): Effect.Effect<ReadingProgress | null, StorageFailure>;
+    getPrefs(id: string): Effect.Effect<BookPrefs | null, StorageFailure>;
+    putPrefs(id: string, prefs: BookPrefs): Effect.Effect<void, StorageFailure>;
     remove(id: string): Effect.Effect<void, StorageFailure>;
     estimate(): Effect.Effect<StorageEstimate | null>;
     requestPersistent(): Effect.Effect<boolean>;
@@ -190,10 +194,20 @@ export class BookStore extends Context.Service<
         return yield* decodeReadingProgress(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
+      const getPrefs = Effect.fn("BookStore.getPrefs")(function* (id: string) {
+        const row = yield* attempt("getPrefs", () => db.get("prefs", id));
+        if (row === undefined) return null;
+        return yield* decodeBookPrefs(row).pipe(Effect.catch(() => Effect.succeed(null)));
+      });
+
+      const putPrefs = Effect.fn("BookStore.putPrefs")(function* (id: string, prefs: BookPrefs) {
+        yield* attempt("putPrefs", () => db.put("prefs", prefs, id));
+      });
+
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* attempt("remove", async () => {
           const tx = db.transaction(
-            ["books", "files", "parsed", "progress", "images"],
+            ["books", "files", "parsed", "progress", "images", "prefs"],
             "readwrite",
           );
           await tx.objectStore("books").delete(id);
@@ -201,6 +215,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("parsed").delete(id);
           await tx.objectStore("progress").delete(id);
           await tx.objectStore("images").delete(imageRange(id));
+          await tx.objectStore("prefs").delete(id);
           await tx.done;
         });
       });
@@ -246,6 +261,8 @@ export class BookStore extends Context.Service<
         listImages,
         putProgress,
         getProgress,
+        getPrefs,
+        putPrefs,
         remove,
         estimate,
         requestPersistent,

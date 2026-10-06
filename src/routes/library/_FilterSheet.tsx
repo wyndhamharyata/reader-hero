@@ -1,6 +1,6 @@
 import { useRef, type ReactElement } from "react";
 import type { FilterGroup, Shelf } from "@/lib/shelf";
-import { useSheetDrag } from "@/lib/use-sheet-drag";
+import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { FilterChip } from "./_FilterChip";
 
 interface Props {
@@ -28,7 +28,8 @@ export function FilterSheet({
 }: Props): ReactElement | null {
   const sheetRef = useRef<HTMLElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  useSheetDrag(open, sheetRef, bodyRef, onClose);
+  const backdropRef = useRef<HTMLButtonElement>(null);
+  const { dismiss } = useBottomSheet(open, sheetRef, bodyRef, backdropRef, onClose);
 
   if (!open) return null;
 
@@ -40,15 +41,16 @@ export function FilterSheet({
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
       <button
         type="button"
-        className="absolute inset-0 bg-black/40"
+        ref={backdropRef}
+        className="absolute inset-0 bg-black/40 motion-safe:animate-fade-in"
         aria-label="Close filters"
-        onClick={onClose}
+        onClick={() => dismiss()}
       />
       <aside
         ref={sheetRef}
         role="dialog"
         aria-label="Filters"
-        className="relative z-10 flex max-h-[85%] w-full flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.5rem)]"
+        className="relative z-10 flex max-h-[85%] w-full flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.5rem)] motion-safe:animate-sheet-up"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300" />
         <h2 className="text-lg font-semibold">Filters</h2>
@@ -83,7 +85,7 @@ export function FilterSheet({
           >
             Clear all
           </button>
-          <button type="button" className="btn flex-1 btn-primary" onClick={onClose}>
+          <button type="button" className="btn flex-1 btn-primary" onClick={() => dismiss()}>
             {showLabel}
           </button>
         </div>
