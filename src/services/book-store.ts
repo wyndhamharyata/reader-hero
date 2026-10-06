@@ -44,15 +44,16 @@ export class BookStore extends Context.Service<
     putFile(id: string, blob: Blob, meta: BookMeta): Effect.Effect<void, StorageFailure>;
     getFile(id: string): Effect.Effect<Blob, BookNotFound | StorageFailure>;
     putParsed(id: string, parsed: ParsedBook): Effect.Effect<void, StorageFailure>;
-    getParsed(
-      id: string,
-    ): Effect.Effect<ParsedBook, BookNotFound | ParsedMissing | StorageFailure>;
+    getParsed(id: string): Effect.Effect<ParsedBook, BookNotFound | ParsedMissing | StorageFailure>;
     putImage(bookId: string, image: StoredImage): Effect.Effect<void, StorageFailure>;
     updates(): Stream.Stream<StoreUpdate>;
-    getImage(
+    getImage(bookId: string, imageId: string): Effect.Effect<ImageRecord | null, StorageFailure>;
+    listImages(
       bookId: string,
-      imageId: string,
-    ): Effect.Effect<ImageRecord | null, StorageFailure>;
+    ): Effect.Effect<
+      ReadonlyArray<{ readonly id: string; readonly image: ImageRecord }>,
+      StorageFailure
+    >;
     putProgress(id: string, progress: ReadingProgress): Effect.Effect<void, StorageFailure>;
     getProgress(id: string): Effect.Effect<ReadingProgress | null, StorageFailure>;
     remove(id: string): Effect.Effect<void, StorageFailure>;
@@ -70,7 +71,9 @@ export class BookStore extends Context.Service<
       const list = Effect.fn("BookStore.list")(function* () {
         const rows = yield* attempt("list", () => db.getAll("books"));
         return yield* Effect.forEach(rows, (row) =>
-          decodeBookMeta(row).pipe(Effect.mapError((cause) => new StorageFailure({ operation: "decodeBookMeta", cause }))),
+          decodeBookMeta(row).pipe(
+            Effect.mapError((cause) => new StorageFailure({ operation: "decodeBookMeta", cause })),
+          ),
         );
       });
 
@@ -87,16 +90,18 @@ export class BookStore extends Context.Service<
         yield* PubSub.publish(updateBus, { kind: "meta", bookId: meta.id });
       });
 
-      const putFile = Effect.fn("BookStore.putFile")(
-        function* (id: string, blob: Blob, meta: BookMeta) {
-          yield* attempt("putFile", async () => {
-            const tx = db.transaction(["books", "files"], "readwrite");
-            await tx.objectStore("books").put(meta);
-            await tx.objectStore("files").put(blob, id);
-            await tx.done;
-          });
-        },
-      );
+      const putFile = Effect.fn("BookStore.putFile")(function* (
+        id: string,
+        blob: Blob,
+        meta: BookMeta,
+      ) {
+        yield* attempt("putFile", async () => {
+          const tx = db.transaction(["books", "files"], "readwrite");
+          await tx.objectStore("books").put(meta);
+          await tx.objectStore("files").put(blob, id);
+          await tx.done;
+        });
+      });
 
       const getFile = Effect.fn("BookStore.getFile")(function* (id: string) {
         const blob = yield* attempt("getFile", () => db.get("files", id));
@@ -104,12 +109,13 @@ export class BookStore extends Context.Service<
         return blob;
       });
 
-      const putParsed = Effect.fn("BookStore.putParsed")(
-        function* (id: string, parsed: ParsedBook) {
-          yield* attempt("putParsed", () => db.put("parsed", parsed, id));
-          yield* PubSub.publish(updateBus, { kind: "parsed", bookId: id });
-        },
-      );
+      const putParsed = Effect.fn("BookStore.putParsed")(function* (
+        id: string,
+        parsed: ParsedBook,
+      ) {
+        yield* attempt("putParsed", () => db.put("parsed", parsed, id));
+        yield* PubSub.publish(updateBus, { kind: "parsed", bookId: id });
+      });
 
       const getParsed = Effect.fn("BookStore.getParsed")(function* (id: string) {
         const row = yield* attempt("getParsed", () => db.get("parsed", id));
@@ -121,34 +127,62 @@ export class BookStore extends Context.Service<
         return parsed;
       });
 
-      const putImage = Effect.fn("BookStore.putImage")(
-        function* (bookId: string, image: StoredImage) {
-          yield* attempt("putImage", () =>
-            db.put(
-              "images",
-              new ImageRecord({ blob: image.blob, width: image.width, height: image.height }),
-              `${bookId}/${image.id}`,
-            ),
-          );
-          yield* PubSub.publish(updateBus, { kind: "image", bookId, imageId: image.id });
-        },
-      );
+      const putImage = Effect.fn("BookStore.putImage")(function* (
+        bookId: string,
+        image: StoredImage,
+      ) {
+        yield* attempt("putImage", () =>
+          db.put(
+            "images",
+            new ImageRecord({
+              blob: image.blob,
+              width: image.width,
+              height: image.height,
+              x: image.x,
+              y: image.y,
+            }),
+            `${bookId}/${image.id}`,
+          ),
+        );
+        yield* PubSub.publish(updateBus, { kind: "image", bookId, imageId: image.id });
+      });
 
       const updates = () => Stream.fromPubSub(updateBus);
 
-      const getImage = Effect.fn("BookStore.getImage")(
-        function* (bookId: string, imageId: string) {
-          const row = yield* attempt("getImage", () => db.get("images", `${bookId}/${imageId}`));
-          if (row === undefined) return null;
-          return yield* decodeImageRecord(row).pipe(Effect.catch(() => Effect.succeed(null)));
-        },
-      );
+      const getImage = Effect.fn("BookStore.getImage")(function* (bookId: string, imageId: string) {
+        const row = yield* attempt("getImage", () => db.get("images", `${bookId}/${imageId}`));
+        if (row === undefined) return null;
+        return yield* decodeImageRecord(row).pipe(Effect.catch(() => Effect.succeed(null)));
+      });
 
-      const putProgress = Effect.fn("BookStore.putProgress")(
-        function* (id: string, progress: ReadingProgress) {
-          yield* attempt("putProgress", () => db.put("progress", progress, id));
-        },
-      );
+      const listImages = Effect.fn("BookStore.listImages")(function* (bookId: string) {
+        // One transaction, so the keys and the rows line up.
+        const [keys, rows] = yield* attempt("listImages", async () => {
+          const store = db.transaction("images").store;
+          return Promise.all([
+            store.getAllKeys(imageRange(bookId)),
+            store.getAll(imageRange(bookId)),
+          ]);
+        });
+        const images: Array<{ readonly id: string; readonly image: ImageRecord }> = [];
+        for (const [index, row] of rows.entries()) {
+          const key = keys[index];
+          const image = yield* decodeImageRecord(row).pipe(
+            Effect.catch(() => Effect.succeed(null)),
+          );
+          if (key !== undefined && image !== null) {
+            images.push({ id: key.slice(bookId.length + 1), image });
+          }
+        }
+        return images;
+      });
+
+      const putProgress = Effect.fn("BookStore.putProgress")(function* (
+        id: string,
+        progress: ReadingProgress,
+      ) {
+        yield* attempt("putProgress", () => db.put("progress", progress, id));
+      });
 
       const getProgress = Effect.fn("BookStore.getProgress")(function* (id: string) {
         const row = yield* attempt("getProgress", () => db.get("progress", id));
@@ -209,6 +243,7 @@ export class BookStore extends Context.Service<
         putImage,
         updates,
         getImage,
+        listImages,
         putProgress,
         getProgress,
         remove,

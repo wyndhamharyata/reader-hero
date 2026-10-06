@@ -1,6 +1,5 @@
-import { Effect, Stream } from "effect";
-import type { PageImage } from "@/domain/book";
-import { BookMeta } from "@/domain/book";
+import { Effect, Semaphore, Stream } from "effect";
+import { BookMeta, ParsedBook, type PageImage } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import { log } from "@/lib/log";
 import { scanCodecs } from "@/lib/pdf/codecs";
@@ -11,9 +10,11 @@ import { PdfClient } from "@/services/pdf-client";
 
 const IMAGE_CONCURRENCY = 2;
 
-export function renderFigures(
-  bookId: string,
-): Effect.Effect<void, never, BookStore | PdfClient> {
+// At most 3 figure jobs across the app: each holds a whole PDF plus its decoded images, and iOS
+// kills the page when a large import starts a job for every new book at once.
+const figureLock = Semaphore.makeUnsafe(3);
+
+export function renderFigures(bookId: string): Effect.Effect<void, never, BookStore | PdfClient> {
   return Effect.suspend(() => {
     const started = performance.now();
     const job = Effect.gen(function* () {
@@ -37,20 +38,21 @@ export function renderFigures(
       yield* log("figures.codecs", codecs);
       const handle = yield* pdf.load(data);
 
-      yield* log("figures.start", bookId);
+      // Resume after the last page whose figures are all stored, so a job that restarts (the library
+      // stops its jobs when a book opens) keeps the figures already shown instead of starting over.
+      const existing = yield* store
+        .getParsed(bookId)
+        .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
+      const resumeFrom = existing?.figuresThrough ?? 0;
+      const stored = resumeFrom === 0 ? [] : yield* store.listImages(bookId);
+
+      yield* log("figures.start", `${bookId} from p${resumeFrom + 1}`);
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);
 
-        // Text first: a full ParsedBook (sans images) is published so the
-        // reader has content immediately, instead of an empty outline.
         const texts = yield* Stream.range(1, total).pipe(
           Stream.mapEffect(
-            (page) =>
-              timed(
-                "figures.text",
-                pdf.readPage(handle, page),
-                () => `p${page}`,
-              ),
+            (page) => timed("figures.text", pdf.readPage(handle, page), () => `p${page}`),
             { concurrency: IMAGE_CONCURRENCY },
           ),
           Stream.runCollect,
@@ -60,22 +62,37 @@ export function renderFigures(
           .readOutline(handle)
           .pipe(Effect.catchTag("PdfFailure", () => Effect.succeed([])));
 
-        const pagesByPage = new Map<number, { text: (typeof texts)[number]; images: ReadonlyArray<PageImage> }>();
+        const pagesByPage = new Map<
+          number,
+          { text: (typeof texts)[number]; images: ReadonlyArray<PageImage> }
+        >();
         for (const text of texts) pagesByPage.set(text.page, { text, images: [] });
+        for (const { id, image } of stored) {
+          const page = Number(id.split("-")[0]);
+          const entry = pagesByPage.get(page);
+          if (!(page <= resumeFrom) || entry === undefined) continue;
+          if (image.x === undefined || image.y === undefined) continue;
+          const restored = { ...image, id, page, x: image.x, y: image.y };
+          pagesByPage.set(page, { text: entry.text, images: [...entry.images, restored] });
+        }
 
-        yield* store.putParsed(
-          bookId,
-          assembleBook(
-            texts.map((text) => ({ text, images: [] })),
-            outline,
-          ),
-        );
-
-        // Images second: when a page with figures finishes, the parsed book is
-        // re-assembled with whatever is done and published. Each putParsed
-        // fires a `parsed` PubSub event that refreshes the reader incrementally.
+        let through = resumeFrom;
+        let publishedThrough = resumeFrom;
         let published = 0;
-        yield* Stream.range(1, total).pipe(
+        const done = new Set<number>();
+        const assemble = () =>
+          new ParsedBook({
+            ...assembleBook([...pagesByPage.values()], outline),
+            figuresThrough: through,
+          });
+
+        // Text plus any resumed figures first, so the reader has content immediately.
+        yield* store.putParsed(bookId, assemble());
+
+        // Then each page in turn. A page with figures publishes the book again (a `parsed` event that
+        // refreshes the reader); runs of pages without figures publish every 25 pages, so the resume
+        // point keeps moving.
+        yield* Stream.range(resumeFrom + 1, total).pipe(
           Stream.mapEffect(
             (page) =>
               Effect.gen(function* () {
@@ -90,15 +107,18 @@ export function renderFigures(
                 }
                 const entry = pagesByPage.get(page);
                 if (entry !== undefined) pagesByPage.set(page, { text: entry.text, images });
-                if (images.length > 0) {
-                  const assemblePages = [...pagesByPage.values()].map((entry) => ({
-                    text: entry.text,
-                    images: entry.images,
-                  }));
-                  yield* store.putParsed(bookId, assembleBook(assemblePages, outline));
+                done.add(page);
+                while (done.has(through + 1)) through += 1;
+                if (images.length > 0 || through - publishedThrough >= 25) {
+                  yield* store.putParsed(bookId, assemble());
+                  publishedThrough = through;
                   published += 1;
                 }
-                yield* log("figures.page", `p${page}:${images.length}`, performance.now() - pageStarted);
+                yield* log(
+                  "figures.page",
+                  `p${page}:${images.length}`,
+                  performance.now() - pageStarted,
+                );
               }),
             { concurrency: IMAGE_CONCURRENCY },
           ),
@@ -106,11 +126,7 @@ export function renderFigures(
         );
 
         yield* log("figures.assembled", `${published} partial updates`);
-        const assembled = [...pagesByPage.values()].map((entry) => ({
-          text: entry.text,
-          images: entry.images,
-        }));
-        return assembleBook(assembled, outline);
+        return assemble();
       }).pipe(Effect.ensuring(pdf.release(handle)));
 
       yield* store.putParsed(bookId, parsed);
@@ -122,6 +138,7 @@ export function renderFigures(
     });
 
     return job.pipe(
+      Semaphore.withPermit(figureLock),
       Effect.catchTags({
         BookNotFound: () => Effect.void,
         PdfFailure: (error) => log("figures.failed", `${error.reason}; job stays pending`),
@@ -130,4 +147,3 @@ export function renderFigures(
     );
   });
 }
-

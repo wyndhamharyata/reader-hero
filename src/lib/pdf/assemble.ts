@@ -75,5 +75,6 @@ export function assembleBook(
     charCount,
     blocks,
     toc: buildToc(outline, blocks),
+    figuresThrough: 0,
   });
 }

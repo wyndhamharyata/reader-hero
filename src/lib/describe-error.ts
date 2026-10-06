@@ -18,6 +18,8 @@ export function describeError(error: AppError, name: string): string {
           return `${name} is password protected.`;
         case "corrupt":
           return `${name} could not be read.`;
+        case "stalled":
+          return `${name} stopped making progress. Try adding it again on its own.`;
         default:
           return `${name} could not be read.`;
       }

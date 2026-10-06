@@ -1,8 +1,9 @@
 import { useRef, useState, type ReactElement } from "react";
-import { offlineBadge } from "@/lib/badges";
+import { Logo } from "@/components/Logo";
 import { PerfPanel } from "./_PerfPanel";
 
-export function OfflineBadge(): ReactElement {
+// Five taps on the title open the on-device performance panel, a debug view with no other entry.
+export function LibraryTitle(): ReactElement {
   const taps = useRef(0);
   const [perfOpen, setPerfOpen] = useState(false);
 
@@ -15,9 +16,11 @@ export function OfflineBadge(): ReactElement {
 
   return (
     <>
-      <button type="button" className={offlineBadge} onClick={onTap}>
-        offline
-      </button>
+      <h1>
+        <button type="button" className="block cursor-default" onClick={onTap}>
+          <Logo className="h-7 w-auto md:h-8" />
+        </button>
+      </h1>
       {perfOpen && <PerfPanel onClose={() => setPerfOpen(false)} />}
     </>
   );

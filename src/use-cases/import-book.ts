@@ -1,4 +1,4 @@
-import { Effect, Stream } from "effect";
+import { Effect, Exit, Stream } from "effect";
 import { BookMeta } from "@/domain/book";
 import { StorageFailure, UnsupportedFile, type PdfFailure } from "@/domain/errors";
 import { newId } from "@/lib/id";
@@ -15,6 +15,8 @@ const stripExtension = (name: string): string => name.replace(/\.pdf$/i, "").tri
 interface BookInfo {
   readonly title: string;
   readonly author?: string;
+  readonly subject?: string;
+  readonly keywords?: string;
 }
 
 function readInfo(handle: PdfHandle): Effect.Effect<BookInfo> {
@@ -27,20 +29,21 @@ function readInfo(handle: PdfHandle): Effect.Effect<BookInfo> {
     if (metadata === null) return { title: "" };
 
     const info = metadata.info as Record<string, unknown>;
-    const title = typeof info.Title === "string" ? info.Title.trim() : "";
-    const author = typeof info.Author === "string" ? info.Author.trim() : "";
-    return author === "" ? { title } : { title, author };
+    const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+    const optional = (value: unknown) => text(value) || undefined;
+    return {
+      title: text(info.Title),
+      author: optional(info.Author),
+      subject: optional(info.Subject),
+      keywords: optional(info.Keywords),
+    };
   });
 }
 
 export function addPdf(
   file: File,
   onProgress: (progress: ParseProgress) => void,
-): Effect.Effect<
-  BookMeta,
-  UnsupportedFile | PdfFailure | StorageFailure,
-  BookStore | PdfClient
-> {
+): Effect.Effect<BookMeta, UnsupportedFile | PdfFailure | StorageFailure, BookStore | PdfClient> {
   return Effect.gen(function* () {
     if (!isPdf(file)) return yield* new UnsupportedFile({ name: file.name });
 
@@ -54,37 +57,53 @@ export function addPdf(
     });
 
     const handle = yield* pdf.load(data);
-    const info = yield* readInfo(handle);
-    const id = newId();
+    return yield* Effect.gen(function* () {
+      const info = yield* readInfo(handle);
+      const id = newId();
 
-    const meta = new BookMeta({
-      id,
-      title: info.title || stripExtension(file.name) || "Untitled",
-      author: info.author,
-      addedAt: Date.now(),
-      fileSize: file.size,
-      pageCount: handle.numPages,
-      parseState: "parsing",
-      charCount: 0,
-    });
+      const meta = new BookMeta({
+        id,
+        title: info.title || stripExtension(file.name) || "Untitled",
+        author: info.author,
+        subject: info.subject,
+        keywords: info.keywords,
+        fileName: file.name,
+        addedAt: Date.now(),
+        fileSize: file.size,
+        pageCount: handle.numPages,
+        parseState: "parsing",
+        charCount: 0,
+      });
 
-    yield* store.putFile(id, file, meta);
-    const pages = yield* extractPages(handle).pipe(
-      Stream.tap((read) => Effect.sync(() => onProgress({ page: read.page, total: read.total }))),
-      Stream.runCollect,
-    );
-    const result = yield* assembleExtract(handle, pages);
-    yield* store.putParsed(id, result.parsed);
+      yield* store.putFile(id, file, meta);
+      // From here the book is in the library; a failure or cancel must not leave it "Building reader".
+      const parse = Effect.gen(function* () {
+        const pages = yield* extractPages(handle).pipe(
+          Stream.tap((read) =>
+            Effect.sync(() => onProgress({ page: read.page, total: read.total })),
+          ),
+          Stream.runCollect,
+        );
+        const result = yield* assembleExtract(handle, pages);
+        yield* store.putParsed(id, result.parsed);
 
-    const ready = new BookMeta({
-      ...meta,
-      parseState: result.scanned ? "scanned" : "ready",
-      charCount: result.parsed.charCount,
-      figures: result.scanned ? "none" : "pending",
-    });
-    yield* store.putMeta(ready);
-    record("import.total", performance.now() - started, ready.title);
+        const ready = new BookMeta({
+          ...meta,
+          parseState: result.scanned ? "scanned" : "ready",
+          charCount: result.parsed.charCount,
+          figures: result.scanned ? "none" : "pending",
+        });
+        yield* store.putMeta(ready);
+        return ready;
+      }).pipe(
+        Effect.onExit((exit) =>
+          Exit.isSuccess(exit) ? Effect.void : Effect.ignore(store.remove(id)),
+        ),
+      );
+      const ready = yield* parse;
+      record("import.total", performance.now() - started, ready.title);
 
-    return ready;
+      return ready;
+    }).pipe(Effect.ensuring(pdf.release(handle)));
   });
 }

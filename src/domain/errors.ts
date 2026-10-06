@@ -14,7 +14,7 @@ export class StorageFailure extends Schema.TaggedError<StorageFailure>()("Storag
 }) {}
 
 export class PdfFailure extends Schema.TaggedError<PdfFailure>()("PdfFailure", {
-  reason: Schema.Literals(["password", "corrupt", "unknown"]),
+  reason: Schema.Literals(["password", "corrupt", "stalled", "unknown"]),
   message: Schema.String,
 }) {}
 

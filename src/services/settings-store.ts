@@ -51,6 +51,7 @@ export class SettingsStore extends Context.Service<
           fontSize: patch.fontSize ?? current.fontSize,
           lineHeight: patch.lineHeight ?? current.lineHeight,
           libraryView: patch.libraryView ?? current.libraryView,
+          librarySort: patch.librarySort ?? current.librarySort,
           textWidth: patch.textWidth ?? current.textWidth,
           textAlign: patch.textAlign ?? current.textAlign,
         });

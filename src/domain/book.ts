@@ -29,6 +29,8 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   charCount: Schema.Int,
   blocks: Schema.Array(Block),
   toc: Schema.Array(TocEntry),
+  // Every page up to here has its figures stored, so an interrupted figure job resumes after it.
+  figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
 export const FigureState = Schema.Literals(["none", "pending", "ready"]);
@@ -38,6 +40,10 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   id: Schema.String,
   title: Schema.String,
   author: Schema.optional(Schema.String),
+  // Searchable metadata; books imported before these fields existed do not have them.
+  subject: Schema.optional(Schema.String),
+  keywords: Schema.optional(Schema.String),
+  fileName: Schema.optional(Schema.String),
   addedAt: Schema.Int,
   fileSize: Schema.Int,
   pageCount: Schema.Int,
@@ -70,6 +76,9 @@ export type TextAlign = typeof TextAlign.Type;
 export const LibraryView = Schema.Literals(["list", "grid"]);
 export type LibraryView = typeof LibraryView.Type;
 
+export const LibrarySort = Schema.Literals(["recent", "added", "title"]);
+export type LibrarySort = typeof LibrarySort.Type;
+
 export class ReaderSettings extends Schema.Class<ReaderSettings>(
   "reader-hero/domain/ReaderSettings",
 )({
@@ -79,6 +88,9 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   lineHeight: Schema.Number,
   // Settings saved before these fields existed must still decode, or the user loses their theme.
   libraryView: LibraryView.pipe(Schema.withDecodingDefaultKey(Effect.succeed<LibraryView>("list"))),
+  librarySort: LibrarySort.pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed<LibrarySort>("recent")),
+  ),
   textWidth: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(65))),
   textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
 }) {}
@@ -89,6 +101,7 @@ export const DEFAULT_SETTINGS = new ReaderSettings({
   fontSize: 18,
   lineHeight: 1.6,
   libraryView: "list",
+  librarySort: "recent",
   textWidth: 65,
   textAlign: "left",
 });
@@ -126,7 +139,7 @@ export interface PageImage extends ImagePlacement {
   readonly blob: Blob;
 }
 
-export type StoredImage = Pick<ImageRecord, "blob" | "width" | "height"> & {
+export type StoredImage = Pick<ImageRecord, "blob" | "width" | "height" | "x" | "y"> & {
   readonly id: string;
 };
 
@@ -134,6 +147,10 @@ export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/I
   blob: Schema.instanceOf(Blob),
   width: Schema.Number,
   height: Schema.Number,
+  // The placement on the page, kept so a resumed figure job can rebuild finished pages; images
+  // stored before this field existed do not have it.
+  x: Schema.optional(Schema.Number),
+  y: Schema.optional(Schema.Number),
 }) {}
 
 export interface OutlineItem {

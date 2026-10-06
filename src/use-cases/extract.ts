@@ -8,6 +8,7 @@ import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 export interface ParseProgress {
   readonly page: number;
   readonly total: number;
+  readonly file?: { readonly index: number; readonly count: number; readonly name: string };
 }
 
 export interface PageRead extends ParseProgress {
@@ -24,9 +25,7 @@ const READ_CONCURRENCY = 2;
 const countChars = (text: PageText): number =>
   text.items.reduce((sum, item) => sum + item.str.length, 0);
 
-export function extractPages(
-  handle: PdfHandle,
-): Stream.Stream<PageRead, PdfFailure, PdfClient> {
+export function extractPages(handle: PdfHandle): Stream.Stream<PageRead, PdfFailure, PdfClient> {
   return Stream.unwrap(
     Effect.map(PdfClient, (pdf) => {
       const total = pdf.pageCount(handle);

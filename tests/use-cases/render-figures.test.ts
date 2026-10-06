@@ -2,6 +2,7 @@ import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   BookMeta,
+  ImageRecord,
   type FigureState,
   type ImagePlacement,
   type PageImage,
@@ -9,6 +10,7 @@ import {
   type ParsedBook,
   type StoredImage,
 } from "@/domain/book";
+import { ParsedMissing } from "@/domain/errors";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { renderFigures } from "@/use-cases/render-figures";
@@ -41,7 +43,12 @@ const pageText: PageText = {
 };
 
 interface Harness {
-  readonly state: { meta: BookMeta; images: StoredImage[]; parsed: ParsedBook | null };
+  readonly state: {
+    meta: BookMeta;
+    images: StoredImage[];
+    parsed: ParsedBook | null;
+    renders: number;
+  };
   readonly layer: Layer.Layer<BookStore | PdfClient>;
 }
 
@@ -59,6 +66,7 @@ function harness(figures: FigureState): Harness {
     }),
     images: [],
     parsed: null,
+    renders: 0,
   };
 
   const bookStore = Layer.succeed(
@@ -76,13 +84,20 @@ function harness(figures: FigureState): Harness {
         Effect.sync(() => {
           state.parsed = parsed;
         }),
-      getParsed: () => Effect.die("not used"),
+      getParsed: () =>
+        state.parsed === null
+          ? Effect.fail(new ParsedMissing({ id: "b1" }))
+          : Effect.succeed(state.parsed),
       putImage: (_bookId, image) =>
         Effect.sync(() => {
           state.images.push(image);
         }),
       updates: () => Stream.empty,
       getImage: () => Effect.succeed(null),
+      listImages: () =>
+        Effect.succeed(
+          state.images.map((image) => ({ id: image.id, image: new ImageRecord(image) })),
+        ),
       putProgress: () => Effect.void,
       getProgress: () => Effect.succeed(null),
       remove: () => Effect.void,
@@ -97,7 +112,11 @@ function harness(figures: FigureState): Harness {
     PdfClient.of({
       load: () => Effect.succeed(handle),
       readPage: () => Effect.succeed(pageText),
-      readImages: () => Effect.succeed([pageImage]),
+      readImages: () =>
+        Effect.sync(() => {
+          state.renders += 1;
+          return [pageImage];
+        }),
       render: () => Effect.void,
       pageSizes: () => Effect.succeed([]),
       readOutline: () => Effect.succeed([]),
@@ -120,6 +139,20 @@ describe("renderFigures", () => {
     expect(state.images[0]?.id).toBe("1-0");
     expect(state.parsed?.blocks.some((block) => block.imageId === "1-0")).toBe(true);
     expect(state.meta.figures).toBe("ready");
+  });
+
+  it("given a restarted job, resumes after the stored pages and keeps their figures", async () => {
+    const first = harness("pending");
+    await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(first.layer)));
+    const { state, layer } = harness("pending");
+    state.parsed = first.state.parsed;
+    state.images = first.state.images;
+
+    await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
+
+    expect(state.renders).toBe(0);
+    expect(state.parsed?.blocks.some((block) => block.imageId === "1-0")).toBe(true);
+    expect(state.parsed?.figuresThrough).toBe(1);
   });
 
   it("given figures already ready, does nothing", async () => {
