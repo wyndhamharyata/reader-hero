@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
@@ -101,10 +101,10 @@ export function ReaderRoute() {
   };
   // A change saves to this book and to the global settings, so new books start from it.
   const changeSettings = (patch: Partial<ReaderSettings>): void => {
-    const changes = Object.fromEntries(
-      Object.entries(patch).filter(([, value]) => value !== undefined),
-    ) as Partial<BookPrefs>;
-    savePrefs(changes);
+    const changes = Schema.decodeUnknownOption(BookPrefs)(
+      Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+    );
+    if (Option.isSome(changes)) savePrefs(changes.value);
     update(patch);
   };
 
@@ -141,7 +141,7 @@ export function ReaderRoute() {
     setJump({ index: blockIndex, nonce: Date.now() });
   };
 
-  const modeLabel = epub ? null : mode === "reader" ? "Original view" : "Reader view";
+  const modeLabel = mode === "reader" ? "Original view" : "Reader view";
   const barClass = `absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.25rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${chrome ? "" : "translate-y-full md:-translate-y-full"}`;
   const contentClass = chrome
     ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"
@@ -215,7 +215,7 @@ export function ReaderRoute() {
         modeLabel={modeLabel}
         settings={bookSettings}
         onSelect={selectToc}
-        onToggleMode={toggleMode}
+        onToggleMode={epub ? undefined : toggleMode}
         onSettingsChange={changeSettings}
         onClose={closeToc}
       />

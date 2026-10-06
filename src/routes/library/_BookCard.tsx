@@ -14,6 +14,8 @@ interface Props {
 export function BookCard({ card, onRemove, onReparse }: Props): ReactElement {
   const { book, badge } = card;
   const href = `/book/${book.id}`;
+  // An EPUB has no pages, so its count is an estimate.
+  const pages = book.format === "epub" ? `~${book.pageCount}` : `${book.pageCount}`;
 
   return (
     <li className="card bg-base-200">
@@ -39,8 +41,7 @@ export function BookCard({ card, onRemove, onReparse }: Props): ReactElement {
           </div>
 
           <p className="text-xs opacity-60">
-            {book.format === "epub" && "~"}
-            {book.pageCount} pages · {formatSize(book.fileSize)} · {formatPercent(card.percent)}
+            {pages} pages · {formatSize(book.fileSize)} · {formatPercent(card.percent)}
             {book.figuresPending && " · rendering figures…"}
           </p>
 

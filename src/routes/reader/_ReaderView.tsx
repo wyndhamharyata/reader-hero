@@ -1,5 +1,6 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
+import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
 
 export interface JumpRequest {
@@ -145,30 +146,11 @@ export function ReaderView({
       block.kind === "image" && imageId !== undefined ? (
         <ReaderImage bookId={bookId} imageId={imageId} />
       ) : null;
-    // Marks may overlap, so the text splits at every mark edge and each piece takes all marks over it.
-    const marks = block.marks ?? [];
-    const cuts = [
-      ...new Set([0, block.text.length, ...marks.flatMap((m) => [m.start, m.end])]),
-    ].sort((a, b) => a - b);
-    const text =
-      marks.length === 0
-        ? block.text
-        : cuts.slice(1).map((end, piece) => {
-            const start = cuts[piece] ?? 0;
-            const over = marks.filter((mark) => mark.start <= start && mark.end >= end);
-            const bold = over.some((mark) => mark.style === "bold") ? "font-bold" : "";
-            const italic = over.some((mark) => mark.style === "italic") ? "italic" : "";
-            return (
-              <span key={start} className={`${bold} ${italic}`}>
-                {block.text.slice(start, end)}
-              </span>
-            );
-          });
     return {
       index,
       key: `${base}#${count}`,
       className: blockClass(block),
-      node: image ?? text,
+      node: image ?? <MarkedText text={block.text} marks={block.marks} />,
     };
   });
 

@@ -7,10 +7,10 @@ import { TextSettings } from "./_TextSettings";
 interface Props {
   open: boolean;
   toc: ReadonlyArray<TocEntry>;
-  modeLabel: string | null;
+  modeLabel: string;
   settings: ReaderSettings;
   onSelect: (blockIndex: number) => void;
-  onToggleMode: () => void;
+  onToggleMode?: () => void;
   onSettingsChange: (patch: Partial<ReaderSettings>) => void;
   onClose: () => void;
 }
@@ -98,7 +98,7 @@ export function MenuSheet({
         </section>
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
-          {modeLabel !== null && (
+          {onToggleMode !== undefined && (
             <button
               type="button"
               className="btn flex-1 md:justify-start md:btn-ghost"

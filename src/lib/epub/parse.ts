@@ -1,24 +1,21 @@
-import { Effect } from "effect";
+import { Effect, Option, Stream } from "effect";
 import { Block, PARSED_VERSION, ParsedBook, TocEntry } from "@/domain/book";
 import { EpubFailure } from "@/domain/errors";
-
-export interface EpubImage {
-  readonly id: string;
-  readonly path: string;
-  readonly type: string;
-}
 
 export interface EpubBook {
   readonly title?: string;
   readonly author?: string;
   readonly subject?: string;
   readonly parsed: ParsedBook;
-  readonly images: ReadonlyArray<EpubImage>;
-  readonly cover: EpubImage | null;
+  readonly images: ReadonlyArray<{
+    readonly id: string;
+    readonly path: string;
+    readonly type: string;
+  }>;
+  readonly cover: EpubBook["images"][number] | null;
 }
 
 type Style = { readonly bold?: boolean; readonly italic?: boolean };
-type Mark = { start: number; end: number; style: "bold" | "italic" };
 
 const blockNames = new Set([
   "address",
@@ -61,12 +58,8 @@ const fontObfuscation = new Set([
 // Hrefs are relative to the file that holds them and URL-encoded; zip paths are neither.
 function resolve(dir: string, href: string): string {
   const raw = href.split("#")[0] ?? "";
-  let decoded = raw;
-  try {
-    decoded = decodeURIComponent(raw);
-  } catch {
-    // A malformed escape stays as written.
-  }
+  // A malformed escape stays as written.
+  const decoded = Option.getOrElse(Option.liftThrowable(decodeURIComponent)(raw), () => raw);
   const parts = dir.split("/").filter((part) => part !== "");
   for (const part of decoded.split("/")) {
     if (part === "..") parts.pop();
@@ -163,7 +156,6 @@ export function parseEpub(
     }
     if (spine.length === 0) return yield* corrupt;
 
-    // Class selectors that set bold or italic, such as "span.italic" or ".calibre5".
     const classStyles = new Map<string, Style>();
     for (const item of items.values()) {
       if (item.type !== "text/css") continue;
@@ -197,7 +189,7 @@ export function parseEpub(
     const anchors = new Map<string, number>();
     const imageIds = new Map<string, string>();
     let text = "";
-    let marks: Mark[] = [];
+    let marks: Array<NonNullable<Block["marks"]>[number]> = [];
     let level = 0;
     let page = 0;
 
@@ -293,18 +285,23 @@ export function parseEpub(
       }
     };
 
-    for (const [index, path] of spine.entries()) {
-      page = index + 1;
-      anchors.set(path, blocks.length);
-      const doc = parse(path, "application/xhtml+xml");
-      const body = doc?.getElementsByTagNameNS("*", "body")[0];
-      if (body !== undefined) walk(body, {}, path);
-      flush();
-      yield* Effect.sync(() => onChapter(page, spine.length));
-      yield* Effect.yieldNow;
-    }
+    yield* Stream.fromIterable(spine.entries()).pipe(
+      Stream.tap(([index, path]) =>
+        Effect.sync(() => {
+          page = index + 1;
+          anchors.set(path, blocks.length);
+          const doc = parse(path, "application/xhtml+xml");
+          const body = doc?.getElementsByTagNameNS("*", "body")[0];
+          if (body !== undefined) walk(body, {}, path);
+          flush();
+          onChapter(page, spine.length);
+        }),
+      ),
+      // Lets the progress panel paint between chapters.
+      Stream.tap(() => Effect.yieldNow),
+      Stream.runDrain,
+    );
 
-    // The EPUB 3 nav document first, then the EPUB 2 NCX.
     const contents: Array<{ title: string; target: string; depth: number }> = [];
     const navItem = [...items.values()].find((item) => item.properties.split(" ").includes("nav"));
     const nav = navItem === undefined ? null : parse(navItem.path, "application/xhtml+xml");
@@ -364,8 +361,7 @@ export function parseEpub(
       const index = anchors.get(entry.target) ?? anchors.get(entry.target.split("#")[0] ?? "");
       const block = index === undefined ? undefined : blocks[index];
       if (index === undefined || block === undefined || entry.title === "") continue;
-      // Many books style chapter titles as bold paragraphs; a short paragraph that starts with its
-      // contents title is one. Spaces differ ("Chapter 2:<br/>The Road"), so they do not count.
+      // Books often style chapter titles as bold paragraphs; spaces differ around a <br/>.
       const title = entry.title.toLowerCase().replaceAll(" ", "");
       const opening = block.text.toLowerCase().replaceAll(" ", "");
       if (block.kind === "paragraph" && block.text.length <= 120 && opening.startsWith(title)) {

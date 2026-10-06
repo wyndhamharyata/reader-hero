@@ -1,5 +1,5 @@
-import { Effect, Exit } from "effect";
-import { unzipSync } from "fflate";
+import { Effect, Exit, Option, Stream } from "effect";
+import { unzipSync, type Unzipped } from "fflate";
 import { BookMeta } from "@/domain/book";
 import { EpubFailure, StorageFailure } from "@/domain/errors";
 import { parseEpub, type EpubBook } from "@/lib/epub/parse";
@@ -10,7 +10,6 @@ import type { ParseProgress } from "./extract";
 
 const textFiles = [".xml", ".opf", ".ncx", ".xhtml", ".html", ".htm", ".css"];
 
-// Stores the book's images under `bookId` and returns the parsed text; the caller stores that.
 export function buildEpub(
   bookId: string,
   data: ArrayBuffer,
@@ -20,7 +19,7 @@ export function buildEpub(
     const store = yield* BookStore;
     const zip = new Uint8Array(data);
     // Images inflate one at a time below, so the import never holds every image at once.
-    const unzip = (keep: (name: string) => boolean) =>
+    const unzip = (keep: (name: string) => boolean): Effect.Effect<Unzipped, EpubFailure> =>
       Effect.try({
         try: () => unzipSync(zip, { filter: (file) => keep(file.name) }),
         catch: () => new EpubFailure({ reason: "corrupt" }),
@@ -33,22 +32,27 @@ export function buildEpub(
       onProgress({ page, total, step: "Chapter" }),
     );
 
-    const decode = (blob: Blob) =>
+    const decode = (blob: Blob): Effect.Effect<Option.Option<ImageBitmap>> =>
       Effect.tryPromise(() => createImageBitmap(blob)).pipe(Effect.option);
-    for (const [index, image] of book.images.entries()) {
-      const bytes = (yield* unzip((name) => name === image.path))[image.path];
-      if (bytes === undefined) continue;
-      const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: image.type });
-      // An SVG has no bitmap; the reader then sizes it from the file itself.
-      const bitmap = yield* decode(blob);
-      const size =
-        bitmap._tag === "Some"
-          ? { width: bitmap.value.width, height: bitmap.value.height }
-          : { width: 0, height: 0 };
-      if (bitmap._tag === "Some") bitmap.value.close();
-      yield* store.putImage(bookId, { id: image.id, blob, ...size });
-      onProgress({ page: index + 1, total: book.images.length, step: "Image" });
-    }
+    yield* Stream.fromIterable(book.images.entries()).pipe(
+      Stream.mapEffect(([index, image]) =>
+        Effect.gen(function* () {
+          const bytes = (yield* unzip((name) => name === image.path))[image.path];
+          if (bytes === undefined) return;
+          const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: image.type });
+          // An SVG has no bitmap; the reader then sizes it from the file itself.
+          const bitmap = yield* decode(blob);
+          const size = Option.match(bitmap, {
+            onNone: () => ({ width: 0, height: 0 }),
+            onSome: (value) => ({ width: value.width, height: value.height }),
+          });
+          Option.map(bitmap, (value) => value.close());
+          yield* store.putImage(bookId, { id: image.id, blob, ...size });
+          onProgress({ page: index + 1, total: book.images.length, step: "Image" });
+        }),
+      ),
+      Stream.runDrain,
+    );
 
     // The library card needs a small JPEG, like the page-1 render of a PDF.
     const cover = book.cover;
@@ -64,8 +68,8 @@ export function buildEpub(
         canvas.height = Math.round((400 * bitmap.value.height) / bitmap.value.width);
         canvas.getContext("2d")?.drawImage(bitmap.value, 0, 0, canvas.width, canvas.height);
         bitmap.value.close();
-        const blob = yield* Effect.promise(
-          () => new Promise<Blob | null>((done) => canvas.toBlob(done, "image/jpeg", 0.85)),
+        const blob = yield* Effect.callback<Blob | null>((resume) =>
+          canvas.toBlob((value) => resume(Effect.succeed(value)), "image/jpeg", 0.85),
         );
         if (blob !== null) {
           yield* store.putImage(bookId, {

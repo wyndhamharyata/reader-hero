@@ -41,6 +41,8 @@ export function ensureCovers(
         const store = yield* BookStore;
         const pdf = yield* PdfClient;
         if ((yield* store.getImage(bookId, "cover")) !== null) return;
+        // An EPUB stores its cover at import; pdf.js cannot open one.
+        if ((yield* store.get(bookId)).format === "epub") return;
 
         const blob = yield* store.getFile(bookId);
         const data = yield* Effect.tryPromise({

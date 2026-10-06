@@ -72,11 +72,7 @@ export function LibraryRoute(): ReactElement {
   const reading = state.status === "done" ? state.value.reading : null;
   useFigureJobs(books);
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
-  // An EPUB stores its cover at import.
-  const bookIds = books
-    .filter((book) => book.format !== "epub")
-    .map((book) => book.id)
-    .join(" ");
+  const bookIds = books.map((book) => book.id).join(" ");
 
   useEffect(() => {
     if (bookIds === "") return;
