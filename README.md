@@ -45,9 +45,9 @@ npm run dev:worker
 npm run deploy:dev
 ```
 
-Builds the SPA, then deploys the worker to `https://pdf-hero-dev.mwyndham.dev`.
+Builds the SPA, then deploys the worker to `https://reader-hero-dev.mwyndham.dev`.
 Production is the same command with `--stage production`
-(`npm run deploy:prod`), which targets `https://pdf-hero.mwyndham.dev`.
+(`npm run deploy:prod`), which targets `https://reader-hero.mwyndham.dev`.
 
 ## Installing as an app
 

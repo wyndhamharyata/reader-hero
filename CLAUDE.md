@@ -24,7 +24,7 @@ installed.
 | `npm run typecheck` | Typecheck the app, worker, service worker, and configs. |
 | `npm test` | Run the PDF pipeline tests. |
 | `npm run lint` | ESLint. |
-| `npm run deploy:dev` | Build, then `sst deploy --stage dev` to `pdf-hero-dev.mwyndham.dev`. |
+| `npm run deploy:dev` | Build, then `sst deploy --stage dev` to `reader-hero-dev.mwyndham.dev`. |
 | `npm run icons` | Regenerate the PWA icons from `scripts/make-icons.mjs`. |
 
 ## Layout

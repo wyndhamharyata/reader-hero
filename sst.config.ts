@@ -13,8 +13,8 @@ export default $config({
   async run() {
     // Only named stages own a domain; personal `sst dev` stages would otherwise claim the dev host.
     const hosts: Record<string, string> = {
-      production: "pdf-hero.mwyndham.dev",
-      dev: "pdf-hero-dev.mwyndham.dev",
+      production: "reader-hero.mwyndham.dev",
+      dev: "reader-hero-dev.mwyndham.dev",
     };
     const host = hosts[$app.stage];
 
