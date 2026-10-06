@@ -26,8 +26,8 @@ export interface ReaderDb extends DBSchema {
   prefs: { key: string; value: BookPrefs };
 }
 
-export const DB_NAME = "reader-hero";
-export const DB_VERSION = 3;
+const DB_NAME = "reader-hero";
+const DB_VERSION = 3;
 export const SETTINGS_KEY = "app";
 
 export async function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {

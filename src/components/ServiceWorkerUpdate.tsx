@@ -1,37 +1,24 @@
-import { useEffect, useState } from "react";
+import { Effect, Stream } from "effect";
+import { useEffect, useState, type ReactElement } from "react";
+import { forkApp, runApp, stopFiber } from "@/lib/hooks";
+import { ServiceWorkerClient } from "@/services/service-worker-client";
 
-export function ServiceWorkerUpdate() {
+export function ServiceWorkerUpdate(): ReactElement | null {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    let active = true;
-
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).then((registration) => {
-      if (!active) return;
-      if (registration.waiting !== null) setWaiting(registration.waiting);
-
-      registration.addEventListener("updatefound", () => {
-        const installing = registration.installing;
-        if (installing === null) return;
-        installing.addEventListener("statechange", () => {
-          if (installing.state === "installed" && navigator.serviceWorker.controller !== null) {
-            setWaiting(installing);
-          }
-        });
-      });
-    });
-
-    return () => {
-      active = false;
-    };
+    const watch = Effect.flatMap(ServiceWorkerClient, (client) =>
+      Stream.runForEach(client.waiting(), (worker) => Effect.sync(() => setWaiting(worker))),
+    );
+    // Without a registered worker the app still runs; it only misses update prompts.
+    const fiber = forkApp(watch.pipe(Effect.catchTag("ServiceWorkerFailure", () => Effect.void)));
+    return () => stopFiber(fiber);
   }, []);
 
   if (waiting === null) return null;
 
-  const reload = () => {
-    waiting.postMessage({ type: "SKIP_WAITING" });
-    window.location.reload();
+  const reload = (): void => {
+    void runApp(Effect.flatMap(ServiceWorkerClient, (client) => client.activate(waiting)));
   };
 
   return (

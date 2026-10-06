@@ -30,7 +30,7 @@ export const imagePayloadFields = {
 
 const InlineImagePayload = Schema.Struct(imagePayloadFields);
 
-export type InlineImage = typeof InlineImagePayload.Type;
+type InlineImage = typeof InlineImagePayload.Type;
 
 export interface ImagePaint extends ImagePlacement {
   readonly name?: string;

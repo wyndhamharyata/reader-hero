@@ -2,7 +2,6 @@ import { Effect, Stream } from "effect";
 import type { PageText, ParsedBook } from "@/domain/book";
 import type { PdfFailure } from "@/domain/errors";
 import { assembleBook, isScanned } from "@/lib/pdf/assemble";
-import { record, timed } from "@/lib/perf";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 
 export interface ParseProgress {
@@ -33,11 +32,7 @@ export function extractPages(handle: PdfHandle): Stream.Stream<PageRead, PdfFail
       const total = pdf.pageCount(handle);
       return Stream.range(1, total).pipe(
         Stream.mapEffect(
-          (page) =>
-            Effect.map(
-              timed("parse.text", pdf.readPage(handle, page), () => `p${page}`),
-              (text) => ({ page, total, text }),
-            ),
+          (page) => Effect.map(pdf.readPage(handle, page), (text) => ({ page, total, text })),
           { concurrency: READ_CONCURRENCY },
         ),
       );
@@ -51,7 +46,6 @@ export function assembleExtract(
 ): Effect.Effect<ExtractResult, PdfFailure, PdfClient> {
   return Effect.gen(function* () {
     const pdf = yield* PdfClient;
-    const started = performance.now();
     const total = pdf.pageCount(handle);
     const outline = yield* pdf.readOutline(handle);
     const texts = pages.map((page) => page.text);
@@ -61,7 +55,6 @@ export function assembleExtract(
       texts.map((text) => ({ text, images: [] })),
       outline,
     );
-    record("parse.assemble", performance.now() - started, `${parsed.blocks.length} blocks`);
     return { parsed, scanned };
   }).pipe(Effect.ensuring(PdfClient.use((pdf) => pdf.release(handle))));
 }

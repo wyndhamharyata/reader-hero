@@ -22,11 +22,11 @@ export class EpubFailure extends Schema.TaggedError<EpubFailure>()("EpubFailure"
   reason: Schema.Literals(["corrupt", "drm", "fixed-layout"]),
 }) {}
 
+export class ServiceWorkerFailure extends Schema.TaggedError<ServiceWorkerFailure>()(
+  "ServiceWorkerFailure",
+  { cause: Schema.Defect() },
+) {}
+
 export class UnsupportedFile extends Schema.TaggedError<UnsupportedFile>()("UnsupportedFile", {
   name: Schema.String,
-}) {}
-
-export class ImportFailure extends Schema.TaggedError<ImportFailure>()("ImportFailure", {
-  name: Schema.String,
-  cause: Schema.Defect(),
 }) {}

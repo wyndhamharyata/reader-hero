@@ -9,12 +9,12 @@ const byVerticalPosition = (a: Positioned, b: Positioned): number => b.y - a.y |
 const crossesCenter = (item: Positioned, middle: number): boolean =>
   item.x < middle - CROSS_MARGIN && item.x + item.width > middle + CROSS_MARGIN;
 
-export interface ColumnLayout {
+interface ColumnLayout {
   readonly twoColumn: boolean;
   readonly middle: number;
 }
 
-export function detectColumns(
+function detectColumns(
   lines: ReadonlyArray<Positioned>,
   pageWidth: number,
 ): ColumnLayout {

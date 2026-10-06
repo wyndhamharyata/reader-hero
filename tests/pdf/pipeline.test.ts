@@ -48,11 +48,13 @@ describe("buildLines", () => {
     const lines = buildLines(
       page(1, [item("World", 40, 100), item("Hello", 0, 100)]),
     );
+
     expect(lines.map((entry) => entry.text)).toEqual(["Hello World"]);
   });
 
   it("given items on separate baselines, keeps them apart", () => {
     const lines = buildLines(page(1, [item("First", 0, 100), item("Second", 0, 80)]));
+
     expect(lines.map((entry) => entry.text)).toEqual(["First", "Second"]);
   });
 });
@@ -70,6 +72,7 @@ describe("orderFlow", () => {
       line("L3", 0, 660, 180),
       line("R3", 220, 660, 180),
     ];
+
     expect(order(lines)).toEqual(["L1", "L2", "L3", "R1", "R2", "R3"]);
   });
 
@@ -82,6 +85,7 @@ describe("orderFlow", () => {
       line("R2", 220, 680, 180),
       line("L3", 0, 660, 180),
     ];
+
     expect(order(lines)).toEqual(["Wide", "L1", "R1", "L2", "R2", "L3"]);
   });
 });
@@ -89,12 +93,14 @@ describe("orderFlow", () => {
 describe("buildBlocks", () => {
   it("given a full line followed by a full line, joins them into one paragraph", () => {
     const blocks = buildBlocks([text(line("first half", 0, 700, 200)), text(line("second half", 0, 688, 200))]);
+
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.text).toBe("first half second half");
   });
 
   it("given a hyphenated line break, rejoins the word without a space", () => {
     const blocks = buildBlocks([text(line("inter-", 0, 700, 200)), text(line("national law", 0, 688, 200))]);
+
     expect(blocks[0]?.text).toBe("international law");
   });
 
@@ -104,11 +110,13 @@ describe("buildBlocks", () => {
       text(line("body text continues here", 0, 660, 200)),
       text(line("and more body text follows", 0, 640, 200)),
     ]);
+
     expect(blocks[0]).toMatchObject({ kind: "heading", level: 1, text: "Chapter One" });
   });
 
   it("given a short line, starts a new paragraph", () => {
     const blocks = buildBlocks([text(line("A short line.", 0, 700, 60)), text(line("New paragraph here", 0, 680, 200))]);
+
     expect(blocks).toHaveLength(2);
   });
 });
@@ -123,6 +131,7 @@ describe("dropBoilerplate", () => {
       }),
     );
     const cleaned = dropBoilerplate(pages);
+
     expect(cleaned.flatMap((entry) => entry.lines.map((l) => l.text))).toEqual([
       "body 1",
       "body 2",
@@ -136,6 +145,7 @@ describe("dropBoilerplate", () => {
       { page: 1, height: 800, lines: [line("Page 1", 0, 5, 30), line("body", 0, 400, 200)] },
     ];
     const cleaned = dropBoilerplate(pages);
+
     expect(cleaned[0]?.lines.map((l) => l.text)).toEqual(["body"]);
   });
 });
@@ -168,6 +178,7 @@ describe("assembleBook", () => {
       ],
       [],
     );
+
     expect(book.pageCount).toBe(2);
     expect(book.blocks[0]).toMatchObject({ kind: "heading", text: "The Title", page: 1 });
     expect(book.charCount).toBeGreaterThan(0);

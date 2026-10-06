@@ -7,7 +7,6 @@ import {
   type PdfFailure,
 } from "@/domain/errors";
 import { newId } from "@/lib/id";
-import { record } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { assembleExtract, extractPages, type ParseProgress } from "./extract";
@@ -66,7 +65,6 @@ export function addBook(
     }
     if (!isPdf(file)) return yield* new UnsupportedFile({ name: file.name });
 
-    const started = performance.now();
     const store = yield* BookStore;
     const pdf = yield* PdfClient;
 
@@ -120,7 +118,6 @@ export function addBook(
         ),
       );
       const ready = yield* parse;
-      record("import.total", performance.now() - started, ready.title);
 
       return ready;
     }).pipe(Effect.ensuring(pdf.release(handle)));

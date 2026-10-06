@@ -19,6 +19,8 @@ import { importBooks } from "@/use-cases/import-books";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { reparseBook } from "@/use-cases/parse-book";
 import { removeBook } from "@/use-cases/remove-book";
+import { describeError } from "@/lib/describe-error";
+import { useKeyboardCover } from "@/lib/use-keyboard-cover";
 import { BookCard } from "./_BookCard";
 import { BookTile } from "./_BookTile";
 import { FilterChips } from "./_FilterChips";
@@ -26,7 +28,8 @@ import { FilterSheet } from "./_FilterSheet";
 import { ProgressPanel } from "./_ProgressPanel";
 import { InstallHint } from "./_InstallHint";
 import { LibraryStatus } from "./_LibraryStatus";
-import { LibraryTitle } from "./_LibraryTitle";
+import { NoMatches } from "./_NoMatches";
+import { Logo } from "./_Logo";
 import { SearchField } from "./_SearchField";
 import { SortMenu } from "./_SortMenu";
 import { StorageUsage } from "./_StorageUsage";
@@ -69,39 +72,7 @@ export function LibraryRoute(): ReactElement {
   const barRef = useRef<HTMLDivElement>(null);
 
   const coverRef = useRef<HTMLDivElement>(null);
-
-  // iOS paints the page, not fixed elements, under its keyboard, and never undoes its focus scroll.
-  useEffect(() => {
-    const bar = barRef.current;
-    const cover = coverRef.current;
-    const viewport = window.visualViewport;
-    if (bar === null || cover === null) return;
-    let scrollY = 0;
-    const place = (): void => {
-      cover.style.top = `${bar.getBoundingClientRect().bottom + window.scrollY}px`;
-    };
-    const open = (): void => {
-      scrollY = window.scrollY;
-      cover.style.display = "block";
-      place();
-    };
-    const close = (): void => {
-      cover.style.display = "none";
-      window.scrollTo({ top: scrollY });
-    };
-    bar.addEventListener("focusin", open);
-    bar.addEventListener("focusout", close);
-    window.addEventListener("scroll", place, { passive: true });
-    viewport?.addEventListener("resize", place);
-    viewport?.addEventListener("scroll", place);
-    return () => {
-      bar.removeEventListener("focusin", open);
-      bar.removeEventListener("focusout", close);
-      window.removeEventListener("scroll", place);
-      viewport?.removeEventListener("resize", place);
-      viewport?.removeEventListener("scroll", place);
-    };
-  }, []);
+  useKeyboardCover(barRef, coverRef);
 
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
@@ -163,7 +134,13 @@ export function LibraryRoute(): ReactElement {
   };
 
   const remove = (id: string): void => {
-    void runApp(removeBook(id).pipe(Effect.tap(() => Effect.sync(() => reload()))));
+    const program = removeBook(id).pipe(
+      Effect.tap(() => Effect.sync(() => reload())),
+      Effect.catchTag("StorageFailure", (error) =>
+        Effect.sync(() => setMessage(describeError(error, "This book"))),
+      ),
+    );
+    void runApp(program);
   };
 
   const reparse = (id: string): void => {
@@ -189,6 +166,10 @@ export function LibraryRoute(): ReactElement {
 
   const clearFilters = (): void =>
     setFilters({ status: null, series: null, length: null, author: null });
+  const clearAll = (): void => {
+    setQuery("");
+    clearFilters();
+  };
   const toggleFilter = (group: FilterGroup, value: string): void =>
     setFilters((current) => ({ ...current, [group]: current[group] === value ? null : value }));
   const pickFiles = (): void => input.current?.click();
@@ -209,7 +190,9 @@ export function LibraryRoute(): ReactElement {
   return (
     <main className="mx-auto flex min-h-[var(--app-height)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] pb-[calc(var(--safe-bottom)+12rem)] md:max-w-5xl md:pb-8">
       <header className="flex items-center justify-between gap-3 pt-2">
-        <LibraryTitle />
+        <h1>
+          <Logo className="h-7 w-auto md:h-8" />
+        </h1>
         <div className="hidden items-center gap-2 md:flex">
           {searchField}
           {sortMenu}
@@ -248,21 +231,7 @@ export function LibraryRoute(): ReactElement {
         ))}
       </ul>
 
-      {shelf.cards.length === 0 && books.length > 0 && (
-        <div className="flex flex-col items-center gap-2 py-8 text-center text-sm">
-          <p className="opacity-70">No books match your search and filters.</p>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => {
-              setQuery("");
-              clearFilters();
-            }}
-          >
-            Clear all
-          </button>
-        </div>
-      )}
+      {shelf.cards.length === 0 && books.length > 0 && <NoMatches onClear={clearAll} />}
 
       <StorageUsage estimate={estimate} />
 

@@ -10,7 +10,6 @@ const storageFailure = (operation: string) => (cause: unknown) =>
 export class SettingsStore extends Context.Service<
   SettingsStore,
   {
-    get(): Effect.Effect<ReaderSettings>;
     changes(): Stream.Stream<ReaderSettings>;
     update(patch: Partial<ReaderSettings>): Effect.Effect<void, StorageFailure>;
   }
@@ -37,10 +36,6 @@ export class SettingsStore extends Context.Service<
 
       const ref = yield* SubscriptionRef.make(initial);
 
-      const get = Effect.fn("SettingsStore.get")(function* () {
-        return yield* SubscriptionRef.get(ref);
-      });
-
       const changes = () => SubscriptionRef.changes(ref);
 
       const update = Effect.fn("SettingsStore.update")(function* (patch: Partial<ReaderSettings>) {
@@ -55,14 +50,15 @@ export class SettingsStore extends Context.Service<
           textWidth: patch.textWidth ?? current.textWidth,
           textAlign: patch.textAlign ?? current.textAlign,
         });
+        // Applied before the save, so a failed write still changes this session.
+        yield* SubscriptionRef.set(ref, next);
         yield* Effect.tryPromise({
           try: () => db.put("settings", next, SETTINGS_KEY),
           catch: storageFailure("putSettings"),
         });
-        yield* SubscriptionRef.set(ref, next);
       });
 
-      return SettingsStore.of({ get, changes, update });
+      return SettingsStore.of({ changes, update });
     }),
   );
 }

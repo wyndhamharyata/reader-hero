@@ -12,11 +12,7 @@ export interface OriginalPages {
 
 export function openOriginalPages(
   bookId: string,
-): Effect.Effect<
-  OriginalPages,
-  BookNotFound | StorageFailure | PdfFailure,
-  BookStore | PdfClient
-> {
+): Effect.Effect<OriginalPages, BookNotFound | StorageFailure | PdfFailure, BookStore | PdfClient> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
     const pdf = yield* PdfClient;
@@ -33,8 +29,6 @@ export function openOriginalPages(
   });
 }
 
-export function releaseOriginalPages(
-  handle: PdfHandle,
-): Effect.Effect<void, never, PdfClient> {
+export function releaseOriginalPages(handle: PdfHandle): Effect.Effect<void, never, PdfClient> {
   return Effect.flatMap(PdfClient, (pdf) => pdf.release(handle));
 }

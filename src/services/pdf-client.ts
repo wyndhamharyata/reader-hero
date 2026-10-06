@@ -13,14 +13,11 @@ import type {
   PageImage,
   PageSize,
   PageText,
-  RawTextItem,
   StoredImage,
 } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
-import { log } from "@/lib/log";
-import { envProbe } from "@/lib/env-probe";
+import { toPageText } from "@/lib/pdf/page-text";
 import { collectImageBoxes, imagePayloadFields, type ImagePaint } from "@/lib/pdf/image-boxes";
-import { captureWarnings, record } from "@/lib/perf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -39,19 +36,6 @@ export interface PdfHandle {
 }
 
 type OutlineNode = Awaited<ReturnType<PDFDocumentProxy["getOutline"]>>[number];
-
-const numberOrZero = (value: unknown): number => (typeof value === "number" ? value : 0);
-
-const matrix = (
-  m: ReadonlyArray<unknown>,
-): readonly [number, number, number, number, number, number] => [
-  numberOrZero(m[0]),
-  numberOrZero(m[1]),
-  numberOrZero(m[2]),
-  numberOrZero(m[3]),
-  numberOrZero(m[4]),
-  numberOrZero(m[5]),
-];
 
 const pdfFailure = (cause: unknown): PdfFailure => {
   const name = cause instanceof Error ? cause.name : "";
@@ -205,20 +189,6 @@ const cropImage = (
     return yield* toJpegBlob(out);
   });
 
-const largestImageDims = (paints: ReadonlyArray<ImagePaint>): string => {
-  let width = 0;
-  let height = 0;
-  for (const paint of paints) {
-    const w = paint.imgWidth ?? 0;
-    const h = paint.imgHeight ?? 0;
-    if (w * h > width * height) {
-      width = Math.round(w);
-      height = Math.round(h);
-    }
-  }
-  return width > 0 ? ` ${width}x${height}` : "";
-};
-
 const readBoxes = (
   pageProxy: PDFPageProxy,
   page: number,
@@ -289,11 +259,9 @@ const paintSource = (
 
 const rasterizeCrop = (
   pageProxy: PDFPageProxy,
-  page: number,
   undecoded: ReadonlyArray<ImagePaint>,
 ): Effect.Effect<PageImage[], PdfFailure> =>
   Effect.gen(function* () {
-    const started = performance.now();
     const base = pageProxy.getViewport({ scale: 1 });
     const renderScale = Math.min(
       IMAGE_RENDER_SCALE,
@@ -317,11 +285,6 @@ const rasterizeCrop = (
     );
     canvas.width = 0;
     canvas.height = 0;
-    yield* log(
-      "figures.fallback",
-      `p${page}:${undecoded.length} cropped`,
-      performance.now() - started,
-    );
 
     const cropped: PageImage[] = [];
     for (const crop of crops) {
@@ -365,8 +328,6 @@ export class PdfClient extends Context.Service<
     PdfClient,
     PdfClient.of({
       load: Effect.fn("PdfClient.load")(function* (data: ArrayBuffer) {
-        const started = performance.now();
-        envProbe();
         const origin = (globalThis as { location?: { origin: string } }).location?.origin ?? "";
         // Enable pdf.js's WASM decoders (JPEG 2000, JBIG2, ICC/qcms). Without a
         // served wasmUrl they silently fall back to slow pure-JS decoding.
@@ -379,13 +340,8 @@ export class PdfClient extends Context.Service<
           // explicit so the JPEG fast path cannot be lost to default merging.
           isImageDecoderSupported: true,
         });
-        const captured = yield* captureWarnings(
-          Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }),
-        );
-        record("pdf.load", performance.now() - started, `${captured.result.numPages} pages`);
-        const fakeWorker = captured.warnings.some((warning) => /fake worker/i.test(warning));
-        record("pdf.worker", 0, fakeWorker ? "FAKE (main thread)" : "worker");
-        return { proxy: captured.result, task, numPages: captured.result.numPages };
+        const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure });
+        return { proxy, task, numPages: proxy.numPages };
       }),
 
       readPage: Effect.fn("PdfClient.readPage")(function* (handle: PdfHandle, page: number) {
@@ -397,26 +353,7 @@ export class PdfClient extends Context.Service<
           try: () => pageProxy.getTextContent(),
           catch: pdfFailure,
         });
-        const viewport = pageProxy.getViewport({ scale: 1 });
-
-        const items: RawTextItem[] = [];
-        for (const item of content.items) {
-          if (!("str" in item)) continue;
-          const t = matrix(item.transform);
-          const size = Math.hypot(t[2], t[3]) || item.height;
-          items.push({
-            str: item.str,
-            x: t[4],
-            y: t[5],
-            width: item.width,
-            height: item.height,
-            fontSize: size,
-            fontFamily: content.styles[item.fontName]?.fontFamily ?? "",
-            hasEOL: item.hasEOL,
-          });
-        }
-
-        return { page, width: viewport.width, height: viewport.height, items };
+        return toPageText(page, content, pageProxy.getViewport({ scale: 1 }));
       }),
 
       readImages: Effect.fn("PdfClient.readImages")(function* (handle: PdfHandle, page: number) {
@@ -425,17 +362,7 @@ export class PdfClient extends Context.Service<
           catch: pdfFailure,
         });
 
-        const decodeStarted = performance.now();
-        const captured = yield* captureWarnings(readBoxes(pageProxy, page));
-        const paints = captured.result;
-        if (captured.warnings.length > 0) {
-          yield* log("figures.warnings", `p${page}: ${captured.warnings.join(" | ")}`);
-        }
-        yield* log(
-          "figures.decode",
-          `p${page}:${paints.length}${largestImageDims(paints)}`,
-          performance.now() - decodeStarted,
-        );
+        const paints = yield* readBoxes(pageProxy, page);
         if (paints.length === 0) {
           yield* cleanupPage(pageProxy);
           return [];
@@ -463,10 +390,9 @@ export class PdfClient extends Context.Service<
           }
           images.push({ ...item.paint, blob: item.blob });
         }
-        yield* log("figures.pixels", `p${page}:${images.length} encoded`);
 
         if (undecoded.length > 0) {
-          const cropped = yield* rasterizeCrop(pageProxy, page, undecoded);
+          const cropped = yield* rasterizeCrop(pageProxy, undecoded);
           images.push(...cropped);
         }
 

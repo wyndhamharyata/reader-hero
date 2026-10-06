@@ -8,7 +8,7 @@ import { PdfClient } from "@/services/pdf-client";
 import { assembleExtract, extractPages, type ParseProgress } from "./extract";
 import { buildEpub } from "./import-epub";
 
-export function parseBook(
+function parseBook(
   id: string,
   onProgress: (progress: ParseProgress) => void,
 ): Effect.Effect<
@@ -50,9 +50,8 @@ export function parseBook(
 
     yield* store.putParsed(id, result.parsed);
 
-    const meta = yield* store.get(id);
     const next = new BookMeta({
-      ...meta,
+      ...stored,
       parseState: result.scanned ? "scanned" : "ready",
       charCount: result.parsed.charCount,
       figures: result.scanned ? "none" : "pending",

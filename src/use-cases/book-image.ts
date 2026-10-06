@@ -1,7 +1,6 @@
 import { Effect, Stream } from "effect";
 import type { ImageRecord } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
-import { log } from "@/lib/log";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 
@@ -55,7 +54,8 @@ export function ensureCovers(
           (handle) => pdf.release(handle),
         );
         if (cover !== null) yield* store.putImage(bookId, { id: "cover", ...cover });
-      }).pipe(Effect.catch((error) => log("cover.failed", `${bookId} ${error._tag}`))),
+        // A cover that fails to render keeps its placeholder; the next library visit retries it.
+      }).pipe(Effect.catch(() => Effect.void)),
     { discard: true },
   );
 }

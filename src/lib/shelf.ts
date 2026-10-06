@@ -12,7 +12,7 @@ export interface LibraryCard {
   readonly clipStart: boolean;
 }
 
-export interface FilterChip {
+interface FilterChip {
   readonly value: string;
   readonly label: string;
   readonly count: number;

@@ -36,11 +36,6 @@ function startsNewParagraph(
   return false;
 }
 
-function breaksAtPage(line: TextLine, previous: TextLine, bodyWidth: number): boolean {
-  if (previous.width < bodyWidth * 0.62) return true;
-  return endsSentence(previous.text);
-}
-
 export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBlock> {
   if (items.length === 0) return [];
 
@@ -96,7 +91,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
     const samePage = prior.page === line.page;
     const breaks = samePage
       ? startsNewParagraph(line, prior, bodySize, bodyWidth, leftEdge)
-      : breaksAtPage(line, prior, bodyWidth);
+      : prior.width < bodyWidth * 0.62 || endsSentence(prior.text);
 
     if (breaks) {
       flush();

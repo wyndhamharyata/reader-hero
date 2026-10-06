@@ -1,8 +1,9 @@
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
-import type { PageText, RawTextItem } from "@/domain/book";
+import type { PageText } from "@/domain/book";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { collectImageBoxes } from "@/lib/pdf/image-boxes";
+import { toPageText } from "@/lib/pdf/page-text";
 import { makePdf } from "../_support/make-pdf";
 
 async function readPages(data: Uint8Array): Promise<PageText[]> {
@@ -12,27 +13,7 @@ async function readPages(data: Uint8Array): Promise<PageText[]> {
 
   for (let number = 1; number <= doc.numPages; number += 1) {
     const page = await doc.getPage(number);
-    const content = await page.getTextContent();
-    const viewport = page.getViewport({ scale: 1 });
-    const items: RawTextItem[] = [];
-
-    for (const item of content.items) {
-      if (!("str" in item)) continue;
-      const t = item.transform as number[];
-      const size = Math.hypot(Number(t[2] ?? 0), Number(t[3] ?? 0)) || item.height;
-      items.push({
-        str: item.str,
-        x: Number(t[4] ?? 0),
-        y: Number(t[5] ?? 0),
-        width: item.width,
-        height: item.height,
-        fontSize: size,
-        fontFamily: content.styles[item.fontName]?.fontFamily ?? "",
-        hasEOL: item.hasEOL,
-      });
-    }
-
-    pages.push({ page: number, width: viewport.width, height: viewport.height, items });
+    pages.push(toPageText(number, await page.getTextContent(), page.getViewport({ scale: 1 })));
   }
 
   await task.destroy();
@@ -43,8 +24,18 @@ describe("assembleBook with real pdf.js output", () => {
   it("given a real PDF, builds a heading and one merged paragraph", async () => {
     const data = makePdf([
       { text: "Chapter One", size: 24, x: 72, y: 700 },
-      { text: "This is the first body line and it runs long enough to fill a row.", size: 12, x: 72, y: 660 },
-      { text: "This is the second body line that continues the same paragraph.", size: 12, x: 72, y: 645 },
+      {
+        text: "This is the first body line and it runs long enough to fill a row.",
+        size: 12,
+        x: 72,
+        y: 660,
+      },
+      {
+        text: "This is the second body line that continues the same paragraph.",
+        size: 12,
+        x: 72,
+        y: 645,
+      },
     ]);
 
     const book = assembleBook(

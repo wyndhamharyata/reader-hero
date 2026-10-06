@@ -9,6 +9,7 @@ describe("decodeImageRecord", () => {
     const decoded = await Effect.runPromise(
       decodeImageRecord({ blob, width: 200.5, height: 100.25 }),
     );
+
     expect(decoded.width).toBe(200.5);
     expect(decoded.height).toBe(100.25);
   });
@@ -20,6 +21,7 @@ describe("decodeImageRecord", () => {
         Effect.orElseSucceed(() => "rejected"),
       ),
     );
+
     expect(outcome).toBe("rejected");
   });
 });

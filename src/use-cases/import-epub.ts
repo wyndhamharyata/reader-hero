@@ -4,7 +4,6 @@ import { BookMeta } from "@/domain/book";
 import { EpubFailure, StorageFailure } from "@/domain/errors";
 import { parseEpub, type EpubBook } from "@/lib/epub/parse";
 import { newId } from "@/lib/id";
-import { record } from "@/lib/perf";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "./extract";
 
@@ -92,7 +91,6 @@ export function addEpub(
   onProgress: (progress: ParseProgress) => void,
 ): Effect.Effect<BookMeta, EpubFailure | StorageFailure, BookStore> {
   return Effect.gen(function* () {
-    const started = performance.now();
     const store = yield* BookStore;
     const data = yield* Effect.tryPromise({
       try: () => file.arrayBuffer(),
@@ -120,7 +118,6 @@ export function addEpub(
       yield* store.putParsed(id, book.parsed);
       const ready = new BookMeta({ ...meta, parseState: "ready" });
       yield* store.putMeta(ready);
-      record("import.total", performance.now() - started, ready.title);
       return ready;
     }).pipe(
       // Images land before the book row, so a failure must clear them too.

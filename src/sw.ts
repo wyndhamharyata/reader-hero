@@ -1,3 +1,5 @@
+import { Option, Schema } from "effect";
+import { WorkerMessage } from "@/domain/worker-message";
 import { openReaderDb } from "@/lib/db";
 
 declare const self: ServiceWorkerGlobalScope & {
@@ -39,8 +41,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  const data: unknown = event.data;
-  if (typeof data === "object" && data !== null && "type" in data && data.type === "SKIP_WAITING") {
+  if (Option.isSome(Schema.decodeUnknownOption(WorkerMessage)(event.data))) {
     void self.skipWaiting();
   }
 });
@@ -52,7 +53,7 @@ async function handleShare(request: Request): Promise<Response> {
   if (file instanceof File) {
     await db.add("inbox", { name: file.name, blob: file, addedAt: Date.now() });
   }
-  return Response.redirect(new URL("/?shared=1", self.location.origin).toString(), 303);
+  return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
 async function handleNavigate(request: Request): Promise<Response> {

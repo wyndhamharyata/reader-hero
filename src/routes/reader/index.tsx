@@ -1,6 +1,6 @@
 import { Effect, Option, Schema } from "effect";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
 import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
@@ -10,10 +10,10 @@ import { BookStore } from "@/services/book-store";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { MenuSheet } from "./_MenuSheet";
+import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
 import type { JumpRequest } from "./_ReaderView";
-import { ArrowLeftIcon, Bars3Icon } from "@/components/icons";
 
 export function ReaderRoute() {
   const { id } = useParams();
@@ -142,7 +142,6 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const barClass = `absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.75rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${chrome ? "" : "translate-y-full md:-translate-y-full"}`;
   const contentClass = chrome
     ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"
     : "h-full pt-[var(--safe-top)]";
@@ -176,34 +175,14 @@ export function ReaderRoute() {
         )}
       </div>
 
-      <nav className={barClass}>
-        <div className="flex items-center gap-1">
-          <Link
-            to="/"
-            className="btn btn-square btn-ghost btn-lg md:btn-sm"
-            aria-label="Back to library"
-          >
-            <ArrowLeftIcon className="size-7 md:size-5" />
-          </Link>
-          <h1 className="min-w-0 flex-1 truncate text-base font-medium md:text-sm">{title}</h1>
-          <button
-            type="button"
-            className="btn btn-square btn-ghost btn-lg md:btn-sm"
-            aria-label="Menu"
-            onClick={() => setTocOpen(true)}
-          >
-            <Bars3Icon className="size-7 md:size-5" />
-          </button>
-        </div>
-        <div className="flex items-center gap-3 px-2 md:px-0">
-          <span className="w-10 text-sm opacity-70 md:text-xs">{percentLabel}</span>
-          <progress
-            className="progress h-1.5 flex-1 progress-primary"
-            value={position}
-            max={total}
-          />
-        </div>
-      </nav>
+      <ReaderNav
+        title={title}
+        chrome={chrome}
+        percentLabel={percentLabel}
+        position={position}
+        total={total}
+        onMenu={() => setTocOpen(true)}
+      />
 
       {message !== null && (
         <div className="absolute inset-x-0 bottom-[calc(7.5rem+var(--safe-bottom))] z-40 px-3 md:bottom-[calc(4rem+var(--safe-bottom))]">

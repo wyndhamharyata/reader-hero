@@ -1,6 +1,6 @@
 import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import type { PageImage, PageText, RawTextItem } from "@/domain/book";
+import type { PageText, RawTextItem } from "@/domain/book";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { assembleExtract, extractPages } from "@/use-cases/extract";
 
@@ -19,18 +19,13 @@ const item = (): RawTextItem => ({
 
 const pageText = (page: number): PageText => ({ page, width: 600, height: 800, items: [item()] });
 
-const imageReads: number[] = [];
-
 const stubLayer = Layer.succeed(
   PdfClient,
   PdfClient.of({
     load: () => Effect.die("not used"),
     readPage: (_handle, page) => Effect.succeed(pageText(page)),
-    readImages: (_handle, page) =>
-      Effect.sync(() => {
-        imageReads.push(page);
-        return [] as PageImage[];
-      }),
+    // Parsing must not decode figures; that is the figure job's work.
+    readImages: () => Effect.die("readImages called during parsing"),
     render: () => Effect.void,
     pageSizes: () => Effect.succeed([]),
     readOutline: () => Effect.succeed([]),
@@ -49,7 +44,6 @@ describe("extractPages and assembleExtract", () => {
       assembleExtract(handle, Array.from(pages)).pipe(Effect.provide(stubLayer)),
     );
 
-    expect(imageReads).toEqual([]);
     expect(result.scanned).toBe(false);
     expect(result.parsed.blocks.some((block) => block.kind === "image")).toBe(false);
     expect(result.parsed.charCount).toBeGreaterThan(0);

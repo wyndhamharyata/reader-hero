@@ -7,10 +7,10 @@ import type {
   UnsupportedFile,
 } from "@/domain/errors";
 
-type AppError =
-  BookNotFound | EpubFailure | ParsedMissing | PdfFailure | StorageFailure | UnsupportedFile;
-
-export function describeError(error: AppError, name: string): string {
+export function describeError(
+  error: BookNotFound | EpubFailure | ParsedMissing | PdfFailure | StorageFailure | UnsupportedFile,
+  name: string,
+): string {
   switch (error._tag) {
     case "UnsupportedFile":
       return `${name} is not a PDF or EPUB.`;

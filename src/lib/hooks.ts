@@ -6,7 +6,7 @@ import { SettingsStore } from "@/services/settings-store";
 import { watchBookImage } from "@/use-cases/book-image";
 import { renderFigures } from "@/use-cases/render-figures";
 
-export type AsyncState<A, E> =
+type AsyncState<A, E> =
   | { readonly status: "loading" }
   | { readonly status: "done"; readonly value: A }
   | { readonly status: "error"; readonly error: E };
@@ -82,21 +82,17 @@ export function useAppEffect<A, E>(
   const lastNonce = useRef(nonce);
 
   useEffect(() => {
-    let active = true;
     // A reload keeps the current value on screen until the new one arrives; only new deps show loading.
     if (lastNonce.current === nonce) setState({ status: "loading" });
     lastNonce.current = nonce;
-    runtime.runPromise(effect).then(
-      (value) => {
-        if (active) setState({ status: "done", value });
-      },
-      (error: E) => {
-        if (active) setState({ status: "error", error });
-      },
+    // Interrupting the fiber stops a load that new deps replaced, so it cannot overwrite the newer one.
+    const fiber = forkApp(
+      Effect.match(effect, {
+        onFailure: (error) => setState({ status: "error", error }),
+        onSuccess: (value) => setState({ status: "done", value }),
+      }),
     );
-    return () => {
-      active = false;
-    };
+    return () => stopFiber(fiber);
   }, [...deps, nonce]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
@@ -126,7 +122,9 @@ export function useSettings(): {
   }, [settings.theme]);
 
   const update = useCallback((patch: Partial<ReaderSettings>) => {
-    void runtime.runPromise(Effect.flatMap(SettingsStore, (store) => store.update(patch)));
+    const save = Effect.flatMap(SettingsStore, (store) => store.update(patch));
+    // The store applies the change before saving, so a failed write only loses it on restart.
+    forkApp(save.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
   }, []);
 
   return { settings, update };
