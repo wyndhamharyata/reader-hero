@@ -27,9 +27,8 @@ export function FilterSheet({
   onClose,
 }: Props): ReactElement | null {
   const sheetRef = useRef<HTMLElement>(null);
-  const bodyRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
-  const { dismiss } = useBottomSheet(open, sheetRef, bodyRef, backdropRef, onClose);
+  const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
 
   if (!open) return null;
 
@@ -55,7 +54,7 @@ export function FilterSheet({
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300" />
         <h2 className="text-lg font-semibold">Filters</h2>
 
-        <div ref={bodyRef} className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {groups.map(({ group, chips }) => (
             <section key={group} className="mb-4">
               <h3 className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">

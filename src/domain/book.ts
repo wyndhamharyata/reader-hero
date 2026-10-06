@@ -79,7 +79,7 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
 export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdark"]);
 export type ReaderTheme = typeof ReaderTheme.Type;
 
-export const ReaderFont = Schema.Literals(["serif", "sans"]);
+export const ReaderFont = Schema.Literals(["serif", "sans", "mono"]);
 export type ReaderFont = typeof ReaderFont.Type;
 
 export const TextAlign = Schema.Literals(["left", "right", "justify"]);

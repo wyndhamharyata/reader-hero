@@ -46,7 +46,7 @@ export default defineConfig({
       injectRegister: null,
       manifest: false,
       injectManifest: {
-        globPatterns: ["**/*.{js,mjs,css,html,svg,png,json,wasm,icc}"],
+        globPatterns: ["**/*.{js,mjs,css,html,svg,png,json,wasm,icc,woff2}"],
         globIgnores: ["**/sw.js"],
       },
     }),
@@ -55,6 +55,8 @@ export default defineConfig({
     outDir: "dist/client",
     emptyOutDir: true,
     target: "es2022",
+    // One bundle is expected: the service worker precaches it, so size costs only the first visit.
+    chunkSizeWarningLimit: 1200,
   },
   server: {
     host: true,

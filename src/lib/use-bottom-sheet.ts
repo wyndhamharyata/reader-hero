@@ -21,7 +21,6 @@ function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => 
 export function useBottomSheet(
   open: boolean,
   sheetRef: RefObject<HTMLElement | null>,
-  scrollRef: RefObject<HTMLElement | null>,
   backdropRef: RefObject<HTMLElement | null>,
   onClose: () => void,
 ): { readonly dismiss: (then?: () => void) => void } {
@@ -64,9 +63,13 @@ export function useBottomSheet(
       if (mode === "scroll" || y === undefined) return;
       const dy = y - startY;
       if (mode === "idle") {
-        const list = scrollRef.current;
-        const inList = list !== null && list.contains(event.target as Node);
-        mode = dy > 0 && (!inList || list.scrollTop <= 0) ? "drag" : "scroll";
+        // Any scrolled area under the finger scrolls back up first; the sheet drags only from the top.
+        let scrolled = false;
+        for (let node = event.target as Element | null; node !== null && node !== sheet;) {
+          scrolled ||= node.scrollTop > 0;
+          node = node.parentElement;
+        }
+        mode = dy > 0 && !scrolled ? "drag" : "scroll";
         if (mode === "scroll") return;
         sheet.style.transition = "none";
       }
@@ -96,7 +99,7 @@ export function useBottomSheet(
       sheet.removeEventListener("touchend", onEnd);
       sheet.removeEventListener("touchcancel", onEnd);
     };
-  }, [open, sheetRef, scrollRef, backdropRef]);
+  }, [open, sheetRef, backdropRef]);
 
   return { dismiss };
 }

@@ -142,7 +142,7 @@ export function ReaderRoute() {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const barClass = `absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.25rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${chrome ? "" : "translate-y-full md:-translate-y-full"}`;
+  const barClass = `absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.75rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${chrome ? "" : "translate-y-full md:-translate-y-full"}`;
   const contentClass = chrome
     ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"
     : "h-full pt-[var(--safe-top)]";
@@ -178,21 +178,25 @@ export function ReaderRoute() {
 
       <nav className={barClass}>
         <div className="flex items-center gap-1">
-          <Link to="/" className="btn btn-square btn-ghost md:btn-sm" aria-label="Back to library">
-            <ArrowLeftIcon />
+          <Link
+            to="/"
+            className="btn btn-square btn-ghost btn-lg md:btn-sm"
+            aria-label="Back to library"
+          >
+            <ArrowLeftIcon className="size-7 md:size-5" />
           </Link>
-          <h1 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h1>
+          <h1 className="min-w-0 flex-1 truncate text-base font-medium md:text-sm">{title}</h1>
           <button
             type="button"
-            className="btn btn-square btn-ghost md:btn-sm"
+            className="btn btn-square btn-ghost btn-lg md:btn-sm"
             aria-label="Menu"
             onClick={() => setTocOpen(true)}
           >
-            <Bars3Icon />
+            <Bars3Icon className="size-7 md:size-5" />
           </button>
         </div>
         <div className="flex items-center gap-3 px-2 md:px-0">
-          <span className="w-10 text-xs opacity-70">{percentLabel}</span>
+          <span className="w-10 text-sm opacity-70 md:text-xs">{percentLabel}</span>
           <progress
             className="progress h-1.5 flex-1 progress-primary"
             value={position}
@@ -202,7 +206,7 @@ export function ReaderRoute() {
       </nav>
 
       {message !== null && (
-        <div className="absolute inset-x-0 bottom-[calc(6rem+var(--safe-bottom))] z-40 px-3 md:bottom-[calc(4rem+var(--safe-bottom))]">
+        <div className="absolute inset-x-0 bottom-[calc(7.5rem+var(--safe-bottom))] z-40 px-3 md:bottom-[calc(4rem+var(--safe-bottom))]">
           <div className="alert py-2 text-sm alert-warning">
             <span>{message}</span>
           </div>

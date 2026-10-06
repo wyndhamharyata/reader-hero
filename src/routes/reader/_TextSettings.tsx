@@ -16,6 +16,7 @@ const themes: ReadonlyArray<{ value: ReaderTheme; label: string }> = [
 const fonts: ReadonlyArray<{ value: ReaderFont; label: string }> = [
   { value: "serif", label: "Serif" },
   { value: "sans", label: "Sans" },
+  { value: "mono", label: "Mono" },
 ];
 
 const alignments: ReadonlyArray<{ value: TextAlign; label: string; icon: typeof AlignLeftIcon }> = [
@@ -30,7 +31,9 @@ const MIN_LINE_HEIGHT = 0.6;
 const MAX_LINE_HEIGHT = 2.0;
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
-const choice = (chosen: boolean): string => (chosen ? "btn btn-active btn-sm" : "btn btn-sm");
+// The panel sits on base-200, so unchosen buttons lift to base-100 to stand apart from it.
+const choice = (chosen: boolean): string =>
+  chosen ? "btn btn-active md:btn-sm" : "btn bg-base-100 md:btn-sm";
 
 export function TextSettings({ settings, onChange }: Props): ReactElement {
   const smaller = Math.max(MIN_FONT_SIZE, settings.fontSize - 1);
@@ -70,6 +73,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
                 key={font.value}
                 type="button"
                 className={fontClass}
+                data-font={font.value}
                 onClick={() => onChange({ font: font.value })}
               >
                 {font.label}
@@ -79,53 +83,60 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
         </div>
       </section>
 
-      <section className="mt-3">
-        <p className={heading}>Size</p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => onChange({ fontSize: smaller })}
-            disabled={settings.fontSize <= MIN_FONT_SIZE}
-          >
-            A-
-          </button>
-          <span className="w-12 text-center text-sm">{settings.fontSize}px</span>
-          <button
-            type="button"
-            className="btn btn-sm"
-            onClick={() => onChange({ fontSize: larger })}
-            disabled={settings.fontSize >= MAX_FONT_SIZE}
-          >
-            A+
-          </button>
-        </div>
-      </section>
+      {/* Side by side on phones, which saves a row of height in the bottom sheet. */}
+      <div className="mt-3 grid grid-cols-2 gap-3 md:block">
+        <section>
+          <p className={heading}>Size</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn bg-base-100 md:btn-sm"
+              onClick={() => onChange({ fontSize: smaller })}
+              disabled={settings.fontSize <= MIN_FONT_SIZE}
+            >
+              A-
+            </button>
+            <span className="w-10 text-center text-base md:w-12 md:text-sm">
+              {settings.fontSize}px
+            </span>
+            <button
+              type="button"
+              className="btn bg-base-100 md:btn-sm"
+              onClick={() => onChange({ fontSize: larger })}
+              disabled={settings.fontSize >= MAX_FONT_SIZE}
+            >
+              A+
+            </button>
+          </div>
+        </section>
 
-      <section className="mt-3">
-        <p className={heading}>Line spacing</p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label="Less line spacing"
-            onClick={() => onChange({ lineHeight: tighter })}
-            disabled={settings.lineHeight <= MIN_LINE_HEIGHT}
-          >
-            −
-          </button>
-          <span className="w-12 text-center text-sm">{settings.lineHeight.toFixed(1)}</span>
-          <button
-            type="button"
-            className="btn btn-sm"
-            aria-label="More line spacing"
-            onClick={() => onChange({ lineHeight: looser })}
-            disabled={settings.lineHeight >= MAX_LINE_HEIGHT}
-          >
-            +
-          </button>
-        </div>
-      </section>
+        <section className="md:mt-3">
+          <p className={heading}>Line spacing</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn bg-base-100 md:btn-sm"
+              aria-label="Less line spacing"
+              onClick={() => onChange({ lineHeight: tighter })}
+              disabled={settings.lineHeight <= MIN_LINE_HEIGHT}
+            >
+              −
+            </button>
+            <span className="w-10 text-center text-base md:w-12 md:text-sm">
+              {settings.lineHeight.toFixed(1)}
+            </span>
+            <button
+              type="button"
+              className="btn bg-base-100 md:btn-sm"
+              aria-label="More line spacing"
+              onClick={() => onChange({ lineHeight: looser })}
+              disabled={settings.lineHeight >= MAX_LINE_HEIGHT}
+            >
+              +
+            </button>
+          </div>
+        </section>
+      </div>
 
       <section className="mt-3">
         <p className={heading}>Alignment</p>
@@ -142,7 +153,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
                 aria-pressed={chosen}
                 onClick={() => onChange({ textAlign: alignment.value })}
               >
-                <alignment.icon className="size-5 md:size-4" />
+                <alignment.icon className="size-6 md:size-4" />
               </button>
             );
           })}

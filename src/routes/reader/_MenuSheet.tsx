@@ -28,9 +28,8 @@ export function MenuSheet({
   // Collapsed on phones so the contents list gets the sheet's height; open in the desktop sidebar.
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
-  const { dismiss } = useBottomSheet(open, sheetRef, listRef, backdropRef, onClose);
+  const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
 
   if (!open) return null;
 
@@ -61,10 +60,7 @@ export function MenuSheet({
 
         <div className="flex min-h-0 flex-1 flex-col md:order-4 md:mt-4">
           <h3 className="text-sm font-semibold">Contents</h3>
-          <ul
-            ref={listRef}
-            className="mt-1 flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain"
-          >
+          <ul className="mt-1 flex min-h-0 w-full flex-1 flex-col divide-y divide-base-300 overflow-y-auto overscroll-contain">
             {toc.length === 0 && (
               <li className="p-2 text-sm opacity-70">No table of contents found.</li>
             )}
@@ -72,7 +68,7 @@ export function MenuSheet({
               <li key={index} className="w-full shrink-0">
                 <button
                   type="button"
-                  className="w-full rounded-field px-2 py-2 text-left text-sm whitespace-normal hover:bg-base-200 md:py-1.5"
+                  className="my-1 w-full rounded-field px-2 py-3 text-left text-base whitespace-normal hover:bg-base-200 md:py-2 md:text-sm"
                   onClick={() => dismiss(() => onSelect(entry.blockIndex))}
                 >
                   {entry.title}
@@ -82,33 +78,48 @@ export function MenuSheet({
           </ul>
         </div>
 
-        <section className="mt-3 flex flex-col-reverse rounded-box border border-base-300 md:order-3 md:mt-2 md:flex-col">
+        <section className="mt-4 flex shrink-0 flex-col-reverse rounded-box bg-base-200 md:order-3 md:mt-3 md:flex-col">
           <button
             type="button"
-            className="flex w-full items-center gap-2 p-3 text-sm font-medium"
+            className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
             aria-expanded={textOpen}
             onClick={() => setTextOpen(!textOpen)}
           >
-            <AdjustmentsIcon className="size-5 md:size-4" />
+            <AdjustmentsIcon className="size-6 md:size-4" />
             <span className="flex-1 text-left">Text settings</span>
-            <ChevronDownIcon className={`size-5 transition-transform md:size-4 ${chevronTurn}`} />
+            <ChevronDownIcon className={`size-6 transition-transform md:size-4 ${chevronTurn}`} />
           </button>
 
-          {textOpen && <TextSettings settings={settings} onChange={onSettingsChange} />}
+          {/* Rows animate between 0fr and 1fr, so the panel grows to its own height. */}
+          <div
+            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${textOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+            inert={!textOpen}
+          >
+            <div className="min-h-0 overflow-hidden">
+              {/* Capped so the open panel never pushes the buttons below it off the sheet. */}
+              <div className="max-h-[40dvh] overflow-y-auto overscroll-contain md:max-h-[60dvh]">
+                <TextSettings settings={settings} onChange={onSettingsChange} />
+              </div>
+            </div>
+          </div>
         </section>
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
           {onToggleMode !== undefined && (
             <button
               type="button"
-              className="btn flex-1 md:justify-start md:btn-ghost"
+              className="btn flex-1 btn-lg md:justify-start md:btn-ghost md:btn-md"
               onClick={onToggleMode}
             >
-              <BookOpenIcon className="size-5 md:size-4" />
+              <BookOpenIcon className="size-6 md:size-4" />
               {modeLabel}
             </button>
           )}
-          <button type="button" className="btn btn-ghost md:hidden" onClick={() => dismiss()}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-lg md:hidden"
+            onClick={() => dismiss()}
+          >
             Close
           </button>
         </div>

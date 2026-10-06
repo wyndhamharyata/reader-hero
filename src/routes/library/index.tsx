@@ -66,6 +66,42 @@ export function LibraryRoute(): ReactElement {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  const coverRef = useRef<HTMLDivElement>(null);
+
+  // iOS paints the page, not fixed elements, under its keyboard, and never undoes its focus scroll.
+  useEffect(() => {
+    const bar = barRef.current;
+    const cover = coverRef.current;
+    const viewport = window.visualViewport;
+    if (bar === null || cover === null) return;
+    let scrollY = 0;
+    const place = (): void => {
+      cover.style.top = `${bar.getBoundingClientRect().bottom + window.scrollY}px`;
+    };
+    const open = (): void => {
+      scrollY = window.scrollY;
+      cover.style.display = "block";
+      place();
+    };
+    const close = (): void => {
+      cover.style.display = "none";
+      window.scrollTo({ top: scrollY });
+    };
+    bar.addEventListener("focusin", open);
+    bar.addEventListener("focusout", close);
+    window.addEventListener("scroll", place, { passive: true });
+    viewport?.addEventListener("resize", place);
+    viewport?.addEventListener("scroll", place);
+    return () => {
+      bar.removeEventListener("focusin", open);
+      bar.removeEventListener("focusout", close);
+      window.removeEventListener("scroll", place);
+      viewport?.removeEventListener("resize", place);
+      viewport?.removeEventListener("scroll", place);
+    };
+  }, []);
 
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
@@ -242,7 +278,15 @@ export function LibraryRoute(): ReactElement {
         }}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 flex flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] md:hidden">
+      <div
+        ref={coverRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 z-30 hidden h-screen bg-base-100 md:hidden"
+      />
+      <div
+        ref={barRef}
+        className="fixed inset-x-0 bottom-0 z-40 flex flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] focus-within:pb-2 md:hidden"
+      >
         {searchField}
         {filterChips}
         <div className="flex items-center gap-3">
