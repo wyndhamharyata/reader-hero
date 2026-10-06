@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- The R is Montserrat ExtraBold (SIL Open Font License 1.1), converted to outlines. -->
-  <rect width="512" height="512" rx="115.2" fill="#0ba56a"/>
-  <g transform="translate(100.3 76.8) scale(0.9432)">
+  <rect width="512" height="512" fill="#0ba56a"/>
+  <g transform="translate(140.4 122.9) scale(0.7006)">
     <rect x="8" y="8" width="214" height="304" rx="4" fill="#0ba56a" stroke="#fff" stroke-width="16"/>
     <rect x="38" y="38" width="214" height="304" rx="4" fill="#0ba56a" stroke="#fff" stroke-width="16"/>
     <rect x="68" y="68" width="214" height="304" fill="#0ba56a"/>
