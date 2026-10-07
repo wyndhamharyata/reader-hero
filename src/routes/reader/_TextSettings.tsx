@@ -38,7 +38,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
   const looser = Math.min(MAX_LINE_HEIGHT, Math.round((settings.lineHeight + 0.1) * 10) / 10);
 
   return (
-    <div className="px-3 pt-3 md:pt-0 md:pb-3">
+    <div className="p-3 md:pt-0">
       <ThemeControls settings={settings} onChange={onChange} />
 
       <section className="mt-3">

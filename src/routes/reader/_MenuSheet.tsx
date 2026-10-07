@@ -72,7 +72,7 @@ export function MenuSheet({
       />
       <aside
         ref={sheetRef}
-        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.25rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-0 md:h-full md:max-h-none md:w-80 md:max-w-[85%] md:rounded-none md:pt-[max(1rem,var(--safe-top))] md:pb-[var(--safe-bottom)] md:motion-safe:animate-slide-in"
+        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-0 md:h-full md:max-h-none md:w-80 md:max-w-[85%] md:rounded-none md:pt-[max(1rem,var(--safe-top))] md:pb-[var(--safe-bottom)] md:motion-safe:animate-slide-in"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
 
@@ -161,7 +161,7 @@ export function MenuSheet({
           {onToggleMode !== undefined && (
             <button
               type="button"
-              className="btn flex-1 btn-lg md:justify-start md:btn-ghost md:btn-md"
+              className="btn flex-1 md:justify-start md:btn-ghost md:btn-md"
               onClick={onToggleMode}
             >
               <BookOpenIcon className="size-6 md:size-4" />
@@ -171,7 +171,7 @@ export function MenuSheet({
           {/* Alone, as on an EPUB, Close carries its word and takes the whole row. */}
           <button
             type="button"
-            className={`btn btn-ghost btn-lg md:hidden ${onToggleMode === undefined ? "flex-1" : "btn-square"}`}
+            className={`btn btn-ghost md:hidden ${onToggleMode === undefined ? "flex-1" : "btn-square"}`}
             aria-label="Close"
             title="Close"
             onClick={() => dismiss()}

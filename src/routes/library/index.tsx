@@ -286,7 +286,7 @@ export function LibraryRoute(): ReactElement {
       >
         {searchField}
         {filterChips}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {viewToggle}
           {sortMenu}
           <button
@@ -296,7 +296,7 @@ export function LibraryRoute(): ReactElement {
             title="All filters"
             onClick={() => setFiltersOpen(true)}
           >
-            <FunnelIcon className="size-5" />
+            <FunnelIcon className="size-6" />
             {shelf.filtered && (
               <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
             )}

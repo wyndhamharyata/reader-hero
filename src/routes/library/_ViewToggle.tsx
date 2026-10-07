@@ -22,7 +22,7 @@ export function ViewToggle({ view, onChange }: Props): ReactElement {
         aria-pressed={!grid}
         onClick={() => onChange("list")}
       >
-        <ListBulletIcon className="size-5 md:size-4" />
+        <ListBulletIcon className="size-6 md:size-4" />
       </button>
       <button
         type="button"
@@ -32,7 +32,7 @@ export function ViewToggle({ view, onChange }: Props): ReactElement {
         aria-pressed={grid}
         onClick={() => onChange("grid")}
       >
-        <Squares2x2Icon className="size-5 md:size-4" />
+        <Squares2x2Icon className="size-6 md:size-4" />
       </button>
     </div>
   );
