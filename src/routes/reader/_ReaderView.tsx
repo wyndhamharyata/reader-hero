@@ -217,6 +217,7 @@ export const ReaderView = memo(function ReaderView({
   return (
     <div
       ref={containerRef}
+      data-scroller
       className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
       onClick={handleClick}
     >

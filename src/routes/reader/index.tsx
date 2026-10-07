@@ -80,16 +80,6 @@ export function ReaderRoute() {
   } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
 
-  // Escape walks back up the hierarchy: each open sheet closes itself first, and with none open
-  // the reader returns to the library.
-  useEffect(() => {
-    if (tocOpen || summarySheet !== null) return;
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") void navigate("/");
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [tocOpen, summarySheet, navigate]);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
@@ -145,6 +135,124 @@ export function ReaderRoute() {
       }),
     [settings, prefs],
   );
+  // The keys, with no sheet open and no field focused: Escape walks back up the hierarchy (each
+  // open sheet closes itself first, so here the reader returns to the library); the arrows and
+  // j/k scroll two lines, and held they keep scrolling, faster the longer they are held; ctrl+d
+  // and ctrl+u jump a paragraph, or a page in the original view; s opens the sidebar. A move is
+  // smooth, so the eye can follow where the text went.
+  useEffect(() => {
+    if (tocOpen || summarySheet !== null) return;
+    const line = bookSettings.fontSize * bookSettings.lineHeight;
+    const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    const scroller = (): HTMLElement | null => document.querySelector("[data-scroller]");
+    let held: {
+      key: string;
+      direction: 1 | -1;
+      since: number;
+      last: number;
+      frame: number;
+    } | null = null;
+    const stop = (): void => {
+      if (held !== null) cancelAnimationFrame(held.frame);
+      held = null;
+    };
+    // Held past the tap, the key scrolls on its own clock: from 6 to 30 lines a second over two
+    // seconds, so a long hold covers ground and a short one stays readable.
+    const run = (now: number): void => {
+      if (held === null) return;
+      const seconds = (now - held.last) / 1000;
+      const heldFor = (now - held.since) / 1000;
+      held.last = now;
+      const target = scroller();
+      if (heldFor > 0.25 && target !== null) {
+        const speed = Math.min(30, 6 + (heldFor - 0.25) * 12) * line;
+        target.scrollBy({ top: held.direction * speed * seconds });
+      }
+      held.frame = requestAnimationFrame(run);
+    };
+    const jump = (direction: 1 | -1, instant: boolean): void => {
+      const target = scroller();
+      if (target === null) return;
+      const top = target.getBoundingClientRect().top + 16;
+      const items = Array.from(target.querySelectorAll<HTMLElement>("[data-block], [data-page]"));
+      const next =
+        direction === 1
+          ? items.find((item) => item.getBoundingClientRect().top > top + 2)
+          : items.reverse().find((item) => item.getBoundingClientRect().top < top - 2);
+      target.scrollBy({
+        top:
+          next === undefined
+            ? (direction * target.clientHeight) / 2
+            : next.getBoundingClientRect().top - top,
+        behavior: instant ? "auto" : behavior,
+      });
+    };
+    const scroll = (event: KeyboardEvent, direction: 1 | -1): void => {
+      if (event.repeat) return;
+      scroller()?.scrollBy({ top: direction * 2 * line, behavior });
+      if (held !== null) return;
+      const now = performance.now();
+      held = {
+        key: event.key,
+        direction,
+        since: now,
+        last: now,
+        frame: requestAnimationFrame(run),
+      };
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      const target = event.target as HTMLElement | null;
+      const typing =
+        target !== null &&
+        (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
+      if (typing || event.metaKey || event.altKey) return;
+      switch (event.key) {
+        case "Escape":
+          void navigate("/");
+          break;
+        case "ArrowDown":
+        case "j":
+          if (event.ctrlKey) return;
+          scroll(event, 1);
+          break;
+        case "ArrowUp":
+        case "k":
+          if (event.ctrlKey) return;
+          scroll(event, -1);
+          break;
+        case "d":
+          if (!event.ctrlKey) return;
+          jump(1, event.repeat);
+          break;
+        case "u":
+          if (!event.ctrlKey) return;
+          jump(-1, event.repeat);
+          break;
+        case "s":
+          if (event.ctrlKey) return;
+          setTocOpen(true);
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (held !== null && event.key === held.key) stop();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", stop);
+    return () => {
+      stop();
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", stop);
+    };
+  }, [tocOpen, summarySheet, navigate, bookSettings.fontSize, bookSettings.lineHeight]);
+
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
     [data],

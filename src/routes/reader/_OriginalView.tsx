@@ -153,6 +153,7 @@ export function OriginalView({
       {doc !== null && (
         <div
           ref={containerRef}
+          data-scroller
           className="h-full overflow-y-auto overscroll-contain bg-base-300"
           onClick={onToggleChrome}
         >
