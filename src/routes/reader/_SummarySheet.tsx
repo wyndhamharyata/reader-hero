@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
+import { ArrowUpIcon, ClipboardIcon, PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
 import type { AiSettings, BookKind } from "@/domain/ai";
 import { describeAiFailure } from "@/lib/describe-error";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
@@ -33,10 +34,15 @@ interface Props {
   onClose: () => void;
 }
 
+// Phone-first sizes, as the menu sheet: 16px text and 44px controls, smaller from md up.
+const text = "text-base md:text-sm";
+const field = "input w-full text-base md:input-sm md:text-sm";
+const button = "btn md:btn-sm";
+
 // The book's whole summary: a Chapters tab with the chapters before the position and the chapter
-// being read up to it, and a Characters tab the reader can edit. The one action, in the foot,
-// brings it up to the position; the entry in flight streams in place, and the foot's status line
-// is the one place that shows the job running. Closing the sheet does not stop the job.
+// being read up to it, and a Characters tab the reader can edit by tapping a row. The one action,
+// in the foot, brings it up to the position; the entry in flight streams in place, and the foot's
+// status line is the one place that shows the job running. Closing the sheet does not stop the job.
 export function SummarySheet({
   input,
   list,
@@ -80,7 +86,7 @@ export function SummarySheet({
   const unit = story ? "chapter" : "section";
   const namesLabel = story ? "Characters" : "Terms";
   const chapterCount = summary?.chapters.length ?? 0;
-  const spinner = <span className="loading loading-xs loading-spinner" />;
+  const spinner = <span className="loading loading-sm loading-spinner md:loading-xs" />;
 
   // A line tapped in Contents opens the Chapters tab at that chapter; otherwise the latest entry,
   // or the one in flight, comes into view.
@@ -130,23 +136,6 @@ export function SummarySheet({
     );
   };
 
-  const copy = (): void => {
-    if (summary === null) return;
-    const text =
-      tab === "chapters"
-        ? [
-            ...summary.chapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
-            ...(stored === undefined ? [] : [`${stored.heading} · to here\n${stored.text}`]),
-          ].join("\n\n")
-        : names.map(({ entry }) => `${entry.name}: ${entry.note}`).join("\n");
-    void navigator.clipboard.writeText(text);
-  };
-
-  const close = (): void => {
-    if (job.current !== null) stopFiber(job.current);
-    dismiss();
-  };
-
   // The entry for the chapter being read: the one in flight, else the stored one, unless that
   // chapter has its own paragraph by now.
   const stored =
@@ -160,6 +149,23 @@ export function SummarySheet({
       : stored === undefined
         ? null
         : { heading: stored.heading, text: stored.text };
+
+  const copy = (): void => {
+    if (summary === null) return;
+    const copied =
+      tab === "chapters"
+        ? [
+            ...summary.chapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
+            ...(stored === undefined ? [] : [`${stored.heading} · to here\n${stored.text}`]),
+          ].join("\n\n")
+        : names.map(({ entry }) => `${entry.name}: ${entry.note}`).join("\n");
+    void navigator.clipboard.writeText(copied);
+  };
+
+  const close = (): void => {
+    if (job.current !== null) stopFiber(job.current);
+    dismiss();
+  };
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
@@ -178,14 +184,17 @@ export function SummarySheet({
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Summary · {row}</p>
-        <div className="mt-2 flex items-center justify-between gap-3 text-sm">
-          <span>Kind {guessed && <span className="text-xs opacity-60">guessed</span>}</span>
+
+        <div className={`mt-2 flex items-center justify-between gap-3 ${text}`}>
+          <span>
+            Kind {guessed && <span className="text-sm opacity-60 md:text-xs">guessed</span>}
+          </span>
           <div className="join">
             {(["story", "reference"] as const).map((value) => (
               <button
                 key={value}
                 type="button"
-                className={`btn join-item btn-sm md:btn-xs ${input.kind === value ? "btn-neutral" : ""}`}
+                className={`${button} join-item ${input.kind === value ? "btn-neutral" : ""}`}
                 aria-pressed={input.kind === value}
                 disabled={run !== null}
                 onClick={() => onKind(value)}
@@ -196,7 +205,7 @@ export function SummarySheet({
           </div>
         </div>
 
-        <div role="tablist" className="tabs tabs-border mt-1">
+        <div role="tablist" className="tabs tabs-border mt-1 tabs-lg md:tabs-md">
           {(["chapters", "names"] as const).map((value) => (
             <button
               key={value}
@@ -211,7 +220,8 @@ export function SummarySheet({
           ))}
         </div>
 
-        <div className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        {/* Room around the content, so a focused field's outline is not clipped by the scroll. */}
+        <div className="-mx-1 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
           {tab === "chapters" ? (
             <>
               {(summary?.chapters ?? []).map((chapter, index) => (
@@ -226,24 +236,26 @@ export function SummarySheet({
                   }
                   className="mt-3 scroll-mt-2 first:mt-0"
                 >
-                  <p className="text-sm font-medium">{chapter.heading}</p>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{chapter.paragraph}</p>
+                  <p className={`font-medium ${text}`}>{chapter.heading}</p>
+                  <p className={`leading-relaxed whitespace-pre-wrap ${text}`}>
+                    {chapter.paragraph}
+                  </p>
                 </div>
               ))}
               {run !== null && run.stage === "chapter" && run.chapter > 0 && (
                 <div ref={latest} className="mt-3 scroll-mt-2 first:mt-0">
-                  <p className="text-sm font-medium">{list[run.chapter - 1]?.heading ?? ""}</p>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{run.text}</p>
+                  <p className={`font-medium ${text}`}>{list[run.chapter - 1]?.heading ?? ""}</p>
+                  <p className={`leading-relaxed whitespace-pre-wrap ${text}`}>{run.text}</p>
                 </div>
               )}
               {current !== null && (
                 <div ref={latest} className="mt-3 scroll-mt-2 first:mt-0">
-                  <p className="text-sm font-medium">{current.heading} · to here</p>
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{current.text}</p>
+                  <p className={`font-medium ${text}`}>{current.heading} · to here</p>
+                  <p className={`leading-relaxed whitespace-pre-wrap ${text}`}>{current.text}</p>
                 </div>
               )}
               {summary === null && run === null && (
-                <p className="text-sm opacity-70">
+                <p className={`opacity-70 ${text}`}>
                   {action === null
                     ? `No ${unit}s before this position.`
                     : "Nothing summarised yet."}
@@ -252,13 +264,13 @@ export function SummarySheet({
               {(summary?.thread ?? []).map((message, index) => (
                 <p
                   key={index}
-                  className={`mt-3 text-sm leading-relaxed whitespace-pre-wrap ${message.role === "user" ? "font-medium" : ""}`}
+                  className={`mt-3 leading-relaxed whitespace-pre-wrap ${text} ${message.role === "user" ? "font-medium" : ""}`}
                 >
                   {message.content}
                 </p>
               ))}
               {pending !== null && (
-                <p className="mt-3 text-sm leading-relaxed whitespace-pre-wrap">
+                <p className={`mt-3 leading-relaxed whitespace-pre-wrap ${text}`}>
                   {pending === "" ? (
                     <span className="flex items-center gap-2 opacity-70">
                       {spinner}
@@ -269,17 +281,17 @@ export function SummarySheet({
                   )}
                 </p>
               )}
-              {askError !== null && <p className="mt-2 text-sm text-error">{askError}</p>}
+              {askError !== null && <p className={`mt-2 text-error ${text}`}>{askError}</p>}
             </>
           ) : (
             <>
-              {names.length === 0 && <p className="text-sm opacity-70">No entries yet.</p>}
-              <ul className="flex flex-col gap-2">
+              {names.length === 0 && <p className={`opacity-70 ${text}`}>No entries yet.</p>}
+              <ul className="flex flex-col">
                 {names.map(({ entry, index }) =>
                   editing !== null && editing.index === index ? (
-                    <li key={index}>
+                    <li key={index} className="py-2">
                       <form
-                        className="flex flex-col gap-1"
+                        className="flex flex-col gap-2"
                         onSubmit={(event) => {
                           event.preventDefault();
                           if (editing.name.trim() === "") return;
@@ -292,14 +304,14 @@ export function SummarySheet({
                       >
                         <input
                           type="text"
-                          className="input w-full text-base input-sm md:text-sm"
+                          className={field}
                           aria-label="Name"
                           value={editing.name}
                           onChange={(event) => setEditing({ ...editing, name: event.target.value })}
                         />
                         <input
                           type="text"
-                          className="input w-full text-base input-sm md:text-sm"
+                          className={field}
                           aria-label="Note"
                           value={editing.note}
                           onChange={(event) => setEditing({ ...editing, note: event.target.value })}
@@ -307,7 +319,7 @@ export function SummarySheet({
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
-                            className="btn btn-ghost text-error btn-xs"
+                            className={`${button} btn-ghost text-error`}
                             onClick={() => {
                               onEditName(index, null);
                               setEditing(null);
@@ -317,14 +329,14 @@ export function SummarySheet({
                           </button>
                           <button
                             type="button"
-                            className="btn btn-ghost btn-xs"
+                            className={`${button} btn-ghost`}
                             onClick={() => setEditing(null)}
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            className="btn btn-primary btn-xs"
+                            className={`${button} btn-primary`}
                             disabled={editing.name.trim() === ""}
                           >
                             Save
@@ -333,23 +345,23 @@ export function SummarySheet({
                       </form>
                     </li>
                   ) : (
-                    <li key={index} className="flex items-start justify-between gap-2 text-sm">
-                      <span className="leading-relaxed">
-                        <span className="font-medium">{entry.name}</span>{" "}
-                        <span className="text-xs opacity-60">
-                          {unit} {entry.chapter}
-                        </span>
-                        <br />
-                        {entry.note}
-                      </span>
+                    <li key={index}>
                       <button
                         type="button"
-                        className="btn shrink-0 btn-ghost btn-xs"
+                        className={`flex w-full items-center justify-between gap-3 rounded-field py-2 text-left hover:bg-base-200 disabled:opacity-50 ${text}`}
                         aria-label={`Edit ${entry.name}`}
                         disabled={run !== null}
                         onClick={() => setEditing({ index, name: entry.name, note: entry.note })}
                       >
-                        Edit
+                        <span className="leading-relaxed">
+                          <span className="font-medium">{entry.name}</span>{" "}
+                          <span className="text-sm opacity-60 md:text-xs">
+                            {unit} {entry.chapter}
+                          </span>
+                          <br />
+                          {entry.note}
+                        </span>
+                        <PencilIcon className="size-5 shrink-0 opacity-60 md:size-4" />
                       </button>
                     </li>
                   ),
@@ -368,7 +380,7 @@ export function SummarySheet({
                 >
                   <input
                     type="text"
-                    className="input flex-1 text-base input-sm md:text-sm"
+                    className={field}
                     placeholder="Add name"
                     aria-label="Add name"
                     value={name}
@@ -377,15 +389,16 @@ export function SummarySheet({
                   />
                   <button
                     type="submit"
-                    className="btn btn-sm"
+                    className={`${button} btn-square`}
+                    aria-label="Add"
                     disabled={run !== null || name.trim() === ""}
                   >
-                    Add
+                    <PlusIcon className="size-6 md:size-4" />
                   </button>
                 </form>
               )}
               {summary !== null && summary.required.length > 0 && (
-                <p className="mt-2 text-xs opacity-60">
+                <p className="mt-2 text-sm opacity-60 md:text-xs">
                   In the next update: {summary.required.join(", ")}
                 </p>
               )}
@@ -404,19 +417,19 @@ export function SummarySheet({
             }}
           />
         ) : discardPending ? (
-          <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+          <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
             <span>The summary is removed. The next run starts from the first {unit}.</span>
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className={`${button} btn-ghost`}
                 onClick={() => setDiscardPending(false)}
               >
                 Keep
               </button>
               <button
                 type="button"
-                className="btn btn-error btn-sm"
+                className={`${button} btn-error`}
                 onClick={() => {
                   setDiscardPending(false);
                   onDiscard();
@@ -429,22 +442,24 @@ export function SummarySheet({
         ) : (
           <>
             {error !== null && (
-              <p className="mt-2 flex items-center gap-3 text-sm text-error">
+              <p className={`mt-2 flex items-center gap-3 text-error ${text}`}>
                 {error}
-                <button type="button" className="btn btn-ghost btn-xs" onClick={start}>
+                <button type="button" className={`${button} btn-ghost`} onClick={start}>
                   Retry
                 </button>
               </p>
             )}
             {settings === null ? (
-              <p className="mt-3 text-sm opacity-70">No provider · set in the library's Settings</p>
+              <p className={`mt-3 opacity-70 ${text}`}>
+                No provider · set in the library's Settings
+              </p>
             ) : run !== null ? (
-              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+              <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
                 <span className="flex items-center gap-2">
                   {spinner}
                   {row}
                 </span>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={onStop}>
+                <button type="button" className={`${button} btn-ghost`} onClick={onStop}>
                   Stop
                 </button>
               </div>
@@ -452,7 +467,7 @@ export function SummarySheet({
               action !== null && (
                 <button
                   type="button"
-                  className="btn mt-3 w-full btn-primary btn-sm"
+                  className={`${button} mt-3 w-full btn-primary`}
                   onClick={start}
                 >
                   {action}
@@ -469,7 +484,7 @@ export function SummarySheet({
             >
               <input
                 type="text"
-                className="input flex-1 text-base input-sm md:text-sm"
+                className={field}
                 placeholder="Follow-up…"
                 aria-label="Follow-up"
                 value={question}
@@ -478,7 +493,8 @@ export function SummarySheet({
               />
               <button
                 type="submit"
-                className="btn btn-primary btn-sm"
+                className={`${button} btn-square btn-primary`}
+                aria-label="Send"
                 disabled={
                   settings === null ||
                   summary === null ||
@@ -487,28 +503,30 @@ export function SummarySheet({
                   question.trim() === ""
                 }
               >
-                Send
+                <ArrowUpIcon className="size-6 md:size-4" />
               </button>
             </form>
 
-            <div className="mt-2 flex justify-end gap-2">
+            <div className="mt-2 flex items-center justify-end gap-2">
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className={`${button} btn-square btn-ghost`}
+                aria-label="Copy"
                 disabled={summary === null}
                 onClick={copy}
               >
-                Copy
+                <ClipboardIcon className="size-6 md:size-4" />
               </button>
               <button
                 type="button"
-                className="btn btn-ghost btn-sm"
+                className={`${button} btn-square btn-ghost`}
+                aria-label="Discard"
                 disabled={summary === null || run !== null}
                 onClick={() => setDiscardPending(true)}
               >
-                Discard
+                <TrashIcon className="size-6 md:size-4" />
               </button>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={close}>
+              <button type="button" className={`${button} btn-ghost`} onClick={close}>
                 Close
               </button>
             </div>

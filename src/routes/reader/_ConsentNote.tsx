@@ -12,17 +12,17 @@ export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElemen
   const name = providerLabels[provider];
   return (
     <div className="mt-3 flex min-h-0 flex-col gap-3">
-      <p className="text-sm font-medium">Text sent to {name}</p>
-      <p className="text-sm">
+      <p className="text-base font-medium md:text-sm">Text sent to {name}</p>
+      <p className="text-base md:text-sm">
         Each AI action sends the chosen passage to {name} with the stored key. Reader Hero's own
         server receives neither the text nor the key. {name}'s terms apply to the text it receives.
         Results are stored on this device and read offline.
       </p>
       <div className="flex justify-end gap-2">
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
+        <button type="button" className="btn btn-ghost md:btn-sm" onClick={onCancel}>
           Cancel
         </button>
-        <button type="button" className="btn btn-primary btn-sm" onClick={onAllow}>
+        <button type="button" className="btn btn-primary md:btn-sm" onClick={onAllow}>
           Allow
         </button>
       </div>

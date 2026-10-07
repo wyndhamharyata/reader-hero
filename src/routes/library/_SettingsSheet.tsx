@@ -128,7 +128,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <h2 className="text-lg font-semibold">Settings</h2>
 
-        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
           <section>
             <p className={heading}>Provider</p>
             <select
@@ -173,7 +173,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
                 Test
               </button>
             </div>
-            <p className="mt-1 min-h-5 text-xs opacity-70">
+            <p className="mt-1 min-h-5 text-sm opacity-70 md:text-xs">
               {test.state === "testing" && "Testing…"}
               {test.state === "valid" &&
                 (test.balance === null ? "Valid" : `Valid · balance ${test.balance}`)}
@@ -222,32 +222,32 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
                 </option>
               ))}
             </select>
-            <p className="mt-2 text-xs opacity-60">
+            <p className="mt-2 text-sm opacity-60 md:text-xs">
               Higher levels add seconds before the first word.
             </p>
           </section>
 
           <section className="mt-4">
             <p className={heading}>Summary</p>
-            <label className="flex items-center justify-between gap-3 py-2 text-sm">
+            <label className="flex items-center justify-between gap-3 py-2 text-base md:text-sm">
               <span>Summaries in Contents</span>
               <input
                 type="checkbox"
-                className="toggle toggle-sm"
+                className="toggle md:toggle-sm"
                 checked={linesInContents}
                 onChange={(event) => setLinesInContents(event.target.checked)}
               />
             </label>
-            <label className="flex items-center justify-between gap-3 py-2 text-sm">
+            <label className="flex items-center justify-between gap-3 py-2 text-base md:text-sm">
               <span>Automatic summary</span>
               <input
                 type="checkbox"
-                className="toggle toggle-sm"
+                className="toggle md:toggle-sm"
                 checked={autoSummary}
                 onChange={(event) => setAutoSummary(event.target.checked)}
               />
             </label>
-            <p className="text-xs opacity-60">
+            <p className="text-sm opacity-60 md:text-xs">
               Automatic summary sends each chapter when it is read, with no tap.
             </p>
           </section>

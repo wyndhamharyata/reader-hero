@@ -95,7 +95,7 @@ export function MenuSheet({
                 {lines.get(entry.blockIndex) !== undefined && (
                   <button
                     type="button"
-                    className="mb-1 w-full rounded-field px-2 pb-2 text-left text-sm opacity-70 hover:bg-base-200"
+                    className="mb-1 w-full rounded-field px-2 pb-2 text-left text-base opacity-70 hover:bg-base-200 md:text-sm"
                     onClick={() => dismiss(() => onLine(entry.blockIndex))}
                   >
                     <span className="line-clamp-2 block">{lines.get(entry.blockIndex)}</span>
@@ -146,7 +146,7 @@ export function MenuSheet({
             {!summaryRunning && <span className="opacity-60">›</span>}
           </button>
           {summaryRunning && (
-            <button type="button" className="btn mr-2 btn-ghost btn-sm" onClick={onStopSummary}>
+            <button type="button" className="btn mr-2 btn-ghost md:btn-sm" onClick={onStopSummary}>
               Stop
             </button>
           )}
