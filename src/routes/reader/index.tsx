@@ -62,7 +62,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [position, setPosition] = useState(0);
+  const [reported, setReported] = useState<number | null>(null);
   // The summary follows the furthest block, so going back over earlier pages asks for nothing.
   const [furthest, setFurthest] = useState(0);
   const furthestRef = useRef(0);
@@ -104,6 +104,8 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   }, [bookId, reload]);
 
   const data = state.status === "done" ? state.value : null;
+  // The saved place until a view reports one, so the original view opens at the saved page.
+  const position = reported ?? data?.progress?.blockIndex ?? 0;
   useEffect(() => {
     const stored = data?.progress;
     if (stored === undefined || stored === null) return;
@@ -352,7 +354,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   // Stable, or every position change rebuilds the reader's observer over every block.
   const onPosition = useCallback(
     (blockIndex: number) => {
-      setPosition(blockIndex);
+      setReported(blockIndex);
       if (blockIndex > furthestRef.current) {
         furthestRef.current = blockIndex;
         setFurthest(blockIndex);
