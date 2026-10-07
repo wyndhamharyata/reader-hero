@@ -341,6 +341,7 @@ export function ReaderRoute() {
           list={chapterList}
           cover={cover}
           settings={ai}
+          reading={bookSettings}
           state={{ summary, run, error: summaryError }}
           guessed={prefs.kind === undefined}
           onKind={(next) => savePrefs({ kind: next })}
