@@ -31,6 +31,11 @@ export function startServer(port) {
       response.end(`navDelay=${navDelay}`);
       return;
     }
+    if (url.pathname === "/__bench/bench.epub") {
+      response.writeHead(200, { "content-type": "application/epub+zip", "cache-control": "no-store" });
+      response.end(await readFile(join(benchDir, "bench.epub")));
+      return;
+    }
     if (url.pathname === "/__bench/bench.pdf") {
       response.writeHead(200, { "content-type": "application/pdf", "cache-control": "no-store" });
       response.end(await readFile(join(benchDir, "bench.pdf")));

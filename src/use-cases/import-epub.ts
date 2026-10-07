@@ -1,6 +1,6 @@
 import { Effect, Exit, Option, Stream } from "effect";
 import { unzipSync, type Unzipped } from "fflate";
-import { BookMeta } from "@/domain/book";
+import { Block, BookMeta, ParsedBook } from "@/domain/book";
 import { EpubFailure, StorageFailure } from "@/domain/errors";
 import { parseEpub, type EpubBook } from "@/lib/epub/parse";
 import { newId } from "@/lib/id";
@@ -33,6 +33,7 @@ export function buildEpub(
 
     const decode = (blob: Blob): Effect.Effect<Option.Option<ImageBitmap>> =>
       Effect.tryPromise(() => createImageBitmap(blob)).pipe(Effect.option);
+    const ratios = new Map<string, number>();
     yield* Stream.fromIterable(book.images.entries()).pipe(
       Stream.mapEffect(([index, image]) =>
         Effect.gen(function* () {
@@ -46,6 +47,7 @@ export function buildEpub(
             onSome: (value) => ({ width: value.width, height: value.height }),
           });
           Option.map(bitmap, (value) => value.close());
+          if (size.height > 0) ratios.set(image.id, size.width / size.height);
           yield* store.putImage(bookId, { id: image.id, blob, ...size });
           onProgress({ page: index + 1, total: book.images.length, step: "Image" });
         }),
@@ -81,7 +83,13 @@ export function buildEpub(
       }
     }
 
-    return book;
+    // Each illustration's block carries its shape, so its placeholder has the final size before
+    // the image loads and nothing above the reading position grows on a resume.
+    const blocks = book.parsed.blocks.map((block) => {
+      const ratio = block.imageId === undefined ? undefined : ratios.get(block.imageId);
+      return ratio === undefined ? block : new Block({ ...block, ratio });
+    });
+    return { ...book, parsed: new ParsedBook({ ...book.parsed, blocks }) };
   });
 }
 

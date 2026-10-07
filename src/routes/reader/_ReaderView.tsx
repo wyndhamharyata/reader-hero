@@ -212,10 +212,12 @@ export const ReaderView = memo(function ReaderView({
   // Justified lines without hyphenation leave wide gaps between words.
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
 
+  // The engine's own scroll anchoring is off: the resize handler above keeps the top block in
+  // place, and with both active a figure loading above the position moves the view twice.
   return (
     <div
       ref={containerRef}
-      className="h-full overflow-y-auto overscroll-contain"
+      className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
       onClick={handleClick}
     >
       {fontReady && (
