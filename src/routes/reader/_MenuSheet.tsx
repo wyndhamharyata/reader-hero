@@ -44,7 +44,9 @@ export function MenuSheet({
   onSettingsChange,
   onClose,
 }: Props): ReactElement | null {
-  // Text settings starts open in the desktop sidebar and collapsed on phones.
+  // Text settings, Summary, then Contents taking the rest, so a thumb at the bottom of a phone
+  // lands on chapters; the mode and Close row sits under them on a phone and under the header on
+  // desktop. Text settings starts open in the desktop sidebar and collapsed on phones.
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
@@ -58,8 +60,7 @@ export function MenuSheet({
     else dismiss(then);
   };
 
-  // The panel opens upward on phones (sheet anchored at the bottom), so the chevron flips there.
-  const chevronTurn = textOpen ? "md:rotate-180" : "max-md:rotate-180";
+  const chevronTurn = textOpen ? "rotate-180" : "";
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:flex-row">
@@ -83,7 +84,53 @@ export function MenuSheet({
           </button>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col md:order-4 md:mt-4">
+        <section className="mt-3 flex shrink-0 flex-col rounded-box bg-base-300 md:order-3">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
+            aria-expanded={textOpen}
+            onClick={() => setTextOpen(!textOpen)}
+          >
+            <AdjustmentsIcon className="size-6 md:size-4" />
+            <span className="flex-1 text-left">Text settings</span>
+            <ChevronDownIcon className={`size-6 transition-transform md:size-4 ${chevronTurn}`} />
+          </button>
+
+          {/* Rows animate between 0fr and 1fr, so the panel grows to its own height. */}
+          <div
+            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${textOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+            inert={!textOpen}
+          >
+            <div className="min-h-0 overflow-hidden">
+              {/* Capped so the open panel never pushes the buttons below it off the sheet. */}
+              <div className="max-h-[40dvh] overflow-y-auto overscroll-contain md:max-h-[60dvh]">
+                <TextSettings settings={settings} onChange={onSettingsChange} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300 md:order-4">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
+            onClick={() => keepOpen(onSummary)}
+          >
+            <DocumentTextIcon className="size-6 md:size-4" />
+            <span className="shrink-0 text-left">Summary</span>
+            <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
+              {summary}
+            </span>
+            {!summaryRunning && <span className="opacity-60">›</span>}
+          </button>
+          {summaryRunning && (
+            <button type="button" className="btn mr-2 btn-ghost md:btn-sm" onClick={onStopSummary}>
+              Stop
+            </button>
+          )}
+        </section>
+
+        <div className="mt-4 flex min-h-0 flex-1 flex-col md:order-5">
           <h3 className="text-sm font-semibold">Contents</h3>
           <ul className="-mx-4 mt-1 flex min-h-0 flex-1 flex-col divide-y divide-base-300 overflow-y-auto overscroll-contain">
             {toc.length === 0 && (
@@ -111,53 +158,6 @@ export function MenuSheet({
             ))}
           </ul>
         </div>
-
-        <section className="mt-4 flex shrink-0 flex-col-reverse rounded-box bg-base-300 md:order-3 md:mt-3 md:flex-col">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
-            aria-expanded={textOpen}
-            onClick={() => setTextOpen(!textOpen)}
-          >
-            <AdjustmentsIcon className="size-6 md:size-4" />
-            <span className="flex-1 text-left">Text settings</span>
-            <ChevronDownIcon className={`size-6 transition-transform md:size-4 ${chevronTurn}`} />
-          </button>
-
-          {/* Rows animate between 0fr and 1fr, so the panel grows to its own height. */}
-          <div
-            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${textOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-            inert={!textOpen}
-          >
-            <div className="min-h-0 overflow-hidden">
-              {/* Capped so the open panel never pushes the buttons below it off the sheet. */}
-              <div className="max-h-[40dvh] overflow-y-auto overscroll-contain md:max-h-[60dvh]">
-                <TextSettings settings={settings} onChange={onSettingsChange} />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300 md:order-3">
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
-            onClick={() => keepOpen(onSummary)}
-          >
-            <DocumentTextIcon className="size-6 md:size-4" />
-            <span className="shrink-0 text-left">Summary</span>
-            <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
-              {summary}
-            </span>
-            {!summaryRunning && <span className="opacity-60">›</span>}
-          </button>
-          {summaryRunning && (
-            <button type="button" className="btn mr-2 btn-ghost md:btn-sm" onClick={onStopSummary}>
-              Stop
-            </button>
-          )}
-        </section>
-
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
           {onToggleMode !== undefined && (
             <button
