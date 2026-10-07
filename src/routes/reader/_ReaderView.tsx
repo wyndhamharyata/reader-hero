@@ -130,7 +130,10 @@ export const ReaderView = memo(function ReaderView({
       if (node !== undefined && nodeTop !== undefined) {
         anchorRef.current = { element: node, offset: nodeTop - top };
       }
-      const index = indexAt(top + container.clientHeight / 2);
+      // The position is the top block: a resume puts the saved block at the top, so it shows the
+      // same screen. At the end of the book it is the last block, so the shelf can mark it finished.
+      const atEnd = top + container.clientHeight >= container.scrollHeight - 2;
+      const index = atEnd ? nodes.length - 1 : topIndex;
       if (index !== positionRef.current) {
         positionRef.current = index;
         onPosition(index);
