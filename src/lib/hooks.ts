@@ -189,9 +189,9 @@ export function useSummary(bookId: string): SummaryState & {
   readonly start: (input: SummaryInput, settings: AiSettings) => void;
   readonly stop: () => void;
   readonly discard: () => void;
-  readonly addName: (name: string) => void;
-  // A new name and note for the entry at `index`, or null to remove it; both survive the next merge.
-  readonly editName: (index: number, next: { name: string; note: string } | null) => void;
+  readonly addName: (entry: { name: string; note: string; chapter: number }) => void;
+  // A new name and note for the entry called `name`, or null to remove it; both survive the next merge.
+  readonly editName: (name: string, next: { name: string; note: string } | null) => void;
 } {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [job, setJob] = useState<JobState>({ run: null, error: null });
@@ -237,38 +237,54 @@ export function useSummary(bookId: string): SummaryState & {
     );
   }, [bookId]);
   const addName = useCallback(
-    (name: string) => {
+    (entry: { name: string; note: string; chapter: number }) => {
+      const key = entry.name.toLowerCase();
       forkApp(
         Effect.flatMap(SummaryStore, (store) =>
-          store.update(bookId, (current) =>
-            current === null
-              ? null
-              : new Summary({ ...current, required: [...current.required, name] }),
-          ),
+          store.update(bookId, (current) => {
+            if (current === null) return null;
+            const removed = current.removed.filter((name) => name.trim().toLowerCase() !== key);
+            // With no note the next merge writes one; with a note the entry is the reader's now.
+            if (entry.note === "") {
+              return new Summary({
+                ...current,
+                removed,
+                required: [...current.required, entry.name],
+              });
+            }
+            return new Summary({
+              ...current,
+              removed,
+              names: [
+                ...current.names.filter((candidate) => candidate.name.trim().toLowerCase() !== key),
+                { ...entry, edited: true },
+              ],
+            });
+          }),
         ),
       );
     },
     [bookId],
   );
 
+  // By name, not position: a merge that lands while the entry is open reorders the list.
   const editName = useCallback(
-    (index: number, next: { name: string; note: string } | null) => {
+    (name: string, next: { name: string; note: string } | null) => {
       forkApp(
         Effect.flatMap(SummaryStore, (store) =>
           store.update(bookId, (current) => {
-            const entry = current?.names[index];
-            if (current === null || entry === undefined) return null;
+            if (current === null) return null;
             if (next === null) {
               return new Summary({
                 ...current,
-                names: current.names.filter((_, at) => at !== index),
-                removed: [...current.removed, entry.name],
+                names: current.names.filter((entry) => entry.name !== name),
+                removed: [...current.removed, name],
               });
             }
             return new Summary({
               ...current,
-              names: current.names.map((candidate, at) =>
-                at === index ? { ...candidate, ...next, edited: true } : candidate,
+              names: current.names.map((entry) =>
+                entry.name === name ? { ...entry, ...next, edited: true } : entry,
               ),
             });
           }),

@@ -156,7 +156,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
         >
           <div
             ref={track}
-            className="flex h-full ease-out motion-safe:transition-transform motion-safe:duration-200"
+            className="flex h-full ease-out will-change-transform motion-safe:transition-transform motion-safe:duration-200"
             style={{ transform: `translateX(${tab === "theme" ? 0 : -100}%)` }}
           >
             <div

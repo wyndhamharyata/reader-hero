@@ -22,6 +22,7 @@ import {
   type SummaryInput,
 } from "@/use-cases/summary";
 import { ConsentNote } from "./_ConsentNote";
+import { NameSheet } from "./_NameSheet";
 
 interface Props {
   input: SummaryInput;
@@ -38,8 +39,8 @@ interface Props {
   onStart: () => void;
   onStop: () => void;
   onDiscard: () => void;
-  onAddName: (name: string) => void;
-  onEditName: (index: number, next: { name: string; note: string } | null) => void;
+  onAddName: (entry: { name: string; note: string; chapter: number }) => void;
+  onEditName: (name: string, next: { name: string; note: string } | null) => void;
   onConsent: () => void;
   onClose: () => void;
 }
@@ -76,10 +77,10 @@ export function SummarySheet({
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [editing, setEditing] = useState<{ index: number; name: string; note: string } | null>(
-    null,
-  );
+  // The entry open in its own sheet; `entry` is null for a new one.
+  const [nameSheet, setNameSheet] = useState<{
+    entry: { name: string; note: string } | null;
+  } | null>(null);
   const body = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
@@ -90,10 +91,10 @@ export function SummarySheet({
   const { summary, run, error } = state;
   const story = input.kind === "story";
   const { row, action } = describeSummary(summary, cover, run, input.kind);
-  // A story hides the names from after the position, so the list gives nothing away.
-  const names = (summary?.names ?? [])
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => !story || entry.chapter <= cover.target);
+  // A story hides the names from after the position, so the list gives nothing away; the reader's own show.
+  const names = (summary?.names ?? []).filter(
+    (entry) => !story || entry.edited === true || entry.chapter <= cover.target,
+  );
   const unit = story ? "chapter" : "section";
   const namesLabel = story ? "Characters" : "Terms";
   const chapterCount = summary?.chapters.length ?? 0;
@@ -171,7 +172,7 @@ export function SummarySheet({
               ? []
               : [`${stored.heading} · current position\n${stored.text}`]),
           ].join("\n\n")
-        : names.map(({ entry }) => `${entry.name}: ${entry.note}`).join("\n");
+        : names.map((entry) => `${entry.name}: ${entry.note}`).join("\n");
     void navigator.clipboard.writeText(copied);
   };
 
@@ -220,8 +221,8 @@ export function SummarySheet({
         >
           <div
             ref={track}
-            // On desktop the dialog takes the reader's line width, in the same font.
-            className="flex h-full ease-out motion-safe:transition-transform motion-safe:duration-200 md:w-(--text-width)"
+            // The reader's font, and its line width on desktop; its own layer, so a swipe does not repaint.
+            className="flex h-full ease-out will-change-transform motion-safe:transition-transform motion-safe:duration-200 md:w-(--text-width)"
             data-font={reading.font}
             style={
               {
@@ -300,116 +301,40 @@ export function SummarySheet({
                 <p className="px-4 opacity-70">No {namesLabel.toLowerCase()}</p>
               )}
               <ul className="flex flex-col">
-                {names.map(({ entry, index }) =>
-                  editing !== null && editing.index === index ? (
-                    <li key={index} className="px-4 py-2">
-                      <form
-                        className="flex flex-col gap-2 font-sans"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          if (editing.name.trim() === "") return;
-                          onEditName(index, {
-                            name: editing.name.trim(),
-                            note: editing.note.trim(),
-                          });
-                          setEditing(null);
-                        }}
-                      >
-                        <input
-                          type="text"
-                          className={field}
-                          aria-label="Name"
-                          value={editing.name}
-                          onChange={(event) => setEditing({ ...editing, name: event.target.value })}
-                        />
-                        <input
-                          type="text"
-                          className={field}
-                          aria-label="Note"
-                          value={editing.note}
-                          onChange={(event) => setEditing({ ...editing, note: event.target.value })}
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            className={`${button} btn-ghost text-error`}
-                            onClick={() => {
-                              onEditName(index, null);
-                              setEditing(null);
-                            }}
-                          >
-                            Remove
-                          </button>
-                          <button
-                            type="button"
-                            className={`${button} btn-ghost`}
-                            onClick={() => setEditing(null)}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="submit"
-                            className={`${button} btn-primary`}
-                            disabled={editing.name.trim() === ""}
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </form>
-                    </li>
-                  ) : (
-                    <li key={index} className="px-2">
-                      <button
-                        type="button"
-                        className="flex w-full items-center justify-between gap-3 rounded-field px-2 py-2 text-left hover:bg-base-300 disabled:opacity-50"
-                        aria-label={`Edit ${entry.name}`}
-                        disabled={run !== null}
-                        onClick={() => setEditing({ index, name: entry.name, note: entry.note })}
-                      >
-                        <span>
-                          <span className="font-medium">{entry.name}</span>{" "}
-                          <span className="text-[0.75em] opacity-60">
-                            {summary?.chapters[entry.chapter - 1]?.heading}
-                          </span>
-                          <br />
-                          {entry.note}
+                {names.map((entry, index) => (
+                  <li key={index} className="px-2">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-field px-2 py-2 text-left hover:bg-base-300"
+                      aria-label={`Edit ${entry.name}`}
+                      onClick={() =>
+                        setNameSheet({ entry: { name: entry.name, note: entry.note } })
+                      }
+                    >
+                      <span>
+                        <span className="font-medium">{entry.name}</span>{" "}
+                        <span className="text-[0.75em] opacity-60">
+                          {list[entry.chapter - 1]?.heading}
                         </span>
-                        <PencilIcon className="size-5 shrink-0 opacity-60 md:size-4" />
-                      </button>
-                    </li>
-                  ),
-                )}
+                        <br />
+                        {entry.note}
+                      </span>
+                      <PencilIcon className="size-5 shrink-0 opacity-60 md:size-4" />
+                    </button>
+                  </li>
+                ))}
               </ul>
               {summary !== null && (
-                <form
-                  className="mt-3 flex gap-2 px-4 pb-1 font-sans"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    const trimmed = name.trim();
-                    if (trimmed === "") return;
-                    onAddName(trimmed);
-                    setName("");
-                  }}
-                >
-                  <input
-                    type="text"
-                    className={field}
-                    placeholder={story ? "Add name" : "Add term"}
-                    aria-label={story ? "Add name" : "Add term"}
-                    value={name}
-                    disabled={run !== null}
-                    onChange={(event) => setName(event.target.value)}
-                  />
+                <div className="mt-1 px-2 pb-1 font-sans">
                   <button
-                    type="submit"
-                    className={`${button} btn-square`}
-                    aria-label="Add"
-                    title="Add"
-                    disabled={run !== null || name.trim() === ""}
+                    type="button"
+                    className="btn w-full justify-start btn-ghost px-2 md:btn-sm"
+                    onClick={() => setNameSheet({ entry: null })}
                   >
-                    <PlusIcon className="size-6 md:size-4" />
+                    <PlusIcon className="size-6 opacity-60 md:size-4" />
+                    {story ? "Add character" : "Add term"}
                   </button>
-                </form>
+                </div>
               )}
               {summary !== null && summary.required.length > 0 && (
                 <p className="mt-2 px-4 text-[0.75em] opacity-60">
@@ -570,6 +495,25 @@ export function SummarySheet({
           </>
         )}
       </aside>
+
+      {nameSheet !== null && (
+        <NameSheet
+          entry={nameSheet.entry}
+          story={story}
+          onSave={(next) => {
+            if (nameSheet.entry === null) {
+              // Tagged with the chapter being read, where the reader met the entry.
+              onAddName({ ...next, chapter: Math.max(1, Math.min(cover.target + 1, list.length)) });
+            } else {
+              onEditName(nameSheet.entry.name, next);
+            }
+          }}
+          onRemove={() => {
+            if (nameSheet.entry !== null) onEditName(nameSheet.entry.name, null);
+          }}
+          onClose={() => setNameSheet(null)}
+        />
+      )}
     </div>
   );
 }
