@@ -28,12 +28,19 @@ export const PdfPage = memo(function PdfPage({ doc, size, visible }: Props): Rea
       // Drops the bitmap and keeps the size, so the page frees its memory without a relayout.
       if (paintedRef.current) canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
       paintedRef.current = false;
+      delete canvas.dataset.painted;
       return;
     }
 
     paintedRef.current = true;
     const fiber = forkApp(
       renderPdfPage(doc, size.page, canvas, RENDER_SCALE).pipe(
+        // An opening book waits for this mark on its first page.
+        Effect.tap(() =>
+          Effect.sync(() => {
+            canvas.dataset.painted = "";
+          }),
+        ),
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
       ),
     );

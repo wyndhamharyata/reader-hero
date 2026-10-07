@@ -82,18 +82,38 @@ export function OriginalView({
     };
   }, []);
 
-  // A slide into the book waits for this first placement, or for the failure that takes its place.
   useEffect(() => {
-    if (failed) slideReady();
     if (didScroll.current || sizes.length === 0) return;
     const container = containerRef.current;
-    if (container === null) return;
+    const target = container?.querySelector<HTMLElement>(`[data-page="${initialPage}"]`) ?? null;
+    if (container === null || target === null) return;
     didScroll.current = true;
-    container
-      .querySelector<HTMLElement>(`[data-page="${initialPage}"]`)
-      ?.scrollIntoView({ block: "start" });
-    slideReady();
-  }, [sizes, initialPage, failed]);
+    // Not scrollIntoView: under the library while the book opens, it also scrolled the library.
+    container.scrollTop +=
+      target.getBoundingClientRect().top - container.getBoundingClientRect().top;
+  }, [sizes, initialPage]);
+
+  // An opening book shows once its page is placed and painted, or once it fails to open.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (failed) slideReady();
+    if (container === null || doc === null) return;
+    let active = true;
+    const wait = async (): Promise<void> => {
+      while (
+        !didScroll.current ||
+        container.querySelector(`[data-page="${initialPage}"] canvas:not([data-painted])`) !== null
+      ) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (!active) return;
+      }
+      slideReady();
+    };
+    void wait();
+    return () => {
+      active = false;
+    };
+  }, [doc, initialPage, failed]);
 
   // One observer for every page: which pages to paint (with a margin, so a page is ready before it
   // scrolls in) and which page is at the centre.

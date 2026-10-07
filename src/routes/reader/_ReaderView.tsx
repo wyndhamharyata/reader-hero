@@ -84,12 +84,43 @@ export const ReaderView = memo(function ReaderView({
     const container = containerRef.current;
     if (container === null || restoredRef.current || !fontReady) return;
     const target = container.querySelector<HTMLElement>(`[data-block="${initialBlock}"]`);
-    if (target !== null) {
-      restoredRef.current = true;
-      target.scrollIntoView({ block: "start" });
-    }
-    slideReady();
+    if (target === null) return;
+    restoredRef.current = true;
+    // Not scrollIntoView: under the library while the book opens, it also scrolled the library.
+    container.scrollTop +=
+      target.getBoundingClientRect().top - container.getBoundingClientRect().top;
   }, [initialBlock, fontReady]);
+
+  // An opening book shows once the images on its first screen are read and decoded, so none pops in.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container === null || !fontReady) return;
+    let active = true;
+    const box = container.getBoundingClientRect();
+    const wait = async (): Promise<void> => {
+      for (;;) {
+        const shown = Array.from(container.querySelectorAll("[data-pending], img")).filter(
+          (node) => {
+            const rect = node.getBoundingClientRect();
+            return rect.bottom > box.top && rect.top < box.bottom;
+          },
+        );
+        if (!shown.some((node) => node.hasAttribute("data-pending"))) {
+          await Promise.all(
+            shown.map((image) => (image as HTMLImageElement).decode().catch(() => undefined)),
+          );
+          break;
+        }
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        if (!active) return;
+      }
+      if (active) slideReady();
+    };
+    void wait();
+    return () => {
+      active = false;
+    };
+  }, [fontReady]);
 
   // One pass of layout reads per layout change; a scroll then does a binary search instead of a hit
   // test, and no observer watches every block (WebKit recomputes those on every frame).
