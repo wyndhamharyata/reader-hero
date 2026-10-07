@@ -12,6 +12,8 @@ export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
   text: Schema.String,
   page: Schema.Int,
   imageId: Schema.optional(Schema.String),
+  // Width over height of a figure, so its placeholder has the final size before the image loads.
+  ratio: Schema.optional(Schema.Number),
   // Character ranges of `text`; only EPUB blocks carry them, so a PDF block renders as plain text.
   marks: Schema.optional(
     Schema.Array(
@@ -43,12 +45,36 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
-// The figure job's resume point, kept apart from ParsedBook so each page can move it cheaply.
+// The figure job's finished pages, kept apart from ParsedBook so each page can move it cheaply.
+// `through` is the shape an earlier build wrote: every page up to it is finished.
 export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
   "reader-hero/domain/FigureCheckpoint",
 )({
-  through: Schema.Int,
+  through: Schema.optional(Schema.Int),
+  pages: Schema.optional(Schema.Array(Schema.Int)),
 }) {}
+
+// Each page's raw text, kept from the parse until the figure job has used it.
+export const StoredPages = Schema.Array(
+  Schema.Struct({
+    page: Schema.Int,
+    width: Schema.Number,
+    height: Schema.Number,
+    items: Schema.Array(
+      Schema.Struct({
+        str: Schema.String,
+        x: Schema.Number,
+        y: Schema.Number,
+        width: Schema.Number,
+        height: Schema.Number,
+        fontSize: Schema.Number,
+        fontFamily: Schema.String,
+        hasEOL: Schema.Boolean,
+      }),
+    ),
+  }),
+);
+export type StoredPages = typeof StoredPages.Type;
 
 export const FigureState = Schema.Literals(["none", "pending", "ready"]);
 export type FigureState = typeof FigureState.Type;

@@ -56,17 +56,15 @@ async function handleShare(request: Request): Promise<Response> {
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
+// The shell comes from the cache, so a launch never waits on a weak network. It is not refreshed
+// from the network: the shell must match this worker's precached assets, and a new build ships a
+// new worker that installs its own shell.
 async function handleNavigate(request: Request): Promise<Response> {
+  const cached = await caches.match(INDEX);
+  if (cached !== undefined) return cached;
   try {
-    const response = await fetch(request);
-    if (response.ok && !response.redirected) {
-      const cache = await caches.open(CACHE);
-      await cache.put(INDEX, response.clone());
-    }
-    return response;
+    return await fetch(request);
   } catch {
-    const cached = await caches.match(INDEX);
-    if (cached !== undefined) return cached;
     return new Response("Offline", { status: 503 });
   }
 }

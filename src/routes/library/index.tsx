@@ -13,6 +13,7 @@ import {
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { buildShelf, type FilterGroup, type Filters } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
+import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers } from "@/use-cases/book-image";
 import type { ParseProgress } from "@/use-cases/extract";
 import { importBooks } from "@/use-cases/import-books";
@@ -86,6 +87,18 @@ export function LibraryRoute(): ReactElement {
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
     return () => stopFiber(fiber);
   }, [bookIds]);
+
+  // With a PDF on the shelf and no figure job running, the page renderer loads its scripts now,
+  // after the launch work has settled, so the original view opens without that wait later.
+  const hasPdf = books.some((book) => book.format !== "epub");
+  const figuresBusy = books.some((book) => book.figuresPending);
+  useEffect(() => {
+    if (!hasPdf || figuresBusy) return;
+    const timer = window.setTimeout(() => {
+      void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [hasPdf, figuresBusy]);
 
   useEffect(() => {
     const program = importInboxOnce().pipe(

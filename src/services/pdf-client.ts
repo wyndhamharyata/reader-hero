@@ -46,7 +46,6 @@ const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
   });
 
 const IMAGE_RENDER_SCALE = 1.5;
-const MAX_RENDER_RATIO = 1.5;
 const IMAGE_LOOKUP_TIMEOUT = "15 seconds";
 const PAINT_CONCURRENCY = 2;
 const CROP_CONCURRENCY = 2;
@@ -73,87 +72,40 @@ const toJpegBlob = (canvas: HTMLCanvasElement): Effect.Effect<Blob | null, PdfFa
     catch: pdfFailure,
   });
 
-const clampView = (bytes: Uint8ClampedArray | Uint8Array): Uint8ClampedArray<ArrayBuffer> =>
-  bytes instanceof Uint8ClampedArray && bytes.buffer instanceof ArrayBuffer
-    ? new Uint8ClampedArray(bytes.buffer, bytes.byteOffset, bytes.length)
-    : Uint8ClampedArray.from(bytes);
+// One worker draws and encodes figures, so the thread that scrolls does none of that work.
+let encoder: Worker | null = null;
+let nextEncode = 0;
+const encodes = new Map<number, (blob: Blob | null) => void>();
 
-const pixelBytes = (value: unknown): Uint8ClampedArray | Uint8Array | undefined =>
-  value instanceof Uint8ClampedArray || value instanceof Uint8Array ? value : undefined;
-
-const toImageData = (
-  lib: PdfLib,
-  bytes: Uint8ClampedArray | Uint8Array,
-  kind: number | undefined,
-  width: number,
-  height: number,
-): ImageData | null => {
-  const expected = width * height * 4;
-  if (kind === lib.ImageKind.RGBA_32BPP && bytes.length === expected) {
-    return new ImageData(clampView(bytes), width, height);
-  }
-  if (kind === lib.ImageKind.RGB_24BPP) {
-    const rgba = new Uint8ClampedArray(expected);
-    let src = 0;
-    for (let dest = 0; dest < rgba.length; dest += 4) {
-      rgba[dest] = bytes[src] ?? 0;
-      rgba[dest + 1] = bytes[src + 1] ?? 0;
-      rgba[dest + 2] = bytes[src + 2] ?? 0;
-      rgba[dest + 3] = 255;
-      src += 3;
+const encodeInWorker = (
+  request: {
+    width: number;
+    height: number;
+    maxDim: number;
+    source: ImageBitmap | { bytes: Uint8ClampedArray; alpha: boolean };
+  },
+  transfer: Transferable[],
+): Effect.Effect<Blob | null> =>
+  Effect.callback((resume) => {
+    if (encoder === null) {
+      encoder = new Worker(new URL("../workers/encode-image.ts", import.meta.url), {
+        type: "module",
+      });
+      encoder.onmessage = (event: MessageEvent) => {
+        const reply = event.data as { id: number; blob: Blob | null };
+        encodes.get(reply.id)?.(reply.blob);
+        encodes.delete(reply.id);
+      };
+      encoder.onerror = () => {
+        for (const settle of encodes.values()) settle(null);
+        encodes.clear();
+      };
     }
-    return new ImageData(rgba, width, height);
-  }
-  return null;
-};
-
-const decodeToBitmap = (imageData: ImageData): Effect.Effect<ImageBitmap | null> =>
-  Effect.suspend(() =>
-    typeof createImageBitmap === "function"
-      ? Effect.tryPromise({
-          try: () => createImageBitmap(imageData),
-          catch: pdfFailure,
-        }).pipe(Effect.catchTag("PdfFailure", () => Effect.succeed(null)))
-      : Effect.succeed(null),
-  );
-
-const paintOnCanvas = (
-  lib: PdfLib,
-  context: CanvasRenderingContext2D,
-  image: typeof PdfImagePayload.Type,
-  width: number,
-  height: number,
-): Effect.Effect<boolean> =>
-  Effect.gen(function* () {
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, context.canvas.width, context.canvas.height);
-
-    const bitmap = image.bitmap;
-    if (bitmap instanceof ImageBitmap) {
-      context.drawImage(bitmap, 0, 0, context.canvas.width, context.canvas.height);
-      return true;
-    }
-
-    const bytes = pixelBytes(image.data);
-    if (bytes === undefined) return false;
-    const imageData = toImageData(lib, bytes, image.kind, width, height);
-    if (imageData === null) return false;
-
-    const decoded = yield* decodeToBitmap(imageData);
-    if (decoded !== null) {
-      context.drawImage(decoded, 0, 0, context.canvas.width, context.canvas.height);
-      decoded.close();
-      return true;
-    }
-
-    const native = document.createElement("canvas");
-    native.width = width;
-    native.height = height;
-    const nativeContext = native.getContext("2d");
-    if (nativeContext === null) return false;
-    nativeContext.putImageData(imageData, 0, 0);
-    context.drawImage(native, 0, 0, context.canvas.width, context.canvas.height);
-    return true;
+    const id = nextEncode;
+    nextEncode += 1;
+    encodes.set(id, (blob) => resume(Effect.succeed(blob)));
+    encoder.postMessage({ id, ...request }, transfer);
+    return Effect.sync(() => encodes.delete(id));
   });
 
 const encodeImage = (
@@ -169,17 +121,22 @@ const encodeImage = (
     const height = image.height;
     if (width <= 0 || height <= 0) return null;
 
-    const out = document.createElement("canvas");
-    const scale = Math.min(1, maxDim / Math.max(width, height));
-    out.width = Math.max(1, Math.round(width * scale));
-    out.height = Math.max(1, Math.round(height * scale));
-    const context = out.getContext("2d");
-    if (context === null) return null;
-
-    const painted = yield* paintOnCanvas(lib, context, image, width, height);
-    if (!painted) return null;
-
-    return yield* toJpegBlob(out);
+    // pdf.js keeps the original for later paints, so a copy goes to the worker; a transfer would detach it.
+    if (image.bitmap instanceof ImageBitmap) {
+      const copy = yield* Effect.tryPromise({
+        try: () => createImageBitmap(image.bitmap as ImageBitmap),
+        catch: pdfFailure,
+      });
+      return yield* encodeInWorker({ width, height, maxDim, source: copy }, [copy]);
+    }
+    const data = image.data;
+    if (!(data instanceof Uint8ClampedArray || data instanceof Uint8Array)) return null;
+    const alpha = image.kind === lib.ImageKind.RGBA_32BPP;
+    if (!alpha && image.kind !== lib.ImageKind.RGB_24BPP) return null;
+    const bytes = Uint8ClampedArray.from(data);
+    return yield* encodeInWorker({ width, height, maxDim, source: { bytes, alpha } }, [
+      bytes.buffer,
+    ]);
   });
 
 const cropImage = (
@@ -332,18 +289,12 @@ export class PdfClient extends Context.Service<
       handle: PdfHandle,
       page: number,
     ): Effect.Effect<ReadonlyArray<PageImage>, PdfFailure>;
-    render(
-      handle: PdfHandle,
-      page: number,
-      canvas: HTMLCanvasElement,
-      scale: number,
-    ): Effect.Effect<void, PdfFailure>;
     thumbnail(
       handle: PdfHandle,
       page: number,
       width: number,
     ): Effect.Effect<Omit<StoredImage, "id"> | null, PdfFailure>;
-    pageSizes(handle: PdfHandle): Effect.Effect<ReadonlyArray<PageSize>, PdfFailure>;
+    pageSize(handle: PdfHandle, page: number): Effect.Effect<PageSize, PdfFailure>;
     readOutline(handle: PdfHandle): Effect.Effect<ReadonlyArray<OutlineItem>, PdfFailure>;
     release(handle: PdfHandle): Effect.Effect<void>;
     pageCount(handle: PdfHandle): number;
@@ -431,30 +382,6 @@ export class PdfClient extends Context.Service<
         return images;
       }),
 
-      render: Effect.fn("PdfClient.render")(function* (
-        handle: PdfHandle,
-        page: number,
-        canvas: HTMLCanvasElement,
-        scale: number,
-      ) {
-        const pageProxy = yield* Effect.tryPromise({
-          try: () => handle.proxy.getPage(page),
-          catch: pdfFailure,
-        });
-        const context = canvas.getContext("2d");
-        if (context === null) {
-          return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
-        }
-        const ratio = Math.min(MAX_RENDER_RATIO, globalThis.devicePixelRatio || 1);
-        const viewport = pageProxy.getViewport({ scale: scale * ratio });
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        yield* Effect.tryPromise({
-          try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
-          catch: pdfFailure,
-        });
-      }),
-
       thumbnail: Effect.fn("PdfClient.thumbnail")(function* (
         handle: PdfHandle,
         page: number,
@@ -475,7 +402,11 @@ export class PdfClient extends Context.Service<
           return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
         }
         yield* Effect.tryPromise({
-          try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
+          try: (signal) => {
+            const task = pageProxy.render({ canvas, canvasContext: context, viewport });
+            signal.addEventListener("abort", () => task.cancel());
+            return task.promise;
+          },
           catch: pdfFailure,
         });
         const blob = yield* toJpegBlob(canvas);
@@ -485,26 +416,13 @@ export class PdfClient extends Context.Service<
         yield* cleanupPage(pageProxy);
         return blob === null ? null : { blob, ...size };
       }),
-      pageSizes: Effect.fn("PdfClient.pageSizes")(function* (handle: PdfHandle) {
-        const pages = Array.from({ length: handle.numPages }, (_, index) => index + 1);
-        const sizes = yield* Effect.forEach(
-          pages,
-          (page) =>
-            Effect.gen(function* () {
-              const pageProxy = yield* Effect.tryPromise({
-                try: () => handle.proxy.getPage(page),
-                catch: pdfFailure,
-              });
-              const viewport = pageProxy.getViewport({ scale: 1 });
-              return { page, width: viewport.width, height: viewport.height };
-            }).pipe(Effect.option),
-          { concurrency: 8 },
-        );
-        const readable: PageSize[] = [];
-        for (const size of sizes) {
-          if (size._tag === "Some") readable.push(size.value);
-        }
-        return readable;
+      pageSize: Effect.fn("PdfClient.pageSize")(function* (handle: PdfHandle, page: number) {
+        const pageProxy = yield* Effect.tryPromise({
+          try: () => handle.proxy.getPage(page),
+          catch: pdfFailure,
+        });
+        const viewport = pageProxy.getViewport({ scale: 1 });
+        return { page, width: viewport.width, height: viewport.height };
       }),
 
       readOutline: Effect.fn("PdfClient.readOutline")(function* (handle: PdfHandle) {

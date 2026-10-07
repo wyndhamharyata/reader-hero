@@ -19,7 +19,11 @@
     "dev:worker": "wrangler dev --config wrangler.jsonc",
     "deploy:dev": "npm run build && sst deploy --stage dev",
     "deploy:prod": "npm run build && sst deploy --stage production",
-    "review": "node scripts/review.mjs"
+    "review": "node scripts/review.mjs",
+    "bench": "node scripts/bench/bench.mjs",
+    "bench:compare": "node scripts/bench/compare.mjs",
+    "bench:probe": "node scripts/bench/probe-original.mjs",
+    "bench:serve": "node scripts/bench/serve.mjs"
   },
   "dependencies": {
     "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
@@ -45,6 +49,7 @@
     "daisyui": "^5.7.47",
     "eslint": "^10.12.0",
     "jsdom": "^30.1.2",
+    "playwright": "^1.63.0",
     "prettier": "^3.9.9",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "sharp": "^0.35.5",

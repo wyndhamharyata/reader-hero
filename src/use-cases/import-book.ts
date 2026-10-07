@@ -103,6 +103,13 @@ export function addBook(
         );
         const result = yield* assembleExtract(handle, pages);
         yield* store.putParsed(id, result.parsed);
+        // The figure job reuses this text instead of reading every page again.
+        if (!result.scanned) {
+          yield* store.putPages(
+            id,
+            pages.map((read) => read.text),
+          );
+        }
 
         const ready = new BookMeta({
           ...meta,

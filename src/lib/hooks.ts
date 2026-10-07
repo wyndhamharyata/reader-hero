@@ -25,19 +25,19 @@ export function stopFiber(fiber: Job): void {
   runtime.runFork(Fiber.interrupt(fiber));
 }
 
-export function useFigureJobs(books: ReadonlyArray<BookMeta>): void {
+export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): void {
   const jobs = useRef(new Map<string, Job>());
 
   useEffect(() => {
     for (const book of books) {
       if (!book.figuresPending || jobs.current.has(book.id)) continue;
       const bookId = book.id;
-      const job = renderFigures(bookId).pipe(
+      const job = renderFigures(bookId, startPage).pipe(
         Effect.ensuring(Effect.sync(() => jobs.current.delete(bookId))),
       );
       jobs.current.set(bookId, forkApp(job));
     }
-  }, [books]);
+  }, [books, startPage]);
 
   useEffect(
     () => () => {

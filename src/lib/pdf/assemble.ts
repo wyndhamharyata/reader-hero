@@ -73,6 +73,7 @@ export function assembleBook(
           text: raw.text,
           page: raw.page,
           imageId: raw.imageId,
+          ratio: raw.ratio,
         }),
     );
 

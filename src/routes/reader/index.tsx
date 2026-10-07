@@ -7,6 +7,7 @@ import { formatPercent } from "@/lib/format";
 import { guessMode } from "@/lib/guess-mode";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
+import { PageRenderer } from "@/services/page-renderer";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { MenuSheet } from "./_MenuSheet";
@@ -23,12 +24,16 @@ export function ReaderRoute() {
   const { state, reload } = useAppEffect(
     Effect.gen(function* () {
       const store = yield* BookStore;
-      const meta = yield* store.get(bookId);
-      const parsed = yield* store.getParsed(bookId);
-      const progress = yield* store.getProgress(bookId);
-      const prefs = yield* store
-        .getPrefs(bookId)
-        .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
+      // Four independent reads, so the open waits for the slowest one instead of the sum.
+      const [meta, parsed, progress, prefs] = yield* Effect.all(
+        [
+          store.get(bookId),
+          store.getParsed(bookId),
+          store.getProgress(bookId),
+          store.getPrefs(bookId).pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null))),
+        ],
+        { concurrency: "unbounded" },
+      );
       return { meta, parsed, progress, prefs };
     }),
     [bookId],
@@ -67,7 +72,9 @@ export function ReaderRoute() {
 
   const data = state.status === "done" ? state.value : null;
   const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
-  useFigureJobs(pendingBooks);
+  // The figure job starts at the page being read, so its figures land first.
+  const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
+  useFigureJobs(pendingBooks, startPage);
 
   // The book's saved choices, with this visit's changes on top until a reload reads them back.
   const prefs = useMemo<Partial<BookPrefs>>(
@@ -94,6 +101,12 @@ export function ReaderRoute() {
   );
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
+
+  // A PDF may switch to the original view, so its page renderer loads its scripts now.
+  useEffect(() => {
+    if (data === null || epub) return;
+    void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
+  }, [data, epub]);
   const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.

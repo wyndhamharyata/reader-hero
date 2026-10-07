@@ -49,8 +49,13 @@ function parseBook(
     const result = yield* assembleExtract(handle, pages);
 
     yield* store.putParsed(id, result.parsed);
+    // The figure job reuses this text instead of reading every page again.
+    yield* store.putPages(
+      id,
+      pages.map((read) => read.text),
+    );
     // A rebuilt book gets its figures again from page 1.
-    yield* store.putFigureCheckpoint(id, 0);
+    yield* store.putFigureCheckpoint(id, []);
 
     const next = new BookMeta({
       ...stored,

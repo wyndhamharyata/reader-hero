@@ -7,7 +7,11 @@ const HEADING_LEVELS: ReadonlyArray<{ readonly ratio: number; readonly level: nu
 ];
 
 const endsSentence = (text: string): boolean => /[.!?:;]["')\]]?$/.test(text);
-const endsHyphen = (text: string): boolean => /[a-z]-$/.test(text);
+// Runs on the whole paragraph so far, so it must not scan it: a regex here made long paragraphs quadratic.
+const endsHyphen = (text: string): boolean => {
+  const before = text.charAt(text.length - 2);
+  return text.endsWith("-") && before >= "a" && before <= "z";
+};
 
 function headingLevel(line: TextLine, bodySize: number): number {
   if (bodySize <= 0) return 0;
@@ -62,6 +66,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
         text: "",
         page: item.image.page,
         imageId: item.image.id,
+        ratio: item.image.height > 0 ? item.image.width / item.image.height : undefined,
       });
       previous = null;
       continue;

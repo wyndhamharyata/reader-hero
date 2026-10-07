@@ -21,5 +21,5 @@
     }
   },
   "include": ["src", "tests"],
-  "exclude": ["src/worker", "src/sw.ts"]
+  "exclude": ["src/worker", "src/workers", "src/sw.ts"]
 }

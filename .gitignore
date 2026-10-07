@@ -14,3 +14,6 @@ logs/
 public/worker/
 public/wasm/
 public/icc/
+
+# Benchmark PDF, results and logs from scripts/bench
+.bench/

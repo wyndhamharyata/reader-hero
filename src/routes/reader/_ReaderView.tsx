@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, type CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
@@ -32,6 +32,12 @@ function blockClass(block: Block): string {
 
 const VIEWPORT_FRACTION = 0.9;
 
+const fontFamily = {
+  serif: "Literata Variable",
+  sans: "Atkinson Hyperlegible Next Variable",
+  mono: "Atkinson Hyperlegible Mono Variable",
+};
+
 // Memoised so the parent's per-position renders do not re-map every block of the book.
 export const ReaderView = memo(function ReaderView({
   bookId,
@@ -44,49 +50,113 @@ export const ReaderView = memo(function ReaderView({
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const articleRef = useRef<HTMLElement>(null);
+  // Every block's top edge in content coordinates, read once per layout change.
+  const blocksRef = useRef<{ nodes: HTMLElement[]; tops: number[] }>({ nodes: [], tops: [] });
   const anchorRef = useRef<{ element: Element; offset: number } | null>(null);
+  const positionRef = useRef(-1);
   const restoredRef = useRef(false);
+
+  // The text waits for its font: painted in the fallback font first, it reflows when the real one
+  // arrives, and WebKit has no scroll anchoring to hold the restored position through that.
+  const fontSpec = `1em "${fontFamily[settings.font]}"`;
+  const [fontReady, setFontReady] = useState(() => document.fonts.check(fontSpec));
+  useEffect(() => {
+    if (fontReady || document.fonts.check(fontSpec)) {
+      setFontReady(true);
+      return;
+    }
+    let active = true;
+    const show = (): void => {
+      if (active) setFontReady(true);
+    };
+    // A font that never loads must not hold the book back.
+    const timer = window.setTimeout(show, 1500);
+    void document.fonts.load(fontSpec).then(show, show);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [fontSpec, fontReady]);
 
   // Saved progress only places the first open; later reloads (figures landing) must not move the reader.
   useEffect(() => {
     const container = containerRef.current;
-    if (container === null || restoredRef.current) return;
+    if (container === null || restoredRef.current || !fontReady) return;
+    const target = container.querySelector<HTMLElement>(`[data-block="${initialBlock}"]`);
+    if (target === null) return;
     restoredRef.current = true;
-    container
-      .querySelector<HTMLElement>(`[data-block="${initialBlock}"]`)
-      ?.scrollIntoView({ block: "start" });
-  }, [initialBlock]);
+    target.scrollIntoView({ block: "start" });
+  }, [initialBlock, fontReady]);
 
-  // Safari has no CSS scroll anchoring: hold the top block in place when content above it resizes.
+  // One pass of layout reads per layout change; a scroll then does a binary search instead of a hit
+  // test, and no observer watches every block (WebKit recomputes those on every frame).
   useEffect(() => {
     const container = containerRef.current;
     const article = articleRef.current;
-    if (container === null || article === null) return;
+    if (container === null || article === null || !fontReady) return;
 
     const measure = (): void => {
-      const box = container.getBoundingClientRect();
-      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 8);
-      const element = hit?.closest("[data-block]");
-      if (element === null || element === undefined || !container.contains(element)) return;
-      anchorRef.current = { element, offset: element.getBoundingClientRect().top - box.top };
+      const nodes = Array.from(container.querySelectorAll<HTMLElement>("[data-block]"));
+      const base = container.getBoundingClientRect().top - container.scrollTop;
+      blocksRef.current = {
+        nodes,
+        tops: nodes.map((node) => node.getBoundingClientRect().top - base),
+      };
     };
+    // The last block that starts at or above `y`.
+    const indexAt = (y: number): number => {
+      const tops = blocksRef.current.tops;
+      let low = 0;
+      let high = tops.length - 1;
+      let found = 0;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if ((tops[mid] ?? 0) <= y) {
+          found = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      return found;
+    };
+    const onScroll = (): void => {
+      const { nodes, tops } = blocksRef.current;
+      if (nodes.length === 0) return;
+      const top = container.scrollTop;
+      const topIndex = indexAt(top + 8);
+      const node = nodes[topIndex];
+      const nodeTop = tops[topIndex];
+      if (node !== undefined && nodeTop !== undefined) {
+        anchorRef.current = { element: node, offset: nodeTop - top };
+      }
+      const index = indexAt(top + container.clientHeight / 2);
+      if (index !== positionRef.current) {
+        positionRef.current = index;
+        onPosition(index);
+      }
+    };
+    // Safari has no CSS scroll anchoring: hold the top block in place when content above it resizes.
     const restore = (): void => {
       const anchor = anchorRef.current;
-      if (anchor === null || !anchor.element.isConnected) return;
-      const top =
-        anchor.element.getBoundingClientRect().top - container.getBoundingClientRect().top;
-      container.scrollTop += top - anchor.offset;
+      if (anchor !== null && anchor.element.isConnected) {
+        const top =
+          anchor.element.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        container.scrollTop += top - anchor.offset;
+      }
+      measure();
     };
 
     measure();
-    container.addEventListener("scroll", measure, { passive: true });
+    onScroll();
+    container.addEventListener("scroll", onScroll, { passive: true });
     const observer = new ResizeObserver(restore);
     observer.observe(article);
     return () => {
-      container.removeEventListener("scroll", measure);
+      container.removeEventListener("scroll", onScroll);
       observer.disconnect();
     };
-  }, []);
+  }, [parsed, fontReady, onPosition]);
 
   useEffect(() => {
     if (jump === null) return;
@@ -96,25 +166,6 @@ export const ReaderView = memo(function ReaderView({
       .querySelector<HTMLElement>(`[data-block="${jump.index}"]`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [jump]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (container === null) return;
-    const blocks = Array.from(container.querySelectorAll<HTMLElement>("[data-block]"));
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .map((entry) => Number(entry.target.getAttribute("data-block")));
-        if (visible.length > 0) onPosition(Math.min(...visible));
-      },
-      { root: container, rootMargin: "-45% 0px -45% 0px", threshold: 0 },
-    );
-
-    blocks.forEach((block) => observer.observe(block));
-    return () => observer.disconnect();
-  }, [parsed, onPosition]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("a, button") !== null) return;
@@ -145,7 +196,7 @@ export const ReaderView = memo(function ReaderView({
     seen.set(base, count + 1);
     const image =
       block.kind === "image" && imageId !== undefined ? (
-        <ReaderImage bookId={bookId} imageId={imageId} />
+        <ReaderImage bookId={bookId} imageId={imageId} ratio={block.ratio} />
       ) : null;
     return {
       index,
@@ -164,26 +215,28 @@ export const ReaderView = memo(function ReaderView({
       className="h-full overflow-y-auto overscroll-contain"
       onClick={handleClick}
     >
-      <article
-        ref={articleRef}
-        className="reader-body mx-auto max-w-prose px-4 pt-4 pb-[calc(1rem+var(--safe-bottom))] md:max-w-[var(--text-width)]"
-        data-font={settings.font}
-        style={
-          {
-            fontSize: `${settings.fontSize}px`,
-            lineHeight: settings.lineHeight,
-            textAlign: settings.textAlign,
-            hyphens,
-            "--text-width": `${settings.textWidth}ch`,
-          } as CSSProperties
-        }
-      >
-        {nodes.map((entry) => (
-          <div key={entry.key} data-block={entry.index} className={entry.className}>
-            {entry.node}
-          </div>
-        ))}
-      </article>
+      {fontReady && (
+        <article
+          ref={articleRef}
+          className="reader-body mx-auto max-w-prose px-4 pt-4 pb-[calc(1rem+var(--safe-bottom))] md:max-w-[var(--text-width)]"
+          data-font={settings.font}
+          style={
+            {
+              fontSize: `${settings.fontSize}px`,
+              lineHeight: settings.lineHeight,
+              textAlign: settings.textAlign,
+              hyphens,
+              "--text-width": `${settings.textWidth}ch`,
+            } as CSSProperties
+          }
+        >
+          {nodes.map((entry) => (
+            <div key={entry.key} data-block={entry.index} className={entry.className}>
+              {entry.node}
+            </div>
+          ))}
+        </article>
+      )}
     </div>
   );
 });

@@ -10,6 +10,7 @@ const IMAGE_CONCURRENCY = 2;
 
 export function renderFigures(
   bookId: string,
+  startPage = 1,
 ): Effect.Effect<void, never, BookStore | PdfClient | FigureSlots> {
   return Effect.suspend(() => {
     const job = Effect.gen(function* () {
@@ -18,6 +19,11 @@ export function renderFigures(
 
       const meta = yield* store.get(bookId);
       if (!meta.figuresPending) return;
+      // Figures are encoded in a worker with OffscreenCanvas; a browser without it reads the text only.
+      if (typeof OffscreenCanvas === "undefined") {
+        yield* store.putMeta(new BookMeta({ ...meta, figures: "none" }));
+        return;
+      }
 
       const blob = yield* store.getFile(bookId);
       const data = yield* Effect.tryPromise({
@@ -27,24 +33,28 @@ export function renderFigures(
 
       const handle = yield* pdf.load(data);
 
-      // Resume after the last fully stored page, so a restarted job keeps the figures already shown.
-      // Books from before the checkpoint store carry the resume point in their parsed record.
+      // Finished pages keep their stored figures, so a restarted job does not do them again.
+      // A book parsed by an earlier build has its resume point in the parsed record.
       const existing = yield* store
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
-      const checkpoint = yield* store.getFigureCheckpoint(bookId);
-      const resumeFrom = Math.max(checkpoint, existing?.figuresThrough ?? 0);
-      const stored = resumeFrom === 0 ? [] : yield* store.listImages(bookId);
+      const done = new Set(yield* store.getFigureCheckpoint(bookId));
+      for (let page = 1; page <= (existing?.figuresThrough ?? 0); page += 1) done.add(page);
+      const stored = done.size === 0 ? [] : yield* store.listImages(bookId);
 
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);
 
-        const texts = yield* Stream.range(1, total).pipe(
-          Stream.mapEffect((page) => pdf.readPage(handle, page), {
-            concurrency: IMAGE_CONCURRENCY,
-          }),
-          Stream.runCollect,
-        );
+        // The parse kept each page's text, so the job does not read it again; an older book reads it now.
+        const kept = yield* store.getPages(bookId);
+        const texts =
+          kept ??
+          (yield* Stream.range(1, total).pipe(
+            Stream.mapEffect((page) => pdf.readPage(handle, page), {
+              concurrency: IMAGE_CONCURRENCY,
+            }),
+            Stream.runCollect,
+          ));
 
         const outline = yield* pdf
           .readOutline(handle)
@@ -58,28 +68,34 @@ export function renderFigures(
         for (const { id, image } of stored) {
           const page = Number(id.split("-")[0]);
           const entry = pagesByPage.get(page);
-          if (!(page <= resumeFrom) || entry === undefined) continue;
+          if (!done.has(page) || entry === undefined) continue;
           if (image.x === undefined || image.y === undefined) continue;
           const restored = { ...image, id, page, x: image.x, y: image.y };
           pagesByPage.set(page, { text: entry.text, images: [...entry.images, restored] });
         }
 
-        let through = resumeFrom;
-        let saved = resumeFrom;
         // Zero, so the first page with figures publishes at once and the reader is not kept waiting.
         let publishedAt = 0;
         let unpublished = false;
-        const done = new Set<number>();
         const assemble = () =>
-          Effect.map(
-            assembleBook([...pagesByPage.values()], outline),
-            (book) => new ParsedBook({ ...book, figuresThrough: through }),
-          );
+          Effect.map(assembleBook([...pagesByPage.values()], outline), (book) => {
+            let through = 0;
+            while (done.has(through + 1)) through += 1;
+            return new ParsedBook({ ...book, figuresThrough: through });
+          });
 
-        // Text plus any resumed figures first, so the reader has content immediately.
-        yield* store.putParsed(bookId, yield* assemble());
+        // A resumed job shows the figures it already stored before it looks for more.
+        if (stored.length > 0) yield* store.putParsed(bookId, yield* assemble());
 
-        yield* Stream.range(resumeFrom + 1, total).pipe(
+        // Pages nearest the reader first, so the figures about to be read land before the rest.
+        const order: number[] = [];
+        for (let step = 0; order.length < total; step += 1) {
+          if (startPage + step <= total) order.push(startPage + step);
+          if (startPage - 1 - step >= 1) order.push(startPage - 1 - step);
+        }
+
+        yield* Stream.fromIterable(order).pipe(
+          Stream.filter((page) => !done.has(page)),
           Stream.mapEffect(
             (page) =>
               Effect.gen(function* () {
@@ -90,13 +106,9 @@ export function renderFigures(
                 const entry = pagesByPage.get(page);
                 if (entry !== undefined) pagesByPage.set(page, { text: entry.text, images });
                 done.add(page);
-                while (done.has(through + 1)) through += 1;
-                // The resume point is a small record of its own, so every page moves it without
-                // rewriting the whole book; iOS interrupts this job often.
-                if (through > saved) {
-                  saved = through;
-                  yield* store.putFigureCheckpoint(bookId, through);
-                }
+                // The finished pages are a small record of their own, so every page moves the
+                // resume point without rewriting the whole book; iOS interrupts this job often.
+                yield* store.putFigureCheckpoint(bookId, [...done]);
                 if (images.length > 0) unpublished = true;
                 // An open reader reloads the whole book on each publish, so later figures land in
                 // batches at most every 2 seconds.
@@ -115,6 +127,7 @@ export function renderFigures(
       }).pipe(Effect.ensuring(pdf.release(handle)));
 
       yield* store.putParsed(bookId, parsed);
+      yield* store.deletePages(bookId);
       const imageCount = parsed.blocks.filter((block) => block.kind === "image").length;
       const latest = yield* store.get(bookId);
       const figures = imageCount > 0 ? "ready" : "none";

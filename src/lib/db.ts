@@ -7,6 +7,7 @@ import type {
   ParsedBook,
   ReaderSettings,
   ReadingProgress,
+  StoredPages,
 } from "@/domain/book";
 
 export interface InboxFile {
@@ -26,13 +27,25 @@ export interface ReaderDb extends DBSchema {
   images: { key: string; value: ImageRecord };
   prefs: { key: string; value: BookPrefs };
   figures: { key: string; value: FigureCheckpoint };
+  pages: { key: string; value: StoredPages };
 }
 
 const DB_NAME = "reader-hero";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 export const SETTINGS_KEY = "app";
 
-export async function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
+let connection: Promise<IDBPDatabase<ReaderDb>> | null = null;
+
+// One connection per page: Safari's first open after a cold start is slow, and both stores need it.
+export function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
+  connection ??= connect().catch((cause: unknown) => {
+    connection = null;
+    throw cause;
+  });
+  return connection;
+}
+
+async function connect(): Promise<IDBPDatabase<ReaderDb>> {
   const db = await openDB<ReaderDb>(DB_NAME, DB_VERSION, {
     upgrade(next) {
       if (!next.objectStoreNames.contains("books"))
@@ -47,9 +60,11 @@ export async function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
       if (!next.objectStoreNames.contains("images")) next.createObjectStore("images");
       if (!next.objectStoreNames.contains("prefs")) next.createObjectStore("prefs");
       if (!next.objectStoreNames.contains("figures")) next.createObjectStore("figures");
+      if (!next.objectStoreNames.contains("pages")) next.createObjectStore("pages");
     },
     // A newer version opening elsewhere waits for this connection; let go so its upgrade can run.
     blocking() {
+      connection = null;
       db.close();
     },
   });

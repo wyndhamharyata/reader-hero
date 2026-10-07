@@ -40,6 +40,7 @@ export default defineConfig({
       },
     },
   },
+  worker: { format: "es" },
   server: {
     host: true,
     port: 5173,

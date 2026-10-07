@@ -26,8 +26,7 @@ const stubLayer = Layer.succeed(
     readPage: (_handle, page) => Effect.succeed(pageText(page)),
     // Parsing must not decode figures; that is the figure job's work.
     readImages: () => Effect.die("readImages called during parsing"),
-    render: () => Effect.void,
-    pageSizes: () => Effect.succeed([]),
+    pageSize: () => Effect.die("not used"),
     readOutline: () => Effect.succeed([]),
     release: () => Effect.void,
     thumbnail: () => Effect.succeed(null),

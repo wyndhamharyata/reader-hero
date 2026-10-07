@@ -16,6 +16,7 @@ export interface RawBlock {
   readonly text: string;
   readonly page: number;
   readonly imageId?: string;
+  readonly ratio?: number;
 }
 
 export type FlowItem =

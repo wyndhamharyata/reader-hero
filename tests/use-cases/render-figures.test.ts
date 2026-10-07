@@ -1,5 +1,8 @@
 import { Effect, Layer, Stream } from "effect";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The job needs OffscreenCanvas to exist; the stubbed client never draws.
+vi.stubGlobal("OffscreenCanvas", class {});
 import {
   BookMeta,
   ImageRecord,
@@ -49,7 +52,7 @@ interface Harness {
     images: StoredImage[];
     parsed: ParsedBook | null;
     parsedWrites: number;
-    checkpoint: number;
+    checkpoint: number[];
     renders: number;
   };
   readonly layer: Layer.Layer<BookStore | PdfClient | FigureSlots>;
@@ -70,7 +73,7 @@ function harness(figures: FigureState): Harness {
     images: [],
     parsed: null,
     parsedWrites: 0,
-    checkpoint: 0,
+    checkpoint: [],
     renders: 0,
   };
 
@@ -109,10 +112,13 @@ function harness(figures: FigureState): Harness {
       getPrefs: () => Effect.succeed(null),
       putPrefs: () => Effect.void,
       getFigureCheckpoint: () => Effect.succeed(state.checkpoint),
-      putFigureCheckpoint: (_id, through) =>
+      putFigureCheckpoint: (_id, pages) =>
         Effect.sync(() => {
-          state.checkpoint = through;
+          state.checkpoint = [...pages];
         }),
+      putPages: () => Effect.void,
+      getPages: () => Effect.succeed(null),
+      deletePages: () => Effect.void,
       remove: () => Effect.void,
       estimate: () => Effect.succeed(null),
       requestPersistent: () => Effect.succeed(false),
@@ -130,8 +136,7 @@ function harness(figures: FigureState): Harness {
           state.renders += 1;
           return [pageImage];
         }),
-      render: () => Effect.void,
-      pageSizes: () => Effect.succeed([]),
+        pageSize: () => Effect.die("not used"),
       readOutline: () => Effect.succeed([]),
       release: () => Effect.void,
       thumbnail: () => Effect.succeed(null),
@@ -174,9 +179,9 @@ describe("renderFigures", () => {
 
     await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
 
-    expect(state.checkpoint).toBe(1);
-    // Text first, then the first figures at once, then the finished book.
-    expect(state.parsedWrites).toBe(3);
+    expect(state.checkpoint).toEqual([1]);
+    // The first figures at once, then the finished book; a fresh job has no text to re-publish.
+    expect(state.parsedWrites).toBe(2);
   });
 
   it("given figures already ready, does nothing", async () => {

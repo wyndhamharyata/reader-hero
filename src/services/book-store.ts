@@ -7,6 +7,7 @@ import {
   PARSED_VERSION,
   ParsedBook,
   ReadingProgress,
+  type PageText,
   type StoredImage,
 } from "@/domain/book";
 import { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
@@ -17,6 +18,7 @@ import {
   decodeImageRecord,
   decodeParsedBook,
   decodeReadingProgress,
+  decodeStoredPages,
 } from "@/lib/codecs";
 import { openReaderDb, type InboxFile } from "@/lib/db";
 
@@ -62,8 +64,11 @@ export class BookStore extends Context.Service<
     getProgress(id: string): Effect.Effect<ReadingProgress | null, StorageFailure>;
     getPrefs(id: string): Effect.Effect<BookPrefs | null, StorageFailure>;
     putPrefs(id: string, prefs: BookPrefs): Effect.Effect<void, StorageFailure>;
-    getFigureCheckpoint(id: string): Effect.Effect<number, StorageFailure>;
-    putFigureCheckpoint(id: string, through: number): Effect.Effect<void, StorageFailure>;
+    getFigureCheckpoint(id: string): Effect.Effect<ReadonlyArray<number>, StorageFailure>;
+    putFigureCheckpoint(id: string, pages: ReadonlyArray<number>): Effect.Effect<void, StorageFailure>;
+    putPages(id: string, pages: ReadonlyArray<PageText>): Effect.Effect<void, StorageFailure>;
+    getPages(id: string): Effect.Effect<ReadonlyArray<PageText> | null, StorageFailure>;
+    deletePages(id: string): Effect.Effect<void, StorageFailure>;
     remove(id: string): Effect.Effect<void, StorageFailure>;
     estimate(): Effect.Effect<StorageEstimate | null>;
     requestPersistent(): Effect.Effect<boolean>;
@@ -212,26 +217,48 @@ export class BookStore extends Context.Service<
         id: string,
       ) {
         const row = yield* attempt("getFigureCheckpoint", () => db.get("figures", id));
-        if (row === undefined) return 0;
-        return yield* decodeFigureCheckpoint(row).pipe(
-          Effect.map((checkpoint) => checkpoint.through),
-          Effect.catch(() => Effect.succeed(0)),
+        if (row === undefined) return [];
+        const checkpoint = yield* decodeFigureCheckpoint(row).pipe(
+          Effect.catch(() => Effect.succeed(new FigureCheckpoint({}))),
         );
+        const pages = [...(checkpoint.pages ?? [])];
+        for (let page = 1; page <= (checkpoint.through ?? 0); page += 1) pages.push(page);
+        return pages;
       });
 
       const putFigureCheckpoint = Effect.fn("BookStore.putFigureCheckpoint")(function* (
         id: string,
-        through: number,
+        pages: ReadonlyArray<number>,
       ) {
         yield* attempt("putFigureCheckpoint", () =>
-          db.put("figures", new FigureCheckpoint({ through }), id),
+          db.put("figures", new FigureCheckpoint({ pages }), id),
         );
+      });
+
+      const putPages = Effect.fn("BookStore.putPages")(function* (
+        id: string,
+        pages: ReadonlyArray<PageText>,
+      ) {
+        yield* attempt("putPages", () => db.put("pages", pages, id));
+      });
+
+      const getPages = Effect.fn("BookStore.getPages")(function* (id: string) {
+        const row = yield* attempt("getPages", () => db.get("pages", id));
+        if (row === undefined) return null;
+        return yield* decodeStoredPages(row).pipe(
+          Effect.map((pages): ReadonlyArray<PageText> => pages),
+          Effect.catch(() => Effect.succeed(null)),
+        );
+      });
+
+      const deletePages = Effect.fn("BookStore.deletePages")(function* (id: string) {
+        yield* attempt("deletePages", () => db.delete("pages", id));
       });
 
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* attempt("remove", async () => {
           const tx = db.transaction(
-            ["books", "files", "parsed", "progress", "images", "prefs", "figures"],
+            ["books", "files", "parsed", "progress", "images", "prefs", "figures", "pages"],
             "readwrite",
           );
           await tx.objectStore("books").delete(id);
@@ -241,6 +268,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("images").delete(imageRange(id));
           await tx.objectStore("prefs").delete(id);
           await tx.objectStore("figures").delete(id);
+          await tx.objectStore("pages").delete(id);
           await tx.done;
         });
       });
@@ -290,6 +318,9 @@ export class BookStore extends Context.Service<
         putPrefs,
         getFigureCheckpoint,
         putFigureCheckpoint,
+        putPages,
+        getPages,
+        deletePages,
         remove,
         estimate,
         requestPersistent,

@@ -26,6 +26,10 @@ installed.
 | `npm run lint` | ESLint. |
 | `npm run deploy:dev` | Build, then `sst deploy --stage dev` to `reader-hero-dev.mwyndham.dev`. |
 | `npm run icons` | Regenerate the PWA icons from `scripts/make-icons.mjs`. |
+| `npm run bench -- <label>` | Benchmark the built app in Playwright's WebKit, desktop and mobile layout. |
+| `npm run bench:compare -- <a> <b>` | Print two benchmark runs side by side. |
+| `npm run bench:probe -- <label> [mobile]` | Measure only the original view's scroll, with sampling options. |
+| `npm run bench:serve` | Serve `dist/client` on port 4173 for a manual check in Safari. |
 
 ## Layout
 
@@ -55,6 +59,17 @@ src/
   decode triggers a re-parse instead of breaking the reader.
 - **One runtime.** `src/runtime.ts` builds one `ManagedRuntime` from the app's
   layers. Never create another.
+
+## Benchmark
+
+`scripts/bench` measures a build in Playwright's WebKit, the engine behind Safari. Run
+`npx playwright install webkit` once. Each run uses a fresh profile per layout and measures:
+launch on a slow network and offline, import and the figure job, reader open, reader
+scrolling, and the original view. Safari cannot throttle its CPU, so the work-done metric is
+the content process's CPU seconds per scenario, next to frame gaps. Compare a change against
+the commit before it: build, `npm run bench -- before`, apply the change, build,
+`npm run bench -- after`, then `npm run bench:compare -- before after`. Results land in
+`.bench/results`, which git ignores.
 
 ## Local development
 
