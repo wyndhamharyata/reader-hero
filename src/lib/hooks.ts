@@ -103,17 +103,25 @@ export function useAppEffect<A, E>(
   return { state, reload };
 }
 
+// The settings as last read, so a screen that mounts again starts from them and not the defaults.
+let lastSettings = DEFAULT_SETTINGS;
+
 export function useSettings(): {
   readonly settings: ReaderSettings;
   readonly update: (patch: Partial<ReaderSettings>) => void;
 } {
-  const [settings, setSettings] = useState<ReaderSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<ReaderSettings>(lastSettings);
 
   useEffect(() => {
     const fiber = runtime.runFork(
       Effect.gen(function* () {
         const store = yield* SettingsStore;
-        yield* Stream.runForEach(store.changes(), (next) => Effect.sync(() => setSettings(next)));
+        yield* Stream.runForEach(store.changes(), (next) =>
+          Effect.sync(() => {
+            lastSettings = next;
+            setSettings(next);
+          }),
+        );
       }),
     );
     return () => {

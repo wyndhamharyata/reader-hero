@@ -324,13 +324,13 @@ export function ReaderRoute() {
       Effect.flatMap(BookStore, (store) => store.putPrefs(bookId, saved)).pipe(Effect.ignore),
     );
   };
-  // A change saves to this book and to the global settings, so new books start from it.
+  // Saves to this book; a text choice also goes global for new books, but Settings owns the theme.
   const changeSettings = (patch: Partial<ReaderSettings>): void => {
     const changes = Schema.decodeUnknownOption(BookPrefs)(
       Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
     );
     if (Option.isSome(changes)) savePrefs(changes.value);
-    update(patch);
+    if (patch.theme === undefined && patch.temperature === undefined) update(patch);
   };
 
   const loadError = state.status === "error" ? state.error : null;
