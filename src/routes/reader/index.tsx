@@ -1,6 +1,6 @@
 import { Effect, Option, Schema } from "effect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import {
   forkApp,
   runApp,
@@ -33,6 +33,7 @@ import type { JumpRequest } from "./_ReaderView";
 export function ReaderRoute() {
   const { id } = useParams();
   const bookId = id ?? "";
+  const navigate = useNavigate();
   const { settings, update } = useSettings();
 
   const { state, reload } = useAppEffect(
@@ -78,6 +79,17 @@ export function ReaderRoute() {
     editName,
   } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
+
+  // Escape walks back up the hierarchy: each open sheet closes itself first, and with none open
+  // the reader returns to the library.
+  useEffect(() => {
+    if (tocOpen || summarySheet !== null) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") void navigate("/");
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [tocOpen, summarySheet, navigate]);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);

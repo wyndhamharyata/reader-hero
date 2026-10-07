@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, type RefObject } from "react";
 
 const closeMs = 200;
 
+// The open sheets, bottom to top. Escape dismisses the top one only, so a summary over the
+// sidebar closes first and the sidebar on the next press.
+const openSheets: Array<symbol> = [];
+
 // Slides a sheet out (down on phones, right for the desktop sidebar) and fades its backdrop, then closes.
 function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => void): void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -42,6 +46,22 @@ export function useBottomSheet(
     },
     [sheetRef, backdropRef],
   );
+
+  useEffect(() => {
+    if (!open) return;
+    const token = Symbol("sheet");
+    openSheets.push(token);
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || openSheets[openSheets.length - 1] !== token) return;
+      event.preventDefault();
+      dismiss();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      openSheets.splice(openSheets.indexOf(token), 1);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, dismiss]);
 
   // Native listeners: React's touchmove is passive and cannot stop the scrolling list's own bounce.
   useEffect(() => {
