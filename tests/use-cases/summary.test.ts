@@ -123,7 +123,7 @@ function harness(
         const reply =
           kind === "names"
             ? (options.names ??
-              'Here it is: {"names":[{"name":"Jim","note":"The narrator.","chapter":1},{"name":"Pew","note":"Blind.","chapter":"9"},{"note":"no name"}]}')
+              'Here it is: {"names":[{"name":"Jim","note":"The narrator.","first":1},{"name":"Pew","note":"Blind.","first":"9"},{"note":"no name"}]}')
             : kind === "current"
               ? `So far ${count}.`
               : (options.chapter ?? `One ${count}.\n\nParagraph ${count}.`);
@@ -230,11 +230,11 @@ describe("summariseNext", () => {
       ["names", true],
       ["current", false],
     ]);
-    expect(calls[0]?.user).toContain("chapter 1: Chapter 1.");
+    expect(calls[0]?.user).toContain("Heading: Chapter 1.");
     expect(calls[0]?.user).not.toContain("Previous chapter");
     expect(calls[1]?.user).toContain("Previous chapter's summary:\nParagraph 1.");
-    expect(calls[2]?.user).toContain("chapter 2: Chapter 2\nParagraph 2.");
-    expect(calls[3]?.user).toContain("chapter 3: Chapter 3, up to where the reader stopped.");
+    expect(calls[2]?.user).toContain("#2 Chapter 2\nParagraph 2.");
+    expect(calls[3]?.user).toContain("Heading: Chapter 3, up to where the reader stopped.");
     expect(calls[3]?.user).toContain("Previous chapter's summary:\nParagraph 2.");
     expect(puts).toHaveLength(4);
     expect(puts[0]?.chapters).toHaveLength(1);
@@ -350,6 +350,29 @@ describe("summariseNext", () => {
     expect(result.required).toEqual(["Silver"]);
   });
 
+  it("given a prologue first, labels each chapter by its heading, not by a number", async () => {
+    const prologue = book(
+      [heading("Prologue", 1), filler(300, 1), heading("Chapter 1", 2), filler(300, 2)],
+      [
+        new TocEntry({ title: "Prologue", page: 1, blockIndex: 0, depth: 0 }),
+        new TocEntry({ title: "Chapter 1", page: 2, blockIndex: 2, depth: 0 }),
+      ],
+    );
+    const { calls, layer } = harness(null);
+    const input: SummaryInput = { meta, parsed: prologue, kind: "story", index: 4 };
+
+    await Effect.runPromise(
+      summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
+    );
+
+    expect(calls[0]?.user).toContain("Heading: Prologue.");
+    expect(calls[1]?.user).toContain("Heading: Chapter 1.");
+    expect(calls[2]?.user).toContain("#1 Prologue\nParagraph 1.\n\n#2 Chapter 1\nParagraph 2.");
+    const sent = calls.map((call) => call.user).join("\n");
+    expect(sent).not.toContain("chapter 1:");
+    expect(sent).not.toContain("chapter 2:");
+  });
+
   it("given an empty reply, fails and stores no chapter", async () => {
     const { puts, layer } = harness(null, { chapter: "  \n" });
     const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 4 };
@@ -396,22 +419,24 @@ describe("describeSummary", () => {
   it("given each coverage, names the row and the one action", () => {
     expect(describeSummary(null, plain, null, "story")).toEqual({
       row: "none",
-      action: "Summarise chapters 1–7",
+      action: "Summarise 7 chapters",
     });
     expect(describeSummary(five, plain, null, "story")).toEqual({
-      row: "chapters 1–5 · 2 behind",
-      action: "Summarise chapters 6–7",
+      row: "5 chapters · 2 behind",
+      action: "Summarise 2 chapters",
     });
     expect(describeSummary(five, { ...plain, target: 6 }, null, "story").action).toBe(
-      "Summarise chapter 6",
+      "Summarise 1 chapter",
     );
-    expect(describeSummary(five, reading, null, "story").action).toBe("Summarise chapters 6–8");
+    expect(describeSummary(five, reading, null, "story").action).toBe(
+      "Summarise 2 chapters and to here",
+    );
     expect(describeSummary(five, { ...plain, target: 5 }, null, "story")).toEqual({
-      row: "chapters 1–5",
+      row: "5 chapters",
       action: null,
     });
     expect(describeSummary(five, { ...plain, target: 5 }, null, "reference").row).toBe(
-      "sections 1–5",
+      "5 sections",
     );
   });
 
@@ -434,8 +459,11 @@ describe("describeSummary", () => {
 
   it("given a run, names its stage", () => {
     expect(
+      describeSummary(five, plain, { stage: "chapter", chapter: 6, of: 7, text: "" }, "story").row,
+    ).toBe("2 chapters left…");
+    expect(
       describeSummary(five, plain, { stage: "chapter", chapter: 7, of: 7, text: "" }, "story").row,
-    ).toBe("chapter 7 of 7…");
+    ).toBe("1 chapter left…");
     expect(
       describeSummary(five, plain, { stage: "current", chapter: 8, of: 7, text: "" }, "story").row,
     ).toBe("to here…");

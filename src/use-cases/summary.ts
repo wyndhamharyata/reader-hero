@@ -68,19 +68,19 @@ export function describeSummary(
   kind: BookKind,
 ): { readonly row: string; readonly action: string | null } {
   const unit = units(kind);
+  // Counts, never chapter numbers: a book's own numbering can start at a prologue or skip.
+  const amount = (n: number): string => `${n} ${n === 1 ? unit.one : unit.many}`;
   if (run?.stage === "names") return { row: `${unit.names}…`, action: null };
   if (run?.stage === "current") return { row: "to here…", action: null };
   if (run?.chapter === 0) return { row: "starting…", action: null };
-  if (run !== null) return { row: `${unit.one} ${run.chapter} of ${run.of}…`, action: null };
+  if (run !== null) return { row: `${amount(run.of - run.chapter + 1)} left…`, action: null };
   const count = summary?.chapters.length ?? 0;
   const behind = Math.max(0, cover.target - count);
-  const row =
-    count === 0 ? "none" : `${unit.many} 1–${count}${behind > 0 ? ` · ${behind} behind` : ""}`;
+  const row = count === 0 ? "none" : `${amount(count)}${behind > 0 ? ` · ${behind} behind` : ""}`;
   const stale = !currentFresh(summary, cover);
   let action: string | null = null;
-  if (behind > 0 && stale) action = `Summarise ${unit.many} ${count + 1}–${cover.target + 1}`;
-  else if (behind === 1) action = `Summarise ${unit.one} ${cover.target}`;
-  else if (behind > 1) action = `Summarise ${unit.many} ${count + 1}–${cover.target}`;
+  if (behind > 0 && stale) action = `Summarise ${amount(behind)} and to here`;
+  else if (behind > 0) action = `Summarise ${amount(behind)}`;
   else if (stale) action = summary?.current === undefined ? "Summarise to here" : "Update to here";
   else if (summary !== null && namesStale(summary)) action = `Update ${unit.names}`;
   return { row, action };
@@ -113,7 +113,7 @@ const parseNames = (
     if (!Array.isArray(json.names)) return null;
     return (json.names as Array<Record<string, unknown>>).flatMap((row) => {
       if (typeof row?.name !== "string" || row.name.trim() === "") return [];
-      const chapter = Math.round(Number(row.chapter)) || max;
+      const chapter = Math.round(Number(row.first)) || max;
       return [
         {
           name: row.name.trim(),
@@ -187,7 +187,7 @@ export function summariseNext(
       const previous = record.chapters[index - 1]?.paragraph;
       const user = [
         bookLine(input.meta),
-        `${unit.one} ${index + 1}: ${chapter.heading}.`,
+        `Heading: ${chapter.heading}.`,
         "",
         ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         "Text:",
@@ -217,15 +217,17 @@ export function summariseNext(
     if (namesStale(record)) {
       yield* onProgress({ stage: "names", chapter: record.chapters.length, of, text: "" });
       const namesSystem = story
-        ? 'You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. Order the list by importance to the protagonist: the protagonist first, then those closest to them, then the rest. A note is at most 20 words and says who the character is to the story so far. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","chapter":1}]}, where chapter is the number of the chapter where the entry first appears.'
-        : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. Order the list by importance to the subject of the document, the central terms first. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","chapter":1}]}, where chapter is the number of the section where the term first appears.';
+        ? 'You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. Order the list by importance to the protagonist: the protagonist first, then those closest to them, then the rest. A note is at most 20 words and says who the character is to the story so far. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the chapter where the entry first appears.'
+        : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. Order the list by importance to the subject of the document, the central terms first. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the section where the term first appears.';
       const fresh = record.chapters.slice(record.namesThrough);
       const pinned = record.names.filter((entry) => entry.edited === true);
       const user = [
         bookLine(input.meta),
         "",
         "List so far (JSON):",
-        JSON.stringify(record.names.map(({ name, note, chapter }) => ({ name, note, chapter }))),
+        JSON.stringify(
+          record.names.map(({ name, note, chapter }) => ({ name, note, first: chapter })),
+        ),
         "",
         ...(record.required.length === 0
           ? []
@@ -241,8 +243,9 @@ export function summariseNext(
           : [`Entries the reader removed, to leave out: ${record.removed.join(", ")}`, ""]),
         `New ${unit.many}:`,
         "",
+        // A # of our own, since the book's numbering can clash with the order of the list.
         ...fresh.flatMap((chapter, offset) => [
-          `${unit.one} ${record.namesThrough + offset + 1}: ${chapter.heading}`,
+          `#${record.namesThrough + offset + 1} ${chapter.heading}`,
           chapter.paragraph,
           "",
         ]),
@@ -290,7 +293,7 @@ export function summariseNext(
       const previous = record.chapters[cover.target - 1]?.paragraph;
       const user = [
         bookLine(input.meta),
-        `${unit.one} ${number}: ${cover.current.chapter.heading}, up to where the reader stopped.`,
+        `Heading: ${cover.current.chapter.heading}, up to where the reader stopped.`,
         "",
         ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         "Text:",

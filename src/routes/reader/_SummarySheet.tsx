@@ -441,7 +441,7 @@ export function SummarySheet({
                         <span>
                           <span className="font-medium">{entry.name}</span>{" "}
                           <span className="text-[0.75em] opacity-60">
-                            {unit} {entry.chapter}
+                            {summary?.chapters[entry.chapter - 1]?.heading}
                           </span>
                           <br />
                           {entry.note}
