@@ -85,12 +85,12 @@ export function MenuSheet({
 
         <div className="flex min-h-0 flex-1 flex-col md:order-4 md:mt-4">
           <h3 className="text-sm font-semibold">Contents</h3>
-          <ul className="mt-1 flex min-h-0 w-full flex-1 flex-col divide-y divide-base-300 overflow-y-auto overscroll-contain">
+          <ul className="-mx-4 mt-1 flex min-h-0 flex-1 flex-col divide-y divide-base-300 overflow-y-auto overscroll-contain">
             {toc.length === 0 && (
               <li className="p-2 text-sm opacity-70">No table of contents found.</li>
             )}
             {toc.map((entry, index) => (
-              <li key={index} className="w-full shrink-0">
+              <li key={index} className="shrink-0 px-2">
                 <button
                   type="button"
                   className="my-1 w-full rounded-field px-2 py-3 text-left text-base whitespace-normal hover:bg-base-300 md:py-2 md:text-sm"

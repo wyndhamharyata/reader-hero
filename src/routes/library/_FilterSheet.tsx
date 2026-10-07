@@ -54,9 +54,9 @@ export function FilterSheet({
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300" />
         <h2 className="text-lg font-semibold">Filters</h2>
 
-        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="-mx-4 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {groups.map(({ group, chips }) => (
-            <section key={group} className="mb-4">
+            <section key={group} className="mb-4 px-4">
               <h3 className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">
                 {titles[group]}
               </h3>
