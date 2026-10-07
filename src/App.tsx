@@ -23,9 +23,9 @@ export function App() {
         <ReaderRoute key={bookId} bookId={bookId} preparing={reading === null} />
       )}
       {/* Takes every tap while a book opens; the indicator shows only when it takes a while. */}
-      {opening !== null && (
+      {opening !== null && opening.stage !== "pressed" && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center">
-          {opening.waiting && (
+          {opening.stage === "waiting" && (
             <p
               role="status"
               className="flex items-center gap-2 rounded-full bg-(--sheet) px-4 py-2 text-base shadow-2xl motion-safe:animate-fade-in md:text-sm"

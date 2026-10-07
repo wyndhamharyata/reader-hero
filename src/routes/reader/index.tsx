@@ -79,6 +79,11 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
 
+  // Nothing is saved or sent while preparing: a press may still turn into a scroll.
+  const preparingRef = useRef(preparing);
+  useLayoutEffect(() => {
+    preparingRef.current = preparing;
+  });
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
@@ -294,7 +299,13 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
   useEffect(() => {
-    if (ai === null || !ai.autoSummary || ai.consentedAt === undefined || summaryInput === null) {
+    if (
+      preparing ||
+      ai === null ||
+      !ai.autoSummary ||
+      ai.consentedAt === undefined ||
+      summaryInput === null
+    ) {
       return;
     }
     // An error waits for a tap in the sheet, so a failing provider is not asked again and again.
@@ -303,7 +314,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
     autoTarget.current = cover.target;
     if ((summary?.chapters.length ?? 0) >= cover.target) return;
     start(summaryInput, ai);
-  }, [ai, summaryInput, run, summaryError, summary, cover.target, start]);
+  }, [preparing, ai, summaryInput, run, summaryError, summary, cover.target, start]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts once the book shows.
   useEffect(() => {
@@ -361,8 +372,10 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
       }
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
       const save = (): void => {
-        pendingSave.current = null;
         saveTimer.current = null;
+        // Kept for later: a save while preparing would mark the book as just read.
+        if (preparingRef.current) return;
+        pendingSave.current = null;
         void runApp(saveReadingProgress(bookId, blockIndex, totalRef.current, furthestRef.current));
       };
       pendingSave.current = save;
@@ -370,6 +383,11 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
     },
     [bookId],
   );
+
+  // The save held while preparing runs once the book shows.
+  useEffect(() => {
+    if (!preparing && saveTimer.current === null) pendingSave.current?.();
+  }, [preparing]);
 
   // iOS suspends a hidden app and often kills it from there, so a pending save runs at once.
   useEffect(() => {
