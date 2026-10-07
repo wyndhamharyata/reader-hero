@@ -62,8 +62,8 @@ open.
 ## AI summary
 
 The gear in the library opens Settings, where a provider (DeepSeek, OpenRouter,
-Gemini, Anthropic or OpenAI) and an API key are set. In a book, the AI section
-of the menu sheet then offers the book's summary. The request goes from the
+Gemini, Anthropic or OpenAI) and an API key are set. In a book, the Summary row
+of the menu sheet opens the book's summary. The request goes from the
 browser to the provider with that key; the worker never sees it. The summary is
 stored on the device and read offline.
 

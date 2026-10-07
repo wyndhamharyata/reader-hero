@@ -1,8 +1,12 @@
 import { useRef, useState, type ReactElement } from "react";
-import { AdjustmentsIcon, BookOpenIcon, ChevronDownIcon } from "@/components/icons";
+import {
+  AdjustmentsIcon,
+  BookOpenIcon,
+  ChevronDownIcon,
+  DocumentTextIcon,
+} from "@/components/icons";
 import type { ReaderSettings, TocEntry } from "@/domain/book";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
-import { AiPanel, type AiPanelProps } from "./_AiPanel";
 import { TextSettings } from "./_TextSettings";
 
 interface Props {
@@ -10,7 +14,11 @@ interface Props {
   toc: ReadonlyArray<TocEntry>;
   modeLabel: string;
   settings: ReaderSettings;
-  ai: AiPanelProps;
+  // The Summary row's text, "none" or "chapters 1–5 · 2 behind", and whether its job runs.
+  summary: string;
+  summaryRunning: boolean;
+  onSummary: () => void;
+  onStopSummary: () => void;
   // One-line summaries by the block index of their contents entry; empty when the toggle is off.
   lines: ReadonlyMap<number, string>;
   onSelect: (blockIndex: number) => void;
@@ -25,7 +33,10 @@ export function MenuSheet({
   toc,
   modeLabel,
   settings,
-  ai,
+  summary,
+  summaryRunning,
+  onSummary,
+  onStopSummary,
   lines,
   onSelect,
   onLine,
@@ -33,12 +44,8 @@ export function MenuSheet({
   onSettingsChange,
   onClose,
 }: Props): ReactElement | null {
-  // One panel open at a time, so the contents list keeps its height. Text settings starts open in
-  // the desktop sidebar and collapsed on phones.
-  const [panel, setPanel] = useState<"text" | "ai" | null>(() =>
-    window.matchMedia("(width >= 48rem)").matches ? "text" : null,
-  );
-  const textOpen = panel === "text";
+  // Text settings starts open in the desktop sidebar and collapsed on phones.
+  const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
@@ -104,7 +111,7 @@ export function MenuSheet({
             type="button"
             className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
             aria-expanded={textOpen}
-            onClick={() => setPanel(textOpen ? null : "text")}
+            onClick={() => setTextOpen(!textOpen)}
           >
             <AdjustmentsIcon className="size-6 md:size-4" />
             <span className="flex-1 text-left">Text settings</span>
@@ -125,12 +132,25 @@ export function MenuSheet({
           </div>
         </section>
 
-        <AiPanel
-          {...ai}
-          open={panel === "ai"}
-          onToggle={() => setPanel(panel === "ai" ? null : "ai")}
-          onSummary={() => dismiss(() => ai.onSummary())}
-        />
+        <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-200 md:order-3">
+          <button
+            type="button"
+            className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
+            onClick={() => dismiss(() => onSummary())}
+          >
+            <DocumentTextIcon className="size-6 md:size-4" />
+            <span className="shrink-0 text-left">Summary</span>
+            <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
+              {summary}
+            </span>
+            {!summaryRunning && <span className="opacity-60">›</span>}
+          </button>
+          {summaryRunning && (
+            <button type="button" className="btn mr-2 btn-ghost btn-sm" onClick={onStopSummary}>
+              Stop
+            </button>
+          )}
+        </section>
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
           {onToggleMode !== undefined && (

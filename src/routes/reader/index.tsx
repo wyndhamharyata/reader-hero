@@ -320,16 +320,10 @@ export function ReaderRoute() {
         toc={toc}
         modeLabel={modeLabel}
         settings={bookSettings}
-        ai={{
-          settings: ai,
-          kind,
-          guessed: prefs.kind === undefined,
-          summary: summaryText.row,
-          summaryRunning: run !== null,
-          onKind: (next) => savePrefs({ kind: next }),
-          onSummary: () => setSummarySheet({ openAt: null }),
-          onStopSummary: stop,
-        }}
+        summary={summaryText.row}
+        summaryRunning={run !== null}
+        onSummary={() => setSummarySheet({ openAt: null })}
+        onStopSummary={stop}
         lines={lines}
         onSelect={selectToc}
         onLine={(blockIndex) => {
@@ -341,20 +335,26 @@ export function ReaderRoute() {
         onClose={closeToc}
       />
 
-      {summarySheet !== null && summaryInput !== null && ai !== null && (
+      {summarySheet !== null && summaryInput !== null && (
         <SummarySheet
           input={summaryInput}
           list={chapterList}
           cover={cover}
           settings={ai}
           state={{ summary, run, error: summaryError }}
+          guessed={prefs.kind === undefined}
+          onKind={(next) => savePrefs({ kind: next })}
           openAt={summarySheet.openAt}
-          onStart={() => start(summaryInput, ai)}
+          onStart={() => {
+            if (ai !== null) start(summaryInput, ai);
+          }}
           onStop={stop}
           onDiscard={discard}
           onAddName={addName}
           onEditName={editName}
-          onConsent={() => putAi(new AiSettings({ ...ai, consentedAt: Date.now() }))}
+          onConsent={() => {
+            if (ai !== null) putAi(new AiSettings({ ...ai, consentedAt: Date.now() }));
+          }}
           onClose={() => setSummarySheet(null)}
         />
       )}

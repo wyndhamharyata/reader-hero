@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import type { AiSettings } from "@/domain/ai";
+import type { AiSettings, BookKind } from "@/domain/ai";
 import { describeAiFailure } from "@/lib/describe-error";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
@@ -17,8 +17,11 @@ interface Props {
   input: SummaryInput;
   list: ReadonlyArray<Chapter>;
   cover: Coverage;
-  settings: AiSettings;
+  // Null with no provider: the stored summary still reads, and nothing runs.
+  settings: AiSettings | null;
   state: SummaryState;
+  guessed: boolean;
+  onKind: (kind: BookKind) => void;
   // The chapter to open at, from a line in Contents; null opens at the latest entry.
   openAt: number | null;
   onStart: () => void;
@@ -40,6 +43,8 @@ export function SummarySheet({
   cover,
   settings,
   state,
+  guessed,
+  onKind,
   openAt,
   onStart,
   onStop,
@@ -96,6 +101,7 @@ export function SummarySheet({
   );
 
   const start = (): void => {
+    if (settings === null) return;
     if (settings.consentedAt === undefined) {
       setConsentPending(true);
       return;
@@ -105,7 +111,8 @@ export function SummarySheet({
 
   const ask = (): void => {
     const asked = question.trim();
-    if (summary === null || asked === "" || run !== null || pending !== null) return;
+    if (settings === null || summary === null || asked === "" || run !== null) return;
+    if (pending !== null) return;
     setQuestion("");
     setPending("");
     setAskError(null);
@@ -171,6 +178,23 @@ export function SummarySheet({
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Summary · {row}</p>
+        <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+          <span>Kind {guessed && <span className="text-xs opacity-60">guessed</span>}</span>
+          <div className="join">
+            {(["story", "reference"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className={`btn join-item btn-sm md:btn-xs ${input.kind === value ? "btn-neutral" : ""}`}
+                aria-pressed={input.kind === value}
+                disabled={run !== null}
+                onClick={() => onKind(value)}
+              >
+                {value === "story" ? "Story" : "Document"}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div role="tablist" className="tabs tabs-border mt-1">
           {(["chapters", "names"] as const).map((value) => (
@@ -369,7 +393,7 @@ export function SummarySheet({
           )}
         </div>
 
-        {consentPending ? (
+        {consentPending && settings !== null ? (
           <ConsentNote
             provider={settings.provider}
             onCancel={() => setConsentPending(false)}
@@ -412,7 +436,9 @@ export function SummarySheet({
                 </button>
               </p>
             )}
-            {run !== null ? (
+            {settings === null ? (
+              <p className="mt-3 text-sm opacity-70">No provider · set in the library's Settings</p>
+            ) : run !== null ? (
               <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                 <span className="flex items-center gap-2">
                   {spinner}
@@ -447,14 +473,18 @@ export function SummarySheet({
                 placeholder="Follow-up…"
                 aria-label="Follow-up"
                 value={question}
-                disabled={summary === null || run !== null || pending !== null}
+                disabled={settings === null || summary === null || run !== null || pending !== null}
                 onChange={(event) => setQuestion(event.target.value)}
               />
               <button
                 type="submit"
                 className="btn btn-primary btn-sm"
                 disabled={
-                  summary === null || run !== null || pending !== null || question.trim() === ""
+                  settings === null ||
+                  summary === null ||
+                  run !== null ||
+                  pending !== null ||
+                  question.trim() === ""
                 }
               >
                 Send
