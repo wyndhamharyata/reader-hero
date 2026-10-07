@@ -1,6 +1,6 @@
 import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { AiSettings, type AiMessage, type Artifact } from "@/domain/ai";
+import { AiSettings, Summary, type AiMessage, type Artifact } from "@/domain/ai";
 import { Block, BookMeta, PARSED_VERSION, ParsedBook } from "@/domain/book";
 import type { Delta } from "@/lib/event-stream";
 import { AiClient } from "@/services/ai-client";
@@ -34,9 +34,16 @@ const parsed = new ParsedBook({
   figuresThrough: 0,
 });
 
-const settings = new AiSettings({ provider: "deepseek", apiKey: "k", model: "flash" });
+const settings = new AiSettings({
+  provider: "deepseek",
+  apiKey: "k",
+  model: "flash",
+  linesInContents: true,
+  autoSummary: false,
+  summaryLength: "paragraph",
+});
 
-const input: RecapInput = { meta, parsed, kind: "story", index: 4, scope: "recent" };
+const input: RecapInput = { meta, parsed, kind: "story", index: 4, scope: "recent", summary: null };
 
 interface Harness {
   readonly calls: Array<{ system: string; messages: ReadonlyArray<AiMessage> }>;
@@ -66,6 +73,10 @@ function harness(deltas: ReadonlyArray<Delta>): Harness {
         Effect.sync(() => {
           stored.set(artifact.key, artifact);
         }),
+      summary: () => Effect.succeed(null),
+      putSummary: () => Effect.void,
+      removeSummary: () => Effect.void,
+      summaryChanges: () => Stream.empty,
       removeBook: () => Effect.void,
     }),
   );
@@ -117,6 +128,48 @@ describe("recap", () => {
     expect((await run(input, new AiSettings({ ...settings, model: "pro" }))).key).not.toBe(
       base.key,
     );
+  });
+
+  it("given the Read so far scope, sends the stored paragraphs and the text since them", async () => {
+    const { calls, layer } = harness([{ type: "text", text: "x" }]);
+    // Chapters need 200 words to count, so each gets a filler paragraph.
+    const filler = Array.from({ length: 200 }, (_, index) => `w${index}`).join(" ");
+    const long = new ParsedBook({
+      ...parsed,
+      blocks: [
+        parsed.blocks[0]!,
+        parsed.blocks[1]!,
+        new Block({ kind: "paragraph", level: 0, text: filler, page: 1 }),
+        parsed.blocks[2]!,
+        parsed.blocks[3]!,
+        new Block({ kind: "paragraph", level: 0, text: filler, page: 1 }),
+        parsed.blocks[4]!,
+      ],
+    });
+    const summary = new Summary({
+      bookId: "b1",
+      model: "flash",
+      updatedAt: 1,
+      chapters: [{ heading: "Prologue", page: 1, line: "A map.", paragraph: "A map is drawn." }],
+      names: [],
+      namesThrough: 1,
+      required: [],
+      thread: [],
+    });
+
+    await Effect.runPromise(
+      runRecap(
+        { ...input, parsed: long, index: 6, scope: "sofar", summary },
+        settings,
+        () => {},
+      ).pipe(Effect.provide(layer)),
+    );
+
+    const sent = calls[0]?.messages[0]?.content ?? "";
+    expect(sent).toContain("Summary so far:\n\nPrologue\nA map is drawn.");
+    expect(sent).not.toContain("A map was drawn long before.");
+    expect(sent).toContain("Since then:\n\nChapter 1\n\nThe captain came to the inn.");
+    expect(sent).toContain("Pew served the black spot.");
   });
 
   it("given a follow-up, sends the thread so far and appends the exchange", async () => {

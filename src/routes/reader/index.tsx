@@ -9,6 +9,7 @@ import {
   useAppEffect,
   useFigureJobs,
   useSettings,
+  useSummary,
 } from "@/lib/hooks";
 import { AiSettings } from "@/domain/ai";
 import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
@@ -18,14 +19,17 @@ import { guessMode } from "@/lib/guess-mode";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
+import { chapters } from "@/use-cases/ai-context";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { storedRecap, type RecapInput, type RecapScope } from "@/use-cases/recap";
 import { saveReadingProgress } from "@/use-cases/save-progress";
+import { describeSummary, type SummaryInput } from "@/use-cases/summary";
 import { MenuSheet } from "./_MenuSheet";
 import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
 import { ResultSheet } from "./_ResultSheet";
+import { SummarySheet } from "./_SummarySheet";
 import type { JumpRequest } from "./_ReaderView";
 
 export function ReaderRoute() {
@@ -63,6 +67,8 @@ export function ReaderRoute() {
   const { ai, putAi } = useAiSettings();
   const [recap, setRecap] = useState<{ index: number; scope: RecapScope } | null>(null);
   const [recapAt, setRecapAt] = useState<number | null>(null);
+  const { summary, run, error: summaryError, start, stop, discard, addName } = useSummary(bookId);
+  const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
@@ -137,6 +143,7 @@ export function ReaderRoute() {
       kind,
       index: position,
       scope: "recent",
+      summary: null,
     };
     const fiber = forkApp(
       storedRecap(input, ai).pipe(
@@ -147,13 +154,59 @@ export function ReaderRoute() {
     return () => stopFiber(fiber);
   }, [tocOpen, data, ai, kind, position]);
 
+  // Only the Read so far scope reads the summary, so a chapter that lands mid-recap restarts nothing else.
+  const sofarSummary = recap?.scope === "sofar" ? summary : null;
   const recapInput = useMemo<RecapInput | null>(
     () =>
       data === null || recap === null
         ? null
-        : { meta: data.meta, parsed: data.parsed, kind, index: recap.index, scope: recap.scope },
-    [data, recap, kind],
+        : {
+            meta: data.meta,
+            parsed: data.parsed,
+            kind,
+            index: recap.index,
+            scope: recap.scope,
+            summary: sofarSummary,
+          },
+    [data, recap, kind, sofarSummary],
   );
+
+  // The summary covers the chapters before the position for a story, and every section otherwise.
+  const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
+  const before = useMemo(
+    () => chapterList.filter((chapter) => chapter.end <= position).length,
+    [chapterList, position],
+  );
+  const target = kind === "story" ? before : chapterList.length;
+  const summaryInput = useMemo<SummaryInput | null>(
+    () => (data === null ? null : { meta: data.meta, parsed: data.parsed, kind, target }),
+    [data, kind, target],
+  );
+  const summaryText = describeSummary(summary, target, run, kind);
+  const behind = before - Math.min(summary?.chapters.length ?? 0, before);
+  const lines = useMemo(() => {
+    const map = new Map<number, string>();
+    if (ai === null || !ai.linesInContents || summary === null) return map;
+    chapterList.forEach((chapter, index) => {
+      const stored = summary.chapters[index];
+      // A re-parse can change the chapters; a line shows only under the heading it was made for.
+      if (stored !== undefined && stored.heading === chapter.heading) {
+        map.set(chapter.start, stored.line);
+      }
+    });
+    return map;
+  }, [ai, summary, chapterList]);
+
+  // With the switch on, each chapter is summarised as soon as it is read, with no tap. An error
+  // waits for a tap in the sheet, so a failing provider is not asked again and again.
+  useEffect(() => {
+    if (ai === null || !ai.autoSummary || ai.consentedAt === undefined || summaryInput === null) {
+      return;
+    }
+    if (run !== null || summaryError !== null || !navigator.onLine) return;
+    if ((summary?.chapters.length ?? 0) >= target) return;
+    start(summaryInput, ai);
+  }, [ai, summaryInput, run, summaryError, summary, target, start]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts now.
   useEffect(() => {
@@ -307,10 +360,19 @@ export function ReaderRoute() {
           kind,
           guessed: prefs.kind === undefined,
           recapAt,
+          summary: summaryText.row,
+          summaryRunning: run !== null,
           onKind: (next) => savePrefs({ kind: next }),
           onRecap: () => setRecap({ index: position, scope: "recent" }),
+          onSummary: () => setSummarySheet({ openAt: null }),
+          onStopSummary: stop,
         }}
+        lines={lines}
         onSelect={selectToc}
+        onLine={(blockIndex) => {
+          const index = chapterList.findIndex((chapter) => chapter.start === blockIndex);
+          setSummarySheet({ openAt: index === -1 ? null : index });
+        }}
         onToggleMode={epub ? undefined : toggleMode}
         onSettingsChange={changeSettings}
         onClose={closeToc}
@@ -320,9 +382,29 @@ export function ReaderRoute() {
         <ResultSheet
           input={recapInput}
           settings={ai}
+          behind={behind}
+          summary={{ row: summaryText.row, action: summaryText.action, running: run !== null }}
+          onSummarise={() => {
+            if (summaryInput !== null) start(summaryInput, ai);
+          }}
           onScope={(scope) => setRecap({ index: recapInput.index, scope })}
           onConsent={() => putAi(new AiSettings({ ...ai, consentedAt: Date.now() }))}
           onClose={() => setRecap(null)}
+        />
+      )}
+
+      {summarySheet !== null && summaryInput !== null && ai !== null && (
+        <SummarySheet
+          input={summaryInput}
+          settings={ai}
+          state={{ summary, run, error: summaryError }}
+          openAt={summarySheet.openAt}
+          onStart={() => start(summaryInput, ai)}
+          onStop={stop}
+          onDiscard={discard}
+          onAddName={addName}
+          onConsent={() => putAi(new AiSettings({ ...ai, consentedAt: Date.now() }))}
+          onClose={() => setSummarySheet(null)}
         />
       )}
     </div>

@@ -36,8 +36,9 @@ installed.
 ```
 src/
   domain/        Schema models (book, settings, ai) and tagged errors
-  services/      Effect services: BookStore, PdfClient, SettingsStore, ArtifactStore, AiClient
-  use-cases/     Orchestration: import, parse, inbox, recap and its context builder
+  services/      Effect services: BookStore, PdfClient, SettingsStore, ArtifactStore, AiClient,
+                 SummaryJobs (the summary fibers, one per book, outliving the reader)
+  use-cases/     Orchestration: import, parse, inbox, recap, the summary job, their context builder
   lib/pdf/       The reflow pipeline: lines, columns, blocks, boilerplate, assemble
   lib/           Runtime hooks, IndexedDB, codecs, formatting, the AI transport and its
                  event stream parser (a lazy chunk, loaded on the first AI action)

@@ -1,7 +1,7 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { providerLabels, type AiMessage, type AiSettings, type Artifact } from "@/domain/ai";
-import type { AiFailure, StorageFailure } from "@/domain/errors";
+import type { AiMessage, AiSettings, Artifact } from "@/domain/ai";
+import { describeAiFailure } from "@/lib/describe-error";
 import { forkApp, stopFiber, type Job } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { chapterAt } from "@/use-cases/ai-context";
@@ -12,10 +12,16 @@ import {
   type RecapInput,
   type RecapScope,
 } from "@/use-cases/recap";
+import { ConsentNote } from "./_ConsentNote";
 
 interface Props {
   input: RecapInput;
   settings: AiSettings;
+  // How many chapters before the position the summary does not cover. Over one, the Read so far
+  // scope first offers the summary job, so the request stays small.
+  behind: number;
+  summary: { readonly row: string; readonly action: string | null; readonly running: boolean };
+  onSummarise: () => void;
   onScope: (scope: RecapScope) => void;
   onConsent: () => void;
   onClose: () => void;
@@ -25,25 +31,21 @@ type Phase =
   | { readonly state: "waiting" }
   | { readonly state: "streaming" }
   | { readonly state: "done" }
+  | { readonly state: "behind" }
   | { readonly state: "error"; readonly message: string };
-
-const describe = (error: AiFailure | StorageFailure): string => {
-  if (error._tag === "StorageFailure") return "The result could not be saved";
-  switch (error.reason) {
-    case "offline":
-      return "Offline";
-    case "unauthorized":
-      return "Key rejected";
-    case "rate-limited":
-      return "Rate limited";
-    default:
-      return `Provider error: ${error.message}`;
-  }
-};
 
 // The recap over the text. A stored result shows at once; otherwise the answer streams in and is
 // stored when it ends. Closing mid-stream interrupts the request and stores nothing.
-export function ResultSheet({ input, settings, onScope, onConsent, onClose }: Props): ReactElement {
+export function ResultSheet({
+  input,
+  settings,
+  behind,
+  summary,
+  onSummarise,
+  onScope,
+  onConsent,
+  onClose,
+}: Props): ReactElement {
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
@@ -62,8 +64,12 @@ export function ResultSheet({ input, settings, onScope, onConsent, onClose }: Pr
     setText("");
     setThread([]);
     setPending(null);
-    setPhase({ state: "waiting" });
     artifact.current = null;
+    if (input.scope === "sofar" && behind > 1) {
+      setPhase({ state: "behind" });
+      return;
+    }
+    setPhase({ state: "waiting" });
     const show = (found: Artifact): void => {
       artifact.current = found;
       setText(found.result);
@@ -80,13 +86,13 @@ export function ResultSheet({ input, settings, onScope, onConsent, onClose }: Pr
     }).pipe(
       Effect.match({
         onSuccess: show,
-        onFailure: (error) => setPhase({ state: "error", message: describe(error) }),
+        onFailure: (error) => setPhase({ state: "error", message: describeAiFailure(error) }),
       }),
     );
     const fiber = forkApp(program);
     job.current = fiber;
     return () => stopFiber(fiber);
-  }, [input, settings, consented, nonce]);
+  }, [input, settings, consented, nonce, behind]);
 
   const ask = (): void => {
     const current = artifact.current;
@@ -108,7 +114,7 @@ export function ResultSheet({ input, settings, onScope, onConsent, onClose }: Pr
         },
         onFailure: (error) => {
           setPending(null);
-          setPhase({ state: "error", message: describe(error) });
+          setPhase({ state: "error", message: describeAiFailure(error) });
         },
       }),
     );
@@ -143,26 +149,31 @@ export function ResultSheet({ input, settings, onScope, onConsent, onClose }: Pr
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Recap · {label}</p>
 
         {!consented ? (
-          <div className="mt-3 flex min-h-0 flex-col gap-3">
-            <p className="text-sm font-medium">Text sent to {providerLabels[settings.provider]}</p>
-            <p className="text-sm">
-              Each AI action sends the chosen passage to {providerLabels[settings.provider]} with
-              the stored key. Reader Hero's own server receives neither the text nor the key.{" "}
-              {providerLabels[settings.provider]}'s terms apply to the text it receives. Results are
-              stored on this device and read offline.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button type="button" className="btn btn-ghost btn-sm" onClick={cancel}>
-                Cancel
-              </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={onConsent}>
-                Allow
-              </button>
-            </div>
-          </div>
+          <ConsentNote provider={settings.provider} onCancel={cancel} onAllow={onConsent} />
         ) : (
           <>
             <div className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {phase.state === "behind" && (
+                <div className="text-sm">
+                  <p>Summary · {summary.row}</p>
+                  {summary.running ? (
+                    <p className="mt-2 flex items-center gap-2 opacity-70">
+                      <span className="loading loading-xs loading-spinner" />
+                      The recap runs when the summary is one chapter behind at most.
+                    </p>
+                  ) : (
+                    summary.action !== null && (
+                      <button
+                        type="button"
+                        className="btn mt-2 btn-primary btn-sm"
+                        onClick={onSummarise}
+                      >
+                        {summary.action}
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
               {phase.state === "waiting" && pending === null && text === "" && (
                 <p className="flex items-center gap-2 text-sm opacity-70">
                   <span className="loading loading-xs loading-spinner" />
@@ -209,12 +220,14 @@ export function ResultSheet({ input, settings, onScope, onConsent, onClose }: Pr
                 [
                   ["recent", "Recent pages"],
                   ["chapter", "Chapter"],
+                  ["sofar", "Read so far"],
                 ] as const
               ).map(([scope, name]) => (
                 <button
                   key={scope}
                   type="button"
                   className={`btn rounded-full btn-xs ${input.scope === scope ? "btn-neutral" : ""}`}
+                  aria-pressed={input.scope === scope}
                   disabled={busy}
                   onClick={() => onScope(scope)}
                 >

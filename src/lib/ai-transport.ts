@@ -78,6 +78,7 @@ export function complete(
   settings: AiSettings,
   system: string,
   messages: ReadonlyArray<AiMessage>,
+  options: { readonly json?: boolean } = {},
 ): Stream.Stream<Delta, AiFailure> {
   return Stream.unwrap(
     Effect.gen(function* () {
@@ -94,6 +95,13 @@ export function complete(
         if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
       } else {
         body.reasoning_effort = settings.effort;
+      }
+      // JSON mode where it is documented; the other presets get JSON from the prompt alone.
+      if (
+        options.json === true &&
+        (settings.provider === "deepseek" || settings.provider === "openai")
+      ) {
+        body.response_format = { type: "json_object" };
       }
       const response = yield* request(settings, "/chat/completions", {
         method: "POST",

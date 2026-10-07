@@ -8,8 +8,13 @@ export interface AiPanelProps {
   guessed: boolean;
   // When the current pages already have a stored recap, so the row says so.
   recapAt: number | null;
+  // The Summary row's text, "none" or "chapters 1–5 · 2 behind", and whether its job runs.
+  summary: string;
+  summaryRunning: boolean;
   onKind: (kind: BookKind) => void;
   onRecap: () => void;
+  onSummary: () => void;
+  onStopSummary: () => void;
 }
 
 interface Props extends AiPanelProps {
@@ -37,8 +42,12 @@ export function AiPanel({
   kind,
   guessed,
   recapAt,
+  summary,
+  summaryRunning,
   onKind,
   onRecap,
+  onSummary,
+  onStopSummary,
   open,
   onToggle,
 }: Props): ReactElement {
@@ -101,6 +110,25 @@ export function AiPanel({
               </span>
               <span className="opacity-60">›</span>
             </button>
+
+            <div className="flex items-center gap-2 border-t border-base-300">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 py-3 text-left text-base disabled:opacity-50 md:py-2 md:text-sm"
+                disabled={settings === null}
+                onClick={onSummary}
+              >
+                <span className="min-w-0 truncate">
+                  Summary <span className="text-xs opacity-60">{summary}</span>
+                </span>
+                {!summaryRunning && <span className="opacity-60">›</span>}
+              </button>
+              {summaryRunning && (
+                <button type="button" className="btn btn-ghost btn-xs" onClick={onStopSummary}>
+                  Stop
+                </button>
+              )}
+            </div>
 
             <p className="border-t border-base-300 pt-2 pb-1 text-xs opacity-60">{status}</p>
           </div>

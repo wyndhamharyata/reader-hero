@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { AiSettings, Artifact } from "@/domain/ai";
+import type { AiSettings, Artifact, Summary } from "@/domain/ai";
 import type {
   BookMeta,
   BookPrefs,
@@ -30,10 +30,11 @@ export interface ReaderDb extends DBSchema {
   figures: { key: string; value: FigureCheckpoint };
   pages: { key: string; value: StoredPages };
   artifacts: { key: string; value: Artifact; indexes: { bookId: string } };
+  summaries: { key: string; value: Summary };
 }
 
 const DB_NAME = "reader-hero";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 export const SETTINGS_KEY = "app";
 export const AI_SETTINGS_KEY = "ai";
 
@@ -67,6 +68,7 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
       if (!next.objectStoreNames.contains("artifacts")) {
         next.createObjectStore("artifacts", { keyPath: "key" }).createIndex("bookId", "bookId");
       }
+      if (!next.objectStoreNames.contains("summaries")) next.createObjectStore("summaries");
     },
     // A newer version opening elsewhere waits for this connection; let go so its upgrade can run.
     blocking() {

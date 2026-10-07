@@ -11,7 +11,10 @@ interface Props {
   modeLabel: string;
   settings: ReaderSettings;
   ai: AiPanelProps;
+  // One-line summaries by the block index of their contents entry; empty when the toggle is off.
+  lines: ReadonlyMap<number, string>;
   onSelect: (blockIndex: number) => void;
+  onLine: (blockIndex: number) => void;
   onToggleMode?: () => void;
   onSettingsChange: (patch: Partial<ReaderSettings>) => void;
   onClose: () => void;
@@ -23,7 +26,9 @@ export function MenuSheet({
   modeLabel,
   settings,
   ai,
+  lines,
   onSelect,
+  onLine,
   onToggleMode,
   onSettingsChange,
   onClose,
@@ -80,6 +85,15 @@ export function MenuSheet({
                 >
                   {entry.title}
                 </button>
+                {lines.get(entry.blockIndex) !== undefined && (
+                  <button
+                    type="button"
+                    className="mb-1 w-full rounded-field px-2 pb-2 text-left text-sm opacity-70 hover:bg-base-200"
+                    onClick={() => dismiss(() => onLine(entry.blockIndex))}
+                  >
+                    <span className="line-clamp-2 block">{lines.get(entry.blockIndex)}</span>
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -116,6 +130,7 @@ export function MenuSheet({
           open={panel === "ai"}
           onToggle={() => setPanel(panel === "ai" ? null : "ai")}
           onRecap={() => dismiss(() => ai.onRecap())}
+          onSummary={() => dismiss(() => ai.onSummary())}
         />
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">

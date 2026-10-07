@@ -1,4 +1,5 @@
 import type {
+  AiFailure,
   BookNotFound,
   EpubFailure,
   ParsedMissing,
@@ -40,5 +41,20 @@ export function describeError(
       return `${name} is no longer in your library.`;
     case "ParsedMissing":
       return `${name} needs its reader view rebuilt.`;
+  }
+}
+
+// The one line a result sheet shows for a failed AI action.
+export function describeAiFailure(error: AiFailure | StorageFailure): string {
+  if (error._tag === "StorageFailure") return "The result could not be saved";
+  switch (error.reason) {
+    case "offline":
+      return "Offline";
+    case "unauthorized":
+      return "Key rejected";
+    case "rate-limited":
+      return "Rate limited";
+    default:
+      return `Provider error: ${error.message}`;
   }
 }

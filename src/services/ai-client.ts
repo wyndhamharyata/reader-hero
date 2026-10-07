@@ -14,6 +14,7 @@ export class AiClient extends Context.Service<
       settings: AiSettings,
       system: string,
       messages: ReadonlyArray<AiMessage>,
+      options?: { readonly json?: boolean },
     ): Stream.Stream<Delta, AiFailure>;
     models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelInfo>, AiFailure>;
     balance(settings: AiSettings): Effect.Effect<string | null, AiFailure>;
@@ -22,9 +23,9 @@ export class AiClient extends Context.Service<
   static readonly layer = Layer.succeed(
     AiClient,
     AiClient.of({
-      complete: (settings, system, messages) =>
+      complete: (settings, system, messages, options) =>
         Stream.unwrap(
-          Effect.map(transport(), (module) => module.complete(settings, system, messages)),
+          Effect.map(transport(), (module) => module.complete(settings, system, messages, options)),
         ),
       models: (settings) => Effect.flatMap(transport(), (module) => module.models(settings)),
       balance: (settings) => Effect.flatMap(transport(), (module) => module.balance(settings)),

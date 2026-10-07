@@ -1,9 +1,12 @@
 import { Effect, Fiber, Stream } from "effect";
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
-import type { AiSettings } from "@/domain/ai";
+import { Summary, type AiSettings } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
+import { ArtifactStore } from "@/services/artifact-store";
 import { SettingsStore } from "@/services/settings-store";
+import { SummaryJobs, type JobState } from "@/services/summary-jobs";
+import type { SummaryInput, SummaryRun } from "@/use-cases/summary";
 import { watchBookImage } from "@/use-cases/book-image";
 import { renderFigures } from "@/use-cases/render-figures";
 
@@ -156,4 +159,80 @@ export function useAiSettings(): {
   }, []);
 
   return { ai, putAi };
+}
+
+export interface SummaryState {
+  readonly summary: Summary | null;
+  readonly run: SummaryRun | null;
+  readonly error: string | null;
+}
+
+// The book's summary and its job, live: the record follows every write, the run follows the job.
+export function useSummary(bookId: string): SummaryState & {
+  readonly start: (input: SummaryInput, settings: AiSettings) => void;
+  readonly stop: () => void;
+  readonly discard: () => void;
+  readonly addName: (name: string) => void;
+} {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [job, setJob] = useState<JobState>({ run: null, error: null });
+
+  useEffect(() => {
+    setSummary(null);
+    setJob({ run: null, error: null });
+    const fiber = forkApp(
+      Effect.gen(function* () {
+        const store = yield* ArtifactStore;
+        const jobs = yield* SummaryJobs;
+        const stored = yield* store
+          .summary(bookId)
+          .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
+        setSummary(stored);
+        yield* Effect.all(
+          [
+            store.summaryChanges().pipe(
+              Stream.filter((change) => change.bookId === bookId),
+              Stream.runForEach((change) => Effect.sync(() => setSummary(change.summary))),
+            ),
+            jobs.state(bookId).pipe(Stream.runForEach((next) => Effect.sync(() => setJob(next)))),
+          ],
+          { concurrency: "unbounded" },
+        );
+      }),
+    );
+    return () => stopFiber(fiber);
+  }, [bookId]);
+
+  const start = useCallback((input: SummaryInput, settings: AiSettings) => {
+    forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.start(input, settings)));
+  }, []);
+  const stop = useCallback(() => {
+    forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(bookId)));
+  }, [bookId]);
+  // The job stops first, so it cannot write the summary back after the removal.
+  const discard = useCallback(() => {
+    forkApp(
+      Effect.gen(function* () {
+        yield* (yield* SummaryJobs).stop(bookId);
+        yield* (yield* ArtifactStore).removeSummary(bookId);
+      }),
+    );
+  }, [bookId]);
+  const addName = useCallback(
+    (name: string) => {
+      forkApp(
+        Effect.gen(function* () {
+          const store = yield* ArtifactStore;
+          const current = yield* store.summary(bookId);
+          if (current === null) return;
+          yield* store.putSummary(
+            new Summary({ ...current, required: [...current.required, name] }),
+          );
+        }),
+      );
+    },
+    [bookId],
+  );
+
+  return { summary, run: job.run, error: job.error, start, stop, discard, addName };
 }

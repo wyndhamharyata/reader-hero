@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { AiProvider, AiSettings, providerLabels } from "@/domain/ai";
+import { AiProvider, AiSettings, providerLabels, type SummaryLength } from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
 import { runApp, useAiSettings } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
@@ -31,6 +31,9 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("off");
+  const [summaryLength, setSummaryLength] = useState<SummaryLength>("paragraph");
+  const [linesInContents, setLinesInContents] = useState(true);
+  const [autoSummary, setAutoSummary] = useState(false);
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
   const [test, setTest] = useState<Test>({ state: "idle" });
 
@@ -41,6 +44,9 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
     setApiKey(ai?.apiKey ?? "");
     setModel(ai?.model ?? "");
     setEffort(ai?.effort ?? "off");
+    setSummaryLength(ai?.summaryLength ?? "paragraph");
+    setLinesInContents(ai?.linesInContents ?? true);
+    setAutoSummary(ai?.autoSummary ?? false);
     setModels([]);
     setTest({ state: "idle" });
   }, [open, ai]);
@@ -54,6 +60,9 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
       model: model.trim(),
       effort: effort === "off" ? undefined : effort,
       consentedAt,
+      linesInContents,
+      autoSummary,
+      summaryLength,
     });
 
   const testKey = (): void => {
@@ -215,6 +224,52 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
             </div>
             <p className="mt-2 text-xs opacity-60">
               Higher levels add seconds before the first word.
+            </p>
+          </section>
+
+          <section className="mt-4">
+            <p className={heading}>Summary</p>
+            <div className="flex items-center justify-between gap-3 py-1">
+              <span className="text-sm">Length</span>
+              <div className="flex gap-2">
+                {(
+                  [
+                    ["line", "Line"],
+                    ["paragraph", "Paragraph"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={choice(summaryLength === value)}
+                    aria-pressed={summaryLength === value}
+                    onClick={() => setSummaryLength(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span>Summaries in Contents</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-sm"
+                checked={linesInContents}
+                onChange={(event) => setLinesInContents(event.target.checked)}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span>Automatic summary</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-sm"
+                checked={autoSummary}
+                onChange={(event) => setAutoSummary(event.target.checked)}
+              />
+            </label>
+            <p className="text-xs opacity-60">
+              Automatic summary sends each chapter when it is read, with no tap.
             </p>
           </section>
         </div>

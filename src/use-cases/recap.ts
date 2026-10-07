@@ -1,12 +1,18 @@
 import { Effect, Stream } from "effect";
-import { Artifact, type AiMessage, type AiSettings, type BookKind } from "@/domain/ai";
+import {
+  Artifact,
+  type AiMessage,
+  type AiSettings,
+  type BookKind,
+  type Summary,
+} from "@/domain/ai";
 import type { BookMeta, ParsedBook } from "@/domain/book";
 import type { AiFailure, StorageFailure } from "@/domain/errors";
 import { AiClient } from "@/services/ai-client";
 import { ArtifactStore } from "@/services/artifact-store";
-import { chapterText, recentPages } from "@/use-cases/ai-context";
+import { chapterText, readSoFar, recentPages } from "@/use-cases/ai-context";
 
-export type RecapScope = "recent" | "chapter";
+export type RecapScope = "recent" | "chapter" | "sofar";
 
 export interface RecapInput {
   readonly meta: BookMeta;
@@ -14,6 +20,9 @@ export interface RecapInput {
   readonly kind: BookKind;
   readonly index: number;
   readonly scope: RecapScope;
+  // The book's summary, read by the "sofar" scope alone; null for the others, so a chapter that
+  // lands while a recap streams does not restart it.
+  readonly summary: Summary | null;
 }
 
 // Bumped when a prompt changes, so stored recaps made with the old wording are not reused.
@@ -34,15 +43,22 @@ function build(
   const passage =
     input.scope === "recent"
       ? recentPages(input.parsed, input.index)
-      : chapterText(input.parsed, input.index, input.kind);
+      : input.scope === "chapter"
+        ? chapterText(input.parsed, input.index, input.kind)
+        : readSoFar(input.parsed, input.index, input.summary);
   const story = input.kind === "story";
   const system = story
     ? "You summarise a story for a reader who is coming back to it. Use only the pages given. Do not name anyone who does not appear in them. Answer in the language of the pages, as one paragraph of at most 150 words."
     : "You summarise a document for a reader who is coming back to it. Use only the pages given. Answer in the language of the pages: the key points as a short list, then one line on where the reader stopped.";
   const by = input.meta.author === undefined ? "" : ` by ${input.meta.author}`;
-  const ask = story
-    ? "Summarise what happened in these pages."
-    : "List the key points of these pages.";
+  const ask =
+    input.scope === "sofar"
+      ? story
+        ? "Summarise the story so far, ending with the latest pages."
+        : "List the key points so far, ending with the latest pages."
+      : story
+        ? "Summarise what happened in these pages."
+        : "List the key points of these pages.";
   const user = `Book: ${input.meta.title}${by}.\nChapter: ${passage.heading === "" ? "unknown" : passage.heading}.\n\nPages:\n${passage.text}\n\n${ask}`;
   return Effect.promise(async () => {
     const bytes = new TextEncoder().encode(
