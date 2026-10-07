@@ -632,7 +632,7 @@ export function SummarySheet({
               </button>
               <button
                 type="button"
-                className={`${button} btn-square btn-ghost`}
+                className={`${button} btn-square btn-ghost text-error`}
                 aria-label="Discard"
                 disabled={summary === null || run !== null}
                 onClick={() => setDiscardPending(true)}
