@@ -31,9 +31,9 @@ const MIN_LINE_HEIGHT = 0.6;
 const MAX_LINE_HEIGHT = 2.0;
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
-// The panel sits on base-200, so unchosen buttons lift to base-100 to stand apart from it.
+// The panel sits on base-200, so unchosen buttons lift to base-100; the chosen one is neutral.
 const choice = (chosen: boolean): string =>
-  chosen ? "btn btn-active md:btn-sm" : "btn bg-base-100 md:btn-sm";
+  chosen ? "btn btn-neutral md:btn-sm" : "btn bg-base-100 md:btn-sm";
 
 export function TextSettings({ settings, onChange }: Props): ReactElement {
   const smaller = Math.max(MIN_FONT_SIZE, settings.fontSize - 1);

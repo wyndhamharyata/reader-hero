@@ -12,8 +12,8 @@ interface Props {
 }
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
-// The sheet is base-100, so unchosen buttons sit on base-200 and the chosen one on base-300.
-const choice = (chosen: boolean): string => (chosen ? "btn btn-active btn-sm" : "btn btn-sm");
+// btn-active only darkens base-200 by 5%, which the dark theme hides; neutral stands apart in every theme.
+const choice = (chosen: boolean): string => (chosen ? "btn btn-neutral btn-sm" : "btn btn-sm");
 
 type Test =
   | { readonly state: "idle" }
@@ -126,6 +126,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
                   key={value}
                   type="button"
                   className={choice(provider === value)}
+                  aria-pressed={provider === value}
                   onClick={() => {
                     setProvider(value);
                     setModels([]);
@@ -205,6 +206,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
                   key={level}
                   type="button"
                   className={choice(effort === level)}
+                  aria-pressed={effort === level}
                   onClick={() => setEffort(level)}
                 >
                   {level.charAt(0).toUpperCase() + level.slice(1)}

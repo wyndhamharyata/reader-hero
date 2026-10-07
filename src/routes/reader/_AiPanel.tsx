@@ -17,8 +17,9 @@ interface Props extends AiPanelProps {
   onToggle: () => void;
 }
 
+// The panel sits on base-200, so unchosen buttons lift to base-100; the chosen one is neutral.
 const choice = (chosen: boolean): string =>
-  chosen ? "btn btn-active btn-sm" : "btn bg-base-100 btn-sm";
+  chosen ? "btn btn-neutral btn-sm" : "btn bg-base-100 btn-sm";
 
 function ago(at: number): string {
   const minutes = Math.round((Date.now() - at) / 60_000);
@@ -72,6 +73,7 @@ export function AiPanel({
                 <button
                   type="button"
                   className={choice(kind === "story")}
+                  aria-pressed={kind === "story"}
                   onClick={() => onKind("story")}
                 >
                   Story
@@ -79,6 +81,7 @@ export function AiPanel({
                 <button
                   type="button"
                   className={choice(kind === "reference")}
+                  aria-pressed={kind === "reference"}
                   onClick={() => onKind("reference")}
                 >
                   Reference
