@@ -158,8 +158,8 @@ export function ReaderRoute() {
       if (held !== null) cancelAnimationFrame(held.frame);
       held = null;
     };
-    // Held past the tap, the key scrolls on its own clock: from 6 to 30 lines a second over two
-    // seconds, so a long hold covers ground and a short one stays readable.
+    // Held past the tap, the key scrolls on its own clock, starting at the tap's own pace of
+    // about 12 lines a second and rising to 36 over two seconds.
     const run = (now: number): void => {
       if (held === null) return;
       const seconds = (now - held.last) / 1000;
@@ -167,7 +167,7 @@ export function ReaderRoute() {
       held.last = now;
       const target = scroller();
       if (heldFor > 0.25 && target !== null) {
-        const speed = Math.min(30, 6 + (heldFor - 0.25) * 12) * line;
+        const speed = Math.min(36, 12 + (heldFor - 0.25) * 12) * line;
         target.scrollBy({ top: held.direction * speed * seconds });
       }
       held.frame = requestAnimationFrame(run);
