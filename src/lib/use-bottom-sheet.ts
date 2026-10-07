@@ -5,15 +5,20 @@ const closeMs = 200;
 // Bottom to top: Escape closes the top sheet only, so a summary over the sidebar closes first.
 const openSheets: Array<symbol> = [];
 
-// Slides a sheet out (down on phones, right for the desktop sidebar) and fades its backdrop, then closes.
+// Leaves the way it came in: down on a phone, right for the sidebar, a fade for a desktop dialog.
 function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => void): void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     done();
     return;
   }
-  const sideways = window.matchMedia("(width >= 48rem)").matches;
-  sheet.style.transition = `transform ${closeMs}ms ease-in`;
-  sheet.style.transform = sideways ? "translateX(100%)" : "translateY(100%)";
+  const opened = getComputedStyle(sheet).animationName;
+  sheet.style.transition = `transform ${closeMs}ms ease-in, opacity ${closeMs}ms ease-in`;
+  if (opened === "dialog-in") {
+    sheet.style.transform = "scale(0.96)";
+    sheet.style.opacity = "0";
+  } else {
+    sheet.style.transform = opened === "slide-in" ? "translateX(100%)" : "translateY(100%)";
+  }
   if (backdrop !== null) {
     backdrop.style.transition = `opacity ${closeMs}ms ease-in`;
     backdrop.style.opacity = "0";

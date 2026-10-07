@@ -13,6 +13,7 @@ import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
+import { useTabSwipe } from "@/lib/use-tab-swipe";
 import type { Chapter } from "@/use-cases/ai-context";
 import {
   describeSummary,
@@ -82,81 +83,7 @@ export function SummarySheet({
   const body = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const slide = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
-  const offsetOf = (which: "chapters" | "names"): string =>
-    which === "chapters" ? "translateX(0)" : "translateX(-100%)";
-
-  // Native listeners: React's touchmove is passive and cannot stop the panel's scroll on a sideways swipe.
-  useEffect(() => {
-    const box = viewport.current;
-    const rail = track.current;
-    if (box === null || rail === null) return;
-    let state: {
-      x: number;
-      y: number;
-      at: number;
-      width: number;
-      axis: "none" | "x" | "y";
-      dx: number;
-    } | null = null;
-    const onStart = (event: TouchEvent): void => {
-      const touch = event.touches[0];
-      state =
-        touch === undefined
-          ? null
-          : {
-              x: touch.clientX,
-              y: touch.clientY,
-              at: event.timeStamp,
-              width: box.clientWidth,
-              axis: "none",
-              dx: 0,
-            };
-    };
-    const onMove = (event: TouchEvent): void => {
-      const touch = event.touches[0];
-      if (state === null || touch === undefined) return;
-      const dx = touch.clientX - state.x;
-      const dy = touch.clientY - state.y;
-      if (state.axis === "none") {
-        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
-        state.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
-        if (state.axis === "x") rail.style.transition = "none";
-      }
-      if (state.axis !== "x") return;
-      event.preventDefault();
-      state.dx = dx;
-      const base = tab === "chapters" ? 0 : -state.width;
-      rail.style.transform = `translateX(${Math.max(-state.width, Math.min(0, base + dx))}px)`;
-    };
-    const settle = (next: "chapters" | "names"): void => {
-      rail.style.transition = `transform ${slide}ms ease-out`;
-      rail.style.transform = offsetOf(next);
-      setTab(next);
-    };
-    const onEnd = (event: TouchEvent): void => {
-      const done = state;
-      state = null;
-      if (done === null || done.axis !== "x") return;
-      const speed = Math.abs(done.dx) / Math.max(1, event.timeStamp - done.at);
-      const far = Math.abs(done.dx) > done.width / 4 || (Math.abs(done.dx) > 30 && speed > 0.5);
-      settle(!far ? tab : done.dx < 0 ? "names" : "chapters");
-    };
-    const onCancel = (): void => {
-      state = null;
-      settle(tab);
-    };
-    box.addEventListener("touchstart", onStart, { passive: true });
-    box.addEventListener("touchmove", onMove, { passive: false });
-    box.addEventListener("touchend", onEnd);
-    box.addEventListener("touchcancel", onCancel);
-    return () => {
-      box.removeEventListener("touchstart", onStart);
-      box.removeEventListener("touchmove", onMove);
-      box.removeEventListener("touchend", onEnd);
-      box.removeEventListener("touchcancel", onCancel);
-    };
-  }, [tab, slide]);
+  useTabSwipe(viewport, track, ["chapters", "names"] as const, tab, setTab);
   const opened = useRef<HTMLDivElement>(null);
   const latest = useRef<HTMLDivElement>(null);
   const job = useRef<Job | null>(null);
@@ -266,7 +193,7 @@ export function SummarySheet({
         ref={sheetRef}
         role="dialog"
         aria-label="Summary"
-        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:max-h-[85vh] md:w-auto md:max-w-[calc(100%-2rem)] md:rounded-box md:pb-4"
+        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:max-h-[85vh] md:w-auto md:max-w-[calc(100%-2rem)] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Summary · {row}</p>
@@ -294,14 +221,13 @@ export function SummarySheet({
           <div
             ref={track}
             // On desktop the dialog takes the reader's line width, in the same font.
-            className="flex h-full md:w-(--text-width)"
+            className="flex h-full ease-out motion-safe:transition-transform motion-safe:duration-200 md:w-(--text-width)"
             data-font={reading.font}
             style={
               {
                 fontSize: `${reading.fontSize}px`,
                 lineHeight: reading.lineHeight,
-                transform: offsetOf(tab),
-                transition: `transform ${slide}ms ease-out`,
+                transform: `translateX(${tab === "chapters" ? 0 : -100}%)`,
                 "--text-width": `${reading.textWidth}ch`,
               } as CSSProperties
             }
