@@ -45,7 +45,7 @@ export function describeError(
 }
 
 export function describeAiFailure(error: AiFailure | StorageFailure): string {
-  if (error._tag === "StorageFailure") return "The result could not be saved";
+  if (error._tag === "StorageFailure") return "Could not save summary";
   switch (error.reason) {
     case "offline":
       return "Offline";
@@ -53,6 +53,8 @@ export function describeAiFailure(error: AiFailure | StorageFailure): string {
       return "Key rejected";
     case "rate-limited":
       return "Rate limited";
+    case "malformed":
+      return error.message;
     default:
       return `Provider error: ${error.message}`;
   }

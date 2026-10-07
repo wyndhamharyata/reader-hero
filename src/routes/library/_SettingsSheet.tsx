@@ -173,7 +173,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
               </button>
             </div>
             <p className="mt-1 min-h-5 text-sm opacity-70 md:text-xs">
-              {test.state === "testing" && "Testing…"}
+              {test.state === "testing" && "Testing"}
               {test.state === "valid" &&
                 (test.balance === null ? "Valid" : `Valid · balance ${test.balance}`)}
               {test.state === "failed" && <span className="text-error">{test.message}</span>}
@@ -200,7 +200,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
                 type="text"
                 className="input w-full text-base md:text-sm"
                 aria-label="Model"
-                placeholder="Test the key to list models"
+                placeholder="Model"
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
               />
@@ -222,7 +222,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
               ))}
             </select>
             <p className="mt-2 text-sm opacity-60 md:text-xs">
-              Higher levels add seconds before the first word.
+              Higher levels take longer to start.
             </p>
           </section>
 
@@ -247,7 +247,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
               />
             </label>
             <p className="text-sm opacity-60 md:text-xs">
-              Automatic summary sends each chapter when it is read, with no tap.
+              Automatic summary sends each chapter when it is read.
             </p>
           </section>
         </div>

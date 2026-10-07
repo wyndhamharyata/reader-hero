@@ -418,18 +418,18 @@ describe("describeSummary", () => {
 
   it("given each coverage, names the row and the one action", () => {
     expect(describeSummary(null, plain, null, "story")).toEqual({
-      row: "none",
+      row: "None",
       action: "Summarise 7 chapters",
     });
     expect(describeSummary(five, plain, null, "story")).toEqual({
-      row: "5 chapters · 2 behind",
+      row: "5 chapters · 2 pending",
       action: "Summarise 2 chapters",
     });
     expect(describeSummary(five, { ...plain, target: 6 }, null, "story").action).toBe(
       "Summarise 1 chapter",
     );
     expect(describeSummary(five, reading, null, "story").action).toBe(
-      "Summarise 2 chapters and to here",
+      "Summarise 2 chapters and current position",
     );
     expect(describeSummary(five, { ...plain, target: 5 }, null, "story")).toEqual({
       row: "5 chapters",
@@ -440,7 +440,7 @@ describe("describeSummary", () => {
     );
   });
 
-  it("given the chapter being read, offers it to here, then an update after a move", () => {
+  it("given the chapter being read, offers its current position, then an update after a move", () => {
     const seven = stored({
       chapters: Array.from({ length: 7 }, (_, index) => ({
         heading: `Chapter ${index + 1}`,
@@ -450,9 +450,11 @@ describe("describeSummary", () => {
       })),
       namesThrough: 7,
     });
-    expect(describeSummary(seven, reading, null, "story").action).toBe("Summarise to here");
+    expect(describeSummary(seven, reading, null, "story").action).toBe(
+      "Summarise current position",
+    );
     const made = new Summary({ ...seven, current: { heading: "Chapter 8", end: 40, text: "x" } });
-    expect(describeSummary(made, reading, null, "story").action).toBe("Update to here");
+    expect(describeSummary(made, reading, null, "story").action).toBe("Update current position");
     const fresh = new Summary({ ...seven, current: { heading: "Chapter 8", end: 50, text: "x" } });
     expect(describeSummary(fresh, reading, null, "story").action).toBeNull();
   });
@@ -460,16 +462,16 @@ describe("describeSummary", () => {
   it("given a run, names its stage", () => {
     expect(
       describeSummary(five, plain, { stage: "chapter", chapter: 6, of: 7, text: "" }, "story").row,
-    ).toBe("2 chapters left…");
+    ).toBe("2 chapters left");
     expect(
       describeSummary(five, plain, { stage: "chapter", chapter: 7, of: 7, text: "" }, "story").row,
-    ).toBe("1 chapter left…");
+    ).toBe("1 chapter left");
     expect(
       describeSummary(five, plain, { stage: "current", chapter: 8, of: 7, text: "" }, "story").row,
-    ).toBe("to here…");
+    ).toBe("Current position");
     expect(
       describeSummary(five, plain, { stage: "names", chapter: 7, of: 7, text: "" }, "story").row,
-    ).toBe("characters…");
+    ).toBe("Updating characters");
   });
 
   it("given names behind the chapters or an added name, offers the update", () => {

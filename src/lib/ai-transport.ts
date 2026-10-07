@@ -109,7 +109,7 @@ export function complete(
       });
       const stream = response.body;
       if (stream === null) {
-        return yield* new AiFailure({ reason: "malformed", message: "Empty response" });
+        return yield* new AiFailure({ reason: "malformed", message: "Provider returned no text" });
       }
       return Stream.fromReadableStream({
         evaluate: () => stream,

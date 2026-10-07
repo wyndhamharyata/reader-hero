@@ -221,7 +221,7 @@ export function SummarySheet({
     );
   };
 
-  // A chapter with its own paragraph by now drops its "to here" entry.
+  // A chapter with its own paragraph by now drops its "current position" entry.
   const stored =
     summary?.current !== undefined &&
     !summary.chapters.some((chapter) => chapter.heading === summary.current?.heading)
@@ -240,7 +240,9 @@ export function SummarySheet({
       tab === "chapters"
         ? [
             ...summary.chapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
-            ...(stored === undefined ? [] : [`${stored.heading} · to here\n${stored.text}`]),
+            ...(stored === undefined
+              ? []
+              : [`${stored.heading} · current position\n${stored.text}`]),
           ].join("\n\n")
         : names.map(({ entry }) => `${entry.name}: ${entry.note}`).join("\n");
     void navigator.clipboard.writeText(copied);
@@ -279,7 +281,7 @@ export function SummarySheet({
               aria-selected={tab === value}
               onClick={() => setTab(value)}
             >
-              {value === "chapters" ? "Chapters" : namesLabel}
+              {value === "names" ? namesLabel : story ? "Chapters" : "Sections"}
             </button>
           ))}
         </div>
@@ -333,15 +335,13 @@ export function SummarySheet({
               )}
               {current !== null && (
                 <div ref={latest} className="mt-3 px-4 first:mt-0">
-                  <p className="font-medium">{current.heading} · to here</p>
+                  <p className="font-medium">{current.heading} · current position</p>
                   <p className="whitespace-pre-wrap">{current.text}</p>
                 </div>
               )}
               {summary === null && run === null && (
                 <p className="px-4 opacity-70">
-                  {action === null
-                    ? `No ${unit}s before this position.`
-                    : "Nothing summarised yet."}
+                  {action === null ? `No ${unit}s before this position` : "No summaries"}
                 </p>
               )}
               {(summary?.thread ?? []).map((message, index) => (
@@ -357,7 +357,7 @@ export function SummarySheet({
                   {pending === "" ? (
                     <span className="flex items-center gap-2 opacity-70">
                       {spinner}
-                      Waiting for the provider…
+                      Waiting for an answer
                     </span>
                   ) : (
                     pending
@@ -370,7 +370,9 @@ export function SummarySheet({
               className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
               inert={tab !== "names"}
             >
-              {names.length === 0 && <p className="px-4 opacity-70">No entries yet.</p>}
+              {names.length === 0 && (
+                <p className="px-4 opacity-70">No {namesLabel.toLowerCase()}</p>
+              )}
               <ul className="flex flex-col">
                 {names.map(({ entry, index }) =>
                   editing !== null && editing.index === index ? (
@@ -466,8 +468,8 @@ export function SummarySheet({
                   <input
                     type="text"
                     className={field}
-                    placeholder="Add name"
-                    aria-label="Add name"
+                    placeholder={story ? "Add name" : "Add term"}
+                    aria-label={story ? "Add name" : "Add term"}
                     value={name}
                     disabled={run !== null}
                     onChange={(event) => setName(event.target.value)}
@@ -485,7 +487,7 @@ export function SummarySheet({
               )}
               {summary !== null && summary.required.length > 0 && (
                 <p className="mt-2 px-4 text-[0.75em] opacity-60">
-                  In the next update: {summary.required.join(", ")}
+                  Pending: {summary.required.join(", ")}
                 </p>
               )}
             </div>
@@ -504,7 +506,7 @@ export function SummarySheet({
           />
         ) : discardPending ? (
           <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
-            <span>The summary is removed. The next run starts from the first {unit}.</span>
+            <span>The summary is removed. Summarising starts again from the first {unit}.</span>
             <div className="flex shrink-0 gap-2">
               <button
                 type="button"
@@ -536,9 +538,7 @@ export function SummarySheet({
               </p>
             )}
             {settings === null ? (
-              <p className={`mt-3 opacity-70 ${text}`}>
-                No provider · set in the library's Settings
-              </p>
+              <p className={`mt-3 opacity-70 ${text}`}>No provider · set in Library Settings</p>
             ) : run !== null ? (
               <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
                 <span className="flex items-center gap-2">
@@ -571,8 +571,8 @@ export function SummarySheet({
               <input
                 type="text"
                 className={field}
-                placeholder="Follow-up…"
-                aria-label="Follow-up"
+                placeholder="Ask about the book"
+                aria-label="Ask about the book"
                 value={question}
                 disabled={settings === null || summary === null || run !== null || pending !== null}
                 onChange={(event) => setQuestion(event.target.value)}

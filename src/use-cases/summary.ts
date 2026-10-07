@@ -70,19 +70,22 @@ export function describeSummary(
   const unit = units(kind);
   // Counts, never chapter numbers: a book's own numbering can start at a prologue or skip.
   const amount = (n: number): string => `${n} ${n === 1 ? unit.one : unit.many}`;
-  if (run?.stage === "names") return { row: `${unit.names}…`, action: null };
-  if (run?.stage === "current") return { row: "to here…", action: null };
-  if (run?.chapter === 0) return { row: "starting…", action: null };
-  if (run !== null) return { row: `${amount(run.of - run.chapter + 1)} left…`, action: null };
+  if (run?.stage === "names") return { row: `Updating ${unit.names}`, action: null };
+  if (run?.stage === "current") return { row: "Current position", action: null };
+  if (run?.chapter === 0) return { row: "Starting", action: null };
+  if (run !== null) return { row: `${amount(run.of - run.chapter + 1)} left`, action: null };
   const count = summary?.chapters.length ?? 0;
-  const behind = Math.max(0, cover.target - count);
-  const row = count === 0 ? "none" : `${amount(count)}${behind > 0 ? ` · ${behind} behind` : ""}`;
+  const pending = Math.max(0, cover.target - count);
+  const row =
+    count === 0 ? "None" : `${amount(count)}${pending > 0 ? ` · ${pending} pending` : ""}`;
   const stale = !currentFresh(summary, cover);
   let action: string | null = null;
-  if (behind > 0 && stale) action = `Summarise ${amount(behind)} and to here`;
-  else if (behind > 0) action = `Summarise ${amount(behind)}`;
-  else if (stale) action = summary?.current === undefined ? "Summarise to here" : "Update to here";
-  else if (summary !== null && namesStale(summary)) action = `Update ${unit.names}`;
+  if (pending > 0 && stale) action = `Summarise ${amount(pending)} and current position`;
+  else if (pending > 0) action = `Summarise ${amount(pending)}`;
+  else if (stale) {
+    action =
+      summary?.current === undefined ? "Summarise current position" : "Update current position";
+  } else if (summary !== null && namesStale(summary)) action = `Update ${unit.names}`;
   return { row, action };
 }
 
@@ -172,7 +175,10 @@ export function summariseNext(
         );
         // A blocked or cut-off reply must not be stored as a finished chapter.
         if (text.trim() === "") {
-          return yield* new AiFailure({ reason: "malformed", message: "Empty response" });
+          return yield* new AiFailure({
+            reason: "malformed",
+            message: "Provider returned no text",
+          });
         }
         return text;
       });
@@ -346,7 +352,7 @@ export function summaryFollowUp(
       ...summary.chapters.flatMap((chapter) => [chapter.heading, chapter.paragraph, ""]),
       ...(summary.current === undefined
         ? []
-        : [`${summary.current.heading}, to here`, summary.current.text, ""]),
+        : [`${summary.current.heading}, up to where the reader stopped`, summary.current.text, ""]),
       `${unit.names.charAt(0).toUpperCase()}${unit.names.slice(1)}:`,
       ...summary.names.map((entry) => `${entry.name}: ${entry.note}`),
     ].join("\n");
@@ -363,7 +369,7 @@ export function summaryFollowUp(
         ),
       );
     if (text.trim() === "") {
-      return yield* new AiFailure({ reason: "malformed", message: "Empty response" });
+      return yield* new AiFailure({ reason: "malformed", message: "Provider returned no text" });
     }
     // A summary discarded while the answer streamed stays discarded.
     return yield* store.update(summary.bookId, (current) =>

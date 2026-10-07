@@ -15,7 +15,7 @@ interface Props {
   toc: ReadonlyArray<TocEntry>;
   modeLabel: string;
   settings: ReaderSettings;
-  // The Summary row's text, "none" or "4 chapters · 2 behind", and whether its job runs.
+  // The Summary row's text, "None" or "4 chapters · 2 pending", and whether its job runs.
   summary: string;
   summaryRunning: boolean;
   onSummary: () => void;
