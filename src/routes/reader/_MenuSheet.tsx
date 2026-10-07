@@ -4,6 +4,7 @@ import {
   BookOpenIcon,
   ChevronDownIcon,
   DocumentTextIcon,
+  XMarkIcon,
 } from "@/components/icons";
 import type { ReaderSettings, TocEntry } from "@/domain/book";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
@@ -169,13 +170,17 @@ export function MenuSheet({
               {modeLabel}
             </button>
           )}
+          {/* Beside the mode button Close is an icon; alone, as on an EPUB, it carries its word too
+              and takes the whole row. */}
           <button
             type="button"
-            // Alone, with no mode button beside it as on an EPUB, Close sits in the middle.
-            className="btn mx-auto btn-ghost btn-lg md:hidden"
+            className={`btn btn-ghost btn-lg md:hidden ${onToggleMode === undefined ? "flex-1" : "btn-square"}`}
+            aria-label="Close"
+            title="Close"
             onClick={() => dismiss()}
           >
-            Close
+            <XMarkIcon className="size-6" />
+            {onToggleMode === undefined && "Close"}
           </button>
         </div>
       </aside>
