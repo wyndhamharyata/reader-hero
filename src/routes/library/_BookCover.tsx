@@ -9,9 +9,7 @@ interface Props {
 export function BookCover({ bookId }: Props): ReactElement {
   const { url } = useBookImage(bookId, "cover");
   // The tapped book dims at once, so the tap shows while the book prepares out of sight.
-  const opening = useOpening();
-  const dim =
-    opening?.to === `/book/${bookId}` && opening.stage !== "pressed" ? "brightness-75" : "";
+  const dim = useOpening()?.to === `/book/${bookId}` ? "brightness-75" : "";
 
   if (url === null) {
     return <div className={`aspect-[2/3] w-full animate-pulse rounded-box bg-base-300 ${dim}`} />;
