@@ -1,5 +1,4 @@
-// The network side of the AI client: presets, headers, the chat stream and the models list. It is a
-// separate module so the AI code loads on the first action, like pdf.js, and not at launch.
+// A module of its own, so this code loads on the first request, like pdf.js, and not at launch.
 import { Effect, Stream } from "effect";
 import type { AiMessage, AiProvider, AiSettings } from "@/domain/ai";
 import { AiFailure } from "@/domain/errors";

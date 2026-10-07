@@ -59,7 +59,7 @@ On Android, a PDF shared from Files or a browser offers "Reader Hero" as a share
 target. The service worker stores the shared file and the app imports it on
 open.
 
-## AI summary
+## Summary
 
 The gear in the library opens Settings, where a provider (DeepSeek, OpenRouter,
 Gemini, Anthropic or OpenAI) and an API key are set. In a book, the Summary row
@@ -69,9 +69,9 @@ stored on the device and read offline.
 
 The summary is one record per book: a paragraph per chapter before the
 position, the chapter being read summarised up to the position, and the
-characters drawn from those paragraphs. Its job sends one chapter per request
+characters that those paragraphs name. Its job sends one chapter per request
 and writes after each one, so Stop, a closed app or a lost network keeps every
-chapter that landed, and the next run starts after it. The one-line summaries
+finished chapter, and the next run starts after it. The one-line summaries
 show under the entries in Contents (a switch in Settings), and "Automatic
 summary" (off by default) runs the job as chapters are read.
 
@@ -83,7 +83,8 @@ npm test
 
 The tests drive the reflow heuristics — line building, column order, paragraph
 merging, heading detection, boilerplate removal, and assembly — with synthetic
-pdf.js text items.
+pdf.js text items. They also cover the EPUB parser, the mode and kind guesses,
+and the summary job against a fake provider.
 
 ## Architecture
 

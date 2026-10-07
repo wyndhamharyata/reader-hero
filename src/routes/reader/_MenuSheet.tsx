@@ -45,9 +45,7 @@ export function MenuSheet({
   onSettingsChange,
   onClose,
 }: Props): ReactElement | null {
-  // Text settings, Summary, then Contents taking the rest, so a thumb at the bottom of a phone
-  // lands on chapters; the mode and Close row sits under them on a phone and under the header on
-  // desktop. Text settings starts open in the desktop sidebar and collapsed on phones.
+  // Contents fills the rest of the sheet, so a thumb at the bottom of a phone lands on chapters.
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
@@ -170,8 +168,7 @@ export function MenuSheet({
               {modeLabel}
             </button>
           )}
-          {/* Beside the mode button Close is an icon; alone, as on an EPUB, it carries its word too
-              and takes the whole row. */}
+          {/* Alone, as on an EPUB, Close carries its word and takes the whole row. */}
           <button
             type="button"
             className={`btn btn-ghost btn-lg md:hidden ${onToggleMode === undefined ? "flex-1" : "btn-square"}`}

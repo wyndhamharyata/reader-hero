@@ -1,4 +1,5 @@
 import { Effect, Schema } from "effect";
+import { BookKind } from "@/domain/ai";
 
 export const ParseState = Schema.Literals(["pending", "parsing", "ready", "scanned", "failed"]);
 export type ParseState = typeof ParseState.Type;
@@ -148,8 +149,8 @@ export type ReaderMode = typeof ReaderMode.Type;
 // One book's own choices; a missing field falls back to the global ReaderSettings.
 export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookPrefs")({
   mode: Schema.optional(ReaderMode),
-  // Story or reference for the AI features; unset means the guess applies.
-  kind: Schema.optional(Schema.Literals(["story", "reference"])),
+  // Unset means the guess applies.
+  kind: Schema.optional(BookKind),
   theme: Schema.optional(ReaderTheme),
   font: Schema.optional(ReaderFont),
   fontSize: Schema.optional(Schema.Int),

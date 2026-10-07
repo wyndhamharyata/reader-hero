@@ -9,6 +9,7 @@ import {
   coverage,
   describeSummary,
   summariseNext,
+  summaryFollowUp,
   type Coverage,
   type SummaryInput,
 } from "@/use-cases/summary";
@@ -51,7 +52,6 @@ const book = (blocks: ReadonlyArray<Block>, toc: ReadonlyArray<TocEntry>): Parse
     figuresThrough: 0,
   });
 
-// Front matter, then three chapters of 300 words each.
 const novel = book(
   [
     heading("Copyright", 1),
@@ -95,31 +95,38 @@ interface Harness {
   readonly layer: Layer.Layer<AiClient | SummaryStore>;
 }
 
-// The fake provider answers a chapter request with two parts, the part read so far with one
-// paragraph, and a names request with JSON.
-function harness(initial: Summary | null, namesReply?: string): Harness {
+// `during` changes the stored record as a request starts, as the reader would from the sheet.
+function harness(
+  initial: Summary | null,
+  options: {
+    readonly names?: string;
+    readonly chapter?: string;
+    readonly during?: (kind: string, current: Summary | null) => Summary | null;
+  } = {},
+): Harness {
   const calls: Harness["calls"] = [];
   const puts: Array<Summary> = [];
   let current = initial;
   const client = Layer.succeed(
     AiClient,
     AiClient.of({
-      complete: (_settings, system, messages: ReadonlyArray<AiMessage>, options) => {
+      complete: (_settings, system, messages: ReadonlyArray<AiMessage>, request) => {
         const user = messages[messages.length - 1]?.content ?? "";
         const kind = system.startsWith("You summarise one")
           ? "chapter"
           : system.startsWith("You summarise the part")
             ? "current"
             : "names";
-        calls.push({ kind, user, json: options?.json === true });
+        calls.push({ kind, user, json: request?.json === true });
+        if (options.during !== undefined) current = options.during(kind, current);
         const count = calls.length;
         const reply =
           kind === "names"
-            ? (namesReply ??
+            ? (options.names ??
               'Here it is: {"names":[{"name":"Jim","note":"The narrator.","chapter":1},{"name":"Pew","note":"Blind.","chapter":"9"},{"note":"no name"}]}')
             : kind === "current"
               ? `So far ${count}.`
-              : `One ${count}.\n\nParagraph ${count}.`;
+              : (options.chapter ?? `One ${count}.\n\nParagraph ${count}.`);
         return Stream.fromArray([
           { type: "reasoning" as const, text: "hmm" },
           { type: "text" as const, text: reply.slice(0, 5) },
@@ -134,10 +141,14 @@ function harness(initial: Summary | null, namesReply?: string): Harness {
     SummaryStore,
     SummaryStore.of({
       get: () => Effect.succeed(current),
-      put: (next) =>
+      update: (_bookId, change) =>
         Effect.sync(() => {
-          current = next;
-          puts.push(next);
+          const next = change(current);
+          if (next !== null) {
+            current = next;
+            puts.push(next);
+          }
+          return next;
         }),
       remove: () => Effect.void,
       changes: () => Stream.empty,
@@ -202,7 +213,7 @@ describe("coverage", () => {
 });
 
 describe("summariseNext", () => {
-  it("given two chapters before the position, sends each once, writes after each, merges names, then the chapter read so far", async () => {
+  it("given two unsummarised chapters, sends each once, then the names merge and the part read", async () => {
     const { calls, puts, layer } = harness(null);
     const progress: Array<string> = [];
     const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
@@ -261,7 +272,7 @@ describe("summariseNext", () => {
     expect(calls[0]?.user).toContain("New chapters:\n\nReturn the merged list.");
   });
 
-  it("given edited and removed entries, keeps the edits and leaves the removed out after the merge", async () => {
+  it("given edited and removed entries, the merge keeps the edits and leaves the removed out", async () => {
     const curated = stored({
       names: [
         { name: "Jim", note: "The narrator.", chapter: 1 },
@@ -286,7 +297,7 @@ describe("summariseNext", () => {
     ]);
   });
 
-  it("given a position that moved on, makes the chapter read so far again and nothing else", async () => {
+  it("given a position that moved on, remakes only the part of the chapter read", async () => {
     const moved = stored({ current: { heading: "Chapter 3", end: 7, text: "Earlier." } });
     const { calls, puts, layer } = harness(moved);
     const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
@@ -301,7 +312,7 @@ describe("summariseNext", () => {
   });
 
   it("given a names reply that is not JSON, fails after the chapters are stored", async () => {
-    const { puts, layer } = harness(null, "Sorry, no.");
+    const { puts, layer } = harness(null, { names: "Sorry, no." });
     const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 4 };
 
     const exit = await Effect.runPromiseExit(
@@ -311,6 +322,60 @@ describe("summariseNext", () => {
     expect(exit._tag).toBe("Failure");
     expect(puts).toHaveLength(1);
     expect(puts[0]?.namesThrough).toBe(0);
+  });
+
+  it("given edits while a chapter streams, keeps them through the job's writes", async () => {
+    const edited = { name: "Jim", note: "Mine.", chapter: 1, edited: true };
+    const { puts, layer } = harness(
+      stored({ chapters: stored().chapters.slice(0, 1), namesThrough: 1 }),
+      {
+        during: (kind, current) =>
+          kind === "chapter" && current !== null
+            ? new Summary({ ...current, names: [edited], required: ["Ben Gunn"] })
+            : kind === "names" && current !== null
+              ? new Summary({ ...current, required: [...current.required, "Silver"] })
+              : current,
+      },
+    );
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
+
+    const result = await Effect.runPromise(
+      summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
+    );
+
+    expect(puts[0]?.chapters).toHaveLength(2);
+    expect(puts[0]?.names).toEqual([edited]);
+    expect(puts[0]?.required).toEqual(["Ben Gunn"]);
+    expect(result.names[0]).toEqual(edited);
+    expect(result.required).toEqual(["Silver"]);
+  });
+
+  it("given an empty reply, fails and stores no chapter", async () => {
+    const { puts, layer } = harness(null, { chapter: "  \n" });
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 4 };
+
+    const exit = await Effect.runPromiseExit(
+      summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
+    );
+
+    expect(exit._tag).toBe("Failure");
+    expect(puts).toHaveLength(0);
+  });
+});
+
+describe("summaryFollowUp", () => {
+  it("given a summary discarded while the answer streams, writes nothing back", async () => {
+    const { puts, layer } = harness(null);
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
+
+    const result = await Effect.runPromise(
+      summaryFollowUp(input, settings, stored(), "Who is Jim?", () => undefined).pipe(
+        Effect.provide(layer),
+      ),
+    );
+
+    expect(result).toBeNull();
+    expect(puts).toHaveLength(0);
   });
 });
 
@@ -328,7 +393,7 @@ describe("describeSummary", () => {
   const plain: Coverage = { target: 7, current: null };
   const reading: Coverage = { target: 7, current: { chapter: chapter8, end: 50, text: "" } };
 
-  it("names the states of the row and the one action", () => {
+  it("given each coverage, names the row and the one action", () => {
     expect(describeSummary(null, plain, null, "story")).toEqual({
       row: "none",
       action: "Summarise chapters 1–7",
@@ -350,7 +415,7 @@ describe("describeSummary", () => {
     );
   });
 
-  it("given the chapter being read, offers it to here, then an update once the position moves", () => {
+  it("given the chapter being read, offers it to here, then an update after a move", () => {
     const seven = stored({
       chapters: Array.from({ length: 7 }, (_, index) => ({
         heading: `Chapter ${index + 1}`,

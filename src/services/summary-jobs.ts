@@ -10,8 +10,7 @@ export interface JobState {
   readonly error: string | null;
 }
 
-// The summary jobs, one fiber per book, kept here so a job outlives the reader that started it.
-// Stop interrupts the request in flight; the chapters that landed stay stored.
+// A service, not a hook, so a job keeps running after the reader that started it closes.
 export class SummaryJobs extends Context.Service<
   SummaryJobs,
   {
@@ -32,7 +31,7 @@ export class SummaryJobs extends Context.Service<
       const states = new Map<string, SubscriptionRef.SubscriptionRef<JobState>>();
       const fibers = new Map<string, Fiber.Fiber<unknown, unknown>>();
 
-      const stateRef = (bookId: string) =>
+      const stateRef = (bookId: string): Effect.Effect<SubscriptionRef.SubscriptionRef<JobState>> =>
         Effect.gen(function* () {
           const found = states.get(bookId);
           if (found !== undefined) return found;
@@ -41,7 +40,7 @@ export class SummaryJobs extends Context.Service<
           return made;
         });
 
-      const state = (bookId: string) =>
+      const state = (bookId: string): Stream.Stream<JobState> =>
         Stream.unwrap(Effect.map(stateRef(bookId), SubscriptionRef.changes));
 
       const start = Effect.fn("SummaryJobs.start")(function* (

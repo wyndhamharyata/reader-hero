@@ -44,7 +44,6 @@ export function describeError(
   }
 }
 
-// The one line a result sheet shows for a failed AI action.
 export function describeAiFailure(error: AiFailure | StorageFailure): string {
   if (error._tag === "StorageFailure") return "The result could not be saved";
   switch (error.reason) {

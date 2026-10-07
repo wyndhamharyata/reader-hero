@@ -10,16 +10,12 @@ export interface SummaryInput {
   readonly meta: BookMeta;
   readonly parsed: ParsedBook;
   readonly kind: BookKind;
-  // The block being read; the summary covers what comes before it.
   readonly index: number;
 }
 
 export interface Coverage {
-  // How many chapters the summary is to cover: those before the position for a story, every
-  // section for a reference document.
   readonly target: number;
-  // For a story, the chapter that holds the position and its text up to there, once at least 100
-  // words of it are read; its entry in the sheet is "to here".
+  // Null until 100 words of the chapter are read, so a glance past a chapter start asks for nothing.
   readonly current: {
     readonly chapter: Chapter;
     readonly end: number;
@@ -27,8 +23,7 @@ export interface Coverage {
   } | null;
 }
 
-// The chapter in flight, 1-based, and its text so far. The names merge comes after the last
-// chapter, and the chapter being read, up to the position, comes last.
+// `chapter` is 1-based; 0 means the job has not reached its first chapter.
 export interface SummaryRun {
   readonly stage: "chapter" | "names" | "current";
   readonly chapter: number;
@@ -51,23 +46,21 @@ export function coverage(
   return { target, current: { chapter, end: index + 1, text } };
 }
 
-const units = (kind: BookKind) =>
+const units = (kind: BookKind): { one: string; many: string; names: string } =>
   kind === "story"
     ? { one: "chapter", many: "chapters", names: "characters" }
     : { one: "section", many: "sections", names: "terms" };
 
-// The names list is behind when chapters landed after the last merge, or the reader added a name.
 export const namesStale = (summary: Summary): boolean =>
   summary.namesThrough < summary.chapters.length || summary.required.length > 0;
 
-// The "to here" entry matches the position it was made at, or there is nothing to make it from.
 export const currentFresh = (summary: Summary | null, cover: Coverage): boolean =>
   cover.current === null ||
   (summary?.current !== undefined &&
     summary.current.heading === cover.current.chapter.heading &&
     summary.current.end === cover.current.end);
 
-// The Summary row's text, and the one action its sheet offers; null when the summary is current.
+// The action is null when the summary is current.
 export function describeSummary(
   summary: Summary | null,
   cover: Coverage,
@@ -75,44 +68,28 @@ export function describeSummary(
   kind: BookKind,
 ): { readonly row: string; readonly action: string | null } {
   const unit = units(kind);
-  if (run !== null) {
-    const row =
-      run.stage === "names"
-        ? `${unit.names}…`
-        : run.stage === "current"
-          ? "to here…"
-          : run.chapter === 0
-            ? "starting…"
-            : `${unit.one} ${run.chapter} of ${run.of}…`;
-    return { row, action: null };
-  }
+  if (run?.stage === "names") return { row: `${unit.names}…`, action: null };
+  if (run?.stage === "current") return { row: "to here…", action: null };
+  if (run?.chapter === 0) return { row: "starting…", action: null };
+  if (run !== null) return { row: `${unit.one} ${run.chapter} of ${run.of}…`, action: null };
   const count = summary?.chapters.length ?? 0;
   const behind = Math.max(0, cover.target - count);
   const row =
     count === 0 ? "none" : `${unit.many} 1–${count}${behind > 0 ? ` · ${behind} behind` : ""}`;
   const stale = !currentFresh(summary, cover);
-  const number = cover.target + 1;
-  const action =
-    behind > 0
-      ? stale
-        ? `Summarise ${unit.many} ${count + 1}–${number}`
-        : behind === 1
-          ? `Summarise ${unit.one} ${cover.target}`
-          : `Summarise ${unit.many} ${count + 1}–${cover.target}`
-      : stale
-        ? summary?.current === undefined
-          ? "Summarise to here"
-          : "Update to here"
-        : summary !== null && namesStale(summary)
-          ? `Update ${unit.names}`
-          : null;
+  let action: string | null = null;
+  if (behind > 0 && stale) action = `Summarise ${unit.many} ${count + 1}–${cover.target + 1}`;
+  else if (behind === 1) action = `Summarise ${unit.one} ${cover.target}`;
+  else if (behind > 1) action = `Summarise ${unit.many} ${count + 1}–${cover.target}`;
+  else if (stale) action = summary?.current === undefined ? "Summarise to here" : "Update to here";
+  else if (summary !== null && namesStale(summary)) action = `Update ${unit.names}`;
   return { row, action };
 }
 
 const bookLine = (meta: BookMeta): string =>
   `Book: ${meta.title}${meta.author === undefined ? "" : ` by ${meta.author}`}.`;
 
-// The reply is one sentence, a blank line, then the paragraph; a reply without the blank line is both.
+// A reply without the blank line is both the line and the paragraph.
 const parseReply = (text: string): { line: string; paragraph: string } => {
   const trimmed = text.trim();
   const cut = trimmed.indexOf("\n\n");
@@ -123,7 +100,7 @@ const parseReply = (text: string): { line: string; paragraph: string } => {
   };
 };
 
-// The names reply is JSON, possibly wrapped in prose; a row without a name is dropped.
+// A model can wrap the JSON in prose, so the outermost braces are cut out.
 const parseNames = (
   text: string,
   max: number,
@@ -150,10 +127,7 @@ const parseNames = (
   }
 };
 
-// Brings the summary up to the position: the chapters it does not cover yet, one request each,
-// written after each one so a stop or a lost network keeps every chapter that landed; then the
-// names merge, one request; then the chapter being read, up to the position. Nothing finished is
-// sent twice.
+// One write per chapter, so a stop or a lost network keeps every finished chapter.
 export function summariseNext(
   input: SummaryInput,
   settings: AiSettings,
@@ -196,6 +170,10 @@ export function summariseNext(
             return report === null ? Effect.void : report(text);
           }),
         );
+        // A blocked or cut-off reply must not be stored as a finished chapter.
+        if (text.trim() === "") {
+          return yield* new AiFailure({ reason: "malformed", message: "Empty response" });
+        }
         return text;
       });
 
@@ -222,16 +200,18 @@ export function summariseNext(
         onProgress({ stage: "chapter", chapter: index + 1, of, text: soFar }),
       );
       const { line, paragraph } = parseReply(text);
-      record = new Summary({
-        ...record,
-        model: settings.model,
-        updatedAt: Date.now(),
-        chapters: [
-          ...record.chapters,
-          { heading: chapter.heading, page: chapter.page, line, paragraph },
-        ],
+      record = yield* store.update(input.meta.id, (current) => {
+        const base = current ?? record;
+        return new Summary({
+          ...base,
+          model: settings.model,
+          updatedAt: Date.now(),
+          chapters: [
+            ...base.chapters,
+            { heading: chapter.heading, page: chapter.page, line, paragraph },
+          ],
+        });
       });
-      yield* store.put(record);
     }
 
     if (namesStale(record)) {
@@ -276,25 +256,33 @@ export function summariseNext(
           message: `The ${unit.names} list was not JSON`,
         });
       }
-      // The reader's edits and removals win over the model's list.
-      const same = (a: string, b: string): boolean =>
-        a.trim().toLowerCase() === b.trim().toLowerCase();
-      const merged: Array<(typeof record.names)[number]> = names.filter(
-        (entry) => !record.removed.some((name) => same(name, entry.name)),
-      );
-      for (const entry of pinned) {
-        const at = merged.findIndex((candidate) => same(candidate.name, entry.name));
-        if (at === -1) merged.push(entry);
-        else merged[at] = entry;
-      }
-      record = new Summary({
-        ...record,
-        updatedAt: Date.now(),
-        names: merged,
-        namesThrough: record.chapters.length,
-        required: [],
+      const sent = record.required;
+      const through = record.chapters.length;
+      // The reader's edits and removals win over the model's list, those made during the request too.
+      record = yield* store.update(input.meta.id, (current) => {
+        const base = current ?? record;
+        const merged: Array<(typeof base.names)[number]> = names.filter(
+          (entry) =>
+            !base.removed.some(
+              (name) => name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+            ),
+        );
+        for (const entry of base.names) {
+          if (entry.edited !== true) continue;
+          const at = merged.findIndex(
+            (candidate) => candidate.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
+          );
+          if (at === -1) merged.push(entry);
+          else merged[at] = entry;
+        }
+        return new Summary({
+          ...base,
+          updatedAt: Date.now(),
+          names: merged,
+          namesThrough: through,
+          required: base.required.filter((name) => !sent.includes(name)),
+        });
       });
-      yield* store.put(record);
     }
 
     if (cover.current !== null && !currentFresh(record, cover)) {
@@ -316,30 +304,29 @@ export function summariseNext(
         user,
         (soFar) => onProgress({ stage: "current", chapter: number, of, text: soFar }),
       );
-      record = new Summary({
-        ...record,
-        updatedAt: Date.now(),
-        current: {
-          heading: cover.current.chapter.heading,
-          end: cover.current.end,
-          text: text.trim(),
-        },
-      });
-      yield* store.put(record);
+      const current = {
+        heading: cover.current.chapter.heading,
+        end: cover.current.end,
+        text: text.trim(),
+      };
+      record = yield* store.update(
+        input.meta.id,
+        (stored) => new Summary({ ...(stored ?? record), updatedAt: Date.now(), current }),
+      );
     }
 
     return record;
   });
 }
 
-// A follow-up sends the whole summary as the context, with the thread so far, and appends to it.
+// The summary is the context, not the book's text: a small request that knows only what was read.
 export function summaryFollowUp(
   input: SummaryInput,
   settings: AiSettings,
   summary: Summary,
   question: string,
   onText: (text: string) => void,
-): Effect.Effect<Summary, AiFailure | StorageFailure, AiClient | SummaryStore> {
+): Effect.Effect<Summary | null, AiFailure | StorageFailure, AiClient | SummaryStore> {
   return Effect.gen(function* () {
     const client = yield* AiClient;
     const store = yield* SummaryStore;
@@ -372,15 +359,21 @@ export function summaryFollowUp(
           }),
         ),
       );
-    const next = new Summary({
-      ...summary,
-      thread: [
-        ...summary.thread,
-        { role: "user", content: question },
-        { role: "assistant", content: text },
-      ],
-    });
-    yield* store.put(next);
-    return next;
+    if (text.trim() === "") {
+      return yield* new AiFailure({ reason: "malformed", message: "Empty response" });
+    }
+    // A summary discarded while the answer streamed stays discarded.
+    return yield* store.update(summary.bookId, (current) =>
+      current === null
+        ? null
+        : new Summary({
+            ...current,
+            thread: [
+              ...current.thread,
+              { role: "user", content: question },
+              { role: "assistant", content: text },
+            ],
+          }),
+    );
   });
 }

@@ -43,16 +43,12 @@ interface Props {
   onClose: () => void;
 }
 
-// Phone-first sizes, as the menu sheet: 16px text and 44px controls, smaller from md up.
 const text = "text-base md:text-sm";
 // Fields and their buttons keep the app's font inside the reading text.
 const field = "input w-full font-sans text-base md:input-sm md:text-sm";
 const button = "btn md:btn-sm";
 
-// The book's whole summary: a Chapters tab with the chapters before the position and the chapter
-// being read up to it, and a Characters tab the reader can edit by tapping a row. The one action,
-// in the foot, brings it up to the position; the entry in flight streams in place, and the foot's
-// status line is the one place that shows the job running. Closing the sheet does not stop the job.
+// Closing the sheet leaves the summary job running; only Stop ends it.
 export function SummarySheet({
   input,
   list,
@@ -90,10 +86,7 @@ export function SummarySheet({
   const offsetOf = (which: "chapters" | "names"): string =>
     which === "chapters" ? "translateX(0)" : "translateX(-100%)";
 
-  // A sideways swipe drags the track of the two tabs along with the finger and snaps on release.
-  // The axis locks on the first move: sideways, the track owns the touch and the panel under the
-  // finger does not scroll; otherwise the panel scrolls and the track stays. Native listeners,
-  // since React's touchmove is passive and cannot cancel the scroll.
+  // Native listeners: React's touchmove is passive and cannot stop the panel's scroll on a sideways swipe.
   useEffect(() => {
     const box = viewport.current;
     const rail = track.current;
@@ -170,7 +163,7 @@ export function SummarySheet({
   const { summary, run, error } = state;
   const story = input.kind === "story";
   const { row, action } = describeSummary(summary, cover, run, input.kind);
-  // A story shows no name whose first chapter is after the position.
+  // A story hides the names from after the position, so the list gives nothing away.
   const names = (summary?.names ?? [])
     .map((entry, index) => ({ entry, index }))
     .filter(({ entry }) => !story || entry.chapter <= cover.target);
@@ -179,16 +172,13 @@ export function SummarySheet({
   const chapterCount = summary?.chapters.length ?? 0;
   const spinner = <span className="loading loading-sm loading-spinner md:loading-xs" />;
 
-  // A line tapped in Contents opens the Chapters tab at that chapter; otherwise the latest entry,
-  // or the one in flight, comes into view.
   useEffect(() => {
     if (openAt !== null) setTab("chapters");
   }, [openAt]);
   useEffect(() => {
     if (tab !== "chapters") return;
     const target = openAt !== null && opened.current !== null ? opened.current : latest.current;
-    // The list scrolls on its own: scrollIntoView would also scroll the page under the sheet while
-    // the sheet is still sliding in, and the whole screen jumped.
+    // Not scrollIntoView: it also scrolls the page under the sliding sheet, and the screen jumped.
     const list = body.current;
     if (list === null || target === null) return;
     list.scrollTop = target.offsetTop - list.offsetTop - 8;
@@ -231,8 +221,7 @@ export function SummarySheet({
     );
   };
 
-  // The entry for the chapter being read: the one in flight, else the stored one, unless that
-  // chapter has its own paragraph by now.
+  // A chapter with its own paragraph by now drops its "to here" entry.
   const stored =
     summary?.current !== undefined &&
     !summary.chapters.some((chapter) => chapter.heading === summary.current?.heading)
@@ -295,15 +284,14 @@ export function SummarySheet({
           ))}
         </div>
 
-        {/* The two tabs sit side by side in a track; pan-y leaves sideways moves to the handlers. */}
+        {/* pan-y leaves sideways moves to the swipe handlers. */}
         <div
           ref={viewport}
           className="-mx-4 mt-1 min-h-0 flex-1 [touch-action:pan-y] overflow-hidden"
         >
           <div
             ref={track}
-            // On desktop the track is as wide as the reader's lines, measured in the same font, and
-            // the dialog shrinks to it.
+            // On desktop the dialog takes the reader's line width, in the same font.
             className="flex h-full md:w-(--text-width)"
             data-font={reading.font}
             style={

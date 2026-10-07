@@ -17,10 +17,7 @@ export function spanText(parsed: ParsedBook, start: number, end: number): string
     .join("\n\n");
 }
 
-// The spans the summary covers, in reading order: one per contents entry (or heading block when
-// there is no contents) that has at least 200 words, so a part title or a copyright page is not a
-// chapter. A span over 10,000 words is cut into pieces of 8,000, and a book with neither entries
-// nor headings is cut the same way, each piece named by its first page.
+// At least 200 words, so a part title or a copyright page is not a chapter; long spans are cut to fit a request.
 export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
   const entries =
     parsed.toc.length > 0

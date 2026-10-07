@@ -10,7 +10,6 @@ import {
 const event = (delta: Record<string, string>): string =>
   `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`;
 
-// Feeds the chunks one by one and gathers every delta, the way the stream does.
 function collect(chunks: ReadonlyArray<string>): Array<Delta> {
   let state: EventStreamState = emptyEventStream;
   const out: Array<Delta> = [];

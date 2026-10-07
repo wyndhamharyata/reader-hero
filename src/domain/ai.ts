@@ -38,9 +38,7 @@ export const AiMessage = Schema.Struct({
 });
 export type AiMessage = typeof AiMessage.Type;
 
-// One summary per book: a paragraph per chapter in reading order, each from one request, the
-// names drawn from those paragraphs, and the chapter being read, summarised up to the position.
-// The job appends to it and never sends a finished chapter twice.
+// One record per book, so the job appends to it and never sends a finished chapter twice.
 export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")({
   bookId: Schema.String,
   model: Schema.String,
@@ -53,8 +51,7 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
       paragraph: Schema.String,
     }),
   ),
-  // `chapter` is the 1-based chapter where the entry first appears; an edited entry is the
-  // reader's and the next merge keeps it as written.
+  // `chapter` is 1-based; the next merge keeps an edited entry as the reader wrote it.
   names: Schema.Array(
     Schema.Struct({
       name: Schema.String,
@@ -65,8 +62,7 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
   ),
   // How many chapters the names list covers; it lags behind `chapters` until the next merge.
   namesThrough: Schema.Int,
-  // Names the reader added, which the next merge must include, and names the reader removed,
-  // which it must leave out.
+  // Names the reader added and removed, which the next merge must include and leave out.
   required: Schema.Array(Schema.String),
   removed: Schema.Array(Schema.String).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
   thread: Schema.Array(AiMessage),

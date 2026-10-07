@@ -1,11 +1,19 @@
 import { Context, Effect, Layer, Stream } from "effect";
 import type { AiMessage, AiSettings } from "@/domain/ai";
-import type { AiFailure } from "@/domain/errors";
+import { AiFailure } from "@/domain/errors";
 import type { ModelInfo } from "@/lib/ai-transport";
 import type { Delta } from "@/lib/event-stream";
 
-// The presets, the fetch and the parser load on the first AI action, so launch does not pay for them.
-const transport = () => Effect.promise(() => import("@/lib/ai-transport"));
+// Loaded on the first request, so launch does not pay for it; a failed load is a failure, not a defect.
+const transport = (): Effect.Effect<typeof import("@/lib/ai-transport"), AiFailure> =>
+  Effect.tryPromise({
+    try: () => import("@/lib/ai-transport"),
+    catch: () =>
+      new AiFailure({
+        reason: navigator.onLine ? "provider" : "offline",
+        message: "The request code did not load",
+      }),
+  });
 
 export class AiClient extends Context.Service<
   AiClient,

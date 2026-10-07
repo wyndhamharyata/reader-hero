@@ -14,9 +14,10 @@ export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElemen
     <div className="mt-3 flex min-h-0 flex-col gap-3">
       <p className="text-base font-medium md:text-sm">Text sent to {name}</p>
       <p className="text-base md:text-sm">
-        Each AI action sends the chosen passage to {name} with the stored key. Reader Hero's own
-        server receives neither the text nor the key. {name}'s terms apply to the text it receives.
-        Results are stored on this device and read offline.
+        The summary sends the book's text to {name} with the stored key, one chapter per request,
+        and a follow-up sends the summary. With Automatic summary on, each chapter goes as it is
+        read. Reader Hero's own server receives neither the text nor the key. {name}'s terms apply
+        to the text it receives. Summaries are stored on this device and read offline.
       </p>
       <div className="flex justify-end gap-2">
         <button type="button" className="btn btn-ghost md:btn-sm" onClick={onCancel}>

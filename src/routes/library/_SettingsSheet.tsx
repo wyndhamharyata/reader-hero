@@ -19,7 +19,6 @@ type Test =
   | { readonly state: "valid"; readonly balance: string | null }
   | { readonly state: "failed"; readonly message: string };
 
-// Global settings, reached from the gear in the library header. The AI section is its only section.
 export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
   const { ai, putAi } = useAiSettings();
   const sheetRef = useRef<HTMLElement>(null);

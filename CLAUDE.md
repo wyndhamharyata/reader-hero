@@ -22,7 +22,7 @@ installed.
 | `npm run build`                           | Build the SPA to `dist/client` and the service worker.                     |
 | `npm run dev:worker`                      | Serve `dist/client` through the Hono worker with `wrangler dev`.           |
 | `npm run typecheck`                       | Typecheck the app, worker, service worker, and configs.                    |
-| `npm test`                                | Run the PDF pipeline tests.                                                |
+| `npm test`                                | Run the unit tests.                                                        |
 | `npm run lint`                            | ESLint.                                                                    |
 | `npm run deploy:dev`                      | Build, then `sst deploy --stage dev` to `reader-hero-dev.mwyndham.dev`.    |
 | `npm run icons`                           | Regenerate the PWA icons from `scripts/make-icons.mjs`.                    |
@@ -37,7 +37,7 @@ installed.
 src/
   domain/        Schema models (book, settings, ai) and tagged errors
   services/      Effect services: BookStore, PdfClient, SettingsStore, SummaryStore, AiClient,
-                 SummaryJobs (the summary fibers, one per book, outliving the reader)
+                 SummaryJobs (one summary fiber per book, which runs on after the reader closes)
   use-cases/     Orchestration: import, parse, inbox, the summary job and its chapter list
   lib/pdf/       The reflow pipeline: lines, columns, blocks, boilerplate, assemble
   lib/           Runtime hooks, IndexedDB, codecs, formatting, the AI transport and its
@@ -51,9 +51,10 @@ src/
 ## Invariants
 
 - **100% client-side.** The worker only serves files. No document, text, or
-  progress leaves the device. The one exception is an AI action the reader
-  taps: it sends the chosen passage straight to the provider the reader set up
-  with their own key, never through the worker, and only after a consent sheet.
+  progress leaves the device. The one exception is the summary: it sends the
+  book's text, one chapter per request, straight to the provider the reader set
+  up with their own key, never through the worker. It sends only after a consent
+  sheet, and only on a tap or with Automatic summary switched on.
 - **Effect owns side effects.** Parsing, storage, and rendering pages return
   `Effect`s. React components render state and handle interaction; they never
   import pdf.js or IndexedDB directly. Services are reached through the runtime

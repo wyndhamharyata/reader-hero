@@ -63,8 +63,7 @@ export function ReaderRoute() {
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
-  // The furthest block reached, this visit or before: the summary follows it, not the position,
-  // so a reader who goes back over earlier pages sees the summary as it stood and is asked nothing.
+  // The summary follows the furthest block, so going back over earlier pages asks for nothing.
   const [furthest, setFurthest] = useState(0);
   const furthestRef = useRef(0);
   const { ai, putAi } = useAiSettings();
@@ -135,11 +134,7 @@ export function ReaderRoute() {
       }),
     [settings, prefs],
   );
-  // The keys, with no sheet open and no field focused: Escape walks back up the hierarchy (each
-  // open sheet closes itself first, so here the reader returns to the library); the arrows and
-  // j/k scroll two lines, and held they keep scrolling, faster the longer they are held; ctrl+d
-  // and ctrl+u jump a paragraph, or a page in the original view; s opens the sidebar. A move is
-  // smooth, so the eye can follow where the text went.
+  // Off while a sheet is open, as each sheet takes its own Escape; moves are smooth so the eye can follow.
   useEffect(() => {
     if (tocOpen || summarySheet !== null) return;
     const line = bookSettings.fontSize * bookSettings.lineHeight;
@@ -158,8 +153,7 @@ export function ReaderRoute() {
       if (held !== null) cancelAnimationFrame(held.frame);
       held = null;
     };
-    // Held past a tap, the key scrolls on its own clock from the moment the tap's smooth scroll
-    // is ending, at the tap's own pace of about 12 lines a second, rising to 36 over two seconds.
+    // A clock of its own, not key repeat, which starts late and moves in steps.
     const run = (now: number): void => {
       if (held === null) return;
       const seconds = (now - held.last) / 1000;
@@ -265,7 +259,6 @@ export function ReaderRoute() {
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
 
-  // The summary covers the chapters before the position for a story, and every section otherwise.
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
   const summaryIndex = Math.max(position, furthest);
   const cover = useMemo(
@@ -294,13 +287,16 @@ export function ReaderRoute() {
     return map;
   }, [ai, summary, chapterList]);
 
-  // With the switch on, each chapter is summarised as soon as it is read, with no tap. An error
-  // waits for a tap in the sheet, so a failing provider is not asked again and again.
+  // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
+  const autoTarget = useRef(-1);
   useEffect(() => {
     if (ai === null || !ai.autoSummary || ai.consentedAt === undefined || summaryInput === null) {
       return;
     }
+    // An error waits for a tap in the sheet, so a failing provider is not asked again and again.
     if (run !== null || summaryError !== null || !navigator.onLine) return;
+    if (cover.target <= autoTarget.current) return;
+    autoTarget.current = cover.target;
     if ((summary?.chapters.length ?? 0) >= cover.target) return;
     start(summaryInput, ai);
   }, [ai, summaryInput, run, summaryError, summary, cover.target, start]);

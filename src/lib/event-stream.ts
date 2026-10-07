@@ -1,6 +1,4 @@
-// A server-sent events parser for OpenAI-style chat completions. It is stateful because a chunk
-// from the network can end in the middle of a line, and a provider under load sends comment lines
-// such as ": keep-alive" between events.
+// Stateful: a network chunk can end mid-line, and a provider under load sends ": keep-alive" lines.
 export interface EventStreamState {
   readonly buffer: string;
   readonly data: ReadonlyArray<string>;
@@ -10,7 +8,6 @@ export const emptyEventStream: EventStreamState = { buffer: "", data: [] };
 
 export type Delta = { readonly type: "text" | "reasoning"; readonly text: string };
 
-// Feeds one chunk and returns the deltas of every event completed by it.
 export function pushEventStream(
   state: EventStreamState,
   chunk: string,

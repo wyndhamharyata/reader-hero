@@ -4,10 +4,7 @@ import { guessMode, sectionSignals } from "@/lib/guess-mode";
 
 const quotes = '"“”„«»「」『』‘';
 
-// Story or reference, for the spoiler gate. A document that opens in the original view is a
-// reference. Otherwise the section signals of the mode guess and the share of paragraphs with
-// dialogue decide, and a tie goes to story, because a wrong story guess only hides summaries while a
-// wrong reference guess can spoil.
+// A tie goes to story: a wrong story guess hides some names, a wrong reference guess shows later chapters.
 export function guessKind(meta: BookMeta, parsed: ParsedBook): BookKind {
   if (guessMode(meta, parsed) === "original") return "reference";
 

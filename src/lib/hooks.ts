@@ -192,10 +192,9 @@ export function useSummary(bookId: string): SummaryState & {
         setSummary(stored);
         yield* Effect.all(
           [
-            store.changes().pipe(
-              Stream.filter((change) => change.bookId === bookId),
-              Stream.runForEach((change) => Effect.sync(() => setSummary(change.summary))),
-            ),
+            store
+              .changes(bookId)
+              .pipe(Stream.runForEach((next) => Effect.sync(() => setSummary(next)))),
             jobs.state(bookId).pipe(Stream.runForEach((next) => Effect.sync(() => setJob(next)))),
           ],
           { concurrency: "unbounded" },
@@ -223,12 +222,13 @@ export function useSummary(bookId: string): SummaryState & {
   const addName = useCallback(
     (name: string) => {
       forkApp(
-        Effect.gen(function* () {
-          const store = yield* SummaryStore;
-          const current = yield* store.get(bookId);
-          if (current === null) return;
-          yield* store.put(new Summary({ ...current, required: [...current.required, name] }));
-        }),
+        Effect.flatMap(SummaryStore, (store) =>
+          store.update(bookId, (current) =>
+            current === null
+              ? null
+              : new Summary({ ...current, required: [...current.required, name] }),
+          ),
+        ),
       );
     },
     [bookId],
@@ -237,20 +237,25 @@ export function useSummary(bookId: string): SummaryState & {
   const editName = useCallback(
     (index: number, next: { name: string; note: string } | null) => {
       forkApp(
-        Effect.gen(function* () {
-          const store = yield* SummaryStore;
-          const current = yield* store.get(bookId);
-          const entry = current?.names[index];
-          if (current === null || entry === undefined) return;
-          const names =
-            next === null
-              ? current.names.filter((_, at) => at !== index)
-              : current.names.map((candidate, at) =>
-                  at === index ? { ...candidate, ...next, edited: true } : candidate,
-                );
-          const removed = next === null ? [...current.removed, entry.name] : current.removed;
-          yield* store.put(new Summary({ ...current, names, removed }));
-        }),
+        Effect.flatMap(SummaryStore, (store) =>
+          store.update(bookId, (current) => {
+            const entry = current?.names[index];
+            if (current === null || entry === undefined) return null;
+            if (next === null) {
+              return new Summary({
+                ...current,
+                names: current.names.filter((_, at) => at !== index),
+                removed: [...current.removed, entry.name],
+              });
+            }
+            return new Summary({
+              ...current,
+              names: current.names.map((candidate, at) =>
+                at === index ? { ...candidate, ...next, edited: true } : candidate,
+              ),
+            });
+          }),
+        ),
       );
     },
     [bookId],

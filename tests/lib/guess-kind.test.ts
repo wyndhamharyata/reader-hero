@@ -25,7 +25,6 @@ const book = (pageCount: number, blocks: ReadonlyArray<Block>): ParsedBook =>
     figuresThrough: 0,
   });
 
-// Sixty paragraphs, a share of them with dialogue.
 const prose = (quoted: number): Array<Block> =>
   Array.from({ length: 60 }, (_, index) =>
     block(index < quoted ? `"Come along," she said, and we went.` : "The road ran on.", index + 1),

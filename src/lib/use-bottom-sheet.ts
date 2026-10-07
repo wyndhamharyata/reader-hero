@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, type RefObject } from "react";
 
 const closeMs = 200;
 
-// The open sheets, bottom to top. Escape dismisses the top one only, so a summary over the
-// sidebar closes first and the sidebar on the next press.
+// Bottom to top: Escape closes the top sheet only, so a summary over the sidebar closes first.
 const openSheets: Array<symbol> = [];
 
 // Slides a sheet out (down on phones, right for the desktop sidebar) and fades its backdrop, then closes.
