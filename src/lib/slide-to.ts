@@ -36,8 +36,8 @@ export function openBook(navigate: NavigateFunction, to: string): void {
     window.setTimeout(resolve, 5000);
   });
   setOpening({ to, waiting: false });
-  // A fast open shows nothing; a slow one says it is working.
-  const timer = window.setTimeout(() => setOpening({ to, waiting: true }), 150);
+  // Above a usual open's time, so only a slow open says it is working, and a usual one never flashes.
+  const timer = window.setTimeout(() => setOpening({ to, waiting: true }), 400);
   void ready.then(() => {
     window.clearTimeout(timer);
     const go = (): void =>
@@ -52,8 +52,7 @@ export function openBook(navigate: NavigateFunction, to: string): void {
       go();
       return;
     }
-    // Off before the library's snapshot, so the indicator does not slide out with it.
-    flushSync(() => setOpening({ to, waiting: false }));
+    // The indicator stays in the library's snapshot and leaves with it, so it does not blink off first.
     const root = document.documentElement;
     root.dataset.slide = "in";
     void document.startViewTransition(go).finished.finally(() => delete root.dataset.slide);
