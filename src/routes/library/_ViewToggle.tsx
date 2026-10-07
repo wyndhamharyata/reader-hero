@@ -18,6 +18,7 @@ export function ViewToggle({ view, onChange }: Props): ReactElement {
         type="button"
         className={`btn join-item btn-square md:btn-sm ${listClass}`}
         aria-label="List view"
+        title="List view"
         aria-pressed={!grid}
         onClick={() => onChange("list")}
       >
@@ -27,6 +28,7 @@ export function ViewToggle({ view, onChange }: Props): ReactElement {
         type="button"
         className={`btn join-item btn-square md:btn-sm ${gridClass}`}
         aria-label="Grid view"
+        title="Grid view"
         aria-pressed={grid}
         onClick={() => onChange("grid")}
       >

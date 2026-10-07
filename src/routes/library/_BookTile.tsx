@@ -42,6 +42,7 @@ export function BookTile({ card, onRemove, onReparse }: Props): ReactElement {
             role="button"
             className="btn btn-square btn-ghost btn-xs"
             aria-label="Book actions"
+            title="Book actions"
           >
             <EllipsisVerticalIcon className="size-5 md:size-4" />
           </div>

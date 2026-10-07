@@ -202,6 +202,7 @@ export function LibraryRoute(): ReactElement {
       type="button"
       className="btn btn-square btn-ghost md:btn-sm"
       aria-label="Settings"
+      title="Settings"
       onClick={() => setSettingsOpen(true)}
     >
       <CogIcon className="size-6 md:size-4" />
@@ -292,6 +293,7 @@ export function LibraryRoute(): ReactElement {
             type="button"
             className="btn relative btn-square"
             aria-label="All filters"
+            title="All filters"
             onClick={() => setFiltersOpen(true)}
           >
             <FunnelIcon className="size-5" />

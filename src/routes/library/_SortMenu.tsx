@@ -24,6 +24,7 @@ export function SortMenu({ sort, onChange }: Props): ReactElement {
         role="button"
         className="btn max-lg:btn-square md:btn-sm"
         aria-label={`Sort: ${label}`}
+        title={`Sort: ${label}`}
       >
         <ArrowsUpDownIcon className="size-5 md:size-4" />
         <span className="hidden lg:inline">{label}</span>

@@ -117,6 +117,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
               type="button"
               className="btn bg-base-100 md:btn-sm"
               aria-label="Less line spacing"
+              title="Less line spacing"
               onClick={() => onChange({ lineHeight: tighter })}
               disabled={settings.lineHeight <= MIN_LINE_HEIGHT}
             >
@@ -129,6 +130,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
               type="button"
               className="btn bg-base-100 md:btn-sm"
               aria-label="More line spacing"
+              title="More line spacing"
               onClick={() => onChange({ lineHeight: looser })}
               disabled={settings.lineHeight >= MAX_LINE_HEIGHT}
             >
@@ -150,6 +152,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
                 type="button"
                 className={alignClass}
                 aria-label={alignment.label}
+                title={alignment.label}
                 aria-pressed={chosen}
                 onClick={() => onChange({ textAlign: alignment.value })}
               >

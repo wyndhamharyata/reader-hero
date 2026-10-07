@@ -31,6 +31,7 @@ export function ReaderNav({
           to="/"
           className="btn btn-square btn-ghost btn-lg md:btn-sm"
           aria-label="Back to library"
+          title="Back to library"
         >
           <ArrowLeftIcon className="size-7 md:size-5" />
         </Link>
@@ -39,6 +40,7 @@ export function ReaderNav({
           type="button"
           className="btn btn-square btn-ghost btn-lg md:btn-sm"
           aria-label="Menu"
+          title="Menu"
           onClick={onMenu}
         >
           <Bars3Icon className="size-7 md:size-5" />

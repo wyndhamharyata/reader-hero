@@ -488,6 +488,7 @@ export function SummarySheet({
                     type="submit"
                     className={`${button} btn-square`}
                     aria-label="Add"
+                    title="Add"
                     disabled={run !== null || name.trim() === ""}
                   >
                     <PlusIcon className="size-6 md:size-4" />
@@ -592,6 +593,7 @@ export function SummarySheet({
                 type="submit"
                 className={`${button} btn-square btn-primary`}
                 aria-label="Send"
+                title="Send"
                 disabled={
                   settings === null ||
                   summary === null ||
@@ -625,6 +627,7 @@ export function SummarySheet({
                 type="button"
                 className={`${button} btn-square btn-ghost`}
                 aria-label="Copy"
+                title="Copy"
                 disabled={summary === null}
                 onClick={copy}
               >
@@ -634,6 +637,7 @@ export function SummarySheet({
                 type="button"
                 className={`${button} btn-square btn-ghost text-error`}
                 aria-label="Discard"
+                title="Discard"
                 disabled={summary === null || run !== null}
                 onClick={() => setDiscardPending(true)}
               >
@@ -643,6 +647,7 @@ export function SummarySheet({
                 type="button"
                 className={`${button} btn-square btn-ghost`}
                 aria-label="Close"
+                title="Close"
                 onClick={close}
               >
                 <XMarkIcon className="size-6 md:size-4" />
