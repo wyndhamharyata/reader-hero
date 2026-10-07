@@ -83,6 +83,7 @@ export function SummarySheet({
   const [editing, setEditing] = useState<{ index: number; name: string; note: string } | null>(
     null,
   );
+  const body = useRef<HTMLDivElement>(null);
   const opened = useRef<HTMLDivElement>(null);
   const latest = useRef<HTMLDivElement>(null);
   const job = useRef<Job | null>(null);
@@ -106,7 +107,11 @@ export function SummarySheet({
   useEffect(() => {
     if (tab !== "chapters") return;
     const target = openAt !== null && opened.current !== null ? opened.current : latest.current;
-    target?.scrollIntoView({ block: "start" });
+    // The list scrolls on its own: scrollIntoView would also scroll the page under the sheet while
+    // the sheet is still sliding in, and the whole screen jumped.
+    const list = body.current;
+    if (list === null || target === null) return;
+    list.scrollTop = target.offsetTop - list.offsetTop - 8;
   }, [tab, openAt, run?.stage, run?.chapter]);
 
   useEffect(
@@ -212,6 +217,7 @@ export function SummarySheet({
 
         {/* Room around the content, so a focused field's outline is not clipped by the scroll. */}
         <div
+          ref={body}
           className="-mx-1 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1"
           data-font={reading.font}
           style={{ fontSize: `${reading.fontSize}px`, lineHeight: reading.lineHeight }}
