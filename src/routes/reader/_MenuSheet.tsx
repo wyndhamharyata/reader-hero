@@ -52,6 +52,12 @@ export function MenuSheet({
 
   if (!open) return null;
 
+  // The desktop sidebar stays open behind the summary; a phone's bottom sheet makes way for it.
+  const keepOpen = (then: () => void): void => {
+    if (window.matchMedia("(width >= 48rem)").matches) then();
+    else dismiss(then);
+  };
+
   // The panel opens upward on phones (sheet anchored at the bottom), so the chevron flips there.
   const chevronTurn = textOpen ? "md:rotate-180" : "max-md:rotate-180";
 
@@ -96,7 +102,7 @@ export function MenuSheet({
                   <button
                     type="button"
                     className="mb-1 w-full rounded-field px-2 pb-2 text-left text-base opacity-70 hover:bg-base-300 md:text-sm"
-                    onClick={() => dismiss(() => onLine(entry.blockIndex))}
+                    onClick={() => keepOpen(() => onLine(entry.blockIndex))}
                   >
                     <span className="line-clamp-2 block">{lines.get(entry.blockIndex)}</span>
                   </button>
@@ -136,7 +142,7 @@ export function MenuSheet({
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
-            onClick={() => dismiss(() => onSummary())}
+            onClick={() => keepOpen(onSummary)}
           >
             <DocumentTextIcon className="size-6 md:size-4" />
             <span className="shrink-0 text-left">Summary</span>

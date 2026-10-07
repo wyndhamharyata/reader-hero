@@ -218,7 +218,7 @@ export function SummarySheet({
         {/* Room around the content, so a focused field's outline is not clipped by the scroll. */}
         <div
           ref={body}
-          className="-mx-1 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1"
+          className="-mx-1 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain"
           data-font={reading.font}
           style={{ fontSize: `${reading.fontSize}px`, lineHeight: reading.lineHeight }}
         >
@@ -234,26 +234,26 @@ export function SummarySheet({
                         ? latest
                         : undefined
                   }
-                  className="mt-3 scroll-mt-2 first:mt-0"
+                  className="mt-3 px-1 first:mt-0"
                 >
                   <p className="font-medium">{chapter.heading}</p>
                   <p className="whitespace-pre-wrap">{chapter.paragraph}</p>
                 </div>
               ))}
               {run !== null && run.stage === "chapter" && run.chapter > 0 && (
-                <div ref={latest} className="mt-3 scroll-mt-2 first:mt-0">
+                <div ref={latest} className="mt-3 px-1 first:mt-0">
                   <p className="font-medium">{list[run.chapter - 1]?.heading ?? ""}</p>
                   <p className="whitespace-pre-wrap">{run.text}</p>
                 </div>
               )}
               {current !== null && (
-                <div ref={latest} className="mt-3 scroll-mt-2 first:mt-0">
+                <div ref={latest} className="mt-3 px-1 first:mt-0">
                   <p className="font-medium">{current.heading} · to here</p>
                   <p className="whitespace-pre-wrap">{current.text}</p>
                 </div>
               )}
               {summary === null && run === null && (
-                <p className="opacity-70">
+                <p className="px-1 opacity-70">
                   {action === null
                     ? `No ${unit}s before this position.`
                     : "Nothing summarised yet."}
@@ -262,13 +262,13 @@ export function SummarySheet({
               {(summary?.thread ?? []).map((message, index) => (
                 <p
                   key={index}
-                  className={`mt-3 whitespace-pre-wrap ${message.role === "user" ? "font-medium" : ""}`}
+                  className={`mt-3 px-1 whitespace-pre-wrap ${message.role === "user" ? "font-medium" : ""}`}
                 >
                   {message.content}
                 </p>
               ))}
               {pending !== null && (
-                <p className="mt-3 whitespace-pre-wrap">
+                <p className="mt-3 px-1 whitespace-pre-wrap">
                   {pending === "" ? (
                     <span className="flex items-center gap-2 opacity-70">
                       {spinner}
@@ -279,15 +279,15 @@ export function SummarySheet({
                   )}
                 </p>
               )}
-              {askError !== null && <p className="mt-2 text-error">{askError}</p>}
+              {askError !== null && <p className="mt-2 px-1 text-error">{askError}</p>}
             </>
           ) : (
             <>
-              {names.length === 0 && <p className="opacity-70">No entries yet.</p>}
+              {names.length === 0 && <p className="px-1 opacity-70">No entries yet.</p>}
               <ul className="flex flex-col">
                 {names.map(({ entry, index }) =>
                   editing !== null && editing.index === index ? (
-                    <li key={index} className="py-2">
+                    <li key={index} className="px-1 py-2">
                       <form
                         className="flex flex-col gap-2 font-sans"
                         onSubmit={(event) => {
@@ -343,7 +343,7 @@ export function SummarySheet({
                       </form>
                     </li>
                   ) : (
-                    <li key={index}>
+                    <li key={index} className="px-1">
                       <button
                         type="button"
                         className="flex w-full items-center justify-between gap-3 rounded-field py-2 text-left hover:bg-base-300 disabled:opacity-50"
@@ -367,7 +367,7 @@ export function SummarySheet({
               </ul>
               {summary !== null && (
                 <form
-                  className="mt-3 flex gap-2 font-sans"
+                  className="mt-3 flex gap-2 px-1 pb-1 font-sans"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const trimmed = name.trim();
@@ -396,7 +396,7 @@ export function SummarySheet({
                 </form>
               )}
               {summary !== null && summary.required.length > 0 && (
-                <p className="mt-2 text-[0.75em] opacity-60">
+                <p className="mt-2 px-1 text-[0.75em] opacity-60">
                   In the next update: {summary.required.join(", ")}
                 </p>
               )}

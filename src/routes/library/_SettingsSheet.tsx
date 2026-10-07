@@ -128,8 +128,8 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <h2 className="text-lg font-semibold">Settings</h2>
 
-        <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
-          <section>
+        <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <section className="px-1 pt-1">
             <p className={heading}>Provider</p>
             <select
               className={field}
@@ -149,7 +149,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
             </select>
           </section>
 
-          <section className="mt-4">
+          <section className="mt-4 px-1">
             <p className={heading}>API key</p>
             <div className="flex gap-2">
               {/* 16px text on phones: iOS zooms the page into any focused input smaller than that. */}
@@ -181,7 +181,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
             </p>
           </section>
 
-          <section className="mt-3">
+          <section className="mt-3 px-1">
             <p className={heading}>Model</p>
             {models.length > 0 ? (
               <select
@@ -208,7 +208,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
             )}
           </section>
 
-          <section className="mt-4">
+          <section className="mt-4 px-1">
             <p className={heading}>Effort</p>
             <select
               className={field}
@@ -227,7 +227,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
             </p>
           </section>
 
-          <section className="mt-4">
+          <section className="mt-4 px-1 pb-1">
             <p className={heading}>Summary</p>
             <label className="flex items-center justify-between gap-3 py-2 text-base md:text-sm">
               <span>Summaries in Contents</span>
