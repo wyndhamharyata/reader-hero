@@ -53,14 +53,22 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
       paragraph: Schema.String,
     }),
   ),
-  // `chapter` is the 1-based chapter where the entry first appears.
+  // `chapter` is the 1-based chapter where the entry first appears; an edited entry is the
+  // reader's and the next merge keeps it as written.
   names: Schema.Array(
-    Schema.Struct({ name: Schema.String, note: Schema.String, chapter: Schema.Int }),
+    Schema.Struct({
+      name: Schema.String,
+      note: Schema.String,
+      chapter: Schema.Int,
+      edited: Schema.optional(Schema.Boolean),
+    }),
   ),
   // How many chapters the names list covers; it lags behind `chapters` until the next merge.
   namesThrough: Schema.Int,
-  // Names the reader added, which the next merge must include.
+  // Names the reader added, which the next merge must include, and names the reader removed,
+  // which it must leave out.
   required: Schema.Array(Schema.String),
+  removed: Schema.Array(Schema.String).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
   thread: Schema.Array(AiMessage),
   // The chapter that held the position, up to the block before `end`; stale once the position moves.
   current: Schema.optional(

@@ -173,6 +173,8 @@ export function useSummary(bookId: string): SummaryState & {
   readonly stop: () => void;
   readonly discard: () => void;
   readonly addName: (name: string) => void;
+  // A new name and note for the entry at `index`, or null to remove it; both survive the next merge.
+  readonly editName: (index: number, next: { name: string; note: string } | null) => void;
 } {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [job, setJob] = useState<JobState>({ run: null, error: null });
@@ -232,5 +234,27 @@ export function useSummary(bookId: string): SummaryState & {
     [bookId],
   );
 
-  return { summary, run: job.run, error: job.error, start, stop, discard, addName };
+  const editName = useCallback(
+    (index: number, next: { name: string; note: string } | null) => {
+      forkApp(
+        Effect.gen(function* () {
+          const store = yield* SummaryStore;
+          const current = yield* store.get(bookId);
+          const entry = current?.names[index];
+          if (current === null || entry === undefined) return;
+          const names =
+            next === null
+              ? current.names.filter((_, at) => at !== index)
+              : current.names.map((candidate, at) =>
+                  at === index ? { ...candidate, ...next, edited: true } : candidate,
+                );
+          const removed = next === null ? [...current.removed, entry.name] : current.removed;
+          yield* store.put(new Summary({ ...current, names, removed }));
+        }),
+      );
+    },
+    [bookId],
+  );
+
+  return { summary, run: job.run, error: job.error, start, stop, discard, addName, editName };
 }

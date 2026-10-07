@@ -177,6 +177,7 @@ export function summariseNext(
         names: [],
         namesThrough: 0,
         required: [],
+        removed: [],
         thread: [],
       });
 
@@ -239,15 +240,25 @@ export function summariseNext(
         ? 'You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. A note is at most 20 words and says who the character is to the story so far. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","chapter":1}]}, where chapter is the number of the chapter where the entry first appears.'
         : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","chapter":1}]}, where chapter is the number of the section where the term first appears.';
       const fresh = record.chapters.slice(record.namesThrough);
+      const pinned = record.names.filter((entry) => entry.edited === true);
       const user = [
         bookLine(input.meta),
         "",
         "List so far (JSON):",
-        JSON.stringify(record.names),
+        JSON.stringify(record.names.map(({ name, note, chapter }) => ({ name, note, chapter }))),
         "",
         ...(record.required.length === 0
           ? []
           : [`Entries the reader asked for: ${record.required.join(", ")}`, ""]),
+        ...(pinned.length === 0
+          ? []
+          : [
+              `Entries the reader edited, to keep as written: ${pinned.map((entry) => entry.name).join(", ")}`,
+              "",
+            ]),
+        ...(record.removed.length === 0
+          ? []
+          : [`Entries the reader removed, to leave out: ${record.removed.join(", ")}`, ""]),
         `New ${unit.many}:`,
         "",
         ...fresh.flatMap((chapter, offset) => [
@@ -265,10 +276,21 @@ export function summariseNext(
           message: `The ${unit.names} list was not JSON`,
         });
       }
+      // The reader's edits and removals win over the model's list.
+      const same = (a: string, b: string): boolean =>
+        a.trim().toLowerCase() === b.trim().toLowerCase();
+      const merged: Array<(typeof record.names)[number]> = names.filter(
+        (entry) => !record.removed.some((name) => same(name, entry.name)),
+      );
+      for (const entry of pinned) {
+        const at = merged.findIndex((candidate) => same(candidate.name, entry.name));
+        if (at === -1) merged.push(entry);
+        else merged[at] = entry;
+      }
       record = new Summary({
         ...record,
         updatedAt: Date.now(),
-        names,
+        names: merged,
         namesThrough: record.chapters.length,
         required: [],
       });

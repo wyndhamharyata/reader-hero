@@ -63,7 +63,16 @@ export function ReaderRoute() {
   const [message, setMessage] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
   const { ai, putAi } = useAiSettings();
-  const { summary, run, error: summaryError, start, stop, discard, addName } = useSummary(bookId);
+  const {
+    summary,
+    run,
+    error: summaryError,
+    start,
+    stop,
+    discard,
+    addName,
+    editName,
+  } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -344,6 +353,7 @@ export function ReaderRoute() {
           onStop={stop}
           onDiscard={discard}
           onAddName={addName}
+          onEditName={editName}
           onConsent={() => putAi(new AiSettings({ ...ai, consentedAt: Date.now() }))}
           onClose={() => setSummarySheet(null)}
         />

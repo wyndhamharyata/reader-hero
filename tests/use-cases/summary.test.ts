@@ -84,6 +84,7 @@ const stored = (fields: Partial<Summary> = {}): Summary =>
     names: [{ name: "Jim", note: "The narrator.", chapter: 1 }],
     namesThrough: 2,
     required: [],
+    removed: [],
     thread: [],
     ...fields,
   });
@@ -258,6 +259,31 @@ describe("summariseNext", () => {
     expect(calls.map((call) => call.kind)).toEqual(["names"]);
     expect(calls[0]?.user).toContain("Entries the reader asked for: Ben Gunn");
     expect(calls[0]?.user).toContain("New chapters:\n\nReturn the merged list.");
+  });
+
+  it("given edited and removed entries, keeps the edits and leaves the removed out after the merge", async () => {
+    const curated = stored({
+      names: [
+        { name: "Jim", note: "The narrator.", chapter: 1 },
+        { name: "Pew", note: "Blind, and rides down the road.", chapter: 2, edited: true },
+      ],
+      namesThrough: 1,
+      removed: ["Jim"],
+      current: { heading: "Chapter 3", end: 8, text: "So far." },
+    });
+    const { calls, layer } = harness(curated);
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
+
+    const result = await Effect.runPromise(
+      summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
+    );
+
+    expect(calls.map((call) => call.kind)).toEqual(["names"]);
+    expect(calls[0]?.user).toContain("Entries the reader edited, to keep as written: Pew");
+    expect(calls[0]?.user).toContain("Entries the reader removed, to leave out: Jim");
+    expect(result.names).toEqual([
+      { name: "Pew", note: "Blind, and rides down the road.", chapter: 2, edited: true },
+    ]);
   });
 
   it("given a position that moved on, makes the chapter read so far again and nothing else", async () => {
