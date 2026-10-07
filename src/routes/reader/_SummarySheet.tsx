@@ -185,7 +185,7 @@ export function SummarySheet({
         ref={sheetRef}
         role="dialog"
         aria-label="Summary"
-        className="relative z-10 mx-auto flex max-h-[85%] w-full max-w-xl flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.5rem)] motion-safe:animate-sheet-up md:max-h-[85vh] md:rounded-box md:pb-4"
+        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.5rem)] motion-safe:animate-sheet-up md:max-h-[85vh] md:rounded-box md:pb-4"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Summary · {row}</p>
