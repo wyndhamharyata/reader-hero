@@ -1,5 +1,6 @@
-import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
+import { slideReady } from "@/lib/slide-to";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
 
@@ -78,14 +79,16 @@ export const ReaderView = memo(function ReaderView({
     };
   }, [fontSpec, fontReady]);
 
-  // Saved progress only places the first open; later reloads (figures landing) must not move the reader.
-  useEffect(() => {
+  // Before paint, so no frame shows the top; only the first open, as figures landing later must not move it.
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (container === null || restoredRef.current || !fontReady) return;
     const target = container.querySelector<HTMLElement>(`[data-block="${initialBlock}"]`);
-    if (target === null) return;
-    restoredRef.current = true;
-    target.scrollIntoView({ block: "start" });
+    if (target !== null) {
+      restoredRef.current = true;
+      target.scrollIntoView({ block: "start" });
+    }
+    slideReady();
   }, [initialBlock, fontReady]);
 
   // One pass of layout reads per layout change; a scroll then does a binary search instead of a hit

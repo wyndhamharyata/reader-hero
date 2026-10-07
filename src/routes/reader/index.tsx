@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from "effect";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   forkApp,
@@ -311,7 +311,7 @@ export function ReaderRoute() {
   const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = bookSettings.theme;
     document.documentElement.style.setProperty("--temperature", String(bookSettings.temperature));
   }, [bookSettings.theme, bookSettings.temperature, settings.theme, settings.temperature]);

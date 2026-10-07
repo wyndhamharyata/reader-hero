@@ -12,6 +12,7 @@ import {
 } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { buildShelf, type FilterGroup, type Filters } from "@/lib/shelf";
+import { slideReady } from "@/lib/slide-to";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers } from "@/use-cases/book-image";
@@ -81,6 +82,10 @@ export function LibraryRoute(): ReactElement {
   const estimate = state.status === "done" ? state.value.estimate : null;
   const reading = state.status === "done" ? state.value.reading : null;
   useFigureJobs(books);
+  // The slide back from a book waits for the shelf, so it does not show an empty library.
+  useEffect(() => {
+    if (state.status !== "loading") slideReady();
+  }, [state.status]);
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
   const bookIds = books.map((book) => book.id).join(" ");
 

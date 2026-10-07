@@ -1,5 +1,12 @@
 import { Effect, Fiber, Stream } from "effect";
-import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type DependencyList,
+} from "react";
 import { Summary, type AiSettings } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
@@ -129,7 +136,8 @@ export function useSettings(): {
     };
   }, []);
 
-  useEffect(() => {
+  // Before paint, so a page's first frame, and the snapshot a slide takes of it, has its theme.
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.style.setProperty("--temperature", String(settings.temperature));
   }, [settings.theme, settings.temperature]);
