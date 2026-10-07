@@ -123,7 +123,8 @@ export function useSettings(): {
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
-  }, [settings.theme]);
+    document.documentElement.style.setProperty("--temperature", String(settings.temperature));
+  }, [settings.theme, settings.temperature]);
 
   const update = useCallback((patch: Partial<ReaderSettings>) => {
     const save = Effect.flatMap(SettingsStore, (store) => store.update(patch));

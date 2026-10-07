@@ -41,7 +41,7 @@ export function FilterSheet({
       <button
         type="button"
         ref={backdropRef}
-        className="absolute inset-0 bg-black/50 motion-safe:animate-fade-in"
+        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
         aria-label="Close filters"
         onClick={() => dismiss()}
       />

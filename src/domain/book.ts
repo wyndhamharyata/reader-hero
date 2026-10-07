@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Schema, SchemaTransformation } from "effect";
 import { BookKind } from "@/domain/ai";
 
 export const ParseState = Schema.Literals(["pending", "parsing", "ready", "scanned", "failed"]);
@@ -112,7 +112,16 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
   furthest: Schema.optional(Schema.Int),
 }) {}
 
-export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdark"]);
+// Sepia gave way to the temperature setting; a stored sepia choice opens as light.
+export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdark"]).pipe(
+  Schema.decodeTo(
+    Schema.Literals(["rhlight", "rhdark"]),
+    SchemaTransformation.transform({
+      decode: (theme) => (theme === "rhsepia" ? "rhlight" : theme),
+      encode: (theme) => theme,
+    }),
+  ),
+);
 export type ReaderTheme = typeof ReaderTheme.Type;
 
 export const ReaderFont = Schema.Literals(["serif", "sans", "mono"]);
@@ -141,6 +150,8 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   ),
   textWidth: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(65))),
   textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
+  // -1 is the coolest, 0 neutral, 1 the warmest.
+  temperature: Schema.Number.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
 export const ReaderMode = Schema.Literals(["reader", "original"]);
@@ -157,6 +168,7 @@ export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookP
   lineHeight: Schema.optional(Schema.Number),
   textAlign: Schema.optional(TextAlign),
   textWidth: Schema.optional(Schema.Int),
+  temperature: Schema.optional(Schema.Number),
 }) {}
 
 export const DEFAULT_SETTINGS = new ReaderSettings({
@@ -168,6 +180,7 @@ export const DEFAULT_SETTINGS = new ReaderSettings({
   librarySort: "recent",
   textWidth: 65,
   textAlign: "left",
+  temperature: 0,
 });
 
 export interface RawTextItem {

@@ -9,7 +9,6 @@ interface Props {
 
 const themes: ReadonlyArray<{ value: ReaderTheme; label: string }> = [
   { value: "rhlight", label: "Light" },
-  { value: "rhsepia", label: "Sepia" },
   { value: "rhdark", label: "Dark" },
 ];
 
@@ -61,6 +60,28 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
             );
           })}
         </div>
+      </section>
+
+      <section className="mt-3">
+        <p className={`${heading} flex justify-between`}>
+          <span>Temperature</span>
+          <span className="normal-case">
+            {settings.temperature === 0 ? "Neutral" : settings.temperature < 0 ? "Cool" : "Warm"}
+          </span>
+        </p>
+        {/* The track shows the scale itself; no fill, since neutral sits in the middle. */}
+        <input
+          type="range"
+          className="range w-full bg-[linear-gradient(to_right,oklch(62%_0.13_250),oklch(80%_0_0),oklch(62%_0.15_50))] bg-size-[100%_50%] bg-center bg-no-repeat [--range-bg:transparent] [--range-fill:0] md:range-sm"
+          min={-1}
+          max={1}
+          step={0.1}
+          value={settings.temperature}
+          aria-label="Temperature"
+          onChange={(event) =>
+            onChange({ temperature: Math.round(Number(event.target.value) * 10) / 10 })
+          }
+        />
       </section>
 
       <section className="mt-3">

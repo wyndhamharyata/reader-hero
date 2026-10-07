@@ -34,18 +34,18 @@
   prefersdark: false;
   color-scheme: light;
 
-  --color-base-100: oklch(98% 0.006 85);
-  --color-base-200: oklch(95% 0.008 85);
-  --color-base-300: oklch(90% 0.011 85);
-  --color-base-content: oklch(26% 0.02 60);
+  --color-base-100: oklch(98% calc(var(--tint) * 0.025) var(--tint-hue));
+  --color-base-200: oklch(95% calc(var(--tint) * 0.03) var(--tint-hue));
+  --color-base-300: oklch(90% calc(var(--tint) * 0.034) var(--tint-hue));
+  --color-base-content: oklch(26% calc(var(--tint) * 0.025) var(--tint-hue));
   --color-primary: oklch(52% 0.13 159);
   --color-primary-content: oklch(98% 0.01 159);
   --color-secondary: oklch(60% 0.12 200);
   --color-secondary-content: oklch(98% 0.01 200);
   --color-accent: oklch(62% 0.14 30);
   --color-accent-content: oklch(98% 0.01 30);
-  --color-neutral: oklch(30% 0.02 60);
-  --color-neutral-content: oklch(98% 0.005 60);
+  --color-neutral: oklch(30% calc(var(--tint) * 0.025) var(--tint-hue));
+  --color-neutral-content: oklch(98% calc(var(--tint) * 0.01) var(--tint-hue));
   --color-info: oklch(62% 0.14 240);
   --color-info-content: oklch(98% 0.01 240);
   --color-success: oklch(58% 0.14 150);
@@ -66,60 +66,23 @@
 }
 
 @plugin "daisyui/theme" {
-  name: "rhsepia";
-  default: false;
-  prefersdark: false;
-  color-scheme: light;
-
-  --color-base-100: oklch(95% 0.03 85);
-  --color-base-200: oklch(92% 0.035 85);
-  --color-base-300: oklch(87% 0.04 80);
-  --color-base-content: oklch(30% 0.03 60);
-  --color-primary: oklch(50% 0.12 155);
-  --color-primary-content: oklch(97% 0.02 85);
-  --color-secondary: oklch(55% 0.08 40);
-  --color-secondary-content: oklch(96% 0.02 85);
-  --color-accent: oklch(58% 0.1 30);
-  --color-accent-content: oklch(96% 0.02 85);
-  --color-neutral: oklch(36% 0.03 60);
-  --color-neutral-content: oklch(96% 0.02 85);
-  --color-info: oklch(55% 0.1 240);
-  --color-info-content: oklch(96% 0.02 240);
-  --color-success: oklch(52% 0.1 150);
-  --color-success-content: oklch(96% 0.02 150);
-  --color-warning: oklch(70% 0.13 80);
-  --color-warning-content: oklch(28% 0.03 80);
-  --color-error: oklch(52% 0.16 25);
-  --color-error-content: oklch(96% 0.02 25);
-
-  --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 1rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
-}
-
-@plugin "daisyui/theme" {
   name: "rhdark";
   default: false;
   prefersdark: true;
   color-scheme: dark;
 
-  --color-base-100: oklch(20% 0.02 260);
-  --color-base-200: oklch(24% 0.02 260);
-  --color-base-300: oklch(30% 0.02 260);
-  --color-base-content: oklch(90% 0.01 260);
+  --color-base-100: oklch(22% calc(var(--tint) * 0.03) var(--tint-hue));
+  --color-base-200: oklch(27% calc(var(--tint) * 0.03) var(--tint-hue));
+  --color-base-300: oklch(13% calc(var(--tint) * 0.02) var(--tint-hue));
+  --color-base-content: oklch(90% calc(var(--tint) * 0.04) var(--tint-hue));
   --color-primary: oklch(72% 0.15 159);
   --color-primary-content: oklch(18% 0.02 159);
   --color-secondary: oklch(70% 0.12 200);
   --color-secondary-content: oklch(18% 0.02 200);
   --color-accent: oklch(72% 0.13 30);
   --color-accent-content: oklch(18% 0.02 30);
-  --color-neutral: oklch(34% 0.02 260);
-  --color-neutral-content: oklch(92% 0.01 260);
+  --color-neutral: oklch(38% calc(var(--tint) * 0.03) var(--tint-hue));
+  --color-neutral-content: oklch(92% calc(var(--tint) * 0.02) var(--tint-hue));
   --color-info: oklch(72% 0.12 240);
   --color-info-content: oklch(18% 0.02 240);
   --color-success: oklch(70% 0.12 150);
@@ -143,20 +106,24 @@
   --app-height: 100dvh;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* -1 cool to 1 warm; warm runs from amber to red as it rises, as a lamp's light does. */
+  --temperature: 0;
+  --tint: max(var(--temperature), calc(var(--temperature) * -1));
+  --tint-hue: calc(
+    250 - clamp(0, var(--temperature) * 1000, 1) * (175 + 25 * max(var(--temperature), 0))
+  );
 }
 
-/* A sheet is lighter than the canvas in every theme, so it reads as a layer above the page. */
+/* A dark sheet sits darker than the page, so its backdrop dims less to keep the page lighter. */
 :root,
 [data-theme="rhlight"] {
-  --sheet: oklch(100% 0 0);
-}
-
-[data-theme="rhsepia"] {
-  --sheet: oklch(99% 0.012 85);
+  --sheet: oklch(calc(100% - var(--tint) * 1%) calc(var(--tint) * 0.015) var(--tint-hue));
+  --backdrop: oklch(0% 0 0 / 0.5);
 }
 
 [data-theme="rhdark"] {
-  --sheet: oklch(27% 0.02 260);
+  --sheet: oklch(17% calc(var(--tint) * 0.025) var(--tint-hue));
+  --backdrop: oklch(0% 0 0 / 0.25);
 }
 
 /* Phones get 10% larger controls: daisyUI sizes every btn from --size-field, so the default btn is 44px. */

@@ -131,6 +131,7 @@ export function ReaderRoute() {
         lineHeight: prefs.lineHeight ?? settings.lineHeight,
         textAlign: prefs.textAlign ?? settings.textAlign,
         textWidth: prefs.textWidth ?? settings.textWidth,
+        temperature: prefs.temperature ?? settings.temperature,
       }),
     [settings, prefs],
   );
@@ -311,7 +312,8 @@ export function ReaderRoute() {
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
   useEffect(() => {
     document.documentElement.dataset.theme = bookSettings.theme;
-  }, [bookSettings.theme, settings.theme]);
+    document.documentElement.style.setProperty("--temperature", String(bookSettings.temperature));
+  }, [bookSettings.theme, bookSettings.temperature, settings.theme, settings.temperature]);
 
   const savePrefs = (changes: Partial<BookPrefs>): void => {
     const next = { ...prefChanges, ...changes };
