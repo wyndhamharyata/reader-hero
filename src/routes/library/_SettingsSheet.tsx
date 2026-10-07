@@ -115,7 +115,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
       <button
         type="button"
         ref={backdropRef}
-        className="absolute inset-0 bg-black/40 motion-safe:animate-fade-in"
+        className="absolute inset-0 bg-black/50 motion-safe:animate-fade-in"
         aria-label="Close settings"
         onClick={() => dismiss()}
       />
@@ -123,7 +123,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
         ref={sheetRef}
         role="dialog"
         aria-label="Settings"
-        className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.5rem)] motion-safe:animate-sheet-up md:max-h-[85vh] md:w-[28rem] md:rounded-box md:pb-4"
+        className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:max-h-[85vh] md:w-[28rem] md:rounded-box md:pb-4"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <h2 className="text-lg font-semibold">Settings</h2>

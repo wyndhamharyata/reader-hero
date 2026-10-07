@@ -60,13 +60,13 @@ export function MenuSheet({
       <button
         type="button"
         ref={backdropRef}
-        className="absolute inset-0 bg-black/40 motion-safe:animate-fade-in"
+        className="absolute inset-0 bg-black/50 motion-safe:animate-fade-in"
         aria-label="Close"
         onClick={() => dismiss()}
       />
       <aside
         ref={sheetRef}
-        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.25rem)] motion-safe:animate-sheet-up md:mx-0 md:h-full md:max-h-none md:w-80 md:max-w-[85%] md:rounded-none md:pt-[max(1rem,var(--safe-top))] md:pb-[var(--safe-bottom)] md:motion-safe:animate-slide-in"
+        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.25rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-0 md:h-full md:max-h-none md:w-80 md:max-w-[85%] md:rounded-none md:pt-[max(1rem,var(--safe-top))] md:pb-[var(--safe-bottom)] md:motion-safe:animate-slide-in"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
 
@@ -87,7 +87,7 @@ export function MenuSheet({
               <li key={index} className="w-full shrink-0">
                 <button
                   type="button"
-                  className="my-1 w-full rounded-field px-2 py-3 text-left text-base whitespace-normal hover:bg-base-200 md:py-2 md:text-sm"
+                  className="my-1 w-full rounded-field px-2 py-3 text-left text-base whitespace-normal hover:bg-base-300 md:py-2 md:text-sm"
                   onClick={() => dismiss(() => onSelect(entry.blockIndex))}
                 >
                   {entry.title}
@@ -95,7 +95,7 @@ export function MenuSheet({
                 {lines.get(entry.blockIndex) !== undefined && (
                   <button
                     type="button"
-                    className="mb-1 w-full rounded-field px-2 pb-2 text-left text-base opacity-70 hover:bg-base-200 md:text-sm"
+                    className="mb-1 w-full rounded-field px-2 pb-2 text-left text-base opacity-70 hover:bg-base-300 md:text-sm"
                     onClick={() => dismiss(() => onLine(entry.blockIndex))}
                   >
                     <span className="line-clamp-2 block">{lines.get(entry.blockIndex)}</span>
@@ -106,7 +106,7 @@ export function MenuSheet({
           </ul>
         </div>
 
-        <section className="mt-4 flex shrink-0 flex-col-reverse rounded-box bg-base-200 md:order-3 md:mt-3 md:flex-col">
+        <section className="mt-4 flex shrink-0 flex-col-reverse rounded-box bg-base-300 md:order-3 md:mt-3 md:flex-col">
           <button
             type="button"
             className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
@@ -132,7 +132,7 @@ export function MenuSheet({
           </div>
         </section>
 
-        <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-200 md:order-3">
+        <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300 md:order-3">
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"

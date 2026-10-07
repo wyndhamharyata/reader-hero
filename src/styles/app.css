@@ -145,6 +145,20 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* A sheet is lighter than the canvas in every theme, so it reads as a layer above the page. */
+:root,
+[data-theme="rhlight"] {
+  --sheet: oklch(100% 0 0);
+}
+
+[data-theme="rhsepia"] {
+  --sheet: oklch(99% 0.012 85);
+}
+
+[data-theme="rhdark"] {
+  --sheet: oklch(27% 0.02 260);
+}
+
 /* Phones get 10% larger controls: daisyUI sizes every btn from --size-field, so the default btn is 44px. */
 @media (width < 48rem) {
   [data-theme] {
