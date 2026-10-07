@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { SlideLink } from "@/components/SlideLink";
 import type { ReactElement } from "react";
 import type { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
 import { describeError } from "@/lib/describe-error";
@@ -21,9 +21,9 @@ export function LoadError({ error, title, rebuilding, onRebuild }: Props): React
           Rebuild reader view
         </button>
       )}
-      <Link to="/" className="btn btn-ghost btn-sm">
+      <SlideLink to="/" direction="out" className="btn btn-ghost btn-sm">
         Back to library
-      </Link>
+      </SlideLink>
     </div>
   );
 }

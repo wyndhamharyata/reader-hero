@@ -16,6 +16,7 @@ import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
+import { slideTo } from "@/lib/slide-to";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
@@ -205,7 +206,7 @@ export function ReaderRoute() {
       if (typing || event.metaKey || event.altKey) return;
       switch (event.key) {
         case "Escape":
-          void navigate("/");
+          slideTo(navigate, "/", "out");
           break;
         case "ArrowDown":
         case "j":

@@ -133,6 +133,88 @@
   --backdrop: oklch(0% 0 0 / 0.25);
 }
 
+/* Into a book the reader pushes in from the right over the library, and back out the same way. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 300ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  mix-blend-mode: normal;
+}
+
+:root[data-slide="in"]::view-transition-old(root) {
+  animation-name: page-recede;
+}
+
+:root[data-slide="in"]::view-transition-new(root) {
+  animation-name: page-enter;
+}
+
+:root[data-slide="out"]::view-transition-old(root) {
+  z-index: 1;
+  animation-name: page-leave;
+}
+
+:root[data-slide="out"]::view-transition-new(root) {
+  animation-name: page-return;
+}
+
+/* A full-width slide travels too far on a wide screen, so there the pages fade with a short shift. */
+@media (width >= 48rem) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    mix-blend-mode: plus-lighter;
+  }
+
+  :root[data-slide="in"]::view-transition-old(root),
+  :root[data-slide="out"]::view-transition-old(root) {
+    animation-name: page-fade-out;
+  }
+
+  :root[data-slide="in"]::view-transition-new(root),
+  :root[data-slide="out"]::view-transition-new(root) {
+    animation-name: page-fade-in;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes page-leave {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes page-recede {
+  to {
+    transform: translateX(-25%);
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes page-return {
+  from {
+    transform: translateX(-25%);
+    filter: brightness(0.9);
+  }
+}
+
+@keyframes page-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(2rem);
+  }
+}
+
 /* Phones get 10% larger controls: daisyUI sizes every btn from --size-field, so the default btn is 44px. */
 @media (width < 48rem) {
   [data-theme] {

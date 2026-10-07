@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { Link } from "react-router";
+import { SlideLink } from "@/components/SlideLink";
 import { formatPercent, formatSize } from "@/lib/format";
 import type { LibraryCard } from "@/lib/shelf";
 import { BookCover } from "./_BookCover";
@@ -20,13 +20,13 @@ export function BookCard({ card, onRemove, onReparse }: Props): ReactElement {
   return (
     <li className="card bg-base-200">
       <div className="card-body flex-row gap-3 p-3">
-        <Link to={href} className="w-16 shrink-0">
+        <SlideLink to={href} direction="in" className="w-16 shrink-0">
           <BookCover bookId={book.id} />
-        </Link>
+        </SlideLink>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex items-start justify-between gap-3">
-            <Link to={href} className="min-w-0 flex-1">
+            <SlideLink to={href} direction="in" className="min-w-0 flex-1">
               <BookTitle
                 title={book.title}
                 clipStart={card.clipStart}
@@ -36,7 +36,7 @@ export function BookCard({ card, onRemove, onReparse }: Props): ReactElement {
               {book.author !== undefined && (
                 <p className="truncate text-sm opacity-70">{book.author}</p>
               )}
-            </Link>
+            </SlideLink>
             <span className={badge.className}>{badge.label}</span>
           </div>
 

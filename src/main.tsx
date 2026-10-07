@@ -15,7 +15,8 @@ if (container === null) throw new Error("Root element is missing");
 
 createRoot(container).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* Route changes apply at once, so a view transition can snapshot the new page. */}
+    <BrowserRouter useTransitions={false}>
       <App />
     </BrowserRouter>
   </StrictMode>,

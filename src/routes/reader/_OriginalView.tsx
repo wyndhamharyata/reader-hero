@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { Link } from "react-router";
+import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
 import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
@@ -138,9 +138,9 @@ export function OriginalView({
       {failed && (
         <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
           <p className="opacity-80">The original pages could not be read.</p>
-          <Link to="/" className="btn btn-ghost btn-sm">
+          <SlideLink to="/" direction="out" className="btn btn-ghost btn-sm">
             Back to library
-          </Link>
+          </SlideLink>
         </div>
       )}
 

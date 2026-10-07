@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
-import { Link } from "react-router";
 import { ArrowLeftIcon, Bars3Icon } from "@/components/icons";
+import { SlideLink } from "@/components/SlideLink";
 
 interface Props {
   title: string;
@@ -27,14 +27,15 @@ export function ReaderNav({
       className={`absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${hidden}`}
     >
       <div className="flex items-center gap-1">
-        <Link
+        <SlideLink
           to="/"
+          direction="out"
           className="btn btn-square btn-ghost md:btn-sm"
           aria-label="Back to library"
           title="Back to library"
         >
           <ArrowLeftIcon className="size-6 md:size-5" />
-        </Link>
+        </SlideLink>
         <h1 className="min-w-0 flex-1 truncate text-base font-medium md:text-sm">{title}</h1>
         <button
           type="button"
