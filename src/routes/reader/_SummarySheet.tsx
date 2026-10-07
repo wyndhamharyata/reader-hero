@@ -84,8 +84,86 @@ export function SummarySheet({
     null,
   );
   const body = useRef<HTMLDivElement>(null);
-  // A horizontal swipe over the content moves between the tabs; one move per touch.
-  const swipe = useRef<{ x: number; y: number; done: boolean } | null>(null);
+  const viewport = useRef<HTMLDivElement>(null);
+  const track = useRef<HTMLDivElement>(null);
+  const slide = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200;
+  const offsetOf = (which: "chapters" | "names"): string =>
+    which === "chapters" ? "translateX(0)" : "translateX(-100%)";
+
+  // A sideways swipe drags the track of the two tabs along with the finger and snaps on release.
+  // The axis locks on the first move: sideways, the track owns the touch and the panel under the
+  // finger does not scroll; otherwise the panel scrolls and the track stays. Native listeners,
+  // since React's touchmove is passive and cannot cancel the scroll.
+  useEffect(() => {
+    const box = viewport.current;
+    const rail = track.current;
+    if (box === null || rail === null) return;
+    let state: {
+      x: number;
+      y: number;
+      at: number;
+      width: number;
+      axis: "none" | "x" | "y";
+      dx: number;
+    } | null = null;
+    const onStart = (event: TouchEvent): void => {
+      const touch = event.touches[0];
+      state =
+        touch === undefined
+          ? null
+          : {
+              x: touch.clientX,
+              y: touch.clientY,
+              at: event.timeStamp,
+              width: box.clientWidth,
+              axis: "none",
+              dx: 0,
+            };
+    };
+    const onMove = (event: TouchEvent): void => {
+      const touch = event.touches[0];
+      if (state === null || touch === undefined) return;
+      const dx = touch.clientX - state.x;
+      const dy = touch.clientY - state.y;
+      if (state.axis === "none") {
+        if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        state.axis = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+        if (state.axis === "x") rail.style.transition = "none";
+      }
+      if (state.axis !== "x") return;
+      event.preventDefault();
+      state.dx = dx;
+      const base = tab === "chapters" ? 0 : -state.width;
+      rail.style.transform = `translateX(${Math.max(-state.width, Math.min(0, base + dx))}px)`;
+    };
+    const settle = (next: "chapters" | "names"): void => {
+      rail.style.transition = `transform ${slide}ms ease-out`;
+      rail.style.transform = offsetOf(next);
+      setTab(next);
+    };
+    const onEnd = (event: TouchEvent): void => {
+      const done = state;
+      state = null;
+      if (done === null || done.axis !== "x") return;
+      const speed = Math.abs(done.dx) / Math.max(1, event.timeStamp - done.at);
+      const far = Math.abs(done.dx) > done.width / 4 || (Math.abs(done.dx) > 30 && speed > 0.5);
+      settle(!far ? tab : done.dx < 0 ? "names" : "chapters");
+    };
+    const onCancel = (): void => {
+      state = null;
+      settle(tab);
+    };
+    box.addEventListener("touchstart", onStart, { passive: true });
+    box.addEventListener("touchmove", onMove, { passive: false });
+    box.addEventListener("touchend", onEnd);
+    box.addEventListener("touchcancel", onCancel);
+    return () => {
+      box.removeEventListener("touchstart", onStart);
+      box.removeEventListener("touchmove", onMove);
+      box.removeEventListener("touchend", onEnd);
+      box.removeEventListener("touchcancel", onCancel);
+    };
+  }, [tab, slide]);
   const opened = useRef<HTMLDivElement>(null);
   const latest = useRef<HTMLDivElement>(null);
   const job = useRef<Job | null>(null);
@@ -217,33 +295,27 @@ export function SummarySheet({
           ))}
         </div>
 
-        {/* Room around the content, so a focused field's outline is not clipped by the scroll. */}
+        {/* The two tabs sit side by side in a track; pan-y leaves sideways moves to the handlers. */}
         <div
-          ref={body}
-          className="-mx-4 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          onTouchStart={(event) => {
-            const touch = event.touches[0];
-            swipe.current =
-              touch === undefined ? null : { x: touch.clientX, y: touch.clientY, done: false };
-          }}
-          onTouchMove={(event) => {
-            const start = swipe.current;
-            const touch = event.touches[0];
-            if (start === null || start.done || touch === undefined) return;
-            const dx = touch.clientX - start.x;
-            const dy = touch.clientY - start.y;
-            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-            start.done = true;
-            setTab(dx < 0 ? "names" : "chapters");
-          }}
-          onTouchEnd={() => {
-            swipe.current = null;
-          }}
-          data-font={reading.font}
-          style={{ fontSize: `${reading.fontSize}px`, lineHeight: reading.lineHeight }}
+          ref={viewport}
+          className="-mx-4 mt-1 min-h-0 flex-1 [touch-action:pan-y] overflow-hidden"
         >
-          {tab === "chapters" ? (
-            <>
+          <div
+            ref={track}
+            className="flex h-full"
+            data-font={reading.font}
+            style={{
+              fontSize: `${reading.fontSize}px`,
+              lineHeight: reading.lineHeight,
+              transform: offsetOf(tab),
+              transition: `transform ${slide}ms ease-out`,
+            }}
+          >
+            <div
+              ref={body}
+              className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
+              inert={tab !== "chapters"}
+            >
               {(summary?.chapters ?? []).map((chapter, index) => (
                 <div
                   key={index}
@@ -300,9 +372,11 @@ export function SummarySheet({
                 </p>
               )}
               {askError !== null && <p className="mt-2 px-4 text-error">{askError}</p>}
-            </>
-          ) : (
-            <>
+            </div>
+            <div
+              className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
+              inert={tab !== "names"}
+            >
               {names.length === 0 && <p className="px-4 opacity-70">No entries yet.</p>}
               <ul className="flex flex-col">
                 {names.map(({ entry, index }) =>
@@ -420,8 +494,8 @@ export function SummarySheet({
                   In the next update: {summary.required.join(", ")}
                 </p>
               )}
-            </>
-          )}
+            </div>
+          </div>
         </div>
 
         {consentPending && settings !== null ? (
