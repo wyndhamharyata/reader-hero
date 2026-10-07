@@ -1,19 +1,31 @@
 import { Effect, Option, Schema } from "effect";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
-import { forkApp, runApp, stopFiber, useAppEffect, useFigureJobs, useSettings } from "@/lib/hooks";
+import {
+  forkApp,
+  runApp,
+  stopFiber,
+  useAiSettings,
+  useAppEffect,
+  useFigureJobs,
+  useSettings,
+} from "@/lib/hooks";
+import { AiSettings } from "@/domain/ai";
 import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
+import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
+import { storedRecap, type RecapInput, type RecapScope } from "@/use-cases/recap";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { MenuSheet } from "./_MenuSheet";
 import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
+import { ResultSheet } from "./_ResultSheet";
 import type { JumpRequest } from "./_ReaderView";
 
 export function ReaderRoute() {
@@ -30,7 +42,9 @@ export function ReaderRoute() {
           store.get(bookId),
           store.getParsed(bookId),
           store.getProgress(bookId),
-          store.getPrefs(bookId).pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null))),
+          store
+            .getPrefs(bookId)
+            .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null))),
         ],
         { concurrency: "unbounded" },
       );
@@ -46,6 +60,9 @@ export function ReaderRoute() {
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
+  const { ai, putAi } = useAiSettings();
+  const [recap, setRecap] = useState<{ index: number; scope: RecapScope } | null>(null);
+  const [recapAt, setRecapAt] = useState<number | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
@@ -99,8 +116,44 @@ export function ReaderRoute() {
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
     [data],
   );
+  const guessedKind = useMemo(
+    () => (data === null ? "story" : guessKind(data.meta, data.parsed)),
+    [data],
+  );
+  const kind = prefs.kind ?? guessedKind;
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
+
+  // The recap row says when the current pages already have a stored recap. The key is a hash of
+  // the pages, so this is a local read and never a call.
+  useEffect(() => {
+    if (!tocOpen || data === null || ai === null) {
+      setRecapAt(null);
+      return;
+    }
+    const input: RecapInput = {
+      meta: data.meta,
+      parsed: data.parsed,
+      kind,
+      index: position,
+      scope: "recent",
+    };
+    const fiber = forkApp(
+      storedRecap(input, ai).pipe(
+        Effect.map((artifact) => setRecapAt(artifact?.createdAt ?? null)),
+        Effect.ignore,
+      ),
+    );
+    return () => stopFiber(fiber);
+  }, [tocOpen, data, ai, kind, position]);
+
+  const recapInput = useMemo<RecapInput | null>(
+    () =>
+      data === null || recap === null
+        ? null
+        : { meta: data.meta, parsed: data.parsed, kind, index: recap.index, scope: recap.scope },
+    [data, recap, kind],
+  );
 
   // A PDF may switch to the original view, so its page renderer loads its scripts now.
   useEffect(() => {
@@ -249,11 +302,29 @@ export function ReaderRoute() {
         toc={toc}
         modeLabel={modeLabel}
         settings={bookSettings}
+        ai={{
+          settings: ai,
+          kind,
+          guessed: prefs.kind === undefined,
+          recapAt,
+          onKind: (next) => savePrefs({ kind: next }),
+          onRecap: () => setRecap({ index: position, scope: "recent" }),
+        }}
         onSelect={selectToc}
         onToggleMode={epub ? undefined : toggleMode}
         onSettingsChange={changeSettings}
         onClose={closeToc}
       />
+
+      {recapInput !== null && ai !== null && (
+        <ResultSheet
+          input={recapInput}
+          settings={ai}
+          onScope={(scope) => setRecap({ index: recapInput.index, scope })}
+          onConsent={() => putAi(new AiSettings({ ...ai, consentedAt: Date.now() }))}
+          onClose={() => setRecap(null)}
+        />
+      )}
     </div>
   );
 }

@@ -16,30 +16,31 @@ installed.
 
 ## Commands
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Vite dev server on all interfaces (`http://<tailscale-ip>:5173`). |
-| `npm run build` | Build the SPA to `dist/client` and the service worker. |
-| `npm run dev:worker` | Serve `dist/client` through the Hono worker with `wrangler dev`. |
-| `npm run typecheck` | Typecheck the app, worker, service worker, and configs. |
-| `npm test` | Run the PDF pipeline tests. |
-| `npm run lint` | ESLint. |
-| `npm run deploy:dev` | Build, then `sst deploy --stage dev` to `reader-hero-dev.mwyndham.dev`. |
-| `npm run icons` | Regenerate the PWA icons from `scripts/make-icons.mjs`. |
-| `npm run bench -- <label>` | Benchmark the built app in Playwright's WebKit, desktop and mobile layout. |
-| `npm run bench:compare -- <a> <b>` | Print two benchmark runs side by side. |
-| `npm run bench:probe -- <label> [mobile]` | Measure only the original view's scroll, with sampling options. |
-| `npm run bench:serve` | Serve `dist/client` on port 4173 for a manual check in Safari. |
+| Command                                   | What it does                                                               |
+| ----------------------------------------- | -------------------------------------------------------------------------- |
+| `npm run dev`                             | Vite dev server on all interfaces (`http://<tailscale-ip>:5173`).          |
+| `npm run build`                           | Build the SPA to `dist/client` and the service worker.                     |
+| `npm run dev:worker`                      | Serve `dist/client` through the Hono worker with `wrangler dev`.           |
+| `npm run typecheck`                       | Typecheck the app, worker, service worker, and configs.                    |
+| `npm test`                                | Run the PDF pipeline tests.                                                |
+| `npm run lint`                            | ESLint.                                                                    |
+| `npm run deploy:dev`                      | Build, then `sst deploy --stage dev` to `reader-hero-dev.mwyndham.dev`.    |
+| `npm run icons`                           | Regenerate the PWA icons from `scripts/make-icons.mjs`.                    |
+| `npm run bench -- <label>`                | Benchmark the built app in Playwright's WebKit, desktop and mobile layout. |
+| `npm run bench:compare -- <a> <b>`        | Print two benchmark runs side by side.                                     |
+| `npm run bench:probe -- <label> [mobile]` | Measure only the original view's scroll, with sampling options.            |
+| `npm run bench:serve`                     | Serve `dist/client` on port 4173 for a manual check in Safari.             |
 
 ## Layout
 
 ```
 src/
-  domain/        Schema models (book, settings) and tagged errors
-  services/      Effect services: BookStore, PdfClient, SettingsStore
-  use-cases/     Orchestration: import, parse, inbox
+  domain/        Schema models (book, settings, ai) and tagged errors
+  services/      Effect services: BookStore, PdfClient, SettingsStore, ArtifactStore, AiClient
+  use-cases/     Orchestration: import, parse, inbox, recap and its context builder
   lib/pdf/       The reflow pipeline: lines, columns, blocks, boilerplate, assemble
-  lib/           Runtime hooks, IndexedDB, codecs, formatting
+  lib/           Runtime hooks, IndexedDB, codecs, formatting, the AI transport and its
+                 event stream parser (a lazy chunk, loaded on the first AI action)
   routes/        library/ and reader/, each a directory with its own components
   worker/        Hono worker
   sw.ts          Service worker: precache, offline navigation, share target
@@ -49,7 +50,9 @@ src/
 ## Invariants
 
 - **100% client-side.** The worker only serves files. No document, text, or
-  progress leaves the device.
+  progress leaves the device. The one exception is an AI action the reader
+  taps: it sends the chosen passage straight to the provider the reader set up
+  with their own key, never through the worker, and only after a consent sheet.
 - **Effect owns side effects.** Parsing, storage, and rendering pages return
   `Effect`s. React components render state and handle interaction; they never
   import pdf.js or IndexedDB directly. Services are reached through the runtime

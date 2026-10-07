@@ -59,6 +59,15 @@ On Android, a PDF shared from Files or a browser offers "Reader Hero" as a share
 target. The service worker stores the shared file and the app imports it on
 open.
 
+## AI recap
+
+The gear in the library opens Settings, where a provider (DeepSeek, OpenRouter,
+Gemini, Anthropic or OpenAI) and an API key are set. In a book, the AI section
+of the menu sheet then offers a recap of the recent pages or the current
+chapter. The request goes from the browser to the provider with that key; the
+worker never sees it. Each result is stored on the device, so the same pages
+show the stored recap without a second call, offline too.
+
 ## Tests
 
 ```sh

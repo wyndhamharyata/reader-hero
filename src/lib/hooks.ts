@@ -1,5 +1,6 @@
 import { Effect, Fiber, Stream } from "effect";
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
+import type { AiSettings } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
 import { SettingsStore } from "@/services/settings-store";
@@ -128,4 +129,31 @@ export function useSettings(): {
   }, []);
 
   return { settings, update };
+}
+
+// The AI record: null until it is set, and null again after "Remove key".
+export function useAiSettings(): {
+  readonly ai: AiSettings | null;
+  readonly putAi: (next: AiSettings | null) => void;
+} {
+  const [ai, setAi] = useState<AiSettings | null>(null);
+
+  useEffect(() => {
+    const fiber = runtime.runFork(
+      Effect.gen(function* () {
+        const store = yield* SettingsStore;
+        yield* Stream.runForEach(store.aiChanges(), (next) => Effect.sync(() => setAi(next)));
+      }),
+    );
+    return () => {
+      runtime.runFork(Fiber.interrupt(fiber));
+    };
+  }, []);
+
+  const putAi = useCallback((next: AiSettings | null) => {
+    const save = Effect.flatMap(SettingsStore, (store) => store.putAi(next));
+    forkApp(save.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
+  }, []);
+
+  return { ai, putAi };
 }

@@ -1,4 +1,6 @@
 import { Layer, ManagedRuntime } from "effect";
+import { AiClient } from "@/services/ai-client";
+import { ArtifactStore } from "@/services/artifact-store";
 import { BookStore } from "@/services/book-store";
 import { FigureSlots } from "@/services/figure-slots";
 import { PageRenderer } from "@/services/page-renderer";
@@ -13,6 +15,8 @@ const appLayer = Layer.mergeAll(
   FigureSlots.layer,
   PageRenderer.layer,
   ServiceWorkerClient.layer,
+  ArtifactStore.layer,
+  AiClient.layer,
 );
 
 export const runtime = ManagedRuntime.make(appLayer);
@@ -23,4 +27,6 @@ export type AppServices =
   | SettingsStore
   | FigureSlots
   | PageRenderer
-  | ServiceWorkerClient;
+  | ServiceWorkerClient
+  | ArtifactStore
+  | AiClient;

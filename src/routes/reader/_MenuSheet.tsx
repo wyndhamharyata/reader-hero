@@ -2,6 +2,7 @@ import { useRef, useState, type ReactElement } from "react";
 import { AdjustmentsIcon, BookOpenIcon, ChevronDownIcon } from "@/components/icons";
 import type { ReaderSettings, TocEntry } from "@/domain/book";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
+import { AiPanel, type AiPanelProps } from "./_AiPanel";
 import { TextSettings } from "./_TextSettings";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
   toc: ReadonlyArray<TocEntry>;
   modeLabel: string;
   settings: ReaderSettings;
+  ai: AiPanelProps;
   onSelect: (blockIndex: number) => void;
   onToggleMode?: () => void;
   onSettingsChange: (patch: Partial<ReaderSettings>) => void;
@@ -20,13 +22,18 @@ export function MenuSheet({
   toc,
   modeLabel,
   settings,
+  ai,
   onSelect,
   onToggleMode,
   onSettingsChange,
   onClose,
 }: Props): ReactElement | null {
-  // Collapsed on phones so the contents list gets the sheet's height; open in the desktop sidebar.
-  const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
+  // One panel open at a time, so the contents list keeps its height. Text settings starts open in
+  // the desktop sidebar and collapsed on phones.
+  const [panel, setPanel] = useState<"text" | "ai" | null>(() =>
+    window.matchMedia("(width >= 48rem)").matches ? "text" : null,
+  );
+  const textOpen = panel === "text";
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
@@ -83,7 +90,7 @@ export function MenuSheet({
             type="button"
             className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
             aria-expanded={textOpen}
-            onClick={() => setTextOpen(!textOpen)}
+            onClick={() => setPanel(textOpen ? null : "text")}
           >
             <AdjustmentsIcon className="size-6 md:size-4" />
             <span className="flex-1 text-left">Text settings</span>
@@ -103,6 +110,13 @@ export function MenuSheet({
             </div>
           </div>
         </section>
+
+        <AiPanel
+          {...ai}
+          open={panel === "ai"}
+          onToggle={() => setPanel(panel === "ai" ? null : "ai")}
+          onRecap={() => dismiss(() => ai.onRecap())}
+        />
 
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
           {onToggleMode !== undefined && (

@@ -30,3 +30,8 @@ export class ServiceWorkerFailure extends Schema.TaggedError<ServiceWorkerFailur
 export class UnsupportedFile extends Schema.TaggedError<UnsupportedFile>()("UnsupportedFile", {
   name: Schema.String,
 }) {}
+
+export class AiFailure extends Schema.TaggedError<AiFailure>()("AiFailure", {
+  reason: Schema.Literals(["offline", "unauthorized", "rate-limited", "provider", "malformed"]),
+  message: Schema.String,
+}) {}

@@ -1,8 +1,9 @@
 import { Context, Effect, Layer, Stream, SubscriptionRef } from "effect";
+import type { AiSettings } from "@/domain/ai";
 import { DEFAULT_SETTINGS, ReaderSettings } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
-import { decodeReaderSettings } from "@/lib/codecs";
-import { openReaderDb, SETTINGS_KEY } from "@/lib/db";
+import { decodeAiSettings, decodeReaderSettings } from "@/lib/codecs";
+import { AI_SETTINGS_KEY, openReaderDb, SETTINGS_KEY } from "@/lib/db";
 
 const storageFailure = (operation: string) => (cause: unknown) =>
   new StorageFailure({ operation, cause });
@@ -12,6 +13,8 @@ export class SettingsStore extends Context.Service<
   {
     changes(): Stream.Stream<ReaderSettings>;
     update(patch: Partial<ReaderSettings>): Effect.Effect<void, StorageFailure>;
+    aiChanges(): Stream.Stream<AiSettings | null>;
+    putAi(next: AiSettings | null): Effect.Effect<void, StorageFailure>;
   }
 >()("reader-hero/SettingsStore") {
   static readonly layer = Layer.effect(
@@ -58,7 +61,30 @@ export class SettingsStore extends Context.Service<
         });
       });
 
-      return SettingsStore.of({ changes, update });
+      const storedAi = yield* Effect.tryPromise({
+        try: () => db.get("settings", AI_SETTINGS_KEY),
+        catch: storageFailure("getAiSettings"),
+      });
+      const aiRef = yield* SubscriptionRef.make<AiSettings | null>(
+        storedAi === undefined
+          ? null
+          : yield* decodeAiSettings(storedAi).pipe(Effect.catch(() => Effect.succeed(null))),
+      );
+
+      const aiChanges = () => SubscriptionRef.changes(aiRef);
+
+      const putAi = Effect.fn("SettingsStore.putAi")(function* (next: AiSettings | null) {
+        yield* SubscriptionRef.set(aiRef, next);
+        yield* Effect.tryPromise({
+          try: async () => {
+            if (next === null) await db.delete("settings", AI_SETTINGS_KEY);
+            else await db.put("settings", next, AI_SETTINGS_KEY);
+          },
+          catch: storageFailure("putAiSettings"),
+        });
+      });
+
+      return SettingsStore.of({ changes, update, aiChanges, putAi });
     }),
   );
 }

@@ -1,0 +1,236 @@
+import { Effect } from "effect";
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import { AiProvider, AiSettings, providerLabels } from "@/domain/ai";
+import type { ModelInfo } from "@/lib/ai-transport";
+import { runApp, useAiSettings } from "@/lib/hooks";
+import { useBottomSheet } from "@/lib/use-bottom-sheet";
+import { AiClient } from "@/services/ai-client";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
+
+const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
+// The sheet is base-100, so unchosen buttons sit on base-200 and the chosen one on base-300.
+const choice = (chosen: boolean): string => (chosen ? "btn btn-active btn-sm" : "btn btn-sm");
+
+type Test =
+  | { readonly state: "idle" }
+  | { readonly state: "testing" }
+  | { readonly state: "valid"; readonly balance: string | null }
+  | { readonly state: "failed"; readonly message: string };
+
+// Global settings, reached from the gear in the library header. The AI section is its only section.
+export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
+  const { ai, putAi } = useAiSettings();
+  const sheetRef = useRef<HTMLElement>(null);
+  const backdropRef = useRef<HTMLButtonElement>(null);
+  const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
+  const [provider, setProvider] = useState<AiProvider>("deepseek");
+  const [apiKey, setApiKey] = useState("");
+  const [model, setModel] = useState("");
+  const [effort, setEffort] = useState("off");
+  const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
+  const [test, setTest] = useState<Test>({ state: "idle" });
+
+  // Each open starts from the stored record, so a cancelled edit leaves nothing behind.
+  useEffect(() => {
+    if (!open) return;
+    setProvider(ai?.provider ?? "deepseek");
+    setApiKey(ai?.apiKey ?? "");
+    setModel(ai?.model ?? "");
+    setEffort(ai?.effort ?? "off");
+    setModels([]);
+    setTest({ state: "idle" });
+  }, [open, ai]);
+
+  if (!open) return null;
+
+  const draft = (consentedAt?: number): AiSettings =>
+    new AiSettings({
+      provider,
+      apiKey: apiKey.trim(),
+      model: model.trim(),
+      effort: effort === "off" ? undefined : effort,
+      consentedAt,
+    });
+
+  const testKey = (): void => {
+    setTest({ state: "testing" });
+    const program = Effect.gen(function* () {
+      const client = yield* AiClient;
+      const settings = draft();
+      const list = yield* client.models(settings);
+      const balance = yield* client.balance(settings).pipe(Effect.orElseSucceed(() => null));
+      return { list, balance };
+    });
+    void runApp(
+      program.pipe(
+        Effect.match({
+          onSuccess: ({ list, balance }) => {
+            setModels(list);
+            if (list.length > 0 && !list.some((entry) => entry.id === model)) {
+              setModel(list[0]?.id ?? "");
+            }
+            setTest({ state: "valid", balance });
+          },
+          onFailure: (error) =>
+            setTest({
+              state: "failed",
+              message: error.reason === "unauthorized" ? "Key rejected" : error.message,
+            }),
+        }),
+      ),
+    );
+  };
+
+  const save = (): void => {
+    // Consent is per provider: a new provider asks again on the first action.
+    putAi(draft(provider === ai?.provider ? ai?.consentedAt : undefined));
+    dismiss();
+  };
+
+  const removeKey = (): void => {
+    putAi(null);
+    dismiss();
+  };
+
+  const levels = models.find((entry) => entry.id === model)?.efforts ?? ["low", "medium", "high"];
+  const ready = apiKey.trim() !== "" && model.trim() !== "";
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
+      <button
+        type="button"
+        ref={backdropRef}
+        className="absolute inset-0 bg-black/40 motion-safe:animate-fade-in"
+        aria-label="Close settings"
+        onClick={() => dismiss()}
+      />
+      <aside
+        ref={sheetRef}
+        role="dialog"
+        aria-label="Settings"
+        className="relative z-10 flex max-h-[85%] w-full flex-col rounded-t-box bg-base-100 p-4 pb-[calc(var(--safe-bottom)+0.5rem)] motion-safe:animate-sheet-up md:max-h-[85vh] md:w-[28rem] md:rounded-box md:pb-4"
+      >
+        <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
+        <h2 className="text-lg font-semibold">Settings</h2>
+
+        <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <section>
+            <p className={heading}>Provider</p>
+            <div className="flex flex-wrap gap-2">
+              {AiProvider.literals.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={choice(provider === value)}
+                  onClick={() => {
+                    setProvider(value);
+                    setModels([]);
+                    setTest({ state: "idle" });
+                  }}
+                >
+                  {providerLabels[value]}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-4">
+            <p className={heading}>API key</p>
+            <div className="flex gap-2">
+              {/* 16px text on phones: iOS zooms the page into any focused input smaller than that. */}
+              <input
+                type="password"
+                className="input w-full text-base md:text-sm"
+                autoComplete="off"
+                aria-label="API key"
+                value={apiKey}
+                onChange={(event) => {
+                  setApiKey(event.target.value);
+                  setTest({ state: "idle" });
+                }}
+              />
+              <button
+                type="button"
+                className="btn"
+                disabled={apiKey.trim() === "" || test.state === "testing"}
+                onClick={testKey}
+              >
+                Test
+              </button>
+            </div>
+            <p className="mt-1 min-h-5 text-xs opacity-70">
+              {test.state === "testing" && "Testing…"}
+              {test.state === "valid" &&
+                (test.balance === null ? "Valid" : `Valid · balance ${test.balance}`)}
+              {test.state === "failed" && <span className="text-error">{test.message}</span>}
+            </p>
+          </section>
+
+          <section className="mt-3">
+            <p className={heading}>Model</p>
+            {models.length > 0 ? (
+              <select
+                className="select w-full text-base md:text-sm"
+                aria-label="Model"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+              >
+                {models.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                className="input w-full text-base md:text-sm"
+                aria-label="Model"
+                placeholder="Test the key to list models"
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+              />
+            )}
+          </section>
+
+          <section className="mt-4">
+            <p className={heading}>Effort</p>
+            <div className="flex flex-wrap gap-2">
+              {["off", ...levels].map((level) => (
+                <button
+                  key={level}
+                  type="button"
+                  className={choice(effort === level)}
+                  onClick={() => setEffort(level)}
+                >
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs opacity-60">
+              Higher levels add seconds before the first word.
+            </p>
+          </section>
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={ai === null}
+            onClick={removeKey}
+          >
+            Remove key
+          </button>
+          <button type="button" className="btn flex-1 btn-primary" disabled={!ready} onClick={save}>
+            Save
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}

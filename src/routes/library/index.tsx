@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { FunnelIcon, PlusIcon } from "@/components/icons";
+import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
 import {
   forkApp,
   runApp,
@@ -32,6 +32,7 @@ import { LibraryStatus } from "./_LibraryStatus";
 import { NoMatches } from "./_NoMatches";
 import { Logo } from "./_Logo";
 import { SearchField } from "./_SearchField";
+import { SettingsSheet } from "./_SettingsSheet";
 import { SortMenu } from "./_SortMenu";
 import { StorageUsage } from "./_StorageUsage";
 import { ViewToggle } from "./_ViewToggle";
@@ -61,6 +62,7 @@ export function LibraryRoute(): ReactElement {
   const importJob = useRef<Job | null>(null);
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({
     status: null,
     series: null,
@@ -195,6 +197,16 @@ export function LibraryRoute(): ReactElement {
   const viewToggle = (
     <ViewToggle view={settings.libraryView} onChange={(view) => update({ libraryView: view })} />
   );
+  const settingsButton = (
+    <button
+      type="button"
+      className="btn btn-square btn-ghost md:btn-sm"
+      aria-label="Settings"
+      onClick={() => setSettingsOpen(true)}
+    >
+      <CogIcon className="size-6 md:size-4" />
+    </button>
+  );
   const tiles = "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-5";
   const rows = "grid grid-cols-1 gap-3 md:grid-cols-2";
   const listClass = grid ? tiles : rows;
@@ -210,6 +222,7 @@ export function LibraryRoute(): ReactElement {
           {searchField}
           {sortMenu}
           {viewToggle}
+          {settingsButton}
           <button
             type="button"
             className="btn btn-primary btn-sm"
@@ -220,6 +233,7 @@ export function LibraryRoute(): ReactElement {
             {actionLabel}
           </button>
         </div>
+        <div className="md:hidden">{settingsButton}</div>
       </header>
 
       <div className="hidden md:block">{filterChips}</div>
@@ -303,6 +317,8 @@ export function LibraryRoute(): ReactElement {
         onClear={clearFilters}
         onClose={() => setFiltersOpen(false)}
       />
+
+      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {busy && (
         <ProgressPanel progress={progress} onCancel={importing ? cancelImport : undefined} />
