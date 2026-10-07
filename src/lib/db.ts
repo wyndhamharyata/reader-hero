@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { AiSettings, Artifact, Summary } from "@/domain/ai";
+import type { AiSettings, Summary } from "@/domain/ai";
 import type {
   BookMeta,
   BookPrefs,
@@ -29,12 +29,11 @@ export interface ReaderDb extends DBSchema {
   prefs: { key: string; value: BookPrefs };
   figures: { key: string; value: FigureCheckpoint };
   pages: { key: string; value: StoredPages };
-  artifacts: { key: string; value: Artifact; indexes: { bookId: string } };
   summaries: { key: string; value: Summary };
 }
 
 const DB_NAME = "reader-hero";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 export const SETTINGS_KEY = "app";
 export const AI_SETTINGS_KEY = "ai";
 
@@ -65,10 +64,10 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
       if (!next.objectStoreNames.contains("prefs")) next.createObjectStore("prefs");
       if (!next.objectStoreNames.contains("figures")) next.createObjectStore("figures");
       if (!next.objectStoreNames.contains("pages")) next.createObjectStore("pages");
-      if (!next.objectStoreNames.contains("artifacts")) {
-        next.createObjectStore("artifacts", { keyPath: "key" }).createIndex("bookId", "bookId");
-      }
       if (!next.objectStoreNames.contains("summaries")) next.createObjectStore("summaries");
+      // Version 6 and 7 stored recaps here; the summary holds the chapter being read instead.
+      const raw = next as unknown as IDBDatabase;
+      if (raw.objectStoreNames.contains("artifacts")) raw.deleteObjectStore("artifacts");
     },
     // A newer version opening elsewhere waits for this connection; let go so its upgrade can run.
     blocking() {

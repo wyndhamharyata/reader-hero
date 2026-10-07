@@ -1,6 +1,5 @@
 import { Layer, ManagedRuntime } from "effect";
 import { AiClient } from "@/services/ai-client";
-import { ArtifactStore } from "@/services/artifact-store";
 import { BookStore } from "@/services/book-store";
 import { FigureSlots } from "@/services/figure-slots";
 import { PageRenderer } from "@/services/page-renderer";
@@ -8,9 +7,10 @@ import { PdfClient } from "@/services/pdf-client";
 import { ServiceWorkerClient } from "@/services/service-worker-client";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs } from "@/services/summary-jobs";
+import { SummaryStore } from "@/services/summary-store";
 
-// The summary jobs run on the AI client and the artifact store, which the app shares with them.
-const aiLayer = Layer.mergeAll(ArtifactStore.layer, AiClient.layer);
+// The summary jobs run on the AI client and the summary store, which the app shares with them.
+const aiLayer = Layer.mergeAll(SummaryStore.layer, AiClient.layer);
 
 const appLayer = Layer.mergeAll(
   BookStore.layer,
@@ -32,6 +32,6 @@ export type AppServices =
   | FigureSlots
   | PageRenderer
   | ServiceWorkerClient
-  | ArtifactStore
+  | SummaryStore
   | AiClient
   | SummaryJobs;

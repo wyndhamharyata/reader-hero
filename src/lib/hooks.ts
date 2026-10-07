@@ -3,9 +3,9 @@ import { useCallback, useEffect, useRef, useState, type DependencyList } from "r
 import { Summary, type AiSettings } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
-import { ArtifactStore } from "@/services/artifact-store";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
+import { SummaryStore } from "@/services/summary-store";
 import type { SummaryInput, SummaryRun } from "@/use-cases/summary";
 import { watchBookImage } from "@/use-cases/book-image";
 import { renderFigures } from "@/use-cases/render-figures";
@@ -182,15 +182,15 @@ export function useSummary(bookId: string): SummaryState & {
     setJob({ run: null, error: null });
     const fiber = forkApp(
       Effect.gen(function* () {
-        const store = yield* ArtifactStore;
+        const store = yield* SummaryStore;
         const jobs = yield* SummaryJobs;
         const stored = yield* store
-          .summary(bookId)
+          .get(bookId)
           .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
         setSummary(stored);
         yield* Effect.all(
           [
-            store.summaryChanges().pipe(
+            store.changes().pipe(
               Stream.filter((change) => change.bookId === bookId),
               Stream.runForEach((change) => Effect.sync(() => setSummary(change.summary))),
             ),
@@ -214,7 +214,7 @@ export function useSummary(bookId: string): SummaryState & {
     forkApp(
       Effect.gen(function* () {
         yield* (yield* SummaryJobs).stop(bookId);
-        yield* (yield* ArtifactStore).removeSummary(bookId);
+        yield* (yield* SummaryStore).remove(bookId);
       }),
     );
   }, [bookId]);
@@ -222,12 +222,10 @@ export function useSummary(bookId: string): SummaryState & {
     (name: string) => {
       forkApp(
         Effect.gen(function* () {
-          const store = yield* ArtifactStore;
-          const current = yield* store.summary(bookId);
+          const store = yield* SummaryStore;
+          const current = yield* store.get(bookId);
           if (current === null) return;
-          yield* store.putSummary(
-            new Summary({ ...current, required: [...current.required, name] }),
-          );
+          yield* store.put(new Summary({ ...current, required: [...current.required, name] }));
         }),
       );
     },

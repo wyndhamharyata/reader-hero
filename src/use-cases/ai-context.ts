@@ -1,41 +1,10 @@
-import type { BookKind, Summary } from "@/domain/ai";
 import type { ParsedBook } from "@/domain/book";
-
-export interface Passage {
-  readonly text: string;
-  readonly heading: string;
-  readonly page: number;
-}
 
 export interface Chapter {
   readonly heading: string;
   readonly page: number;
   readonly start: number;
   readonly end: number;
-}
-
-// The chapter that holds `index`: the span between the contents entry at or before it and the next
-// one. A book with no contents uses its heading blocks the same way.
-export function chapterAt(
-  parsed: ParsedBook,
-  index: number,
-): { readonly heading: string; readonly start: number; readonly end: number } {
-  const entries =
-    parsed.toc.length > 0
-      ? parsed.toc.map((entry) => ({ title: entry.title, at: entry.blockIndex }))
-      : parsed.blocks.flatMap((block, at) =>
-          block.kind === "heading" ? [{ title: block.text, at }] : [],
-        );
-  let current = { title: "", at: 0 };
-  let end = parsed.blocks.length;
-  for (const entry of entries) {
-    if (entry.at <= index) current = entry;
-    else {
-      end = entry.at;
-      break;
-    }
-  }
-  return { heading: current.title, start: current.at, end };
 }
 
 const words = (text: string): number => text.split(" ").length;
@@ -100,51 +69,4 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
     }
   });
   return result;
-}
-
-// The last `limit` words up to and including the top block. Nothing after the position is read.
-export function recentPages(parsed: ParsedBook, index: number, limit = 4000): Passage {
-  let start = index;
-  let count = 0;
-  while (start > 0 && count < limit) {
-    count += words(parsed.blocks[start]?.text ?? "");
-    start -= 1;
-  }
-  return {
-    text: spanText(parsed, start, index + 1),
-    heading: chapterAt(parsed, index).heading,
-    page: parsed.blocks[index]?.page ?? 1,
-  };
-}
-
-// The current chapter. For a story it ends at the position, which is the gate; for a reference
-// document it is the whole section.
-export function chapterText(parsed: ParsedBook, index: number, kind: BookKind): Passage {
-  const chapter = chapterAt(parsed, index);
-  const end = kind === "story" ? index + 1 : chapter.end;
-  return {
-    text: spanText(parsed, chapter.start, end),
-    heading: chapter.heading,
-    page: parsed.blocks[index]?.page ?? 1,
-  };
-}
-
-// The summary's paragraphs for the chapters before the position, then the text from the first
-// chapter the summary does not cover up to the position. With a current summary that text is the
-// current chapter alone.
-export function readSoFar(parsed: ParsedBook, index: number, summary: Summary | null): Passage {
-  const list = chapters(parsed);
-  const before = list.filter((chapter) => chapter.end <= index).length;
-  const covered = Math.min(summary?.chapters.length ?? 0, before);
-  const paragraphs = (summary?.chapters ?? [])
-    .slice(0, covered)
-    .map((chapter) => `${chapter.heading}\n${chapter.paragraph}`)
-    .join("\n\n");
-  const from = list[covered]?.start ?? index + 1;
-  const text = spanText(parsed, Math.min(from, index + 1), index + 1);
-  return {
-    text: paragraphs === "" ? text : `Summary so far:\n\n${paragraphs}\n\nSince then:\n\n${text}`,
-    heading: chapterAt(parsed, index).heading,
-    page: parsed.blocks[index]?.page ?? 1,
-  };
 }

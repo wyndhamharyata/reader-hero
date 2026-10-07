@@ -59,22 +59,21 @@ On Android, a PDF shared from Files or a browser offers "Reader Hero" as a share
 target. The service worker stores the shared file and the app imports it on
 open.
 
-## AI recap and summary
+## AI summary
 
 The gear in the library opens Settings, where a provider (DeepSeek, OpenRouter,
 Gemini, Anthropic or OpenAI) and an API key are set. In a book, the AI section
-of the menu sheet then offers a recap of the recent pages, the current chapter
-or the book read so far, and the book's summary. The request goes from the
-browser to the provider with that key; the worker never sees it. Each result is
-stored on the device, so the same pages show the stored recap without a second
-call, offline too.
+of the menu sheet then offers the book's summary. The request goes from the
+browser to the provider with that key; the worker never sees it. The summary is
+stored on the device and read offline.
 
 The summary is one record per book: a paragraph per chapter before the
-position, and the characters drawn from those paragraphs. Its job sends one
-chapter per request and writes after each one, so Stop, a closed app or a lost
-network keeps every chapter that landed, and the next run starts after it. The
-one-line summaries show under the entries in Contents (a switch in Settings),
-and "Automatic summary" (off by default) runs the job as chapters are read.
+position, the chapter being read summarised up to the position, and the
+characters drawn from those paragraphs. Its job sends one chapter per request
+and writes after each one, so Stop, a closed app or a lost network keeps every
+chapter that landed, and the next run starts after it. The one-line summaries
+show under the entries in Contents (a switch in Settings), and "Automatic
+summary" (off by default) runs the job as chapters are read.
 
 ## Tests
 

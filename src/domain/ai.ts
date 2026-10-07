@@ -20,9 +20,6 @@ export const providerLabels: Record<AiProvider, string> = {
 export const BookKind = Schema.Literals(["story", "reference"]);
 export type BookKind = typeof BookKind.Type;
 
-export const SummaryLength = Schema.Literals(["line", "paragraph"]);
-export type SummaryLength = typeof SummaryLength.Type;
-
 // The one AI record in the settings store; the key is stored next to the books and sent to this provider only.
 export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiSettings")({
   provider: AiProvider,
@@ -33,9 +30,6 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   // Records saved before these fields existed decode with their defaults.
   linesInContents: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
   autoSummary: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
-  summaryLength: SummaryLength.pipe(
-    Schema.withDecodingDefaultKey(Effect.succeed<SummaryLength>("paragraph")),
-  ),
 }) {}
 
 export const AiMessage = Schema.Struct({
@@ -44,22 +38,9 @@ export const AiMessage = Schema.Struct({
 });
 export type AiMessage = typeof AiMessage.Type;
 
-// A stored result. The key is a hash of the model, the prompt version and the context text, so an
-// identical request shows the stored answer without a call.
-export class Artifact extends Schema.Class<Artifact>("reader-hero/domain/Artifact")({
-  key: Schema.String,
-  bookId: Schema.String,
-  kind: Schema.Literals(["recap"]),
-  heading: Schema.String,
-  page: Schema.Int,
-  model: Schema.String,
-  createdAt: Schema.Int,
-  result: Schema.String,
-  thread: Schema.Array(AiMessage),
-}) {}
-
-// One summary per book: a paragraph per chapter in reading order, each from one request, and the
-// names drawn from those paragraphs. The job appends to it and never sends a chapter twice.
+// One summary per book: a paragraph per chapter in reading order, each from one request, the
+// names drawn from those paragraphs, and the chapter being read, summarised up to the position.
+// The job appends to it and never sends a finished chapter twice.
 export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")({
   bookId: Schema.String,
   model: Schema.String,
@@ -81,4 +62,8 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
   // Names the reader added, which the next merge must include.
   required: Schema.Array(Schema.String),
   thread: Schema.Array(AiMessage),
+  // The chapter that held the position, up to the block before `end`; stale once the position moves.
+  current: Schema.optional(
+    Schema.Struct({ heading: Schema.String, end: Schema.Int, text: Schema.String }),
+  ),
 }) {}

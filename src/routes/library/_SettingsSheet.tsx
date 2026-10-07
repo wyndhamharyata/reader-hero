@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { AiProvider, AiSettings, providerLabels, type SummaryLength } from "@/domain/ai";
+import { AiProvider, AiSettings, providerLabels } from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
 import { runApp, useAiSettings } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
@@ -12,8 +12,6 @@ interface Props {
 }
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
-// btn-active only darkens base-200 by 5%, which the dark theme hides; neutral stands apart in every theme.
-const choice = (chosen: boolean): string => (chosen ? "btn btn-neutral btn-sm" : "btn btn-sm");
 
 type Test =
   | { readonly state: "idle" }
@@ -31,7 +29,6 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("off");
-  const [summaryLength, setSummaryLength] = useState<SummaryLength>("paragraph");
   const [linesInContents, setLinesInContents] = useState(true);
   const [autoSummary, setAutoSummary] = useState(false);
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
@@ -44,7 +41,6 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
     setApiKey(ai?.apiKey ?? "");
     setModel(ai?.model ?? "");
     setEffort(ai?.effort ?? "off");
-    setSummaryLength(ai?.summaryLength ?? "paragraph");
     setLinesInContents(ai?.linesInContents ?? true);
     setAutoSummary(ai?.autoSummary ?? false);
     setModels([]);
@@ -62,7 +58,6 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
       consentedAt,
       linesInContents,
       autoSummary,
-      summaryLength,
     });
 
   const testKey = (): void => {
@@ -106,7 +101,14 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
   };
 
   const levels = models.find((entry) => entry.id === model)?.efforts ?? ["low", "medium", "high"];
+  // A stored level the model does not list stays choosable, so the select shows what is saved.
+  const efforts = [
+    "off",
+    ...levels,
+    ...(effort === "off" || levels.includes(effort) ? [] : [effort]),
+  ];
   const ready = apiKey.trim() !== "" && model.trim() !== "";
+  const field = "select w-full text-base md:text-sm";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
@@ -129,23 +131,22 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <section>
             <p className={heading}>Provider</p>
-            <div className="flex flex-wrap gap-2">
+            <select
+              className={field}
+              aria-label="Provider"
+              value={provider}
+              onChange={(event) => {
+                setProvider(event.target.value as AiProvider);
+                setModels([]);
+                setTest({ state: "idle" });
+              }}
+            >
               {AiProvider.literals.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={choice(provider === value)}
-                  aria-pressed={provider === value}
-                  onClick={() => {
-                    setProvider(value);
-                    setModels([]);
-                    setTest({ state: "idle" });
-                  }}
-                >
+                <option key={value} value={value}>
                   {providerLabels[value]}
-                </button>
+                </option>
               ))}
-            </div>
+            </select>
           </section>
 
           <section className="mt-4">
@@ -184,7 +185,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
             <p className={heading}>Model</p>
             {models.length > 0 ? (
               <select
-                className="select w-full text-base md:text-sm"
+                className={field}
                 aria-label="Model"
                 value={model}
                 onChange={(event) => setModel(event.target.value)}
@@ -209,19 +210,18 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
 
           <section className="mt-4">
             <p className={heading}>Effort</p>
-            <div className="flex flex-wrap gap-2">
-              {["off", ...levels].map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  className={choice(effort === level)}
-                  aria-pressed={effort === level}
-                  onClick={() => setEffort(level)}
-                >
+            <select
+              className={field}
+              aria-label="Effort"
+              value={effort}
+              onChange={(event) => setEffort(event.target.value)}
+            >
+              {efforts.map((level) => (
+                <option key={level} value={level}>
                   {level.charAt(0).toUpperCase() + level.slice(1)}
-                </button>
+                </option>
               ))}
-            </div>
+            </select>
             <p className="mt-2 text-xs opacity-60">
               Higher levels add seconds before the first word.
             </p>
@@ -229,27 +229,6 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
 
           <section className="mt-4">
             <p className={heading}>Summary</p>
-            <div className="flex items-center justify-between gap-3 py-1">
-              <span className="text-sm">Length</span>
-              <div className="flex gap-2">
-                {(
-                  [
-                    ["line", "Line"],
-                    ["paragraph", "Paragraph"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={choice(summaryLength === value)}
-                    aria-pressed={summaryLength === value}
-                    onClick={() => setSummaryLength(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <label className="flex items-center justify-between gap-3 py-2 text-sm">
               <span>Summaries in Contents</span>
               <input

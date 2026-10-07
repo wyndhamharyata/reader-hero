@@ -129,7 +129,6 @@ export function MenuSheet({
           {...ai}
           open={panel === "ai"}
           onToggle={() => setPanel(panel === "ai" ? null : "ai")}
-          onRecap={() => dismiss(() => ai.onRecap())}
           onSummary={() => dismiss(() => ai.onSummary())}
         />
 

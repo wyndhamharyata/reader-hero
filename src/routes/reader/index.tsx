@@ -21,14 +21,12 @@ import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { chapters } from "@/use-cases/ai-context";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
-import { storedRecap, type RecapInput, type RecapScope } from "@/use-cases/recap";
 import { saveReadingProgress } from "@/use-cases/save-progress";
-import { describeSummary, type SummaryInput } from "@/use-cases/summary";
+import { coverage, describeSummary, type SummaryInput } from "@/use-cases/summary";
 import { MenuSheet } from "./_MenuSheet";
 import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
-import { ResultSheet } from "./_ResultSheet";
 import { SummarySheet } from "./_SummarySheet";
 import type { JumpRequest } from "./_ReaderView";
 
@@ -65,8 +63,6 @@ export function ReaderRoute() {
   const [message, setMessage] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
   const { ai, putAi } = useAiSettings();
-  const [recap, setRecap] = useState<{ index: number; scope: RecapScope } | null>(null);
-  const [recapAt, setRecapAt] = useState<number | null>(null);
   const { summary, run, error: summaryError, start, stop, discard, addName } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
@@ -130,60 +126,20 @@ export function ReaderRoute() {
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
 
-  // The recap row says when the current pages already have a stored recap. The key is a hash of
-  // the pages, so this is a local read and never a call.
-  useEffect(() => {
-    if (!tocOpen || data === null || ai === null) {
-      setRecapAt(null);
-      return;
-    }
-    const input: RecapInput = {
-      meta: data.meta,
-      parsed: data.parsed,
-      kind,
-      index: position,
-      scope: "recent",
-      summary: null,
-    };
-    const fiber = forkApp(
-      storedRecap(input, ai).pipe(
-        Effect.map((artifact) => setRecapAt(artifact?.createdAt ?? null)),
-        Effect.ignore,
-      ),
-    );
-    return () => stopFiber(fiber);
-  }, [tocOpen, data, ai, kind, position]);
-
-  // Only the Read so far scope reads the summary, so a chapter that lands mid-recap restarts nothing else.
-  const sofarSummary = recap?.scope === "sofar" ? summary : null;
-  const recapInput = useMemo<RecapInput | null>(
-    () =>
-      data === null || recap === null
-        ? null
-        : {
-            meta: data.meta,
-            parsed: data.parsed,
-            kind,
-            index: recap.index,
-            scope: recap.scope,
-            summary: sofarSummary,
-          },
-    [data, recap, kind, sofarSummary],
-  );
-
   // The summary covers the chapters before the position for a story, and every section otherwise.
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
-  const before = useMemo(
-    () => chapterList.filter((chapter) => chapter.end <= position).length,
-    [chapterList, position],
+  const cover = useMemo(
+    () =>
+      data === null
+        ? { target: 0, current: null }
+        : coverage(chapterList, data.parsed, kind, position),
+    [data, chapterList, kind, position],
   );
-  const target = kind === "story" ? before : chapterList.length;
   const summaryInput = useMemo<SummaryInput | null>(
-    () => (data === null ? null : { meta: data.meta, parsed: data.parsed, kind, target }),
-    [data, kind, target],
+    () => (data === null ? null : { meta: data.meta, parsed: data.parsed, kind, index: position }),
+    [data, kind, position],
   );
-  const summaryText = describeSummary(summary, target, run, kind);
-  const behind = before - Math.min(summary?.chapters.length ?? 0, before);
+  const summaryText = describeSummary(summary, cover, run, kind);
   const lines = useMemo(() => {
     const map = new Map<number, string>();
     if (ai === null || !ai.linesInContents || summary === null) return map;
@@ -204,9 +160,9 @@ export function ReaderRoute() {
       return;
     }
     if (run !== null || summaryError !== null || !navigator.onLine) return;
-    if ((summary?.chapters.length ?? 0) >= target) return;
+    if ((summary?.chapters.length ?? 0) >= cover.target) return;
     start(summaryInput, ai);
-  }, [ai, summaryInput, run, summaryError, summary, target, start]);
+  }, [ai, summaryInput, run, summaryError, summary, cover.target, start]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts now.
   useEffect(() => {
@@ -359,11 +315,9 @@ export function ReaderRoute() {
           settings: ai,
           kind,
           guessed: prefs.kind === undefined,
-          recapAt,
           summary: summaryText.row,
           summaryRunning: run !== null,
           onKind: (next) => savePrefs({ kind: next }),
-          onRecap: () => setRecap({ index: position, scope: "recent" }),
           onSummary: () => setSummarySheet({ openAt: null }),
           onStopSummary: stop,
         }}
@@ -378,24 +332,11 @@ export function ReaderRoute() {
         onClose={closeToc}
       />
 
-      {recapInput !== null && ai !== null && (
-        <ResultSheet
-          input={recapInput}
-          settings={ai}
-          behind={behind}
-          summary={{ row: summaryText.row, action: summaryText.action, running: run !== null }}
-          onSummarise={() => {
-            if (summaryInput !== null) start(summaryInput, ai);
-          }}
-          onScope={(scope) => setRecap({ index: recapInput.index, scope })}
-          onConsent={() => putAi(new AiSettings({ ...ai, consentedAt: Date.now() }))}
-          onClose={() => setRecap(null)}
-        />
-      )}
-
       {summarySheet !== null && summaryInput !== null && ai !== null && (
         <SummarySheet
           input={summaryInput}
+          list={chapterList}
+          cover={cover}
           settings={ai}
           state={{ summary, run, error: summaryError }}
           openAt={summarySheet.openAt}

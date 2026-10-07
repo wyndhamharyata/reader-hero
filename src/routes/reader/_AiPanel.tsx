@@ -6,13 +6,10 @@ export interface AiPanelProps {
   settings: AiSettings | null;
   kind: BookKind;
   guessed: boolean;
-  // When the current pages already have a stored recap, so the row says so.
-  recapAt: number | null;
   // The Summary row's text, "none" or "chapters 1–5 · 2 behind", and whether its job runs.
   summary: string;
   summaryRunning: boolean;
   onKind: (kind: BookKind) => void;
-  onRecap: () => void;
   onSummary: () => void;
   onStopSummary: () => void;
 }
@@ -22,30 +19,15 @@ interface Props extends AiPanelProps {
   onToggle: () => void;
 }
 
-// The panel sits on base-200, so unchosen buttons lift to base-100; the chosen one is neutral.
-const choice = (chosen: boolean): string =>
-  chosen ? "btn btn-neutral btn-sm" : "btn bg-base-100 btn-sm";
-
-function ago(at: number): string {
-  const minutes = Math.round((Date.now() - at) / 60_000);
-  if (minutes < 60) return `${Math.max(1, minutes)} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? "yesterday" : `${days} days ago`;
-}
-
 // The per-book AI section of the menu sheet, drawn like Text settings: a header with a chevron, and
 // a body that opens upward on phones. Nothing here sets the provider; that is the Settings sheet.
 export function AiPanel({
   settings,
   kind,
   guessed,
-  recapAt,
   summary,
   summaryRunning,
   onKind,
-  onRecap,
   onSummary,
   onStopSummary,
   open,
@@ -74,44 +56,19 @@ export function AiPanel({
       >
         <div className="min-h-0 overflow-hidden">
           <div className="max-h-[40dvh] overflow-y-auto overscroll-contain px-3 pt-3 md:max-h-[60dvh] md:pt-0 md:pb-3">
-            <div className="flex items-center justify-between gap-3 py-1">
-              <span className="text-base md:text-sm">
-                Kind {guessed && <span className="text-xs opacity-60">guessed</span>}
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={choice(kind === "story")}
-                  aria-pressed={kind === "story"}
-                  onClick={() => onKind("story")}
-                >
-                  Story
-                </button>
-                <button
-                  type="button"
-                  className={choice(kind === "reference")}
-                  aria-pressed={kind === "reference"}
-                  onClick={() => onKind("reference")}
-                >
-                  Reference
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="mt-2 flex w-full items-center justify-between gap-3 border-t border-base-300 py-3 text-left text-base disabled:opacity-50 md:py-2 md:text-sm"
-              disabled={settings === null}
-              onClick={onRecap}
-            >
+            <label className="flex items-center justify-between gap-3 py-2 text-base md:py-1 md:text-sm">
               <span>
-                Recap{" "}
-                {recapAt !== null && <span className="text-xs opacity-60">{ago(recapAt)}</span>}
+                Reference document {guessed && <span className="text-xs opacity-60">guessed</span>}
               </span>
-              <span className="opacity-60">›</span>
-            </button>
+              <input
+                type="checkbox"
+                className="toggle toggle-sm"
+                checked={kind === "reference"}
+                onChange={(event) => onKind(event.target.checked ? "reference" : "story")}
+              />
+            </label>
 
-            <div className="flex items-center gap-2 border-t border-base-300">
+            <div className="mt-2 flex items-center gap-2 border-t border-base-300">
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center justify-between gap-3 py-3 text-left text-base disabled:opacity-50 md:py-2 md:text-sm"

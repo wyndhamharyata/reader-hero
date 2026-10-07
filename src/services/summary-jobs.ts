@@ -2,7 +2,7 @@ import { Context, Effect, Fiber, Layer, Stream, SubscriptionRef } from "effect";
 import type { AiSettings } from "@/domain/ai";
 import { describeAiFailure } from "@/lib/describe-error";
 import { AiClient } from "@/services/ai-client";
-import { ArtifactStore } from "@/services/artifact-store";
+import { SummaryStore } from "@/services/summary-store";
 import { summariseNext, type SummaryInput, type SummaryRun } from "@/use-cases/summary";
 
 export interface JobState {
@@ -24,10 +24,10 @@ export class SummaryJobs extends Context.Service<
     SummaryJobs,
     Effect.gen(function* () {
       const client = yield* AiClient;
-      const store = yield* ArtifactStore;
+      const store = yield* SummaryStore;
       const services = Layer.mergeAll(
         Layer.succeed(AiClient, client),
-        Layer.succeed(ArtifactStore, store),
+        Layer.succeed(SummaryStore, store),
       );
       const states = new Map<string, SubscriptionRef.SubscriptionRef<JobState>>();
       const fibers = new Map<string, Fiber.Fiber<unknown, unknown>>();
@@ -52,7 +52,7 @@ export class SummaryJobs extends Context.Service<
         if (fibers.has(bookId)) return;
         const ref = yield* stateRef(bookId);
         yield* SubscriptionRef.set(ref, {
-          run: { stage: "chapter", chapter: 0, of: input.target, text: "" },
+          run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
         const job = summariseNext(input, settings, (run) =>

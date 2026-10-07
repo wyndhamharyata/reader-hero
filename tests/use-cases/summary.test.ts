@@ -3,9 +3,15 @@ import { describe, expect, it } from "vitest";
 import { AiSettings, Summary, type AiMessage } from "@/domain/ai";
 import { Block, BookMeta, PARSED_VERSION, ParsedBook, TocEntry } from "@/domain/book";
 import { AiClient } from "@/services/ai-client";
-import { ArtifactStore } from "@/services/artifact-store";
-import { chapters, readSoFar } from "@/use-cases/ai-context";
-import { describeSummary, summariseNext, type SummaryInput } from "@/use-cases/summary";
+import { SummaryStore } from "@/services/summary-store";
+import { chapters, spanText } from "@/use-cases/ai-context";
+import {
+  coverage,
+  describeSummary,
+  summariseNext,
+  type Coverage,
+  type SummaryInput,
+} from "@/use-cases/summary";
 
 const meta = new BookMeta({
   id: "b1",
@@ -25,7 +31,6 @@ const settings = new AiSettings({
   model: "flash",
   linesInContents: true,
   autoSummary: false,
-  summaryLength: "paragraph",
 });
 
 const heading = (text: string, page: number): Block =>
@@ -65,29 +70,55 @@ const novel = book(
     new TocEntry({ title: "Chapter 3", page: 3, blockIndex: 6, depth: 0 }),
   ],
 );
+const list = chapters(novel);
+
+const stored = (fields: Partial<Summary> = {}): Summary =>
+  new Summary({
+    bookId: "b1",
+    model: "flash",
+    updatedAt: 1,
+    chapters: [
+      { heading: "Chapter 1", page: 1, line: "One.", paragraph: "First." },
+      { heading: "Chapter 2", page: 2, line: "Two.", paragraph: "Second." },
+    ],
+    names: [{ name: "Jim", note: "The narrator.", chapter: 1 }],
+    namesThrough: 2,
+    required: [],
+    thread: [],
+    ...fields,
+  });
 
 interface Harness {
-  readonly calls: Array<{ system: string; user: string; json: boolean }>;
+  readonly calls: Array<{ kind: string; user: string; json: boolean }>;
   readonly puts: Array<Summary>;
-  readonly layer: Layer.Layer<AiClient | ArtifactStore>;
+  readonly layer: Layer.Layer<AiClient | SummaryStore>;
 }
 
-// The fake provider answers a chapter request with two parts, and a names request with JSON.
-function harness(stored: Summary | null, namesReply?: string): Harness {
+// The fake provider answers a chapter request with two parts, the part read so far with one
+// paragraph, and a names request with JSON.
+function harness(initial: Summary | null, namesReply?: string): Harness {
   const calls: Harness["calls"] = [];
   const puts: Array<Summary> = [];
-  let current = stored;
+  let current = initial;
   const client = Layer.succeed(
     AiClient,
     AiClient.of({
       complete: (_settings, system, messages: ReadonlyArray<AiMessage>, options) => {
         const user = messages[messages.length - 1]?.content ?? "";
-        const json = options?.json === true;
-        calls.push({ system, user, json });
-        const reply = json
-          ? (namesReply ??
-            'Here it is: {"names":[{"name":"Jim","note":"The narrator.","chapter":1},{"name":"Pew","note":"Blind.","chapter":"9"},{"note":"no name"}]}')
-          : `One ${calls.length}.\n\nParagraph ${calls.length}.`;
+        const kind = system.startsWith("You summarise one")
+          ? "chapter"
+          : system.startsWith("You summarise the part")
+            ? "current"
+            : "names";
+        calls.push({ kind, user, json: options?.json === true });
+        const count = calls.length;
+        const reply =
+          kind === "names"
+            ? (namesReply ??
+              'Here it is: {"names":[{"name":"Jim","note":"The narrator.","chapter":1},{"name":"Pew","note":"Blind.","chapter":"9"},{"note":"no name"}]}')
+            : kind === "current"
+              ? `So far ${count}.`
+              : `One ${count}.\n\nParagraph ${count}.`;
         return Stream.fromArray([
           { type: "reasoning" as const, text: "hmm" },
           { type: "text" as const, text: reply.slice(0, 5) },
@@ -99,19 +130,16 @@ function harness(stored: Summary | null, namesReply?: string): Harness {
     }),
   );
   const store = Layer.succeed(
-    ArtifactStore,
-    ArtifactStore.of({
-      get: () => Effect.succeed(null),
-      put: () => Effect.void,
-      summary: () => Effect.succeed(current),
-      putSummary: (next) =>
+    SummaryStore,
+    SummaryStore.of({
+      get: () => Effect.succeed(current),
+      put: (next) =>
         Effect.sync(() => {
           current = next;
           puts.push(next);
         }),
-      removeSummary: () => Effect.void,
-      summaryChanges: () => Stream.empty,
-      removeBook: () => Effect.void,
+      remove: () => Effect.void,
+      changes: () => Stream.empty,
     }),
   );
   return { calls, puts, layer: Layer.mergeAll(client, store) };
@@ -119,13 +147,20 @@ function harness(stored: Summary | null, namesReply?: string): Harness {
 
 describe("chapters", () => {
   it("given contents entries, drops the ones with under 200 words", () => {
-    expect(chapters(novel).map((chapter) => [chapter.heading, chapter.start, chapter.end])).toEqual(
-      [
-        ["Chapter 1", 2, 4],
-        ["Chapter 2", 4, 6],
-        ["Chapter 3", 6, 8],
-      ],
-    );
+    expect(list.map((chapter) => [chapter.heading, chapter.start, chapter.end])).toEqual([
+      ["Chapter 1", 2, 4],
+      ["Chapter 2", 4, 6],
+      ["Chapter 3", 6, 8],
+    ]);
+  });
+
+  it("given no contents, uses the heading blocks", () => {
+    const bare = book(novel.blocks, []);
+    expect(chapters(bare).map((chapter) => chapter.heading)).toEqual([
+      "Chapter 1",
+      "Chapter 2",
+      "Chapter 3",
+    ]);
   });
 
   it("given no contents and no headings, cuts pieces of 8,000 words named by page", () => {
@@ -139,13 +174,37 @@ describe("chapters", () => {
       ["Page 17", 16, 20],
     ]);
   });
+
+  it("given a figure in a span, leaves it out of the text", () => {
+    const figure = new Block({ kind: "image", level: 0, text: "", page: 1, imageId: "1-0" });
+    const parsed = book([paragraph("one", 1), figure, paragraph("two", 1)], []);
+    expect(spanText(parsed, 0, 3)).toBe("one\n\ntwo");
+  });
+});
+
+describe("coverage", () => {
+  it("given a story, counts the chapters before the position and the one being read", () => {
+    const cover = coverage(list, novel, "story", 7);
+    expect(cover.target).toBe(2);
+    expect(cover.current?.chapter.heading).toBe("Chapter 3");
+    expect(cover.current?.end).toBe(8);
+    expect(cover.current?.text.startsWith("Chapter 3\n\nw0 w1")).toBe(true);
+  });
+
+  it("given a chapter's first block alone, offers no entry for it yet", () => {
+    expect(coverage(list, novel, "story", 6).current).toBeNull();
+  });
+
+  it("given a reference document, covers every section and reads none to here", () => {
+    expect(coverage(list, novel, "reference", 3)).toEqual({ target: 3, current: null });
+  });
 });
 
 describe("summariseNext", () => {
-  it("given two chapters before the position, sends each once, writes after each, then merges names", async () => {
+  it("given two chapters before the position, sends each once, writes after each, merges names, then the chapter read so far", async () => {
     const { calls, puts, layer } = harness(null);
     const progress: Array<string> = [];
-    const input: SummaryInput = { meta, parsed: novel, kind: "story", target: 2 };
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
 
     const result = await Effect.runPromise(
       summariseNext(input, settings, (run) =>
@@ -153,12 +212,19 @@ describe("summariseNext", () => {
       ).pipe(Effect.provide(layer)),
     );
 
-    expect(calls.map((call) => call.json)).toEqual([false, false, true]);
+    expect(calls.map((call) => [call.kind, call.json])).toEqual([
+      ["chapter", false],
+      ["chapter", false],
+      ["names", true],
+      ["current", false],
+    ]);
     expect(calls[0]?.user).toContain("chapter 1: Chapter 1.");
     expect(calls[0]?.user).not.toContain("Previous chapter");
     expect(calls[1]?.user).toContain("Previous chapter's summary:\nParagraph 1.");
     expect(calls[2]?.user).toContain("chapter 2: Chapter 2\nParagraph 2.");
-    expect(puts).toHaveLength(3);
+    expect(calls[3]?.user).toContain("chapter 3: Chapter 3, up to where the reader stopped.");
+    expect(calls[3]?.user).toContain("Previous chapter's summary:\nParagraph 2.");
+    expect(puts).toHaveLength(4);
     expect(puts[0]?.chapters).toHaveLength(1);
     expect(
       result.chapters.map((chapter) => [chapter.heading, chapter.line, chapter.paragraph]),
@@ -171,43 +237,46 @@ describe("summariseNext", () => {
       { name: "Pew", note: "Blind.", chapter: 2 },
     ]);
     expect(result.namesThrough).toBe(2);
+    expect(result.current).toEqual({ heading: "Chapter 3", end: 8, text: "So far 4." });
     expect(progress[0]).toBe("chapter 1 ");
-    expect(progress.at(-1)).toBe("names 2 ");
     expect(progress).toContain("chapter 1 One 1.\n\nParagraph 1.");
+    expect(progress.at(-1)).toBe("current 3 So far 4.");
   });
 
-  it("given a summary one chapter behind, sends only the new chapter and the new paragraph", async () => {
-    const stored = new Summary({
-      bookId: "b1",
-      model: "flash",
-      updatedAt: 1,
-      chapters: [
-        { heading: "Chapter 1", page: 1, line: "One.", paragraph: "First." },
-        { heading: "Chapter 2", page: 2, line: "Two.", paragraph: "Second." },
-      ],
-      names: [{ name: "Jim", note: "The narrator.", chapter: 1 }],
-      namesThrough: 2,
+  it("given a current summary with an added name, sends the names merge alone", async () => {
+    const fresh = stored({
       required: ["Ben Gunn"],
-      thread: [],
+      current: { heading: "Chapter 3", end: 8, text: "So far." },
     });
-    const { calls, layer } = harness(stored);
-    const input: SummaryInput = { meta, parsed: novel, kind: "story", target: 3 };
+    const { calls, layer } = harness(fresh);
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
 
     await Effect.runPromise(
       summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
     );
 
-    expect(calls).toHaveLength(2);
-    expect(calls[0]?.user).toContain("chapter 3: Chapter 3.");
-    expect(calls[0]?.user).toContain("Previous chapter's summary:\nSecond.");
-    expect(calls[1]?.user).toContain("Entries the reader asked for: Ben Gunn");
-    expect(calls[1]?.user).toContain("New chapters:\n\nchapter 3: Chapter 3\nParagraph 1.");
-    expect(calls[1]?.user).not.toContain("chapter 2: Chapter 2");
+    expect(calls.map((call) => call.kind)).toEqual(["names"]);
+    expect(calls[0]?.user).toContain("Entries the reader asked for: Ben Gunn");
+    expect(calls[0]?.user).toContain("New chapters:\n\nReturn the merged list.");
+  });
+
+  it("given a position that moved on, makes the chapter read so far again and nothing else", async () => {
+    const moved = stored({ current: { heading: "Chapter 3", end: 7, text: "Earlier." } });
+    const { calls, puts, layer } = harness(moved);
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
+
+    const result = await Effect.runPromise(
+      summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
+    );
+
+    expect(calls.map((call) => call.kind)).toEqual(["current"]);
+    expect(puts).toHaveLength(1);
+    expect(result.current?.end).toBe(8);
   });
 
   it("given a names reply that is not JSON, fails after the chapters are stored", async () => {
     const { puts, layer } = harness(null, "Sorry, no.");
-    const input: SummaryInput = { meta, parsed: novel, kind: "story", target: 1 };
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 4 };
 
     const exit = await Effect.runPromiseExit(
       summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
@@ -220,83 +289,78 @@ describe("summariseNext", () => {
 });
 
 describe("describeSummary", () => {
-  const stored = new Summary({
-    bookId: "b1",
-    model: "flash",
-    updatedAt: 1,
+  const five = stored({
     chapters: Array.from({ length: 5 }, (_, index) => ({
       heading: `Chapter ${index + 1}`,
       page: 1,
       line: "",
       paragraph: "",
     })),
-    names: [],
     namesThrough: 5,
-    required: [],
-    thread: [],
   });
+  const chapter8 = { heading: "Chapter 8", page: 1, start: 0, end: 0 };
+  const plain: Coverage = { target: 7, current: null };
+  const reading: Coverage = { target: 7, current: { chapter: chapter8, end: 50, text: "" } };
 
-  it("names the four states of the row and the one action", () => {
-    expect(describeSummary(null, 7, null, "story")).toEqual({
+  it("names the states of the row and the one action", () => {
+    expect(describeSummary(null, plain, null, "story")).toEqual({
       row: "none",
       action: "Summarise chapters 1–7",
     });
-    expect(describeSummary(stored, 7, null, "story")).toEqual({
+    expect(describeSummary(five, plain, null, "story")).toEqual({
       row: "chapters 1–5 · 2 behind",
       action: "Summarise chapters 6–7",
     });
-    expect(describeSummary(stored, 6, null, "story")).toEqual({
-      row: "chapters 1–5 · 1 behind",
-      action: "Summarise chapter 6",
-    });
-    expect(
-      describeSummary(stored, 7, { stage: "chapter", chapter: 7, of: 7, text: "" }, "story"),
-    ).toEqual({ row: "chapter 7 of 7…", action: null });
-    expect(describeSummary(stored, 5, null, "story")).toEqual({
+    expect(describeSummary(five, { ...plain, target: 6 }, null, "story").action).toBe(
+      "Summarise chapter 6",
+    );
+    expect(describeSummary(five, reading, null, "story").action).toBe("Summarise chapters 6–8");
+    expect(describeSummary(five, { ...plain, target: 5 }, null, "story")).toEqual({
       row: "chapters 1–5",
       action: null,
     });
-    expect(describeSummary(stored, 5, null, "reference")).toEqual({
-      row: "sections 1–5",
-      action: null,
+    expect(describeSummary(five, { ...plain, target: 5 }, null, "reference").row).toBe(
+      "sections 1–5",
+    );
+  });
+
+  it("given the chapter being read, offers it to here, then an update once the position moves", () => {
+    const seven = stored({
+      chapters: Array.from({ length: 7 }, (_, index) => ({
+        heading: `Chapter ${index + 1}`,
+        page: 1,
+        line: "",
+        paragraph: "",
+      })),
+      namesThrough: 7,
     });
+    expect(describeSummary(seven, reading, null, "story").action).toBe("Summarise to here");
+    const made = new Summary({ ...seven, current: { heading: "Chapter 8", end: 40, text: "x" } });
+    expect(describeSummary(made, reading, null, "story").action).toBe("Update to here");
+    const fresh = new Summary({ ...seven, current: { heading: "Chapter 8", end: 50, text: "x" } });
+    expect(describeSummary(fresh, reading, null, "story").action).toBeNull();
+  });
+
+  it("given a run, names its stage", () => {
+    expect(
+      describeSummary(five, plain, { stage: "chapter", chapter: 7, of: 7, text: "" }, "story").row,
+    ).toBe("chapter 7 of 7…");
+    expect(
+      describeSummary(five, plain, { stage: "current", chapter: 8, of: 7, text: "" }, "story").row,
+    ).toBe("to here…");
+    expect(
+      describeSummary(five, plain, { stage: "names", chapter: 7, of: 7, text: "" }, "story").row,
+    ).toBe("characters…");
   });
 
   it("given names behind the chapters or an added name, offers the update", () => {
-    const lagging = new Summary({ ...stored, namesThrough: 3 });
-    expect(describeSummary(lagging, 5, null, "story").action).toBe("Update characters");
-    const added = new Summary({ ...stored, required: ["Ben Gunn"] });
-    expect(describeSummary(added, 5, null, "reference").action).toBe("Update terms");
-  });
-});
-
-describe("readSoFar", () => {
-  it("given a summary one chapter short, sends its paragraphs then the text from the gap", () => {
-    const stored = new Summary({
-      bookId: "b1",
-      model: "flash",
-      updatedAt: 1,
-      chapters: [{ heading: "Chapter 1", page: 1, line: "One.", paragraph: "First." }],
-      names: [],
-      namesThrough: 1,
-      required: [],
-      thread: [],
-    });
-
-    const passage = readSoFar(novel, 7, stored);
-
-    expect(
-      passage.text.startsWith(
-        "Summary so far:\n\nChapter 1\nFirst.\n\nSince then:\n\nChapter 2\n\nw0 ",
-      ),
-    ).toBe(true);
-    expect(passage.text).toContain("Chapter 3");
-    expect(passage.heading).toBe("Chapter 3");
-  });
-
-  it("given no summary, sends the text from the first chapter", () => {
-    const passage = readSoFar(novel, 3, null);
-    expect(passage.text.startsWith("Chapter 1\n\nw0 ")).toBe(true);
-    expect(passage.text).not.toContain("Summary so far");
+    const lagging = new Summary({ ...five, namesThrough: 3 });
+    expect(describeSummary(lagging, { ...plain, target: 5 }, null, "story").action).toBe(
+      "Update characters",
+    );
+    const added = new Summary({ ...five, required: ["Ben Gunn"] });
+    expect(describeSummary(added, { ...plain, target: 5 }, null, "reference").action).toBe(
+      "Update terms",
+    );
   });
 });
