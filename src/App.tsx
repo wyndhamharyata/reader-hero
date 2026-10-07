@@ -11,14 +11,17 @@ export function App() {
     reading?.params.id ??
     (opening === null ? undefined : matchPath("/book/:id", opening.to)?.params.id);
 
-  // The reader sits outside the routes, so the book prepared under the library is the one that shows.
+  // Outside the routes: the prepared book is the one that shows, and the library keeps its state under it.
   return (
     <>
       <Routes>
-        <Route path="/" element={<LibraryRoute />} />
+        <Route path="/" element={null} />
         <Route path="/book/:id" element={null} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <div hidden={reading !== null}>
+        <LibraryRoute hidden={reading !== null} />
+      </div>
       {bookId !== undefined && (
         <ReaderRoute key={bookId} bookId={bookId} preparing={reading === null} />
       )}

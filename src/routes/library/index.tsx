@@ -1,5 +1,5 @@
 import { Effect, Stream } from "effect";
-import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
 import {
   forkApp,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { buildShelf, type FilterGroup, type Filters } from "@/lib/shelf";
-import { slideReady } from "@/lib/slide-to";
+import { slideReady, useOpening } from "@/lib/slide-to";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers } from "@/use-cases/book-image";
@@ -40,7 +40,8 @@ import { ViewToggle } from "./_ViewToggle";
 
 const showInstallHint = isIosBrowser && !isInstalled;
 
-export function LibraryRoute(): ReactElement {
+// `hidden` while a book is open over it: it keeps its state, and pauses its background jobs.
+export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const { state, reload } = useAppEffect(
     Effect.gen(function* () {
       const store = yield* BookStore;
@@ -81,31 +82,50 @@ export function LibraryRoute(): ReactElement {
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
   const reading = state.status === "done" ? state.value.reading : null;
-  useFigureJobs(books);
+  useFigureJobs(hidden ? [] : books);
   // The slide back from a book waits for the shelf, so it does not show an empty library.
   useEffect(() => {
-    if (state.status !== "loading") slideReady();
-  }, [state.status]);
+    if (!hidden && state.status !== "loading") slideReady();
+  }, [hidden, state.status]);
+
+  // The window's scroll is lost while the book covers the library, so it is kept and put back.
+  const scrolled = useRef(0);
+  useLayoutEffect(() => {
+    if (hidden) return;
+    window.scrollTo(0, scrolled.current);
+    const keep = (): void => {
+      scrolled.current = window.scrollY;
+    };
+    window.addEventListener("scroll", keep, { passive: true });
+    return () => window.removeEventListener("scroll", keep);
+  }, [hidden]);
+
+  // Back from a book, the shelf reads again, so its statuses show the reading just done.
+  const wasHidden = useRef(hidden);
+  useEffect(() => {
+    if (wasHidden.current && !hidden) reload();
+    wasHidden.current = hidden;
+  }, [hidden, reload]);
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
   const bookIds = books.map((book) => book.id).join(" ");
 
   useEffect(() => {
-    if (bookIds === "") return;
+    if (hidden || bookIds === "") return;
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
     return () => stopFiber(fiber);
-  }, [bookIds]);
+  }, [hidden, bookIds]);
 
   // With a PDF on the shelf and no figure job running, the page renderer loads its scripts now,
   // after the launch work has settled, so the original view opens without that wait later.
   const hasPdf = books.some((book) => book.format !== "epub");
   const figuresBusy = books.some((book) => book.figuresPending);
   useEffect(() => {
-    if (!hasPdf || figuresBusy) return;
+    if (hidden || !hasPdf || figuresBusy) return;
     const timer = window.setTimeout(() => {
       void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
     }, 2000);
     return () => window.clearTimeout(timer);
-  }, [hasPdf, figuresBusy]);
+  }, [hidden, hasPdf, figuresBusy]);
 
   useEffect(() => {
     const program = importInboxOnce().pipe(
@@ -123,13 +143,16 @@ export function LibraryRoute(): ReactElement {
       Effect.gen(function* () {
         const store = yield* BookStore;
         yield* store.updates().pipe(
-          Stream.filter((update) => update.kind === "meta"),
+          // A save as the book closes can land after the reread above; while hidden, it waits for it.
+          Stream.filter(
+            (update) => update.kind === "meta" || (update.kind === "progress" && !hidden),
+          ),
           Stream.runForEach(() => Effect.sync(() => reload())),
         );
       }),
     );
     return () => stopFiber(fiber);
-  }, [reload]);
+  }, [hidden, reload]);
 
   const importFiles = (files: ReadonlyArray<File>): void => {
     if (files.length === 0) return;
@@ -183,6 +206,33 @@ export function LibraryRoute(): ReactElement {
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort),
     [books, reading, query, filters, settings.librarySort],
   );
+
+  // The opened book comes back where it was on screen, even when the sort moves it, until the next touch.
+  const opening = useOpening();
+  const anchor = useRef<{ href: string; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const card = opening && document.querySelector(`main a[href="${opening.to}"]`)?.closest("li");
+    if (opening && card) {
+      anchor.current = { href: opening.to, top: card.getBoundingClientRect().top };
+    }
+  }, [opening]);
+  useLayoutEffect(() => {
+    const kept = anchor.current;
+    const card = kept && document.querySelector(`main a[href="${kept.href}"]`)?.closest("li");
+    if (hidden || !kept || !card) return;
+    window.scrollTo(0, window.scrollY + card.getBoundingClientRect().top - kept.top);
+  }, [hidden, shelf]);
+  useEffect(() => {
+    if (hidden) return;
+    const release = (): void => {
+      anchor.current = null;
+    };
+    for (const type of ["pointerdown", "wheel", "keydown"]) window.addEventListener(type, release);
+    return () => {
+      for (const type of ["pointerdown", "wheel", "keydown"])
+        window.removeEventListener(type, release);
+    };
+  }, [hidden]);
 
   const clearFilters = (): void =>
     setFilters({ status: null, series: null, length: null, author: null });

@@ -245,6 +245,11 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* The library puts the opened book back itself; the engine's anchoring followed a re-sorted card away. */
+html {
+  overflow-anchor: none;
+}
+
 .reader-body,
 [data-font="serif"] {
   font-family: "Literata Variable", Georgia, serif;

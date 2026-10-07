@@ -10,6 +10,9 @@ import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
 import "@fontsource-variable/atkinson-hyperlegible-mono/wght-italic.css";
 import "@/styles/app.css";
 
+// The library keeps and puts back its own scroll; the browser's restore on Back put it elsewhere.
+history.scrollRestoration = "manual";
+
 const container = document.getElementById("root");
 if (container === null) throw new Error("Root element is missing");
 

@@ -30,7 +30,8 @@ export interface StorageEstimate {
 export type StoreUpdate =
   | { readonly kind: "image"; readonly bookId: string; readonly imageId: string }
   | { readonly kind: "meta"; readonly bookId: string }
-  | { readonly kind: "parsed"; readonly bookId: string };
+  | { readonly kind: "parsed"; readonly bookId: string }
+  | { readonly kind: "progress"; readonly bookId: string };
 
 const imageRange = (bookId: string): IDBKeyRange =>
   IDBKeyRange.bound(`${bookId}/`, `${bookId}/\uffff`);
@@ -195,6 +196,7 @@ export class BookStore extends Context.Service<
         progress: ReadingProgress,
       ) {
         yield* attempt("putProgress", () => db.put("progress", progress, id));
+        yield* PubSub.publish(updateBus, { kind: "progress", bookId: id });
       });
 
       const getProgress = Effect.fn("BookStore.getProgress")(function* (id: string) {

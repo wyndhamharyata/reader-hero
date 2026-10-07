@@ -315,8 +315,14 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
   useLayoutEffect(() => {
     if (preparing) return;
-    document.documentElement.dataset.theme = bookSettings.theme;
-    document.documentElement.style.setProperty("--temperature", String(bookSettings.temperature));
+    const root = document.documentElement;
+    root.dataset.theme = bookSettings.theme;
+    root.style.setProperty("--temperature", String(bookSettings.temperature));
+    // The library stays mounted under the book, so it takes the global theme back from here.
+    return () => {
+      root.dataset.theme = settings.theme;
+      root.style.setProperty("--temperature", String(settings.temperature));
+    };
   }, [
     preparing,
     bookSettings.theme,
