@@ -107,6 +107,8 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
   blockIndex: Schema.Int,
   percent: Schema.Number,
   updatedAt: Schema.Int,
+  // The furthest block the reader reached; the summary follows it, so re-reading moves nothing.
+  furthest: Schema.optional(Schema.Int),
 }) {}
 
 export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdark"]);

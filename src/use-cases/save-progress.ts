@@ -6,6 +6,7 @@ export function saveReadingProgress(
   bookId: string,
   blockIndex: number,
   total: number,
+  furthest: number,
 ): Effect.Effect<void, never, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
@@ -13,6 +14,7 @@ export function saveReadingProgress(
       blockIndex,
       percent: blockIndex / total,
       updatedAt: Date.now(),
+      furthest: Math.max(furthest, blockIndex),
     });
     yield* store
       .putProgress(bookId, progress)

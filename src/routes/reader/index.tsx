@@ -62,6 +62,10 @@ export function ReaderRoute() {
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [position, setPosition] = useState(0);
+  // The furthest block reached, this visit or before: the summary follows it, not the position,
+  // so a reader who goes back over earlier pages sees the summary as it stood and is asked nothing.
+  const [furthest, setFurthest] = useState(0);
+  const furthestRef = useRef(0);
   const { ai, putAi } = useAiSettings();
   const {
     summary,
@@ -99,6 +103,12 @@ export function ReaderRoute() {
   }, [bookId, reload]);
 
   const data = state.status === "done" ? state.value : null;
+  useEffect(() => {
+    const stored = data?.progress;
+    if (stored === undefined || stored === null) return;
+    furthestRef.current = Math.max(furthestRef.current, stored.furthest ?? stored.blockIndex);
+    setFurthest(furthestRef.current);
+  }, [data]);
   const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
   // The figure job starts at the page being read, so its figures land first.
   const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
@@ -137,16 +147,18 @@ export function ReaderRoute() {
 
   // The summary covers the chapters before the position for a story, and every section otherwise.
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
+  const summaryIndex = Math.max(position, furthest);
   const cover = useMemo(
     () =>
       data === null
         ? { target: 0, current: null }
-        : coverage(chapterList, data.parsed, kind, position),
-    [data, chapterList, kind, position],
+        : coverage(chapterList, data.parsed, kind, summaryIndex),
+    [data, chapterList, kind, summaryIndex],
   );
   const summaryInput = useMemo<SummaryInput | null>(
-    () => (data === null ? null : { meta: data.meta, parsed: data.parsed, kind, index: position }),
-    [data, kind, position],
+    () =>
+      data === null ? null : { meta: data.meta, parsed: data.parsed, kind, index: summaryIndex },
+    [data, kind, summaryIndex],
   );
   const summaryText = describeSummary(summary, cover, run, kind);
   const lines = useMemo(() => {
@@ -215,11 +227,15 @@ export function ReaderRoute() {
   const onPosition = useCallback(
     (blockIndex: number) => {
       setPosition(blockIndex);
+      if (blockIndex > furthestRef.current) {
+        furthestRef.current = blockIndex;
+        setFurthest(blockIndex);
+      }
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
       const save = (): void => {
         pendingSave.current = null;
         saveTimer.current = null;
-        void runApp(saveReadingProgress(bookId, blockIndex, totalRef.current));
+        void runApp(saveReadingProgress(bookId, blockIndex, totalRef.current, furthestRef.current));
       };
       pendingSave.current = save;
       saveTimer.current = window.setTimeout(save, 400);
