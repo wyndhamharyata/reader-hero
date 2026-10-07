@@ -185,6 +185,14 @@ export function PencilIcon({ className }: IconProps): ReactElement {
   );
 }
 
+export function XMarkIcon({ className }: IconProps): ReactElement {
+  return (
+    <Icon className={className}>
+      <path d="M6 18 18 6M6 6l12 12" />
+    </Icon>
+  );
+}
+
 export function SparklesIcon({ className }: IconProps): ReactElement {
   return (
     <Icon className={className}>

@@ -343,7 +343,6 @@ export function ReaderRoute() {
           settings={ai}
           reading={bookSettings}
           state={{ summary, run, error: summaryError }}
-          guessed={prefs.kind === undefined}
           onKind={(next) => savePrefs({ kind: next })}
           openAt={summarySheet.openAt}
           onStart={() => {

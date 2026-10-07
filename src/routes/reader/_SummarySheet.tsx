@@ -1,6 +1,13 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { ArrowUpIcon, ClipboardIcon, PencilIcon, PlusIcon, TrashIcon } from "@/components/icons";
+import {
+  ArrowUpIcon,
+  ClipboardIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@/components/icons";
 import type { AiSettings, BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
@@ -24,7 +31,6 @@ interface Props {
   // The book's text settings: the summary is reading text and takes their size, font and leading.
   reading: ReaderSettings;
   state: SummaryState;
-  guessed: boolean;
   onKind: (kind: BookKind) => void;
   // The chapter to open at, from a line in Contents; null opens at the latest entry.
   openAt: number | null;
@@ -54,7 +60,6 @@ export function SummarySheet({
   settings,
   reading,
   state,
-  guessed,
   onKind,
   openAt,
   onStart,
@@ -189,26 +194,6 @@ export function SummarySheet({
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Summary · {row}</p>
-
-        <div className={`mt-2 flex items-center justify-between gap-3 ${text}`}>
-          <span>
-            Kind {guessed && <span className="text-sm opacity-60 md:text-xs">guessed</span>}
-          </span>
-          <div className="join">
-            {(["story", "reference"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                className={`${button} join-item ${input.kind === value ? "btn-neutral" : ""}`}
-                aria-pressed={input.kind === value}
-                disabled={run !== null}
-                onClick={() => onKind(value)}
-              >
-                {value === "story" ? "Story" : "Document"}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div role="tablist" className="tabs tabs-border mt-1 tabs-lg md:tabs-md">
           {(["chapters", "names"] as const).map((value) => (
@@ -514,7 +499,23 @@ export function SummarySheet({
               </button>
             </form>
 
-            <div className="mt-2 flex items-center justify-end gap-2">
+            {/* The kind sits here, in the foot, so it takes no row from the content. */}
+            <div className="mt-2 flex items-center gap-2">
+              <div className="join">
+                {(["story", "reference"] as const).map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={`${button} join-item px-3 md:px-4 ${input.kind === value ? "btn-neutral" : ""}`}
+                    aria-pressed={input.kind === value}
+                    disabled={run !== null}
+                    onClick={() => onKind(value)}
+                  >
+                    {value === "story" ? "Story" : "Document"}
+                  </button>
+                ))}
+              </div>
+              <span className="flex-1" />
               <button
                 type="button"
                 className={`${button} btn-square btn-ghost`}
@@ -533,8 +534,13 @@ export function SummarySheet({
               >
                 <TrashIcon className="size-6 md:size-4" />
               </button>
-              <button type="button" className={`${button} btn-ghost`} onClick={close}>
-                Close
+              <button
+                type="button"
+                className={`${button} btn-square btn-ghost`}
+                aria-label="Close"
+                onClick={close}
+              >
+                <XMarkIcon className="size-6 md:size-4" />
               </button>
             </div>
           </>
