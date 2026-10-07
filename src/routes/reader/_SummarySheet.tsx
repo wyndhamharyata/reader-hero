@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   ArrowUpIcon,
   ClipboardIcon,
@@ -275,7 +275,7 @@ export function SummarySheet({
         ref={sheetRef}
         role="dialog"
         aria-label="Summary"
-        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:max-h-[85vh] md:rounded-box md:pb-4"
+        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:max-h-[85vh] md:w-auto md:max-w-[calc(100%-2rem)] md:rounded-box md:pb-4"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Summary · {row}</p>
@@ -302,14 +302,19 @@ export function SummarySheet({
         >
           <div
             ref={track}
-            className="flex h-full"
+            // On desktop the track is as wide as the reader's lines, measured in the same font, and
+            // the dialog shrinks to it.
+            className="flex h-full md:w-(--text-width)"
             data-font={reading.font}
-            style={{
-              fontSize: `${reading.fontSize}px`,
-              lineHeight: reading.lineHeight,
-              transform: offsetOf(tab),
-              transition: `transform ${slide}ms ease-out`,
-            }}
+            style={
+              {
+                fontSize: `${reading.fontSize}px`,
+                lineHeight: reading.lineHeight,
+                transform: offsetOf(tab),
+                transition: `transform ${slide}ms ease-out`,
+                "--text-width": `${reading.textWidth}ch`,
+              } as CSSProperties
+            }
           >
             <div
               ref={body}
