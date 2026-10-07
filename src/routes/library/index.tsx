@@ -77,7 +77,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const barRef = useRef<HTMLDivElement>(null);
 
   const coverRef = useRef<HTMLDivElement>(null);
-  useKeyboardCover(barRef, coverRef);
+  const restAt = useKeyboardCover(barRef, coverRef);
 
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
@@ -206,6 +206,12 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort),
     [books, reading, query, filters, settings.librarySort],
   );
+
+  // A new search or filter shows its results from the top, and the keyboard closes back to there.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+    restAt(0);
+  }, [query, filters, restAt]);
 
   // The opened book comes back where it was on screen, even when the sort moves it, until the next touch.
   const opening = useOpening();
