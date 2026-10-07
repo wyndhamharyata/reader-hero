@@ -64,9 +64,21 @@ const documents = new Map<number, { task: PDFDocumentLoadingTask; document: PDFD
 const tasks = new Map<number, RenderTask>();
 
 // One pdf.js worker for every document. A "warm" message starts it early, so the first open
-// does not wait for its 1.3 MB script.
+// does not wait for its 1.3 MB script. pdf.js reads `window.location` before it makes its own
+// worker, which throws here, so the port is made here and parsing stays off this thread.
 let shared: PDFWorker | null = null;
-const pdfWorker = (): PDFWorker => (shared ??= new PDFWorker());
+const pdfWorker = (): PDFWorker => {
+  if (shared !== null) return shared;
+  try {
+    const port = new Worker(GlobalWorkerOptions.workerSrc, { type: "module" });
+    // The typings allow only null here; the runtime takes a Worker or a MessagePort.
+    shared = new PDFWorker({ port: port as never });
+  } catch {
+    // No nested workers here: pdf.js parses on this thread instead.
+    shared = new PDFWorker();
+  }
+  return shared;
+};
 
 onmessage = async (event: MessageEvent) => {
   const message = event.data as
