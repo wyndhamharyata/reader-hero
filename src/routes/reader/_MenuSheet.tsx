@@ -171,7 +171,8 @@ export function MenuSheet({
           )}
           <button
             type="button"
-            className="btn btn-ghost btn-lg md:hidden"
+            // Alone, with no mode button beside it as on an EPUB, Close sits in the middle.
+            className="btn mx-auto btn-ghost btn-lg md:hidden"
             onClick={() => dismiss()}
           >
             Close
