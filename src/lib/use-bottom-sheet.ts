@@ -47,6 +47,7 @@ export function useBottomSheet(
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!open || sheet === null) return;
+    let startX = 0;
     let startY = 0;
     let startAt = 0;
     let offset = 0;
@@ -54,6 +55,7 @@ export function useBottomSheet(
 
     const onStart = (event: TouchEvent): void => {
       mode = window.matchMedia("(width >= 48rem)").matches ? "scroll" : "idle";
+      startX = event.touches[0]?.clientX ?? 0;
       startY = event.touches[0]?.clientY ?? 0;
       startAt = event.timeStamp;
       offset = 0;
@@ -62,6 +64,7 @@ export function useBottomSheet(
       const y = event.touches[0]?.clientY;
       if (mode === "scroll" || y === undefined) return;
       const dy = y - startY;
+      const dx = (event.touches[0]?.clientX ?? startX) - startX;
       if (mode === "idle") {
         // Any scrolled area under the finger scrolls back up first; the sheet drags only from the top.
         let scrolled = false;
@@ -69,7 +72,8 @@ export function useBottomSheet(
           scrolled ||= node.scrollTop > 0;
           node = node.parentElement;
         }
-        mode = dy > 0 && !scrolled ? "drag" : "scroll";
+        // A sideways swipe belongs to the content, such as the summary's tabs.
+        mode = dy > 0 && dy > Math.abs(dx) && !scrolled ? "drag" : "scroll";
         if (mode === "scroll") return;
         sheet.style.transition = "none";
       }

@@ -84,6 +84,8 @@ export function SummarySheet({
     null,
   );
   const body = useRef<HTMLDivElement>(null);
+  // A horizontal swipe over the content moves between the tabs; one move per touch.
+  const swipe = useRef<{ x: number; y: number; done: boolean } | null>(null);
   const opened = useRef<HTMLDivElement>(null);
   const latest = useRef<HTMLDivElement>(null);
   const job = useRef<Job | null>(null);
@@ -219,6 +221,24 @@ export function SummarySheet({
         <div
           ref={body}
           className="-mx-4 mt-1 min-h-0 flex-1 overflow-y-auto overscroll-contain"
+          onTouchStart={(event) => {
+            const touch = event.touches[0];
+            swipe.current =
+              touch === undefined ? null : { x: touch.clientX, y: touch.clientY, done: false };
+          }}
+          onTouchMove={(event) => {
+            const start = swipe.current;
+            const touch = event.touches[0];
+            if (start === null || start.done || touch === undefined) return;
+            const dx = touch.clientX - start.x;
+            const dy = touch.clientY - start.y;
+            if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+            start.done = true;
+            setTab(dx < 0 ? "names" : "chapters");
+          }}
+          onTouchEnd={() => {
+            swipe.current = null;
+          }}
           data-font={reading.font}
           style={{ fontSize: `${reading.fontSize}px`, lineHeight: reading.lineHeight }}
         >
