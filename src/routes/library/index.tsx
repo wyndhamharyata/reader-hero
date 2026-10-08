@@ -3,6 +3,7 @@ import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useLocation } from "react-router";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
+import { fontFamily } from "@/domain/book";
 import {
   forkApp,
   runApp,
@@ -13,7 +14,7 @@ import {
   type Job,
 } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
-import { buildShelf, type FilterGroup, type Filters } from "@/lib/shelf";
+import { buildShelf, shelfRecords, type FilterGroup, type Filters } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers } from "@/use-cases/book-image";
@@ -50,7 +51,14 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       const reading = yield* Effect.forEach(
         books,
         (book) =>
-          store.getProgress(book.id).pipe(Effect.map((progress) => [book.id, progress] as const)),
+          Effect.gen(function* () {
+            const progress = yield* store.getProgress(book.id);
+            const prefs = yield* store
+              .getPrefs(book.id)
+              .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
+            shelfRecords.set(book.id, { meta: book, progress, prefs });
+            return [book.id, progress] as const;
+          }),
         { concurrency: "unbounded" },
       );
       return { books, estimate, reading: new Map(reading) };
@@ -156,6 +164,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
     return () => stopFiber(fiber);
   }, [hidden, bookIds]);
+
+  // A book's text waits for its font, so the reading fonts load with the library.
+  useEffect(() => {
+    for (const family of Object.values(fontFamily)) void document.fonts.load(`1em "${family}"`);
+  }, []);
 
   // With a PDF on the shelf and no figure job running, the page renderer loads its scripts now,
   // after the launch work has settled, so the original view opens without that wait later.

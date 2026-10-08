@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-import type { Block, ParsedBook, ReaderSettings } from "@/domain/book";
+import { fontFamily, type Block, type ParsedBook, type ReaderSettings } from "@/domain/book";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
 
@@ -31,12 +31,6 @@ function blockClass(block: Block): string {
 }
 
 const VIEWPORT_FRACTION = 0.9;
-
-const fontFamily = {
-  serif: "Literata Variable",
-  sans: "Atkinson Hyperlegible Next Variable",
-  mono: "Atkinson Hyperlegible Mono Variable",
-};
 
 // Memoised so the parent's per-position renders do not re-map every block of the book.
 export const ReaderView = memo(function ReaderView({

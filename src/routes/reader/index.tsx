@@ -16,6 +16,7 @@ import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
+import { shelfRecords } from "@/lib/shelf";
 import { slideTo } from "@/lib/slide-to";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
@@ -34,6 +35,8 @@ import type { JumpRequest } from "./_ReaderView";
 export function ReaderRoute({ bookId }: { bookId: string }) {
   const navigate = useNavigate();
   const { settings, update } = useSettings();
+  // Until the book loads, its first frames take its theme, title and place from the library.
+  const [glance] = useState(() => shelfRecords.get(bookId));
 
   const { state, reload } = useAppEffect(
     Effect.gen(function* () {
@@ -118,8 +121,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   // The book's saved choices, with this visit's changes on top until a reload reads them back.
   const prefs = useMemo<Partial<BookPrefs>>(
-    () => ({ ...data?.prefs, ...prefChanges }),
-    [data, prefChanges],
+    () => ({ ...(data === null ? glance?.prefs : data.prefs), ...prefChanges }),
+    [data, glance, prefChanges],
   );
   // Memoised so a position change does not hand the memoised reader view a new settings object.
   const bookSettings = useMemo(
@@ -340,10 +343,11 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   };
 
   const loadError = state.status === "error" ? state.error : null;
-  const title = data?.meta.title ?? "Reader";
+  const title = data?.meta.title ?? glance?.meta.title ?? "Reader";
   const toc = data?.parsed.toc ?? [];
   const total = data === null ? 1 : Math.max(1, data.parsed.blocks.length - 1);
-  const percentLabel = formatPercent(position / total);
+  const shown = data === null ? (glance?.progress?.percent ?? 0) : position;
+  const percentLabel = formatPercent(shown / total);
   useEffect(() => {
     totalRef.current = total;
   }, [total]);
@@ -413,8 +417,9 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   return (
     <div className="relative h-[var(--app-height)] bg-base-100">
       <div className={contentClass}>
+        {/* Only a slow open shows it: a usual one fills in within a few frames. */}
         {state.status === "loading" && (
-          <div className="flex h-full items-center justify-center">
+          <div className="flex h-full items-center justify-center motion-safe:animate-[fade-in_240ms_ease-out_400ms_both]">
             <span className="loading loading-spinner" />
           </div>
         )}
@@ -443,7 +448,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         title={title}
         chrome={chrome}
         percentLabel={percentLabel}
-        position={position}
+        position={shown}
         total={total}
         onMenu={() => setTocOpen(true)}
       />

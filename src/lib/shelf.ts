@@ -1,5 +1,15 @@
-import type { BookMeta, LibrarySort, ReadingProgress } from "@/domain/book";
+import type { BookMeta, BookPrefs, LibrarySort, ReadingProgress } from "@/domain/book";
 import { parseStateBadge, readingBadge } from "@/lib/badges";
+
+// Each book as the library last read it, so a book that opens has its theme, title and place at once.
+export const shelfRecords = new Map<
+  string,
+  {
+    readonly meta: BookMeta;
+    readonly progress: ReadingProgress | null;
+    readonly prefs: BookPrefs | null;
+  }
+>();
 
 export type FilterGroup = "status" | "series" | "length" | "author";
 export type Filters = Readonly<Record<FilterGroup, string | null>>;

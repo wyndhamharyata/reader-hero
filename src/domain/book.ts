@@ -126,6 +126,11 @@ export type ReaderTheme = typeof ReaderTheme.Type;
 
 export const ReaderFont = Schema.Literals(["serif", "sans", "mono"]);
 export type ReaderFont = typeof ReaderFont.Type;
+export const fontFamily: Record<ReaderFont, string> = {
+  serif: "Literata Variable",
+  sans: "Atkinson Hyperlegible Next Variable",
+  mono: "Atkinson Hyperlegible Mono Variable",
+};
 
 export const TextAlign = Schema.Literals(["left", "right", "justify"]);
 export type TextAlign = typeof TextAlign.Type;

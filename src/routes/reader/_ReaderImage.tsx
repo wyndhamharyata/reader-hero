@@ -26,7 +26,7 @@ export function ReaderImage({ bookId, imageId, ratio }: Props): ReactElement {
       alt=""
       loading="lazy"
       decoding="async"
-      className="mx-auto my-6 block h-auto w-full rounded-box bg-white"
+      className="mx-auto my-6 block h-auto w-full rounded-box bg-white motion-safe:animate-fade-in"
       style={{ aspectRatio: aspect }}
     />
   );
