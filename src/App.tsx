@@ -19,9 +19,7 @@ export function App() {
         <Route path="/book/:id" element={null} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <div hidden={reading !== null}>
-        <LibraryRoute hidden={reading !== null} />
-      </div>
+      <LibraryRoute hidden={reading !== null} />
       {bookId !== undefined && (
         <ReaderRoute key={bookId} bookId={bookId} preparing={reading === null} />
       )}

@@ -1,3 +1,4 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
@@ -22,7 +23,6 @@ import { importInboxOnce } from "@/use-cases/import-inbox";
 import { reparseBook } from "@/use-cases/parse-book";
 import { removeBook } from "@/use-cases/remove-book";
 import { describeError } from "@/lib/describe-error";
-import { useKeyboardCover } from "@/lib/use-keyboard-cover";
 import { BookCard } from "./_BookCard";
 import { BookTile } from "./_BookTile";
 import { FilterChips } from "./_FilterChips";
@@ -74,10 +74,35 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  const coverRef = useRef<HTMLDivElement>(null);
-  const restAt = useKeyboardCover(barRef, coverRef);
+  // With the keyboard up the library takes only the visible area, so its bar sits on the keyboard.
+  useEffect(() => {
+    const root = rootRef.current;
+    const viewport = window.visualViewport;
+    if (root === null || viewport === null) return;
+    let typing = false;
+    const fit = (): void => {
+      root.style.height = typing ? `${viewport.height}px` : "";
+      root.style.top = typing ? `${viewport.offsetTop}px` : "";
+    };
+    const onFocus = (event: FocusEvent): void => {
+      typing = event.type === "focusin" && (event.target as Element).matches("input, textarea");
+      fit();
+    };
+    root.addEventListener("focusin", onFocus);
+    root.addEventListener("focusout", onFocus);
+    viewport.addEventListener("resize", fit);
+    viewport.addEventListener("scroll", fit);
+    return () => {
+      root.removeEventListener("focusin", onFocus);
+      root.removeEventListener("focusout", onFocus);
+      viewport.removeEventListener("resize", fit);
+      viewport.removeEventListener("scroll", fit);
+    };
+  }, []);
 
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
@@ -87,18 +112,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   useEffect(() => {
     if (!hidden && state.status !== "loading") slideReady();
   }, [hidden, state.status]);
-
-  // The window's scroll is lost while the book covers the library, so it is kept and put back.
-  const scrolled = useRef(0);
-  useLayoutEffect(() => {
-    if (hidden) return;
-    window.scrollTo(0, scrolled.current);
-    const keep = (): void => {
-      scrolled.current = window.scrollY;
-    };
-    window.addEventListener("scroll", keep, { passive: true });
-    return () => window.removeEventListener("scroll", keep);
-  }, [hidden]);
 
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
   const wasHidden = useRef(hidden);
@@ -207,31 +220,80 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     [books, reading, query, filters, settings.librarySort],
   );
 
-  // A new search or filter shows its results from the top, and the keyboard closes back to there.
-  useLayoutEffect(() => {
-    window.scrollTo(0, 0);
-    restAt(0);
-  }, [query, filters, restAt]);
+  // The grid's breakpoints: 2 columns, 3 from sm, 5 from md; a list has 1, or 2 from md.
+  const [wide, setWide] = useState(() => ({
+    sm: window.matchMedia("(width >= 40rem)").matches,
+    md: window.matchMedia("(width >= 48rem)").matches,
+  }));
+  useEffect(() => {
+    const sm = window.matchMedia("(width >= 40rem)");
+    const md = window.matchMedia("(width >= 48rem)");
+    const follow = (): void => setWide({ sm: sm.matches, md: md.matches });
+    sm.addEventListener("change", follow);
+    md.addEventListener("change", follow);
+    return () => {
+      sm.removeEventListener("change", follow);
+      md.removeEventListener("change", follow);
+    };
+  }, []);
+  const columns = grid ? (wide.md ? 5 : wide.sm ? 3 : 2) : wide.md ? 2 : 1;
+  const rows = useMemo(
+    () =>
+      Array.from({ length: Math.ceil(shelf.cards.length / columns) }, (_, row) =>
+        shelf.cards.slice(row * columns, (row + 1) * columns),
+      ),
+    [shelf, columns],
+  );
 
-  // The opened book comes back where it was on screen, even when the sort moves it, until the next touch.
-  const opening = useOpening();
-  const anchor = useRef<{ href: string; top: number } | null>(null);
+  // The header and notices scroll above the rows, so the rows start this far into the scroll box.
+  const [listTop, setListTop] = useState(0);
   useLayoutEffect(() => {
-    const card = opening && document.querySelector(`main a[href="${opening.to}"]`)?.closest("li");
-    if (opening && card) {
-      anchor.current = { href: opening.to, top: card.getBoundingClientRect().top };
-    }
+    const list = listRef.current;
+    const box = scrollRef.current;
+    if (list === null || box === null) return;
+    const top = list.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+    if (top !== listTop) setListTop(top);
+  });
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    // A first guess only: each row is measured once it renders.
+    estimateSize: () => (grid ? 320 : 132),
+    overscan: 3,
+    scrollMargin: listTop,
+  });
+  // A row of another view or width has another height, so the measured ones no longer hold.
+  useLayoutEffect(() => {
+    virtualizer.measure();
+  }, [virtualizer, grid, columns]);
+
+  // A new search or filter shows its results from the top.
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [query, filters]);
+
+  // Back from a book the shelf stays, unless the sort moved the book out of view; then it shows it.
+  const opening = useOpening();
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    if (opening !== null) opened.current = opening.to;
   }, [opening]);
   useLayoutEffect(() => {
-    const kept = anchor.current;
-    const card = kept && document.querySelector(`main a[href="${kept.href}"]`)?.closest("li");
-    if (hidden || !kept || !card) return;
-    window.scrollTo(0, window.scrollY + card.getBoundingClientRect().top - kept.top);
-  }, [hidden, shelf]);
+    const box = scrollRef.current;
+    const index = shelf.cards.findIndex((card) => `/book/${card.book.id}` === opened.current);
+    if (hidden || box === null || index === -1) return;
+    const card = box.querySelector(`a[href="${opened.current}"]`)?.getBoundingClientRect();
+    const view = box.getBoundingClientRect();
+    if (card !== undefined && card.bottom > view.top && card.top < view.bottom) return;
+    // The first row goes up with the header above it.
+    if (index < columns) box.scrollTo({ top: 0 });
+    else virtualizer.scrollToIndex(Math.floor(index / columns), { align: "start" });
+  }, [hidden, shelf, columns, virtualizer]);
+  // Until the reader moves the shelf themselves.
   useEffect(() => {
     if (hidden) return;
     const release = (): void => {
-      anchor.current = null;
+      opened.current = null;
     };
     for (const type of ["pointerdown", "wheel", "keydown"]) window.addEventListener(type, release);
     return () => {
@@ -269,60 +331,84 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       <CogIcon className="size-6 md:size-4" />
     </button>
   );
-  const tiles = "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3 md:grid-cols-5";
-  const rows = "grid grid-cols-1 gap-3 md:grid-cols-2";
-  const listClass = grid ? tiles : rows;
   const Item = grid ? BookTile : BookCard;
 
   return (
-    <main className="mx-auto flex min-h-[var(--app-height)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] pb-[calc(var(--safe-bottom)+12rem)] md:max-w-5xl md:pb-8">
-      <header className="flex items-center justify-between gap-3 pt-2">
-        <h1>
-          <Logo className="h-7 w-auto md:h-8" />
-        </h1>
-        <div className="hidden items-center gap-2 md:flex">
-          {searchField}
-          {sortMenu}
-          {viewToggle}
-          {settingsButton}
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={pickFiles}
-            disabled={busy}
-          >
-            <PlusIcon className="size-4" />
-            {actionLabel}
-          </button>
+    // A fixed column with its own scroll box, so the window never scrolls; hidden, it keeps its layout.
+    <main
+      ref={rootRef}
+      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 ${hidden ? "invisible" : ""}`}
+      inert={hidden}
+      aria-hidden={hidden}
+    >
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]"
+      >
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] pb-8 md:max-w-5xl">
+          <header className="flex items-center justify-between gap-3 pt-2">
+            <h1>
+              <Logo className="h-7 w-auto md:h-8" />
+            </h1>
+            <div className="hidden items-center gap-2 md:flex">
+              {searchField}
+              {sortMenu}
+              {viewToggle}
+              {settingsButton}
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={pickFiles}
+                disabled={busy}
+              >
+                <PlusIcon className="size-4" />
+                {actionLabel}
+              </button>
+            </div>
+            <div className="md:hidden">{settingsButton}</div>
+          </header>
+
+          <div className="hidden md:block">{filterChips}</div>
+
+          {message !== null && (
+            <div className="alert alert-warning">
+              <span className="whitespace-pre-line">{message}</span>
+            </div>
+          )}
+
+          <InstallHint show={showInstallHint} />
+
+          <LibraryStatus
+            loading={state.status === "loading"}
+            failed={state.status === "error"}
+            books={books}
+          />
+
+          <div ref={listRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((row) => (
+              <ul
+                key={row.key}
+                ref={virtualizer.measureElement}
+                data-index={row.index}
+                // Above the next row while a tile's menu is open, so the menu is not under it.
+                className={`absolute inset-x-0 top-0 grid gap-x-3 focus-within:z-10 ${grid ? "pb-5" : "pb-3"}`}
+                style={{
+                  transform: `translateY(${row.start - listTop}px)`,
+                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                }}
+              >
+                {rows[row.index]?.map((card) => (
+                  <Item key={card.book.id} card={card} onRemove={remove} onReparse={reparse} />
+                ))}
+              </ul>
+            ))}
+          </div>
+
+          {shelf.cards.length === 0 && books.length > 0 && <NoMatches onClear={clearAll} />}
+
+          <StorageUsage estimate={estimate} />
         </div>
-        <div className="md:hidden">{settingsButton}</div>
-      </header>
-
-      <div className="hidden md:block">{filterChips}</div>
-
-      {message !== null && (
-        <div className="alert alert-warning">
-          <span className="whitespace-pre-line">{message}</span>
-        </div>
-      )}
-
-      <InstallHint show={showInstallHint} />
-
-      <LibraryStatus
-        loading={state.status === "loading"}
-        failed={state.status === "error"}
-        books={books}
-      />
-
-      <ul className={listClass}>
-        {shelf.cards.map((card) => (
-          <Item key={card.book.id} card={card} onRemove={remove} onReparse={reparse} />
-        ))}
-      </ul>
-
-      {shelf.cards.length === 0 && books.length > 0 && <NoMatches onClear={clearAll} />}
-
-      <StorageUsage estimate={estimate} />
+      </div>
 
       <input
         ref={input}
@@ -336,15 +422,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         }}
       />
 
-      <div
-        ref={coverRef}
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 z-30 hidden h-screen bg-base-100 md:hidden"
-      />
-      <div
-        ref={barRef}
-        className="fixed inset-x-0 bottom-0 z-40 flex flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] focus-within:pb-2 md:hidden"
-      >
+      <div className="flex shrink-0 flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] focus-within:pb-2 md:hidden">
         {searchField}
         {filterChips}
         <div className="flex items-center gap-2">
