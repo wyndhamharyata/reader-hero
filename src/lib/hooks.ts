@@ -62,20 +62,13 @@ export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): vo
 export function useBookImage(
   bookId: string,
   imageId: string,
-): {
-  readonly url: string | null;
-  readonly ratio: number | null;
-  // False until the first read is back; a figure not rendered yet reads back as no image.
-  readonly read: boolean;
-} {
+): { readonly url: string | null; readonly ratio: number | null } {
   const [image, setImage] = useState<{ url: string; ratio: number | null } | null>(null);
-  const [read, setRead] = useState(false);
 
   useEffect(() => {
     let url: string | null = null;
     const fiber = forkApp(
       watchBookImage(bookId, imageId, (record) => {
-        setRead(true);
         if (record === null) return;
         if (url !== null) URL.revokeObjectURL(url);
         url = URL.createObjectURL(record.blob);
@@ -88,7 +81,7 @@ export function useBookImage(
     };
   }, [bookId, imageId]);
 
-  return { url: image?.url ?? null, ratio: image?.ratio ?? null, read };
+  return { url: image?.url ?? null, ratio: image?.ratio ?? null };
 }
 
 export function useAppEffect<A, E>(

@@ -16,7 +16,7 @@ import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
-import { slideBack } from "@/lib/slide-to";
+import { slideTo } from "@/lib/slide-to";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
@@ -31,8 +31,7 @@ import { ReaderBody } from "./_ReaderBody";
 import { SummarySheet } from "./_SummarySheet";
 import type { JumpRequest } from "./_ReaderView";
 
-// While `preparing` it renders hidden under the library, so it slides in with its first screen done.
-export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: boolean }) {
+export function ReaderRoute({ bookId }: { bookId: string }) {
   const navigate = useNavigate();
   const { settings, update } = useSettings();
 
@@ -115,8 +114,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
   // The figure job starts at the page being read, so its figures land first.
   const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
-  // Held while preparing, so the figure job does not slow the open it waits on.
-  useFigureJobs(preparing ? [] : pendingBooks, startPage);
+  useFigureJobs(pendingBooks, startPage);
 
   // The book's saved choices, with this visit's changes on top until a reload reads them back.
   const prefs = useMemo<Partial<BookPrefs>>(
@@ -140,7 +138,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
   );
   // Off while a sheet is open, as each sheet takes its own Escape; moves are smooth so the eye can follow.
   useEffect(() => {
-    if (preparing || tocOpen || summarySheet !== null) return;
+    if (tocOpen || summarySheet !== null) return;
     const line = bookSettings.fontSize * bookSettings.lineHeight;
     const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
@@ -208,7 +206,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
       if (typing || event.metaKey || event.altKey) return;
       switch (event.key) {
         case "Escape":
-          slideBack(navigate);
+          slideTo(navigate, "/", "out");
           break;
         case "ArrowDown":
         case "j":
@@ -249,7 +247,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
       document.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", stop);
     };
-  }, [preparing, tocOpen, summarySheet, navigate, bookSettings.fontSize, bookSettings.lineHeight]);
+  }, [tocOpen, summarySheet, navigate, bookSettings.fontSize, bookSettings.lineHeight]);
 
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
@@ -305,16 +303,15 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
     start(summaryInput, ai);
   }, [ai, summaryInput, run, summaryError, summary, cover.target, start]);
 
-  // A PDF may switch to the original view, so its page renderer loads its scripts once the book shows.
+  // A PDF may switch to the original view, so its page renderer loads its scripts now.
   useEffect(() => {
-    if (data === null || epub || preparing) return;
+    if (data === null || epub) return;
     void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
-  }, [data, epub, preparing]);
+  }, [data, epub]);
   const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
   useLayoutEffect(() => {
-    if (preparing) return;
     const root = document.documentElement;
     root.dataset.theme = bookSettings.theme;
     root.style.setProperty("--temperature", String(bookSettings.temperature));
@@ -323,13 +320,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
       root.dataset.theme = settings.theme;
       root.style.setProperty("--temperature", String(settings.temperature));
     };
-  }, [
-    preparing,
-    bookSettings.theme,
-    bookSettings.temperature,
-    settings.theme,
-    settings.temperature,
-  ]);
+  }, [bookSettings.theme, bookSettings.temperature, settings.theme, settings.temperature]);
 
   const savePrefs = (changes: Partial<BookPrefs>): void => {
     const next = { ...prefChanges, ...changes };
@@ -420,12 +411,7 @@ export function ReaderRoute({ bookId, preparing }: { bookId: string; preparing: 
     : "h-full pt-[var(--safe-top)]";
 
   return (
-    <div
-      // Hidden and out of reach while preparing; `invisible` still lays it out, so it can place itself.
-      className={`${preparing ? "invisible fixed inset-x-0 top-0" : "relative"} h-[var(--app-height)] bg-base-100`}
-      inert={preparing}
-      aria-hidden={preparing}
-    >
+    <div className="relative h-[var(--app-height)] bg-base-100">
       <div className={contentClass}>
         {state.status === "loading" && (
           <div className="flex h-full items-center justify-center">

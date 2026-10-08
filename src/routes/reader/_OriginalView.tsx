@@ -5,7 +5,6 @@ import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
 import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
-import { slideReady } from "@/lib/slide-to";
 import { openOriginalPages, readPageSizes, releaseOriginalPages } from "@/use-cases/open-book";
 import type { RenderedDocument } from "@/services/page-renderer";
 import { PdfPage } from "./_PdfPage";
@@ -84,9 +83,11 @@ export function OriginalView({
   }, []);
 
   // Read from the column, not worked out: max-w-3xl is 48rem, so its pixels follow the font size.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const list = listRef.current;
     if (list === null) return;
+    // Before paint as well, so the first frame is already at the saved page.
+    setWidth(list.clientWidth);
     const observer = new ResizeObserver(() => setWidth(list.clientWidth));
     observer.observe(list);
     return () => observer.disconnect();
@@ -139,27 +140,6 @@ export function OriginalView({
     const moved = held === undefined ? undefined : virtualizer.measurementsCache[held.index];
     if (moved !== undefined) container.scrollTop = moved.start + part * moved.size;
   }, [virtualizer, sizes, width]);
-
-  // An opening book shows once its page is placed and painted, or once it fails to open.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (failed) slideReady();
-    if (container === null || doc === null) return;
-    let active = true;
-    const wait = async (): Promise<void> => {
-      for (;;) {
-        const page = container.querySelector(`[data-page="${startPage.current}"]`);
-        if (didScroll.current && page?.querySelector("canvas:not([data-painted])") === null) break;
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        if (!active) return;
-      }
-      slideReady();
-    };
-    void wait();
-    return () => {
-      active = false;
-    };
-  }, [doc, failed]);
 
   return (
     <div className="relative h-full">

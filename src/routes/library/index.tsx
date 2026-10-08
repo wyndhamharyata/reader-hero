@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useLocation } from "react-router";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
 import {
   forkApp,
@@ -13,7 +14,6 @@ import {
 } from "@/lib/hooks";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { buildShelf, type FilterGroup, type Filters } from "@/lib/shelf";
-import { slideReady, useOpening } from "@/lib/slide-to";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers } from "@/use-cases/book-image";
@@ -141,10 +141,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const estimate = state.status === "done" ? state.value.estimate : null;
   const reading = state.status === "done" ? state.value.reading : null;
   useFigureJobs(hidden ? [] : books);
-  // The slide back from a book waits for the shelf, so it does not show an empty library.
-  useEffect(() => {
-    if (!hidden && state.status !== "loading") slideReady();
-  }, [hidden, state.status]);
 
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
   const wasHidden = useRef(hidden);
@@ -306,11 +302,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   }, [query, filters]);
 
   // Back from a book the shelf stays, unless the sort moved the book out of view; then it shows it.
-  const opening = useOpening();
+  const { pathname } = useLocation();
   const opened = useRef<string | null>(null);
   useEffect(() => {
-    if (opening !== null) opened.current = opening.to;
-  }, [opening]);
+    if (hidden) opened.current = pathname;
+  }, [hidden, pathname]);
   useLayoutEffect(() => {
     const box = scrollRef.current;
     const index = shelf.cards.findIndex((card) => `/book/${card.book.id}` === opened.current);

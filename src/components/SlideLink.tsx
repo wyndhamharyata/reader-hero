@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { Link, useNavigate, type LinkProps } from "react-router";
-import { openBook, slideBack } from "@/lib/slide-to";
+import { slideTo } from "@/lib/slide-to";
 
 // A plain click slides; a modified one, such as a new tab, keeps the link's own behaviour.
 export function SlideLink({
@@ -24,8 +24,7 @@ export function SlideLink({
           return;
         }
         event.preventDefault();
-        if (direction === "in") openBook(navigate, to);
-        else slideBack(navigate);
+        slideTo(navigate, to, direction);
       }}
     />
   );

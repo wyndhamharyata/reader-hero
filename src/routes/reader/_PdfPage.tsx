@@ -23,12 +23,6 @@ export const PdfPage = memo(function PdfPage({ doc, size }: Props): ReactElement
     if (canvas === null) return;
     const fiber = forkApp(
       renderPdfPage(doc, size.page, canvas, RENDER_SCALE).pipe(
-        // An opening book waits for this mark on its first page.
-        Effect.tap(() =>
-          Effect.sync(() => {
-            canvas.dataset.painted = "";
-          }),
-        ),
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
       ),
     );

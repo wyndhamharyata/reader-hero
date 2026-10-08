@@ -16,8 +16,6 @@ export function ReaderImage({ bookId, imageId, ratio }: Props): ReactElement {
       <div
         className={`my-6 w-full animate-pulse rounded-box bg-base-200 ${aspect === undefined ? "h-40" : ""}`}
         style={{ aspectRatio: aspect }}
-        // An opening book waits for this mark to go from its first screen.
-        data-pending={!image.read || undefined}
       />
     );
   }
