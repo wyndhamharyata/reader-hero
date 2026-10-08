@@ -96,11 +96,12 @@ export function OriginalView({
   const virtualizer = useVirtualizer({
     count: sizes.length,
     getScrollElement: () => containerRef.current,
-    // Exact from each page's own size and the 12px gap, so no page needs measuring.
+    // From each page's own size; each drawn page is then measured, so a wrong guess cannot leave a gap.
     estimateSize: (index) => {
       const size = sizes[index];
-      return size === undefined ? 0 : (width * size.height) / size.width + 12;
+      return size === undefined ? 0 : (width * size.height) / size.width;
     },
+    gap: 12,
     paddingStart: 8,
     // Two pages each side are drawn before they scroll in.
     overscan: 2,
@@ -195,6 +196,8 @@ export function OriginalView({
                   size !== undefined && (
                     <div
                       key={item.key}
+                      ref={virtualizer.measureElement}
+                      data-index={item.index}
                       className="absolute inset-x-2 top-0"
                       style={{ transform: `translateY(${item.start}px)` }}
                     >
