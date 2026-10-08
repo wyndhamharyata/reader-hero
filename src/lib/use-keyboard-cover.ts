@@ -17,6 +17,12 @@ export function useKeyboardCover(
     let rest: number | null = null;
     let tappedAt = -Infinity;
     const place = (): void => {
+      // With the keyboard up, the bar rides the visible area's bottom edge, so a scroll to the top keeps it in view.
+      const lift =
+        cover.style.display === "block" && viewport !== null
+          ? Math.min(0, viewport.offsetTop + viewport.height - window.innerHeight)
+          : 0;
+      bar.style.transform = lift === 0 ? "" : `translateY(${lift}px)`;
       cover.style.top = `${bar.getBoundingClientRect().bottom + window.scrollY}px`;
     };
     const open = (): void => {
@@ -26,6 +32,7 @@ export function useKeyboardCover(
     };
     const close = (): void => {
       cover.style.display = "none";
+      bar.style.transform = "";
       // A tap that closes the keyboard moves the page after its click, and not at all if it opened a book.
       if (performance.now() - tappedAt > 700) {
         if (rest !== null) window.scrollTo({ top: rest });
