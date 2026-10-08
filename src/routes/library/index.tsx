@@ -465,7 +465,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         }}
       />
 
-      <div className="flex shrink-0 flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] focus-within:pb-2 md:hidden">
+      <div className="flex shrink-0 flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] has-[input:focus]:pb-2 md:hidden">
         {searchField}
         {filterChips}
         <div className="flex items-center gap-2">
