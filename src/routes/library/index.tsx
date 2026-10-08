@@ -87,10 +87,32 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     const fit = (): void => {
       root.style.height = typing ? `${viewport.height}px` : "";
       root.style.top = typing ? `${viewport.offsetTop}px` : "";
+      const covered = window.innerHeight - viewport.height;
+      if (typing && covered > 0) {
+        try {
+          localStorage.setItem("keyboard-height", String(covered));
+        } catch {
+          // Without storage, the next focus shrinks the column only once the keyboard is up.
+        }
+      }
     };
     const onFocus = (event: FocusEvent): void => {
       typing = event.type === "focusin" && (event.target as Element).matches("input, textarea");
-      fit();
+      const known = (() => {
+        try {
+          return Number(localStorage.getItem("keyboard-height") ?? 0);
+        } catch {
+          return 0;
+        }
+      })();
+      // At once while it opens, so iOS sees the field's final place; the close slides with the keyboard.
+      root.style.transition = typing ? "none" : "";
+      // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not slide the page.
+      if (typing && known > 0 && window.innerHeight - viewport.height < 1) {
+        root.style.height = `${window.innerHeight - known}px`;
+      } else {
+        fit();
+      }
     };
     root.addEventListener("focusin", onFocus);
     root.addEventListener("focusout", onFocus);
@@ -337,7 +359,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     // A fixed column with its own scroll box, so the window never scrolls; hidden, it keeps its layout.
     <main
       ref={rootRef}
-      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 ${hidden ? "invisible" : ""}`}
+      // When the keyboard closes, the column grows back at about the keyboard's pace.
+      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height,top] motion-safe:duration-200 motion-safe:ease-out ${hidden ? "invisible" : ""}`}
       inert={hidden}
       aria-hidden={hidden}
     >
