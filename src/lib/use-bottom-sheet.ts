@@ -78,7 +78,12 @@ export function useBottomSheet(
     let mode: "idle" | "drag" | "scroll" = "idle";
 
     const onStart = (event: TouchEvent): void => {
-      mode = window.matchMedia("(width >= 48rem)").matches ? "scroll" : "idle";
+      // A slider keeps its drag even when the finger slips downward.
+      mode =
+        window.matchMedia("(width >= 48rem)").matches ||
+        (event.target as Element).closest('input[type="range"]') !== null
+          ? "scroll"
+          : "idle";
       startX = event.touches[0]?.clientX ?? 0;
       startY = event.touches[0]?.clientY ?? 0;
       startAt = event.timeStamp;

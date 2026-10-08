@@ -25,8 +25,9 @@ export function useTabSwipe<T>(
     } | null = null;
     const onStart = (event: TouchEvent): void => {
       const touch = event.touches[0];
+      // A slider takes its own sideways drag.
       state =
-        touch === undefined
+        touch === undefined || (event.target as Element).closest('input[type="range"]') !== null
           ? null
           : {
               x: touch.clientX,
