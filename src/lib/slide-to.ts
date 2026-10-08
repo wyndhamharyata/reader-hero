@@ -10,7 +10,7 @@ export function slideReady(): void {
   settle = null;
 }
 
-// The book being opened, which renders hidden under the library until it is ready.
+// The book being opened: its address is current, but it renders hidden under the library until it is ready.
 let opening: { readonly to: string; readonly waiting: boolean } | null = null;
 const listeners = new Set<() => void>();
 const setOpening = (next: typeof opening): void => {
@@ -29,22 +29,34 @@ export function useOpening(): typeof opening {
 }
 
 // The book loads, places and paints its first screen out of sight; only then does it slide in.
+let attempt = 0;
 export function openBook(navigate: NavigateFunction, to: string): void {
   if (opening !== null) return;
+  const mine = (attempt += 1);
   const ready = new Promise<void>((resolve) => {
     settle = resolve;
     window.setTimeout(resolve, 5000);
   });
-  setOpening({ to, waiting: false });
+  // The entry goes in now, while the page is only the library: iOS keeps its size for the back swipe.
+  flushSync(() => {
+    setOpening({ to, waiting: false });
+    void navigate(to);
+  });
   // Above a usual open's time, so only a slow open says it is working, and a usual one never flashes.
   const timer = window.setTimeout(() => setOpening({ to, waiting: true }), 400);
-  void ready.then(() => {
+  // A back during the open drops it; the library is still there under it.
+  const drop = (): void => {
+    attempt += 1;
     window.clearTimeout(timer);
-    const go = (): void =>
-      flushSync(() => {
-        setOpening(null);
-        void navigate(to);
-      });
+    settle = null;
+    setOpening(null);
+  };
+  window.addEventListener("popstate", drop, { once: true });
+  void ready.then(() => {
+    window.removeEventListener("popstate", drop);
+    window.clearTimeout(timer);
+    if (mine !== attempt) return;
+    const go = (): void => flushSync(() => setOpening(null));
     if (
       window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
       !("startViewTransition" in document)
