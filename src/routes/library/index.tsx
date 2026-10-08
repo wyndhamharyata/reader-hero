@@ -83,11 +83,18 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     const root = rootRef.current;
     const viewport = window.visualViewport;
     if (root === null || viewport === null) return;
+    const html = document.documentElement;
     let typing = false;
     const fit = (): void => {
       root.style.height = typing ? `${viewport.height}px` : "";
-      root.style.top = typing ? `${viewport.offsetTop}px` : "";
-      const covered = window.innerHeight - viewport.height;
+      // iOS scrolls the window, and its viewport offset lags behind, stale for a while after the close.
+      const shift = typing ? Math.max(window.scrollY, viewport.offsetTop) : window.scrollY;
+      root.style.top = shift > 0 ? `${shift}px` : "";
+      // The page is no taller than what shows and does not scroll, so iOS has less to move.
+      html.style.height = typing ? `${viewport.height}px` : "";
+      html.style.overflow = typing ? "hidden" : "";
+      // The root's clientHeight stays the full screen with the keyboard up; innerHeight shrinks with it.
+      const covered = html.clientHeight - viewport.height;
       if (typing && covered > 0) {
         try {
           localStorage.setItem("keyboard-height", String(covered));
@@ -107,9 +114,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       })();
       // At once while it opens, so iOS sees the field's final place; the close slides with the keyboard.
       root.style.transition = typing ? "none" : "";
-      // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not slide the page.
-      if (typing && known > 0 && window.innerHeight - viewport.height < 1) {
-        root.style.height = `${window.innerHeight - known}px`;
+      // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not move the page.
+      if (typing && known > 0 && html.clientHeight - viewport.height < 1) {
+        root.style.height = `${html.clientHeight - known}px`;
+        html.style.height = `${html.clientHeight - known}px`;
+        html.style.overflow = "hidden";
       } else {
         fit();
       }
@@ -118,11 +127,13 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     root.addEventListener("focusout", onFocus);
     viewport.addEventListener("resize", fit);
     viewport.addEventListener("scroll", fit);
+    window.addEventListener("scroll", fit);
     return () => {
       root.removeEventListener("focusin", onFocus);
       root.removeEventListener("focusout", onFocus);
       viewport.removeEventListener("resize", fit);
       viewport.removeEventListener("scroll", fit);
+      window.removeEventListener("scroll", fit);
     };
   }, []);
 
@@ -360,7 +371,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     <main
       ref={rootRef}
       // When the keyboard closes, the column grows back at about the keyboard's pace.
-      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height,top] motion-safe:duration-200 motion-safe:ease-out ${hidden ? "invisible" : ""}`}
+      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hidden ? "invisible" : ""}`}
       inert={hidden}
       aria-hidden={hidden}
     >
