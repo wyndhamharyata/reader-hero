@@ -54,7 +54,9 @@ const layouts = {
 // Installed into every page: a ready-watcher, a frame-gap sampler and a books reader.
 const initScript = `
   window.__ready = null;
+  // One watch at a time: an earlier one left running could set __ready for this one.
   window.__watch = (test) => {
+    window.__watching?.disconnect();
     window.__ready = null;
     const check = () => {
       if (window.__ready === null && test()) {
@@ -63,6 +65,7 @@ const initScript = `
       }
     };
     const observer = new MutationObserver(check);
+    window.__watching = observer;
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
     check();
   };
