@@ -8,8 +8,8 @@ interface Props {
 }
 
 const sorts: ReadonlyArray<readonly [LibrarySort, string]> = [
-  ["recent", "Recently read"],
   ["added", "Recently added"],
+  ["recent", "Recently read"],
   ["title", "Title A–Z"],
 ];
 

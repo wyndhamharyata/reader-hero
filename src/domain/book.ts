@@ -151,7 +151,7 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   // Settings saved before these fields existed must still decode, or the user loses their theme.
   libraryView: LibraryView.pipe(Schema.withDecodingDefaultKey(Effect.succeed<LibraryView>("list"))),
   librarySort: LibrarySort.pipe(
-    Schema.withDecodingDefaultKey(Effect.succeed<LibrarySort>("recent")),
+    Schema.withDecodingDefaultKey(Effect.succeed<LibrarySort>("added")),
   ),
   textWidth: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(65))),
   textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
@@ -182,7 +182,7 @@ export const DEFAULT_SETTINGS = new ReaderSettings({
   fontSize: 18,
   lineHeight: 1.6,
   libraryView: "list",
-  librarySort: "recent",
+  librarySort: "added",
   textWidth: 65,
   textAlign: "left",
   temperature: 0,
