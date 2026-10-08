@@ -31,7 +31,7 @@ export function OriginalView({
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
   const [current, setCurrent] = useState(initialPage);
   const [failed, setFailed] = useState(false);
-  // The page column's width: the scroll box less its 8px sides, at most max-w-3xl.
+  // A page's width, which is the list's own.
   const [width, setWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -83,11 +83,12 @@ export function OriginalView({
     };
   }, []);
 
+  // Read from the column, not worked out: max-w-3xl is 48rem, so its pixels follow the font size.
   useEffect(() => {
-    const container = containerRef.current;
-    if (container === null) return;
-    const observer = new ResizeObserver(() => setWidth(Math.min(container.clientWidth, 768) - 16));
-    observer.observe(container);
+    const list = listRef.current;
+    if (list === null) return;
+    const observer = new ResizeObserver(() => setWidth(list.clientWidth));
+    observer.observe(list);
     return () => observer.disconnect();
   }, [doc]);
 
@@ -184,12 +185,9 @@ export function OriginalView({
           className="h-full overflow-y-auto overscroll-contain bg-base-300"
           onClick={onToggleChrome}
         >
-          <div className="pb-[var(--safe-bottom)]">
-            <div
-              ref={listRef}
-              className="relative mx-auto max-w-3xl"
-              style={{ height: virtualizer.getTotalSize() }}
-            >
+          {/* The sides are padding on the column, so a page is exactly as wide as the list. */}
+          <div className="mx-auto max-w-3xl px-2 pb-[var(--safe-bottom)]">
+            <div ref={listRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
               {virtualizer.getVirtualItems().map((item) => {
                 const size = sizes[item.index];
                 return (
@@ -198,7 +196,7 @@ export function OriginalView({
                       key={item.key}
                       ref={virtualizer.measureElement}
                       data-index={item.index}
-                      className="absolute inset-x-2 top-0"
+                      className="absolute inset-x-0 top-0"
                       style={{ transform: `translateY(${item.start}px)` }}
                     >
                       <PdfPage doc={doc} size={size} />
