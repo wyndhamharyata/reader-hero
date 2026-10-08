@@ -128,6 +128,7 @@ export function SettingsSheet({ open, onClose }: Props): ReactElement | null {
       <aside
         ref={sheetRef}
         role="dialog"
+        data-theme={settings.theme}
         aria-label="Settings"
         className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:max-h-[85vh] md:w-[28rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
       >

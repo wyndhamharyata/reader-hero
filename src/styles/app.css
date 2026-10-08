@@ -115,6 +115,11 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   /* -1 cool to 1 warm; warm runs from amber to red as it rises, as a lamp's light does. */
   --temperature: 0;
+}
+
+/* On every themed box too, so a sheet can take a temperature of its own before the page does. */
+:root,
+[data-theme] {
   --tint: max(var(--temperature), calc(var(--temperature) * -1));
   --tint-hue: calc(
     250 - clamp(0, var(--temperature) * 1000, 1) * (175 + 25 * max(var(--temperature), 0))
