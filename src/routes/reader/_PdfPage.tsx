@@ -11,28 +11,16 @@ const RENDER_SCALE = Math.min(1.5, globalThis.devicePixelRatio || 1);
 interface Props {
   doc: RenderedDocument;
   size: PageSize;
-  visible: boolean;
 }
 
-// Memoised so a batch of page sizes or a visibility change re-renders only the pages it touches.
-export const PdfPage = memo(function PdfPage({ doc, size, visible }: Props): ReactElement {
+// Memoised so a batch of page sizes re-renders only the pages it touches.
+export const PdfPage = memo(function PdfPage({ doc, size }: Props): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const paintedRef = useRef(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
-
-    if (!visible) {
-      // Drops the bitmap and keeps the size, so the page frees its memory without a relayout.
-      if (paintedRef.current) canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
-      paintedRef.current = false;
-      delete canvas.dataset.painted;
-      return;
-    }
-
-    paintedRef.current = true;
     const fiber = forkApp(
       renderPdfPage(doc, size.page, canvas, RENDER_SCALE).pipe(
         // An opening book waits for this mark on its first page.
@@ -44,8 +32,12 @@ export const PdfPage = memo(function PdfPage({ doc, size, visible }: Props): Rea
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
       ),
     );
-    return () => stopFiber(fiber);
-  }, [doc, size.page, visible]);
+    return () => {
+      stopFiber(fiber);
+      // A page that leaves the list gives back its bitmap now: iOS caps the memory of all canvases.
+      canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
+    };
+  }, [doc, size.page]);
 
   return (
     <div

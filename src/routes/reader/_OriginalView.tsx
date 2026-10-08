@@ -1,5 +1,6 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
 import { pageBadge } from "@/lib/badges";
@@ -28,10 +29,12 @@ export function OriginalView({
 }: Props): ReactElement {
   const [doc, setDoc] = useState<RenderedDocument | null>(null);
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
-  const [visible, setVisible] = useState<ReadonlySet<number>>(new Set());
   const [current, setCurrent] = useState(initialPage);
   const [failed, setFailed] = useState(false);
+  // The page column's width: the scroll box less its 8px sides, at most max-w-3xl.
+  const [width, setWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<RenderedDocument | null>(null);
   const didScroll = useRef(false);
 
@@ -42,8 +45,6 @@ export function OriginalView({
         Effect.gen(function* () {
           docRef.current = opened;
           setDoc(opened);
-          // The page being read paints at once, before the observer reports what is in view.
-          setVisible(new Set([initialPage]));
           // Every page takes the first page's size until its own arrives, so the first page paints at once.
           setSizes(
             Array.from({ length: opened.pageCount }, (_, index) => ({
@@ -83,15 +84,59 @@ export function OriginalView({
   }, []);
 
   useEffect(() => {
-    if (didScroll.current || sizes.length === 0) return;
     const container = containerRef.current;
-    const target = container?.querySelector<HTMLElement>(`[data-page="${initialPage}"]`) ?? null;
-    if (container === null || target === null) return;
-    didScroll.current = true;
-    // Not scrollIntoView: under the library while the book opens, it also scrolled the library.
-    container.scrollTop +=
-      target.getBoundingClientRect().top - container.getBoundingClientRect().top;
-  }, [sizes, initialPage]);
+    if (container === null) return;
+    const observer = new ResizeObserver(() => setWidth(Math.min(container.clientWidth, 768) - 16));
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [doc]);
+
+  // Only the pages near the screen are in the page, each with a canvas only while it is there.
+  const shown = useRef(initialPage);
+  const virtualizer = useVirtualizer({
+    count: sizes.length,
+    getScrollElement: () => containerRef.current,
+    // Exact from each page's own size and the 12px gap, so no page needs measuring.
+    estimateSize: (index) => {
+      const size = sizes[index];
+      return size === undefined ? 0 : (width * size.height) / size.width + 12;
+    },
+    paddingStart: 8,
+    // Two pages each side are drawn before they scroll in.
+    overscan: 2,
+    // The page at the middle of the screen is the one being read.
+    onChange: (instance) => {
+      const middle = (instance.scrollOffset ?? 0) + (instance.scrollRect?.height ?? 0) / 2;
+      const page = (instance.getVirtualItemForOffset(middle)?.index ?? -1) + 1;
+      if (page === 0 || page === shown.current) return;
+      shown.current = page;
+      setCurrent(page);
+      onPageChange(page);
+    },
+  });
+  // New sizes or width change every page's height: first the view goes to the saved page, then the page being read stays.
+  const startPage = useRef(initialPage);
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const list = listRef.current;
+    if (container === null || list === null) return;
+    const held = didScroll.current
+      ? virtualizer.getVirtualItemForOffset(container.scrollTop)
+      : undefined;
+    const part =
+      held === undefined || held.size === 0 ? 0 : (container.scrollTop - held.start) / held.size;
+    virtualizer.measure();
+    // The new height goes in now: the old one would cut the scroll below short.
+    list.style.height = `${virtualizer.getTotalSize()}px`;
+    if (width === 0 || sizes.length === 0) return;
+    if (!didScroll.current) {
+      didScroll.current = true;
+      virtualizer.scrollToIndex(startPage.current - 1, { align: "start" });
+      return;
+    }
+    const moved = held === undefined ? undefined : virtualizer.measurementsCache[held.index];
+    if (moved !== undefined) container.scrollTop = moved.start + part * moved.size;
+  }, [virtualizer, sizes, width]);
 
   // An opening book shows once its page is placed and painted, or once it fails to open.
   useEffect(() => {
@@ -100,10 +145,9 @@ export function OriginalView({
     if (container === null || doc === null) return;
     let active = true;
     const wait = async (): Promise<void> => {
-      while (
-        !didScroll.current ||
-        container.querySelector(`[data-page="${initialPage}"] canvas:not([data-painted])`) !== null
-      ) {
+      for (;;) {
+        const page = container.querySelector(`[data-page="${startPage.current}"]`);
+        if (didScroll.current && page?.querySelector("canvas:not([data-painted])") === null) break;
         await new Promise((resolve) => requestAnimationFrame(resolve));
         if (!active) return;
       }
@@ -113,49 +157,7 @@ export function OriginalView({
     return () => {
       active = false;
     };
-  }, [doc, initialPage, failed]);
-
-  // One observer for every page: which pages to paint (with a margin, so a page is ready before it
-  // scrolls in) and which page is at the centre.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (container === null || sizes.length === 0) return;
-    const wrappers = Array.from(container.querySelectorAll<HTMLElement>("[data-page]"));
-    const painter = new IntersectionObserver(
-      (entries) => {
-        setVisible((known) => {
-          const next = new Set(known);
-          for (const entry of entries) {
-            const page = Number(entry.target.getAttribute("data-page"));
-            if (entry.isIntersecting) next.add(page);
-            else next.delete(page);
-          }
-          return next;
-        });
-      },
-      { root: container, rootMargin: "600px 0px" },
-    );
-    const tracker = new IntersectionObserver(
-      (entries) => {
-        const seen = entries
-          .filter((entry) => entry.isIntersecting)
-          .map((entry) => Number(entry.target.getAttribute("data-page")));
-        if (seen.length === 0) return;
-        const page = Math.min(...seen);
-        setCurrent(page);
-        onPageChange(page);
-      },
-      { root: container, rootMargin: "-45% 0px -45% 0px", threshold: 0 },
-    );
-    for (const wrapper of wrappers) {
-      painter.observe(wrapper);
-      tracker.observe(wrapper);
-    }
-    return () => {
-      painter.disconnect();
-      tracker.disconnect();
-    };
-  }, [sizes.length, onPageChange]);
+  }, [doc, failed]);
 
   return (
     <div className="relative h-full">
@@ -181,10 +183,27 @@ export function OriginalView({
           className="h-full overflow-y-auto overscroll-contain bg-base-300"
           onClick={onToggleChrome}
         >
-          <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-2 pb-[calc(0.5rem+var(--safe-bottom))]">
-            {sizes.map((size) => (
-              <PdfPage key={size.page} doc={doc} size={size} visible={visible.has(size.page)} />
-            ))}
+          <div className="pb-[var(--safe-bottom)]">
+            <div
+              ref={listRef}
+              className="relative mx-auto max-w-3xl"
+              style={{ height: virtualizer.getTotalSize() }}
+            >
+              {virtualizer.getVirtualItems().map((item) => {
+                const size = sizes[item.index];
+                return (
+                  size !== undefined && (
+                    <div
+                      key={item.key}
+                      className="absolute inset-x-2 top-0"
+                      style={{ transform: `translateY(${item.start}px)` }}
+                    >
+                      <PdfPage doc={doc} size={size} />
+                    </div>
+                  )
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
