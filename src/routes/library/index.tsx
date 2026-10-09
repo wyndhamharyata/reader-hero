@@ -71,6 +71,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const importJob = useRef<Job | null>(null);
   const [query, setQuery] = useState("");
+  const [mobileSearchAndFiltersVisible, setMobileSearchAndFiltersVisible] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [filters, setFilters] = useState<Filters>({
@@ -85,6 +86,60 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const rootRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the mobile search and chips out of the way while scrolling down, but bring them back
+  // as soon as the reader scrolls up. The mobile action row stays visible either way.
+  useEffect(() => {
+    const box = scrollRef.current;
+    if (box === null) return;
+
+    const mobile = window.matchMedia("(width < 48rem)");
+    const readPosition = () => {
+      const height = box.clientHeight;
+      const end = Math.max(0, box.scrollHeight - height);
+      return { top: Math.min(Math.max(box.scrollTop, 0), end), height, end };
+    };
+    let previous = readPosition();
+    const onScroll = (): void => {
+      const current = readPosition();
+
+      if (current.top <= 0) {
+        setMobileSearchAndFiltersVisible(true);
+        previous = current;
+        return;
+      }
+
+      // Ignore elastic overscroll and position clamps caused by a change to the scroll range.
+      if (current.height !== previous.height || current.end !== previous.end) {
+        previous = current;
+        return;
+      }
+
+      if (!mobile.matches) {
+        previous = current;
+        return;
+      }
+
+      const delta = current.top - previous.top;
+      if (Math.abs(delta) >= 24) {
+        const searchFocused = document.activeElement?.matches('input[type="search"]') ?? false;
+        // Keep a focused search field available while its keyboard is open.
+        if (delta < 0 || !searchFocused) setMobileSearchAndFiltersVisible(delta < 0);
+        previous = current;
+      }
+    };
+    const onBreakpointChange = (): void => {
+      previous = readPosition();
+      setMobileSearchAndFiltersVisible(true);
+    };
+
+    box.addEventListener("scroll", onScroll, { passive: true });
+    mobile.addEventListener("change", onBreakpointChange);
+    return () => {
+      box.removeEventListener("scroll", onScroll);
+      mobile.removeEventListener("change", onBreakpointChange);
+    };
+  }, []);
 
   // With the keyboard up the library takes only the visible area, so its bar sits on the keyboard.
   useEffect(() => {
@@ -465,9 +520,23 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         }}
       />
 
-      <div className="flex shrink-0 flex-col gap-2 border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] has-[input:focus]:pb-2 md:hidden">
-        {searchField}
-        {filterChips}
+      <div className="flex shrink-0 flex-col border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] has-[input:focus]:pb-2 md:hidden">
+        <div
+          className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
+            mobileSearchAndFiltersVisible
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
+          }`}
+          aria-hidden={!mobileSearchAndFiltersVisible}
+          inert={!mobileSearchAndFiltersVisible}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="flex flex-col gap-2 pb-2">
+              {searchField}
+              {filterChips}
+            </div>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           {viewToggle}
           {sortMenu}
