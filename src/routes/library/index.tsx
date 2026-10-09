@@ -3,11 +3,13 @@ import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useLocation } from "react-router";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
+import type { AiSettings } from "@/domain/ai";
 import { fontFamily } from "@/domain/book";
 import {
   forkApp,
   runApp,
   stopFiber,
+  useAiSettings,
   useAppEffect,
   useFigureJobs,
   useSettings,
@@ -26,13 +28,14 @@ import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers } from "@/use-cases/book-image";
 import type { ParseProgress } from "@/use-cases/extract";
+import { groupSeries, resetGrouping } from "@/use-cases/group-series";
 import { importBooks } from "@/use-cases/import-books";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { reparseBook } from "@/use-cases/parse-book";
 import { removeBook } from "@/use-cases/remove-book";
 import { setBookFinished } from "@/use-cases/save-progress";
 import { hideSeries, saveSeries, setBookSeries } from "@/use-cases/series";
-import { describeError } from "@/lib/describe-error";
+import { describeAiFailure, describeError } from "@/lib/describe-error";
 import { BookSheet } from "./_BookSheet";
 import { BookCard } from "./_BookCard";
 import { BookTile } from "./_BookTile";
@@ -82,11 +85,34 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   );
 
   const { settings, update } = useSettings();
+  const { ai } = useAiSettings();
+  const [grouping, setGrouping] = useState<
+    | { readonly left: number }
+    | { readonly books: number; readonly series: number }
+    | { readonly error: string }
+    | null
+  >(null);
+  // After a failure, only Retry, a new book or new settings start the next run.
+  const [groupingFailed, setGroupingFailed] = useState<{
+    ai: AiSettings | null;
+    books: string;
+  } | null>(null);
+  // Reset changes no book and no setting, so a new round starts the run after it.
+  const [groupingRound, setGroupingRound] = useState(0);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const importJob = useRef<Job | null>(null);
   const [query, setQuery] = useState("");
   const [mobileSearchAndFiltersVisible, setMobileSearchAndFiltersVisible] = useState(true);
+  const searchPanel = useRef<HTMLDivElement>(null);
+  const [searchPanelHeight, setSearchPanelHeight] = useState(0);
+  useLayoutEffect(() => {
+    const panel = searchPanel.current;
+    if (panel === null) return;
+    const observer = new ResizeObserver(() => setSearchPanelHeight(panel.offsetHeight));
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, []);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [bookActions, setBookActions] = useState<LibraryCard | null>(null);
@@ -96,9 +122,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     name: string;
     books: ReadonlyArray<LibraryCard>;
   } | null>(null);
-  const [openSeriesId, setOpenSeriesId] = useState<string | null>(null);
-  const [trayVisibleId, setTrayVisibleId] = useState<string | null>(null);
-  const [seriesTransitioning, setSeriesTransitioning] = useState(false);
+  // Several can be open, so opening one never moves the books of another.
+  const [openSeries, setOpenSeries] = useState<ReadonlySet<string>>(() => new Set());
+  // The series the last tap opened, which alone fades in.
+  const justOpened = useRef<string | null>(null);
   const [filters, setFilters] = useState<Filters>({
     status: null,
     length: null,
@@ -110,11 +137,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const rootRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const layoutBefore = useRef<Map<string, { left: number; top: number }> | null>(null);
-  const pendingLayout = useRef(false);
-  const transitioning = useRef(false);
-  const motionTimer = useRef<number | null>(null);
-  const motionAnimations = useRef<Array<Animation>>([]);
 
   // Keep the mobile search and chips out of the way while scrolling down, but bring them back
   // as soon as the reader scrolls up. The mobile action row stays visible either way.
@@ -250,6 +272,35 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     return () => stopFiber(fiber);
   }, [hidden, bookIds]);
 
+  // The books with their text, so a finished parse starts a grouping run for that book. No run starts
+  // while an import is busy, so the new books of an import go together.
+  const groupable = books
+    .filter((book) => book.parseState !== "parsing" && book.parseState !== "pending")
+    .map((book) => book.id)
+    .join(" ");
+  useEffect(() => {
+    if (hidden || busy || groupable === "" || !navigator.onLine) return;
+    if (groupingFailed?.ai === ai && groupingFailed.books === groupable) return;
+    const fiber = forkApp(
+      groupSeries(ai, (left) => setGrouping({ left })).pipe(
+        Effect.match({
+          onSuccess: (totals) => setGrouping(totals),
+          onFailure: (error) => {
+            setGrouping({
+              error:
+                error._tag === "StorageFailure"
+                  ? "Could not save series"
+                  : describeAiFailure(error),
+            });
+            setGroupingFailed({ ai, books: groupable });
+          },
+        }),
+        Effect.onInterrupt(() => Effect.sync(() => setGrouping(null))),
+      ),
+    );
+    return () => stopFiber(fiber);
+  }, [hidden, busy, groupable, ai, groupingFailed, groupingRound]);
+
   // A book's text waits for its font, so the reading fonts load with the library.
   useEffect(() => {
     for (const family of Object.values(fontFamily)) void document.fonts.load(`1em "${family}"`);
@@ -349,17 +400,23 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort, series),
     [books, reading, query, filters, settings.librarySort, series],
   );
-  const items = useMemo(() => {
+  const { items, trays } = useMemo(() => {
     const items: Array<
       Shelf["items"][number] | { readonly kind: "member"; readonly card: LibraryCard }
     > = [];
+    const trays: Array<{ start: number; end: number; hue: number }> = [];
     for (const item of shelf.items) {
       items.push(item);
-      if (item.kind !== "series" || item.id !== openSeriesId) continue;
+      if (item.kind !== "series" || !openSeries.has(item.id)) continue;
+      trays.push({
+        start: items.length - 1,
+        end: items.length - 1 + item.books.length,
+        hue: item.color,
+      });
       for (const card of item.books) items.push({ kind: "member", card });
     }
-    return items;
-  }, [shelf, openSeriesId]);
+    return { items, trays };
+  }, [shelf, openSeries]);
   const cards = useMemo(
     () => items.flatMap((item) => (item.kind === "series" ? [] : [item.card])),
     [items],
@@ -382,99 +439,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     };
   }, []);
   const columns = grid ? (wide.md ? 5 : wide.sm ? 3 : 2) : wide.md ? 2 : 1;
-  const capturePositions = (): Map<string, { left: number; top: number }> => {
-    const positions = new Map<string, { left: number; top: number }>();
-    const list = listRef.current;
-    if (list === null) return positions;
-    for (const element of list.querySelectorAll<HTMLElement>("[data-layout-id]")) {
-      const id = element.dataset.layoutId;
-      if (id === undefined) continue;
-      const rect = element.getBoundingClientRect();
-      positions.set(id, { left: rect.left, top: rect.top });
-    }
-    return positions;
-  };
-  const toggleSeries = (id: string): void => {
-    if (transitioning.current) return;
-    const list = listRef.current;
-    if (openSeriesId === null) {
-      layoutBefore.current = capturePositions();
-      pendingLayout.current = true;
-      transitioning.current = true;
-      setSeriesTransitioning(true);
-      setTrayVisibleId(null);
-      setOpenSeriesId(id);
-      return;
-    }
-
-    const nextSeriesId = openSeriesId === id ? null : id;
-    const root =
-      list === null
-        ? undefined
-        : [...list.querySelectorAll<HTMLElement>("[data-series-root]")].find(
-            (element) => element.dataset.seriesRoot === openSeriesId,
-          );
-    const members =
-      list === null
-        ? []
-        : [...list.querySelectorAll<HTMLElement>("[data-series-member]")].filter(
-            (element) => element.dataset.seriesMember === openSeriesId,
-          );
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reducedMotion || root === undefined || members.length === 0) {
-      layoutBefore.current = capturePositions();
-      pendingLayout.current = true;
-      transitioning.current = true;
-      setSeriesTransitioning(true);
-      setTrayVisibleId(null);
-      setOpenSeriesId(nextSeriesId);
-      return;
-    }
-
-    layoutBefore.current = capturePositions();
-    const rootPosition = layoutBefore.current.get(`series:${openSeriesId}`);
-    const origin = rootPosition ?? {
-      left: root.getBoundingClientRect().left,
-      top: root.getBoundingClientRect().top,
-    };
-    for (const [index, member] of members.entries()) {
-      const id = member.dataset.layoutId;
-      const position = id === undefined ? undefined : layoutBefore.current.get(id);
-      if (position === undefined) continue;
-      motionAnimations.current.push(
-        member.animate(
-          [
-            { transform: "translate3d(0, 0, 0) scale(1)", opacity: 1 },
-            {
-              transform: `translate3d(${origin.left - position.left}px, ${origin.top - position.top}px, 0) scale(0.65)`,
-              opacity: 0,
-            },
-          ],
-          {
-            duration: 200,
-            delay: index * 30,
-            easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-            fill: "forwards",
-          },
-        ),
-      );
-    }
-    transitioning.current = true;
-    setSeriesTransitioning(true);
-    motionTimer.current = window.setTimeout(
-      () => {
-        motionTimer.current = null;
-        setTrayVisibleId(null);
-        motionTimer.current = window.setTimeout(() => {
-          motionTimer.current = null;
-          layoutBefore.current = capturePositions();
-          pendingLayout.current = true;
-          setOpenSeriesId(nextSeriesId);
-        }, 150);
-      },
-      200 + Math.max(0, members.length - 1) * 30,
-    );
-  };
   const rows = useMemo(
     () =>
       Array.from({ length: Math.ceil(items.length / columns) }, (_, row) =>
@@ -483,121 +447,25 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     [items, columns],
   );
 
+  // A series just opened fades its books and tray in; the other items take their new places at once,
+  // and the scroll stays where it is.
   useLayoutEffect(() => {
-    if (!pendingLayout.current) return;
-    pendingLayout.current = false;
-    const before = layoutBefore.current ?? new Map<string, { left: number; top: number }>();
-    layoutBefore.current = null;
     const list = listRef.current;
-    if (list === null) {
-      transitioning.current = false;
-      setSeriesTransitioning(false);
-      return;
+    const opened = justOpened.current;
+    justOpened.current = null;
+    if (opened === null || list === null) return;
+    const root = [...list.querySelectorAll<HTMLElement>("[data-series-root]")].find(
+      (element) => element.dataset.seriesRoot === opened,
+    );
+    const members = [...list.querySelectorAll<HTMLElement>("[data-series-member]")].filter(
+      (element) => element.dataset.seriesMember === opened,
+    );
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const tray = root?.querySelector<HTMLElement>("[data-tray]");
+    for (const element of tray === null || tray === undefined ? members : [tray, ...members]) {
+      element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "ease-out" });
     }
-    const seriesRoot =
-      openSeriesId === null
-        ? undefined
-        : [...list.querySelectorAll<HTMLElement>("[data-series-root]")].find(
-            (element) => element.dataset.seriesRoot === openSeriesId,
-          );
-    const newMembers =
-      openSeriesId === null
-        ? []
-        : [...list.querySelectorAll<HTMLElement>("[data-series-member]")].filter(
-            (element) =>
-              element.dataset.seriesMember === openSeriesId &&
-              !before.has(element.dataset.layoutId ?? ""),
-          );
-    const scroll = scrollRef.current;
-    const firstMember = newMembers[0];
-    if (seriesRoot !== undefined && firstMember !== undefined && scroll !== null) {
-      const firstRect = firstMember.getBoundingClientRect();
-      const view = scroll.getBoundingClientRect();
-      if (firstRect.bottom > view.bottom) {
-        const previousScroll = scroll.scrollTop;
-        const rootRect = seriesRoot.getBoundingClientRect();
-        scroll.scrollTo({ top: previousScroll + rootRect.top - view.top, behavior: "auto" });
-        const delta = scroll.scrollTop - previousScroll;
-        for (const [id, position] of before) {
-          before.set(id, { left: position.left, top: position.top - delta });
-        }
-      }
-    }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      motionAnimations.current = [];
-      setTrayVisibleId(openSeriesId);
-      transitioning.current = false;
-      setSeriesTransitioning(false);
-      return;
-    }
-
-    motionAnimations.current = [];
-    for (const element of list.querySelectorAll<HTMLElement>("[data-layout-id]")) {
-      const id = element.dataset.layoutId;
-      const position = id === undefined ? undefined : before.get(id);
-      if (position === undefined) continue;
-      const rect = element.getBoundingClientRect();
-      const x = position.left - rect.left;
-      const y = position.top - rect.top;
-      if (Math.abs(x) < 1 && Math.abs(y) < 1) continue;
-      motionAnimations.current.push(
-        element.animate(
-          [{ transform: `translate3d(${x}px, ${y}px, 0)` }, { transform: "translate3d(0, 0, 0)" }],
-          { duration: 200, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
-        ),
-      );
-    }
-
-    const origin = seriesRoot?.getBoundingClientRect();
-    for (const [index, element] of newMembers.entries()) {
-      if (origin === undefined) break;
-      const rect = element.getBoundingClientRect();
-      const x = origin.left - rect.left;
-      const y = origin.top - rect.top;
-      motionAnimations.current.push(
-        element.animate(
-          [
-            { transform: `translate3d(${x}px, ${y}px, 0) scale(0.7)`, opacity: 0 },
-            { transform: "translate3d(0, 0, 0) scale(1)", opacity: 1 },
-          ],
-          {
-            duration: 200,
-            delay: index * 30,
-            easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-          },
-        ),
-      );
-    }
-    const duration = 200 + Math.max(0, newMembers.length - 1) * 30;
-    motionTimer.current = window.setTimeout(() => {
-      motionTimer.current = null;
-      motionAnimations.current = [];
-      setTrayVisibleId(openSeriesId);
-      transitioning.current = false;
-      setSeriesTransitioning(false);
-    }, duration);
-  }, [items, openSeriesId]);
-
-  useEffect(() => {
-    if (!hidden) return;
-    if (motionTimer.current !== null) window.clearTimeout(motionTimer.current);
-    motionTimer.current = null;
-    for (const animation of motionAnimations.current) animation.cancel();
-    motionAnimations.current = [];
-    layoutBefore.current = null;
-    pendingLayout.current = false;
-    transitioning.current = false;
-    setSeriesTransitioning(false);
-    setTrayVisibleId(openSeriesId);
-  }, [hidden, openSeriesId]);
-
-  useEffect(
-    () => () => {
-      if (motionTimer.current !== null) window.clearTimeout(motionTimer.current);
-      for (const animation of motionAnimations.current) animation.cancel();
-    },
-    [],
-  );
+  }, [openSeries]);
 
   // The header and notices scroll above the rows, so the rows start this far into the scroll box.
   const [listTop, setListTop] = useState(0);
@@ -667,9 +535,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   const searchField = <SearchField value={query} onChange={setQuery} />;
   const filterChips = <FilterChips shelf={shelf} onToggle={toggleFilter} onClear={clearFilters} />;
-  const sortMenu = (
-    <SortMenu sort={settings.librarySort} onChange={(sort) => update({ librarySort: sort })} />
-  );
   const viewToggle = (
     <ViewToggle view={settings.libraryView} onChange={(view) => update({ libraryView: view })} />
   );
@@ -684,12 +549,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       <CogIcon className="size-6 md:size-4" />
     </button>
   );
-  const openSeries = shelf.items.find((item) => item.kind === "series" && item.id === openSeriesId);
-  const trayStart =
-    openSeries?.kind === "series"
-      ? items.findIndex((item) => item.kind === "series" && item.id === openSeries.id)
-      : -1;
-  const trayEnd = openSeries?.kind === "series" ? trayStart + openSeries.books.length : -1;
 
   return (
     // A fixed column with its own scroll box, so the window never scrolls; hidden, it keeps its layout.
@@ -697,7 +556,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       ref={rootRef}
       // When the keyboard closes, the column grows back at about the keyboard's pace.
       className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hidden ? "invisible" : ""}`}
-      data-series-transitioning={seriesTransitioning}
       inert={hidden}
       aria-hidden={hidden}
     >
@@ -706,14 +564,23 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         data-library-scroll
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]"
       >
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] pb-8 md:max-w-5xl">
+        <div
+          // 1px taller than its box at least: iOS gives a swipe on a box with nothing to scroll to the
+          // page, which bounces the bars with it.
+          className="mx-auto flex min-h-[calc(100%+1px)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] md:max-w-5xl"
+          // Room under the last row for the search panel that floats over it on a phone.
+          style={{ paddingBottom: `calc(2rem + ${searchPanelHeight}px)` }}
+        >
           <header className="flex items-center justify-between gap-3 pt-2">
             <h1>
               <Logo className="h-7 w-auto md:h-8" />
             </h1>
             <div className="hidden items-center gap-2 md:flex">
               {searchField}
-              {sortMenu}
+              <SortMenu
+                sort={settings.librarySort}
+                onChange={(sort) => update({ librarySort: sort })}
+              />
               {viewToggle}
               {settingsButton}
               <button
@@ -760,22 +627,33 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
               >
                 {rows[row.index]?.map((item, column) => {
                   const itemIndex = row.index * columns + column;
+                  const range = trays.find(
+                    (entry) => entry.start <= itemIndex && itemIndex <= entry.end,
+                  );
                   const tray: TrayFlags | null =
-                    trayStart < 0 || itemIndex < trayStart || itemIndex > trayEnd
+                    range === undefined
                       ? null
                       : {
-                          firstOnTray: itemIndex === trayStart,
-                          lastOnTray: itemIndex === trayEnd,
-                          firstColumn: itemIndex % columns === 0,
-                          lastColumn: itemIndex % columns === columns - 1,
+                          index: itemIndex,
+                          start: range.start,
+                          end: range.end,
                           columns,
-                          visible: trayVisibleId === openSeriesId,
+                          rowGap: grid ? "1.25rem" : "0.75rem",
+                          hue: range.hue,
                         };
                   if (item.kind === "series") {
                     const props = {
                       series: item,
-                      expanded: item.id === openSeriesId,
-                      onToggle: () => toggleSeries(item.id),
+                      expanded: openSeries.has(item.id),
+                      onToggle: () => {
+                        const next = new Set(openSeries);
+                        if (next.delete(item.id)) justOpened.current = null;
+                        else {
+                          next.add(item.id);
+                          justOpened.current = item.id;
+                        }
+                        setOpenSeries(next);
+                      },
                       onActions: () => setSeriesEdit(item),
                       tray,
                     };
@@ -826,31 +704,33 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         }}
       />
 
-      <div className="flex shrink-0 flex-col border-t border-base-300 bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] has-[input:focus]:pb-2 md:hidden">
+      {/* The search and chips float over the list's foot and slide down behind the action row, so
+          the list's box keeps its size: on iOS a scroll box that resizes under a finger stutters. */}
+      <div className="group relative z-20 shrink-0 md:hidden">
         <div
-          className={`grid overflow-hidden transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
-            mobileSearchAndFiltersVisible
-              ? "grid-rows-[1fr] opacity-100"
-              : "grid-rows-[0fr] opacity-0"
+          ref={searchPanel}
+          className={`absolute inset-x-0 bottom-full border-t border-base-300 bg-base-100 px-4 pt-2 transition-[translate,opacity] duration-200 ease-out motion-reduce:transition-none ${
+            mobileSearchAndFiltersVisible ? "" : "translate-y-full opacity-0"
           }`}
           aria-hidden={!mobileSearchAndFiltersVisible}
           inert={!mobileSearchAndFiltersVisible}
         >
-          <div className="min-h-0 overflow-hidden">
-            <div className="flex flex-col gap-2 pb-2">
-              {searchField}
-              {filterChips}
-            </div>
+          <div className="flex flex-col gap-2 pb-2">
+            {searchField}
+            {filterChips}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div
+          className={`relative flex items-center gap-2 border-t bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] transition-colors duration-200 group-has-[input:focus]:pb-2 ${
+            mobileSearchAndFiltersVisible ? "border-transparent" : "border-base-300"
+          }`}
+        >
           {viewToggle}
-          {sortMenu}
           <button
             type="button"
             className="btn relative btn-square"
-            aria-label="All filters"
-            title="All filters"
+            aria-label="Sort and filter"
+            title="Sort and filter"
             onClick={() => setFiltersOpen(true)}
           >
             <FunnelIcon className="size-6" />
@@ -872,21 +752,43 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       <FilterSheet
         open={filtersOpen}
         shelf={shelf}
+        sort={settings.librarySort}
+        onSort={(sort) => update({ librarySort: sort })}
         onToggle={toggleFilter}
         onClear={clearFilters}
         onClose={() => setFiltersOpen(false)}
       />
 
-      <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsSheet
+        open={settingsOpen}
+        grouping={grouping}
+        onRetry={() => setGroupingFailed(null)}
+        onReset={() => {
+          setGrouping(null);
+          void runApp(
+            resetGrouping().pipe(
+              Effect.match({
+                onSuccess: () => {
+                  setGroupingFailed(null);
+                  setGroupingRound((round) => round + 1);
+                },
+                onFailure: () => setGrouping({ error: "Could not reset series" }),
+              }),
+            ),
+          );
+        }}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       {bookActions !== null && (
         <BookSheet
           card={bookActions}
+          progress={reading?.get(bookActions.book.id) ?? null}
           groups={shelf.series}
-          onFinished={(id, finished) => {
+          onFinished={(id, finished, place) => {
             setMessage(null);
             void runApp(
-              setBookFinished(id, finished).pipe(
+              setBookFinished(id, finished, place).pipe(
                 Effect.catchTag("StorageFailure", (error) =>
                   Effect.sync(() => setMessage(describeError(error, "This book"))),
                 ),

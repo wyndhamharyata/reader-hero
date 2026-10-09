@@ -1,27 +1,45 @@
 import type { ReactElement } from "react";
 
 export interface TrayFlags {
-  readonly firstOnTray: boolean;
-  readonly lastOnTray: boolean;
-  readonly firstColumn: boolean;
-  readonly lastColumn: boolean;
+  readonly index: number;
+  readonly start: number;
+  readonly end: number;
   readonly columns: number;
-  readonly visible: boolean;
+  // The padding under each row, which the tray spans where the series goes on in the next row.
+  readonly rowGap: string;
+  readonly hue: number;
 }
 
 export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement | null {
   if (flags === null) return null;
-  // A row break runs the tray to the screen edge; elsewhere it sits 6px outside the item.
-  const left = flags.columns > 1 && flags.firstColumn && !flags.firstOnTray ? "-1rem" : "-0.375rem";
-  const right = flags.columns > 1 && flags.lastColumn && !flags.lastOnTray ? "-1rem" : "-0.375rem";
-  const start = flags.firstOnTray ? (flags.columns === 1 ? "rounded-t-box" : "rounded-l-box") : "";
-  const end = flags.lastOnTray ? (flags.columns === 1 ? "rounded-b-box" : "rounded-r-box") : "";
+  const { index, start, end, columns } = flags;
+  // The parts make one shape: a part with tray under it runs down to the next row, and only an
+  // outer side has a border and only an outer corner is round.
+  const first = index % columns === 0 || index === start;
+  const last = index % columns === columns - 1 || index === end;
+  const above = index - columns >= start;
+  const below = index + columns <= end;
+  const colour = `oklch(var(--tray) ${flags.hue})`;
 
   return (
     <span
       aria-hidden="true"
-      className={`pointer-events-none absolute top-[-0.375rem] bottom-[-0.375rem] z-0 bg-base-300 transition-opacity duration-150 motion-reduce:transition-none ${start} ${end}`}
-      style={{ left, right, opacity: flags.visible ? 1 : 0 }}
-    />
+      data-tray
+      className={`pointer-events-none absolute -inset-x-1.5 -top-1.5 z-0 ${first ? "border-l-2" : ""} ${last ? "border-r-2" : ""} ${above ? "" : "border-t-2"} ${below ? "" : "border-b-2"} ${first && !above ? "rounded-tl-box" : ""} ${last && !above ? "rounded-tr-box" : ""} ${first && !below ? "rounded-bl-box" : ""} ${last && !below ? "rounded-br-box" : ""}`}
+      style={{
+        bottom: below ? `calc(0.375rem - ${flags.rowGap})` : "-0.375rem",
+        borderColor: colour,
+        // Mixed with the page, not alpha, so no darker seam shows where two parts meet.
+        backgroundColor: `color-mix(in oklab, ${colour} 40%, var(--color-base-100))`,
+      }}
+    >
+      {/* Where the next book's part ends this row, the border goes on down the row gap to the row under. */}
+      {below && !last && index + 1 + columns > end && (
+        <span
+          className="absolute right-0 bottom-0 w-0.5"
+          style={{ height: `calc(${flags.rowGap} - 0.75rem + 2px)`, backgroundColor: colour }}
+        />
+      )}
+    </span>
   );
 }

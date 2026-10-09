@@ -23,7 +23,9 @@ interface Props {
   onStopSummary: () => void;
   // The Series row's text, "The Tide Cycle · 3 of 4"; null hides the row, as for a book in no series.
   series: string | null;
+  seriesRunning: boolean;
   onSeries: () => void;
+  onStopSeries: () => void;
   // One-line summaries by the block index of their contents entry; empty when the toggle is off.
   lines: ReadonlyMap<number, string>;
   onSelect: (blockIndex: number) => void;
@@ -43,7 +45,9 @@ export function MenuSheet({
   onSummary,
   onStopSummary,
   series,
+  seriesRunning,
   onSeries,
+  onStopSeries,
   lines,
   onSelect,
   onLine,
@@ -148,8 +152,13 @@ export function MenuSheet({
               <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
                 {series}
               </span>
-              <span className="opacity-60">›</span>
+              {!seriesRunning && <span className="opacity-60">›</span>}
             </button>
+            {seriesRunning && (
+              <button type="button" className="btn mr-2 btn-ghost md:btn-sm" onClick={onStopSeries}>
+                Stop
+              </button>
+            )}
           </section>
         )}
 

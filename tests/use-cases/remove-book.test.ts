@@ -72,6 +72,8 @@ describe("removeBook", () => {
       SummaryJobs.of({
         state: () => Stream.empty,
         start: () => Effect.void,
+        startSeries: () => Effect.void,
+        startNames: () => Effect.void,
         stop: (id) => Effect.sync(() => state.stopped.push(id)),
       }),
     );

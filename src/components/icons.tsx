@@ -88,14 +88,6 @@ export function Squares2x2Icon({ className }: IconProps): ReactElement {
   );
 }
 
-export function EllipsisVerticalIcon({ className }: IconProps): ReactElement {
-  return (
-    <Icon className={className}>
-      <path d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-    </Icon>
-  );
-}
-
 export function ChevronDownIcon({ className }: IconProps): ReactElement {
   return (
     <Icon className={className}>

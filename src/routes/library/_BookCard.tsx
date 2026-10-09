@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { EllipsisVerticalIcon } from "@/components/icons";
+import { PencilIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
 import { formatPercent, formatSize } from "@/lib/format";
 import type { LibraryCard } from "@/lib/shelf";
@@ -26,11 +26,10 @@ export function BookCard({
   return (
     <li
       className="relative isolate list-none"
-      data-layout-id={`book:${book.id}`}
       data-series-member={seriesMember ? card.seriesId : undefined}
     >
       <TrayPart flags={tray} />
-      <div className="card relative z-10 w-full bg-base-200">
+      <div className="card relative z-10 h-full w-full bg-base-200">
         <div className="card-body flex-row gap-3 p-3">
           <SlideLink to={href} direction="in" className="w-16 shrink-0">
             <BookCover bookId={book.id} />
@@ -67,11 +66,11 @@ export function BookCard({
               <button
                 type="button"
                 className="btn btn-square btn-ghost md:btn-sm"
-                aria-label="Book actions"
-                title="Book actions"
+                aria-label="Edit book"
+                title="Edit book"
                 onClick={onActions}
               >
-                <EllipsisVerticalIcon className="size-6 md:size-4" />
+                <PencilIcon className="size-6 md:size-4" />
               </button>
             </div>
           </div>

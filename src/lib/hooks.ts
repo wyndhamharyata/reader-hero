@@ -223,6 +223,29 @@ export function useAiSettings(): {
   return { ai, putAi };
 }
 
+// A job's run and error by its key, live, for a job that no single book's Summary shows.
+export function useJob(key: string): JobState & {
+  readonly startNames: (settings: AiSettings) => void;
+  readonly stop: () => void;
+} {
+  const [job, setJob] = useState<JobState>({ run: null, error: null });
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.flatMap(SummaryJobs, (jobs) =>
+        jobs.state(key).pipe(Stream.runForEach((next) => Effect.sync(() => setJob(next)))),
+      ),
+    );
+    return () => stopFiber(fiber);
+  }, [key]);
+  const startNames = useCallback((settings: AiSettings) => {
+    forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.startNames(settings)));
+  }, []);
+  const stop = useCallback(() => {
+    forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(key)));
+  }, [key]);
+  return { ...job, startNames, stop };
+}
+
 export interface SummaryState {
   readonly summary: Summary | null;
   readonly run: SummaryRun | null;

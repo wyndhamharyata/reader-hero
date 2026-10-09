@@ -535,19 +535,14 @@ async function run(layoutName, layout) {
                 const deadline = performance.now() + 10000;
                 while (performance.now() < deadline) {
                   const toggle = findRoot()?.querySelector("[data-series-toggle]");
-                  const transitioning =
-                    document
-                      .querySelector("main[data-series-transitioning]")
-                      ?.getAttribute("data-series-transitioning") === "true";
-                  if (
-                    toggle?.getAttribute("aria-expanded") === String(expanded) &&
-                    !transitioning
-                  ) {
+                  if (toggle?.getAttribute("aria-expanded") === String(expanded)) {
+                    // The fade of an opened series takes 150ms.
+                    await new Promise((resolve) => setTimeout(resolve, 200));
                     return;
                   }
                   await new Promise((resolve) => requestAnimationFrame(resolve));
                 }
-                throw new Error("series motion timed out");
+                throw new Error("series toggle timed out");
               };
 
               window.__startSampler();

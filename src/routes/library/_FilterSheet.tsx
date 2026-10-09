@@ -1,11 +1,15 @@
 import { useRef, type ReactElement } from "react";
+import type { LibrarySort } from "@/domain/book";
 import type { FilterGroup, Shelf } from "@/lib/shelf";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { FilterChip } from "./_FilterChip";
+import { sorts } from "./_SortMenu";
 
 interface Props {
   open: boolean;
   shelf: Shelf;
+  sort: LibrarySort;
+  onSort: (sort: LibrarySort) => void;
   onToggle: (group: FilterGroup, value: string) => void;
   onClear: () => void;
   onClose: () => void;
@@ -17,10 +21,13 @@ const titles: Record<FilterGroup, string> = {
   author: "Author",
 };
 
-// Phone-only: the chip row scrolls sideways and hides most chips; this shows every group at once.
+// Phone-only: the chip row scrolls sideways and hides most chips; this shows every group at once,
+// and the sort, which the phone bar has no room for.
 export function FilterSheet({
   open,
   shelf,
+  sort,
+  onSort,
   onToggle,
   onClear,
   onClose,
@@ -44,19 +51,35 @@ export function FilterSheet({
         type="button"
         ref={backdropRef}
         className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close filters"
+        aria-label="Close sort and filter"
         onClick={() => dismiss()}
       />
       <aside
         ref={sheetRef}
         role="dialog"
-        aria-label="Filters"
+        aria-label="Sort and filter"
         className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up"
       >
         <div className="mx-auto mb-3 h-1.5 w-10 shrink-0 rounded-full bg-base-300" />
-        <h2 className="text-lg font-semibold">Filters</h2>
+        <h2 className="text-lg font-semibold">Sort and filter</h2>
 
         <div className="-mx-4 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <section className="mb-4 px-4">
+            <h3 className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">Sort</h3>
+            <div className="join w-full join-vertical">
+              {sorts.map(([value, text]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`btn join-item justify-start ${value === sort ? "btn-neutral" : "bg-base-100"}`}
+                  aria-pressed={value === sort}
+                  onClick={() => onSort(value)}
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          </section>
           {groups.map(({ group, chips }) => (
             <section key={group} className="mb-4 px-4">
               <h3 className="mb-2 text-xs font-medium tracking-wide uppercase opacity-60">

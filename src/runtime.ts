@@ -9,7 +9,7 @@ import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 
-// The summary jobs run on the AI client and the summary store, which the app shares with them.
+// The summary jobs run on the AI client and the stores, which the app shares with them.
 const aiLayer = Layer.mergeAll(SummaryStore.layer, AiClient.layer);
 
 const appLayer = Layer.mergeAll(
@@ -20,7 +20,7 @@ const appLayer = Layer.mergeAll(
   PageRenderer.layer,
   ServiceWorkerClient.layer,
   aiLayer,
-  SummaryJobs.layer.pipe(Layer.provide(aiLayer)),
+  SummaryJobs.layer.pipe(Layer.provide(Layer.mergeAll(aiLayer, BookStore.layer))),
 );
 
 export const runtime = ManagedRuntime.make(appLayer);

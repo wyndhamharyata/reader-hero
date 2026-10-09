@@ -139,6 +139,32 @@ describe("saveSeries", () => {
     expect(groupOf(tide, state.series, "b4")).toBeUndefined();
   });
 
+  it("given a colour, stores it, and a later save without one keeps it", async () => {
+    const state = { books: tide, series: [] as Array<Series> };
+    const edit = { id: "the tide cycle", name: "The Tide Cycle", books: ["b1", "b2", "b3"] };
+
+    await run(saveSeries({ ...edit, removed: [], color: 145 }), state);
+    await run(saveSeries({ ...edit, removed: ["b4"] }), state);
+
+    expect(state.series[0]?.color).toBe(145);
+    expect(groupOf(tide, state.series, "b1")?.color).toBe(145);
+  });
+
+  it("given a cover, stores it, a save without one keeps it, and null goes back to the default", async () => {
+    const state = { books: tide, series: [] as Array<Series> };
+    const edit = { id: "the tide cycle", name: "The Tide Cycle", books: ["b1", "b2", "b3"] };
+
+    await run(saveSeries({ ...edit, removed: [], cover: "b2" }), state);
+    await run(saveSeries({ ...edit, removed: ["b4"] }), state);
+
+    expect(state.series[0]?.cover).toBe("b2");
+    expect(groupOf(tide, state.series, "b1")?.cover).toBe("b2");
+
+    await run(saveSeries({ ...edit, removed: [], cover: null }), state);
+
+    expect(state.series[0]?.cover).toBeUndefined();
+  });
+
   it("given a book of another stored series, moves it and keeps the stored numbers", async () => {
     const books = [...tide, lantern];
     const state = {
@@ -208,17 +234,59 @@ describe("saveSeries", () => {
     expect(state.series[0]?.id).toBe("harbor stories");
     expect(groupOf([harbor], state.series, "h")?.name).toBe("Harbor Stories");
   });
+
+  it("given a Possible book added with +, stores it in its place with the model's number", async () => {
+    const books = [lantern, harbor, book("k", "The Keeper")];
+    const state = {
+      books,
+      series: [
+        record({
+          id: "lights",
+          name: "Lights",
+          books: [
+            { id: "l", number: 1 },
+            { id: "k", number: 3 },
+          ],
+          possible: [{ id: "h", number: 2 }],
+        }),
+      ],
+    };
+
+    await run(
+      saveSeries({ id: "lights", name: "Lights", books: ["l", "h", "k"], removed: [] }),
+      state,
+    );
+
+    expect(state.series[0]?.books).toEqual([
+      { id: "l", number: 1 },
+      { id: "h", number: 2 },
+      { id: "k", number: 3 },
+    ]);
+    expect(state.series[0]?.possible).toEqual([]);
+    expect(state.series[0]?.edited).toBe(true);
+  });
 });
 
 describe("hideSeries", () => {
-  it("given a series from the EPUB fields, stores it hidden so its books show as single books", async () => {
+  it("given a series from the EPUB fields, keeps its books out and lets new books start it again", async () => {
     const state = { books: tide, series: [] as Array<Series> };
 
     await run(hideSeries("the tide cycle", "The Tide Cycle"), state);
 
-    expect(state.series[0]?.hidden).toBe(true);
+    expect(state.series[0]).toMatchObject({ books: [], removed: ["b1", "b2", "b3", "b4"] });
+    expect(state.series[0]?.edited).toBeUndefined();
     expect(groupOf(tide, state.series, "b1")).toBeUndefined();
     expect(buildShelf(tide, new Map(), "", none, "added", state.series).items).toHaveLength(4);
+
+    const again = [
+      ...tide,
+      book("b5", "Beacon at Low Water", { series: "The Tide Cycle", seriesNumber: 1 }),
+      book("b6", "The Quiet Shoal", { series: "The Tide Cycle", seriesNumber: 2 }),
+    ];
+    expect(groupOf(again, state.series, "b5")?.books.map((card) => card.book.id)).toEqual([
+      "b5",
+      "b6",
+    ]);
   });
 });
 

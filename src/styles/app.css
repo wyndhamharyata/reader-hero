@@ -131,11 +131,13 @@
 [data-theme="rhlight"] {
   --sheet: oklch(calc(100% - var(--tint) * 1%) calc(var(--tint) * 0.015) var(--tint-hue));
   --backdrop: oklch(0% 0 0 / 0.5);
+  --tray: 90% 0.05;
 }
 
 [data-theme="rhdark"] {
   --sheet: oklch(17% calc(var(--tint) * 0.025) var(--tint-hue));
   --backdrop: oklch(0% 0 0 / 0.25);
+  --tray: 30% 0.045;
 }
 
 /* Into a book the reader pushes in from the right over the library, and back out the same way. */
@@ -246,6 +248,8 @@ body,
   }
 }
 
+/* WebKit takes the page's bounce from html, so a swipe on a short screen never moves the whole app. */
+html,
 body {
   overscroll-behavior-y: none;
 }

@@ -115,6 +115,10 @@ export class Series extends Schema.Class<Series>("reader-hero/domain/Series")({
   edited: Schema.optional(Schema.Boolean),
   removed: Schema.Array(Schema.String),
   hidden: Schema.optional(Schema.Boolean),
+  // An oklch hue, so a palette change in a later build still draws a stored colour.
+  color: Schema.optional(Schema.Number),
+  // A book's id, or "image" for the reader's own picture, stored as image "series:<id>/cover".
+  cover: Schema.optional(Schema.String),
 }) {}
 
 export class ReadingProgress extends Schema.Class<ReadingProgress>(

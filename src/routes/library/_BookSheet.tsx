@@ -1,11 +1,13 @@
 import { useRef, useState, type ReactElement } from "react";
 import { PencilIcon } from "@/components/icons";
 import { formatPercent } from "@/lib/format";
+import type { ReadingProgress } from "@/domain/book";
 import type { LibraryCard, Shelf } from "@/lib/shelf";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 
 export function BookSheet({
   card,
+  progress,
   groups,
   onFinished,
   onSeries,
@@ -15,8 +17,10 @@ export function BookSheet({
   onClose,
 }: {
   card: LibraryCard;
+  progress: ReadingProgress | null;
   groups: Shelf["series"];
-  onFinished: (id: string, finished: boolean) => void;
+  // `place` is the position at the sheet's opening, which Finished turned off goes back to.
+  onFinished: (id: string, finished: boolean, place: ReadingProgress | null) => void;
   // Null takes the book out of its series.
   onSeries: (id: string, seriesId: string | null) => void;
   // A null id starts a new series with this book.
@@ -33,6 +37,7 @@ export function BookSheet({
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [finished, setFinished] = useState(card.status === "finished");
+  const [place] = useState(progress);
   // A choice shows until the library reads the store again; from then the stored series shows.
   const [choice, setChoice] = useState<{
     seriesId: string | null;
@@ -45,8 +50,8 @@ export function BookSheet({
     choice !== null && choice.groups === groups ? choice.seriesId : (current?.id ?? null);
   const group = current?.id === seriesId ? current : undefined;
   const note = finished
-    ? `The saved position stays at ${formatPercent(card.percent)}. The Summary covers the whole book.`
-    : `The saved position stays at ${formatPercent(card.percent)}. The Summary stops at the furthest position.`;
+    ? "Finished puts the saved position at the end. The Summary and the series summary cover the whole book."
+    : "The Summary and the series summary stop at the furthest position.";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
@@ -62,7 +67,7 @@ export function BookSheet({
         role="dialog"
         aria-modal="true"
         aria-label="Book"
-        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:w-[28rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
+        className="relative z-10 mx-auto flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:w-[36rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
       >
         <div className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="text-xs font-medium tracking-wide uppercase opacity-60">Book</p>
@@ -73,48 +78,53 @@ export function BookSheet({
           )}
         </div>
         <div className="mt-1 divide-y divide-base-content/10 rounded-box bg-base-300">
-          <label className="flex items-center justify-between gap-3 p-4 text-base md:p-3 md:text-sm">
-            <span>Finished</span>
-            <input
-              type="checkbox"
-              className="toggle md:toggle-sm"
-              role="switch"
-              aria-label="Finished"
-              checked={finished}
-              onChange={(event) => {
-                const next = event.target.checked;
-                setFinished(next);
-                onFinished(card.book.id, next);
-              }}
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
-            <span>Series</span>
-            <select
-              className="select w-52 min-w-0 text-base md:w-48 md:text-sm md:select-sm"
-              aria-label="Series"
-              value={seriesId === null ? "none" : `id:${seriesId}`}
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === "new") {
-                  dismiss(() => onEditSeries({ id: null, name: "", books: [card] }));
-                  return;
-                }
-                const next = value === "none" ? null : value.slice(3);
-                setChoice({ seriesId: next, groups });
-                onSeries(card.book.id, next);
+          {/* A button, not a switch: it moves the saved position. The sheet stays open, so a second tap undoes it. */}
+          <div className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
+            <span>{finished ? "Finished" : `${formatPercent(place?.percent ?? 0)} read`}</span>
+            <button
+              type="button"
+              className="btn md:btn-sm"
+              onClick={() => {
+                setFinished(!finished);
+                onFinished(card.book.id, !finished, place);
               }}
             >
-              <option value="none">None</option>
-              {[...groups]
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((entry) => (
-                  <option key={entry.id} value={`id:${entry.id}`}>
-                    {entry.name}
-                  </option>
-                ))}
-              <option value="new">New series</option>
-            </select>
+              {finished ? "Mark as not finished" : "Mark as finished"}
+            </button>
+          </div>
+          <label className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
+            <span>Series</span>
+            {/* WebKit runs a select's text under its arrow, so the name shows in a box under a clear select. */}
+            <span className="select relative w-56 min-w-0 text-base md:w-80 md:text-sm md:select-sm">
+              <span className="min-w-0 truncate">
+                {groups.find((entry) => entry.id === seriesId)?.name ?? "None"}
+              </span>
+              <select
+                className="absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0"
+                aria-label="Series"
+                value={seriesId === null ? "none" : `id:${seriesId}`}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value === "new") {
+                    dismiss(() => onEditSeries({ id: null, name: "", books: [card] }));
+                    return;
+                  }
+                  const next = value === "none" ? null : value.slice(3);
+                  setChoice({ seriesId: next, groups });
+                  onSeries(card.book.id, next);
+                }}
+              >
+                <option value="none">None</option>
+                {[...groups]
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((entry) => (
+                    <option key={entry.id} value={`id:${entry.id}`}>
+                      {entry.name}
+                    </option>
+                  ))}
+                <option value="new">New series</option>
+              </select>
+            </span>
           </label>
           {group !== undefined && (
             <div className="flex items-center justify-between gap-3 py-1 pr-2 pl-4 text-base md:py-0.5 md:pl-3 md:text-sm">

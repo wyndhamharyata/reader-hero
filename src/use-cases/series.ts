@@ -12,6 +12,12 @@ export function saveSeries(edit: {
   readonly books: ReadonlyArray<string>;
   // The books the reader took out, so no source adds them again.
   readonly removed: ReadonlyArray<string>;
+  // Undefined keeps the stored colour, or the palette's turn when there is none.
+  readonly color?: number | undefined;
+  // Undefined keeps the stored cover; null goes back to the book in progress, or the first.
+  readonly cover?: string | null | undefined;
+  // The reader's own picture, for the cover "image".
+  readonly image?: Blob | undefined;
 }): Effect.Effect<void, StorageFailure, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
@@ -55,12 +61,45 @@ export function saveSeries(edit: {
     }
 
     const removed = [...new Set([...(current?.removed ?? []), ...edit.removed])];
+    const color = edit.color ?? current?.color;
+    let cover = edit.cover === undefined ? current?.cover : (edit.cover ?? undefined);
+    const image = edit.image;
+    if (cover === "image" && image !== undefined) {
+      // A small JPEG, like a book's cover, so a large photo does not fill the store.
+      const bitmap = yield* Effect.option(Effect.tryPromise(() => createImageBitmap(image)));
+      const canvas = document.createElement("canvas");
+      if (bitmap._tag === "Some") {
+        canvas.width = 400;
+        canvas.height = Math.round((400 * bitmap.value.height) / bitmap.value.width);
+        canvas.getContext("2d")?.drawImage(bitmap.value, 0, 0, canvas.width, canvas.height);
+        bitmap.value.close();
+      }
+      const blob =
+        bitmap._tag === "None"
+          ? null
+          : yield* Effect.callback<Blob | null>((resume) =>
+              canvas.toBlob((value) => resume(Effect.succeed(value)), "image/jpeg", 0.85),
+            );
+      // A picture that does not decode leaves the cover as it was.
+      if (blob === null) cover = current?.cover;
+      else {
+        yield* store.putImage(`series:${id}`, {
+          id: "cover",
+          blob,
+          width: canvas.width,
+          height: canvas.height,
+        });
+      }
+    }
     yield* store.putSeries(
       new Series({
         id,
         name: edit.name.trim(),
         books: [...books].map((bookId) => {
-          const number = current?.books.find((entry) => entry.id === bookId)?.number;
+          // A book added from Possible keeps the model's number, which places the next one.
+          const number = [...(current?.books ?? []), ...(current?.possible ?? [])].find(
+            (entry) => entry.id === bookId,
+          )?.number;
           return number === undefined ? { id: bookId } : { id: bookId, number };
         }),
         possible: (current?.possible ?? []).filter(
@@ -68,22 +107,40 @@ export function saveSeries(edit: {
         ),
         edited: true,
         removed: removed.filter((bookId) => !books.has(bookId)),
+        ...(color === undefined ? {} : { color }),
+        ...(cover === undefined ? {} : { cover }),
       }),
     );
   });
 }
 
-// The grouping goes and the books stay; no source makes this series again.
+// The grouping goes and the books stay; its books stay out of it, but a new book can start it again.
 export function hideSeries(
   id: string,
   name: string,
 ): Effect.Effect<void, StorageFailure, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
-    const current = yield* store.getSeries(id);
+    const stored = yield* store.listSeries();
+    const members =
+      buildShelf(
+        yield* store.list(),
+        new Map(),
+        "",
+        { status: null, length: null, author: null },
+        "added",
+        stored,
+      )
+        .series.find((group) => group.id === id)
+        ?.books.map((card) => card.book.id) ?? [];
+    const removed = stored.find((series) => series.id === id)?.removed ?? [];
     yield* store.putSeries(
       new Series({
-        ...(current ?? { id, name, books: [], possible: [], removed: [] }),
+        id,
+        name,
+        books: [],
+        possible: [],
+        removed: [...new Set([...removed, ...members])],
         hidden: true,
       }),
     );

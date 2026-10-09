@@ -154,6 +154,82 @@ describe("buildShelf", () => {
     expect(group.books.map((card) => card.series?.place)).toEqual([1, 2, 3]);
   });
 
+  it("given series without a colour, gives them the palette in turn, oldest first, and keeps a stored colour", () => {
+    const saga = (name: string, id: string, addedAt: number) =>
+      [1, 2].map((volume) =>
+        book(`${id}${volume}`, `${name} Vol. ${volume}`, { addedAt: addedAt + volume }),
+      );
+    const library = [
+      ...saga("Newer Saga", "n", 10),
+      ...saga("Older Saga", "o", 0),
+      ...saga("Chosen Saga", "c", 20),
+    ];
+    const chosen = seriesRecord({
+      id: "chosen saga",
+      name: "Chosen Saga",
+      edited: true,
+      books: [{ id: "c1" }, { id: "c2" }],
+      color: 300,
+    });
+    const colours = (shelfBooks: ReadonlyArray<BookMeta>) =>
+      new Map(
+        buildShelf(shelfBooks, new Map(), "", none, "title", [chosen]).series.map((group) => [
+          group.name,
+          group.color,
+        ]),
+      );
+
+    expect(colours(library)).toEqual(
+      new Map([
+        ["Newer Saga", 75],
+        ["Older Saga", 15],
+        ["Chosen Saga", 300],
+      ]),
+    );
+    expect(colours([...library, ...saga("Newest Saga", "w", 30)])).toEqual(
+      new Map([
+        ["Newer Saga", 75],
+        ["Older Saga", 15],
+        ["Chosen Saga", 300],
+        ["Newest Saga", 195],
+      ]),
+    );
+  });
+
+  it("given titles that end in a volume number, makes a series of 2 or more and keeps side series apart", () => {
+    const jobless = [1, 2, 10, 12].map((volume) =>
+      book(`j${volume}`, `Mushoku Tensei: Jobless Reincarnation Vol. ${volume}`, { addedAt: 1 }),
+    );
+    const redundant = [1, 2, 3].map((volume) =>
+      book(`r${volume}`, `Mushoku Tensei: Redundant Reincarnation Vol. ${volume}`, { addedAt: 1 }),
+    );
+    const pair = [
+      book("d1", "Dune Book 1", { addedAt: 1 }),
+      book("d2", "Dune Book 2", { addedAt: 1 }),
+    ];
+    const single = book("c", "Catch 22", { addedAt: 1 });
+    const shelf = buildShelf(
+      [...jobless, ...redundant, ...pair, single],
+      new Map(),
+      "",
+      none,
+      "title",
+    );
+
+    expect(
+      shelf.items.map((item) =>
+        item.kind === "series"
+          ? [item.name, item.books.map((card) => card.book.id)]
+          : item.card.book.id,
+      ),
+    ).toEqual([
+      "c",
+      ["Dune", ["d1", "d2"]],
+      ["Mushoku Tensei: Jobless Reincarnation", ["j1", "j2", "j10", "j12"]],
+      ["Mushoku Tensei: Redundant Reincarnation", ["r1", "r2", "r3"]],
+    ]);
+  });
+
   it("given a stored membership, uses it over the title-start fallback", () => {
     const edited = seriesRecord({
       id: "reader order",
@@ -196,20 +272,27 @@ describe("buildShelf", () => {
     expect(group.books.map((card) => card.book.id)).toEqual(["2", "3", "1"]);
   });
 
-  it("given a hidden series, suppresses the matching EPUB-derived series", () => {
-    const hidden = seriesRecord({ id: "the tide cycle", name: "The Tide Cycle", hidden: true });
-    const shelf = buildShelf(
-      [book("1", "Volume One", { series: "The Tide Cycle" })],
-      new Map(),
-      "",
-      none,
-      "added",
-      [hidden],
+  it("given a removed series, keeps its books out and lets new books start it again", () => {
+    const removed = seriesRecord({
+      id: "the tide cycle",
+      name: "The Tide Cycle",
+      removed: ["1", "2"],
+      hidden: true,
+    });
+    const tideBooks = ["1", "2", "3", "4"].map((id) =>
+      book(id, `Volume ${id}`, { series: "The Tide Cycle" }),
     );
+    const shelf = buildShelf(tideBooks, new Map(), "", none, "added", [removed]);
+    const old = buildShelf(tideBooks.slice(0, 2), new Map(), "", none, "added", [
+      seriesRecord({ id: "the tide cycle", name: "The Tide Cycle", hidden: true }),
+    ]);
 
-    expect(shelf.items).toHaveLength(1);
-    expect(shelf.items[0]?.kind).toBe("book");
-    expect(shelfCards(shelf)[0]?.series).toBeUndefined();
+    expect(
+      shelf.items.map((item) =>
+        item.kind === "series" ? item.books.map((card) => card.book.id) : item.card.book.id,
+      ),
+    ).toEqual([["3", "4"], "2", "1"]);
+    expect(old.items.map((item) => item.kind)).toEqual(["series"]);
   });
 
   it("given a removed book id, does not add it back from its EPUB fields", () => {
@@ -325,14 +408,16 @@ describe("buildShelf", () => {
     expect(card?.badge.label).toBe("Finished");
   });
 
-  it("given Finished set by hand below 98%, uses it for the badge and filter", () => {
+  it("given Finished set by hand below 98%, uses it for the badge, filter and 100%", () => {
     const reading = new Map([
       ["1", new ReadingProgress({ blockIndex: 24, percent: 0.24, updatedAt: 5, finished: true })],
     ]);
     const shelf = buildShelf(books, reading, "1", none, "added");
     const finished = buildShelf(books, reading, "", { ...none, status: "finished" }, "added");
+    const card = shelfCards(shelf).find((entry) => entry.book.id === "1");
 
-    expect(shelfCards(shelf).find((card) => card.book.id === "1")?.badge.label).toBe("Finished");
+    expect(card?.badge.label).toBe("Finished");
+    expect(card?.percent).toBe(1);
     expect(finished.items.some((item) => item.kind === "book" && item.card.book.id === "1")).toBe(
       true,
     );
@@ -359,6 +444,7 @@ describe("buildShelf", () => {
     const readingOnly = buildShelf(books, reading, "", { ...none, status: "reading" }, "added");
 
     expect(shelfCards(shelf).find((card) => card.book.id === "1")?.badge.label).toBe("Reading");
+    expect(shelfCards(shelf).find((card) => card.book.id === "1")?.percent).toBe(0.99);
     expect(finished.items.some((item) => item.kind === "book" && item.card.book.id === "1")).toBe(
       false,
     );

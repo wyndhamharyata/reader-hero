@@ -37,7 +37,9 @@ installed.
 src/
   domain/        Schema models (book, settings, ai) and tagged errors
   services/      Effect services: BookStore, PdfClient, SettingsStore, SummaryStore, AiClient,
-                 SummaryJobs (one summary fiber per book, which runs on after the reader closes)
+                 SummaryJobs (one summary fiber per book, which runs on after the reader closes,
+                 one series summary fiber per series, which holds its earlier volumes, and one
+                 rebuild of every later volume's character list, which holds those volumes)
   use-cases/     Orchestration: import, parse, inbox, the summary job and its chapter list
   lib/pdf/       The reflow pipeline: lines, columns, blocks, boilerplate, assemble
   lib/           Runtime hooks, IndexedDB, codecs, formatting, the AI transport and its
@@ -51,10 +53,23 @@ src/
 ## Invariants
 
 - **100% client-side.** The worker only serves files. No document, text, or
-  progress leaves the device. The one exception is the summary: it sends the
-  book's text, one chapter per request, straight to the provider the reader set
-  up with their own key, never through the worker. It sends only after a consent
-  sheet, and only on a tap or with Automatic summary switched on.
+  progress leaves the device. Two exceptions send text straight to the provider
+  the reader set up with their own key, never through the worker, and only after
+  a consent sheet:
+  - The summary sends the book's text, one chapter per request, only on a tap or
+    with Automatic summary switched on.
+  - Series grouping sends the title, author, file name and first 200 words of
+    each new book, only with Series grouping switched on. Each book goes once.
+    The request also lists the names and book titles of the series that exist
+    for those authors.
+  - The series summary sends the stored summaries of earlier volumes, one
+    volume per request, only on a tap of Summarise. The same tap first sends
+    the chapters of those volumes that have no summary yet, as the summary does.
+  - The character list of a later volume also sends the characters from the
+    stored summaries of earlier volumes, at most 60, with each request that
+    updates the list. It sends them only with consent to the current text.
+    Rebuild, in Settings, sends one such request per later volume, with that
+    volume's stored chapter summaries, only on a tap.
 - **Effect owns side effects.** Parsing, storage, and rendering pages return
   `Effect`s. React components render state and handle interaction; they never
   import pdf.js or IndexedDB directly. Services are reached through the runtime

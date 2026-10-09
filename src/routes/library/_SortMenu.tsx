@@ -7,7 +7,7 @@ interface Props {
   onChange: (sort: LibrarySort) => void;
 }
 
-const sorts: ReadonlyArray<readonly [LibrarySort, string]> = [
+export const sorts: ReadonlyArray<readonly [LibrarySort, string]> = [
   ["added", "Recently added"],
   ["recent", "Recently read"],
   ["title", "Title A–Z"],
@@ -16,17 +16,18 @@ const sorts: ReadonlyArray<readonly [LibrarySort, string]> = [
 export function SortMenu({ sort, onChange }: Props): ReactElement {
   const label = sorts.find(([value]) => value === sort)?.[1] ?? "Sort";
 
-  // Upward from the phone bar, downward from the header; a div trigger because Safari skips focus on a tapped button.
+  // The header's only; a phone sorts in the filter sheet. A div trigger because Safari skips focus on a
+  // tapped button.
   return (
-    <div className="dropdown dropdown-top md:dropdown-end md:dropdown-bottom">
+    <div className="dropdown dropdown-end dropdown-bottom">
       <div
         tabIndex={0}
         role="button"
-        className="btn max-lg:btn-square md:btn-sm"
+        className="btn btn-sm max-lg:btn-square"
         aria-label={`Sort: ${label}`}
         title={`Sort: ${label}`}
       >
-        <ArrowsUpDownIcon className="size-6 md:size-4" />
+        <ArrowsUpDownIcon className="size-4" />
         <span className="hidden lg:inline">{label}</span>
       </div>
       <ul

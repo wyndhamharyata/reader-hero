@@ -16,6 +16,7 @@ export type Filters = Readonly<Record<FilterGroup, string | null>>;
 
 export interface LibraryCard {
   readonly book: BookMeta;
+  // 100% once the book is finished, also for a book finished by the 98% rule or with no parsed text.
   readonly percent: number;
   readonly status: keyof typeof readingBadge;
   readonly badge: { readonly label: string; readonly className: string };
@@ -43,7 +44,9 @@ export interface Shelf {
     readonly count: number;
     readonly finishedCount: number;
     readonly status: LibraryCard["status"];
-    readonly badge: { readonly label: string; readonly className: string };
+    // The oklch hue of its tray.
+    readonly color: number;
+    readonly cover?: string | undefined;
   }>;
   readonly cards: ReadonlyMap<string, LibraryCard>;
   readonly matching: number;
@@ -58,6 +61,16 @@ export interface Shelf {
     }>;
   }>;
 }
+
+// Light in the light theme and dark in the dark one (the --tray token), so the text on a tray stays legible.
+export const seriesColors = [
+  { name: "Rose", hue: 15 },
+  { name: "Amber", hue: 75 },
+  { name: "Green", hue: 145 },
+  { name: "Teal", hue: 195 },
+  { name: "Blue", hue: 250 },
+  { name: "Violet", hue: 300 },
+] as const;
 
 // A series derived from a name has this id, so the reader's edit of it stores a record with the same id.
 export function seriesKey(name: string): string {
@@ -88,17 +101,32 @@ export function buildShelf(
     return terms.every((term) => haystack.includes(term));
   });
 
-  // Volumes of one series open with the same words; more than 3 books sharing three words is a series.
+  // A title that ends in a volume number ("Vol. 3", "#4") leads with the words before it, and 2 such
+  // books are a series; else more than 3 books that open with the same three words are.
+  const marked = new Set<string>();
   const leads = new Map(
-    books.map((book) => [
-      book.id,
-      book.title
+    books.map((book) => {
+      const words = book.title
         .toLowerCase()
         .split(" ")
-        .filter((word) => word !== "")
-        .slice(0, 3)
-        .join(" "),
-    ]),
+        .filter((word) => word !== "");
+      const last = words[words.length - 1] ?? "";
+      const number = last.startsWith("#") ? last.slice(1) : last;
+      const marker =
+        number === "" || !Number.isFinite(Number(number))
+          ? 0
+          : last.startsWith("#")
+            ? 1
+            : ["vol", "vol.", "volume", "v.", "book", "part", "no.", "#"].includes(
+                  words[words.length - 2] ?? "",
+                )
+              ? 2
+              : 0;
+      if (marker === 0 || words.length <= marker) return [book.id, words.slice(0, 3).join(" ")];
+      const lead = words.slice(0, -marker).join(" ");
+      marked.add(lead);
+      return [book.id, lead];
+    }),
   );
   const leadCounts = new Map<string, number>();
   for (const lead of leads.values()) leadCounts.set(lead, (leadCounts.get(lead) ?? 0) + 1);
@@ -106,7 +134,7 @@ export function buildShelf(
   const titleStarts = new Map<string, string>();
   for (const book of books) {
     const lead = leads.get(book.id) ?? "";
-    if (lead === "" || (leadCounts.get(lead) ?? 0) <= 3) continue;
+    if (lead === "" || (leadCounts.get(lead) ?? 0) < (marked.has(lead) ? 2 : 4)) continue;
     const start = titleStarts.get(lead) ?? book.title;
     let end = 0;
     while (end < start.length && start[end] === book.title[end]) end += 1;
@@ -131,9 +159,6 @@ export function buildShelf(
     titleNames.set(lead, name || lead);
   }
 
-  const hiddenSeries = new Set(
-    storedSeries.filter((series) => series.hidden === true).map((series) => seriesKey(series.id)),
-  );
   const removedBySeries = new Map<string, Set<string>>();
   for (const series of storedSeries) {
     const id = seriesKey(series.id);
@@ -145,7 +170,14 @@ export function buildShelf(
   const booksById = new Map(books.map((book) => [book.id, book]));
   const seriesGroups = new Map<
     string,
-    { id: string; name: string; bookIds: Array<string>; storedCount: number }
+    {
+      id: string;
+      name: string;
+      bookIds: Array<string>;
+      storedCount: number;
+      color?: number;
+      cover?: string;
+    }
   >();
   const groupedBooks = new Set<string>();
   const storedNumberByBook = new Map<string, number>();
@@ -161,6 +193,8 @@ export function buildShelf(
       name: series.name,
       bookIds: [],
       storedCount: 0,
+      color: series.color,
+      cover: series.cover,
     };
     for (const entry of series.books) {
       if (
@@ -185,8 +219,7 @@ export function buildShelf(
     if (groupedBooks.has(book.id)) continue;
     const epubName = book.series?.trim() || undefined;
     const lead = leads.get(book.id) ?? "";
-    const titleName =
-      lead !== "" && (leadCounts.get(lead) ?? 0) > 3 ? titleNames.get(lead) : undefined;
+    const titleName = titleNames.get(lead);
     const candidates = [
       ...(epubName === undefined
         ? []
@@ -196,10 +229,7 @@ export function buildShelf(
         : [{ id: seriesKey(titleName), name: titleName, number: undefined }]),
     ];
     const candidate = candidates.find(
-      (entry) =>
-        entry.id !== "" &&
-        !hiddenSeries.has(entry.id) &&
-        !removedBySeries.get(entry.id)?.has(book.id),
+      (entry) => entry.id !== "" && !removedBySeries.get(entry.id)?.has(book.id),
     );
     if (candidate === undefined) continue;
     const group = seriesGroups.get(candidate.id) ?? {
@@ -219,7 +249,7 @@ export function buildShelf(
   for (const [id, group] of seriesGroups) {
     for (const bookId of group.bookIds) {
       const lead = leads.get(bookId) ?? "";
-      const titleName = (leadCounts.get(lead) ?? 0) > 3 ? titleNames.get(lead) : undefined;
+      const titleName = titleNames.get(lead);
       if (titleName !== undefined && seriesKey(titleName) === id) titleClip.add(bookId);
     }
   }
@@ -311,7 +341,7 @@ export function buildShelf(
     const series = seriesForBook.get(book.id);
     cardsById.set(book.id, {
       book,
-      percent: percentOf(book),
+      percent: status === "finished" ? 1 : percentOf(book),
       status,
       badge: ready ? readingBadge[status] : parseStateBadge[book.parseState],
       clipStart: series?.clipStart ?? false,
@@ -329,7 +359,7 @@ export function buildShelf(
     });
   }
 
-  const allSeries = [...seriesGroups.values()].flatMap((group) => {
+  const grouped = [...seriesGroups.values()].flatMap((group) => {
     const cards = group.bookIds.flatMap((id) => {
       const card = cardsById.get(id);
       return card === undefined ? [] : [card];
@@ -352,10 +382,28 @@ export function buildShelf(
         count: cards.length,
         finishedCount,
         status,
-        badge: readingBadge[status],
+        chosenColor: group.color,
+        cover: group.cover,
       },
     ];
   });
+  // The palette goes round the series, oldest book first, so newer books that start a series leave
+  // each older series its colour.
+  const turns = grouped
+    .filter((group) => group.count >= 2)
+    .map((group) => ({
+      id: group.id,
+      added: Math.min(...group.books.map((card) => card.book.addedAt)),
+    }))
+    .sort((a, b) => a.added - b.added || a.id.localeCompare(b.id))
+    .map((group) => group.id);
+  const allSeries = grouped.map(({ chosenColor, ...group }) => ({
+    ...group,
+    color:
+      chosenColor ??
+      seriesColors[Math.max(0, turns.indexOf(group.id)) % seriesColors.length]?.hue ??
+      250,
+  }));
   const seriesItems = allSeries.filter((item) => item.count >= 2);
   const singleItems = books
     .filter((book) => (seriesForBook.get(book.id)?.count ?? 0) < 2)

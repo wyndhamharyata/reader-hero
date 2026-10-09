@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { AiSettings, Summary } from "@/domain/ai";
+import type { AiSettings, GroupedBooks, Summary } from "@/domain/ai";
 import type {
   BookMeta,
   BookPrefs,
@@ -24,7 +24,7 @@ export interface ReaderDb extends DBSchema {
   files: { key: string; value: Blob };
   parsed: { key: string; value: ParsedBook };
   progress: { key: string; value: ReadingProgress };
-  settings: { key: string; value: ReaderSettings | AiSettings };
+  settings: { key: string; value: ReaderSettings | AiSettings | GroupedBooks };
   inbox: { key: number; value: InboxFile };
   images: { key: string; value: ImageRecord };
   prefs: { key: string; value: BookPrefs };

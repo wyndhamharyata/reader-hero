@@ -1,8 +1,8 @@
 import { Context, Effect, Layer, Stream, SubscriptionRef } from "effect";
-import type { AiSettings } from "@/domain/ai";
+import { GroupedBooks, type AiSettings } from "@/domain/ai";
 import { DEFAULT_SETTINGS, ReaderSettings } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
-import { decodeAiSettings, decodeReaderSettings } from "@/lib/codecs";
+import { decodeAiSettings, decodeGroupedBooks, decodeReaderSettings } from "@/lib/codecs";
 import { AI_SETTINGS_KEY, openReaderDb, SETTINGS_KEY } from "@/lib/db";
 
 const storageFailure = (operation: string) => (cause: unknown) =>
@@ -15,6 +15,8 @@ export class SettingsStore extends Context.Service<
     update(patch: Partial<ReaderSettings>): Effect.Effect<void, StorageFailure>;
     aiChanges(): Stream.Stream<AiSettings | null>;
     putAi(next: AiSettings | null): Effect.Effect<void, StorageFailure>;
+    groupedBooks(): Effect.Effect<ReadonlyArray<string>, StorageFailure>;
+    putGroupedBooks(ids: ReadonlyArray<string>): Effect.Effect<void, StorageFailure>;
   }
 >()("reader-hero/SettingsStore") {
   static readonly layer = Layer.effect(
@@ -85,7 +87,36 @@ export class SettingsStore extends Context.Service<
         });
       });
 
-      return SettingsStore.of({ changes, update, aiChanges, putAi });
+      // A record that no longer decodes counts as none sent, so grouping sends those books again.
+      const groupedBooks = Effect.fn("SettingsStore.groupedBooks")(function* () {
+        const row = yield* Effect.tryPromise({
+          try: () => db.get("settings", "grouped"),
+          catch: storageFailure("getGroupedBooks"),
+        });
+        if (row === undefined) return [];
+        const decoded = yield* decodeGroupedBooks(row).pipe(
+          Effect.catch(() => Effect.succeed(null)),
+        );
+        return decoded?.ids ?? [];
+      });
+
+      const putGroupedBooks = Effect.fn("SettingsStore.putGroupedBooks")(function* (
+        ids: ReadonlyArray<string>,
+      ) {
+        yield* Effect.tryPromise({
+          try: () => db.put("settings", new GroupedBooks({ ids }), "grouped"),
+          catch: storageFailure("putGroupedBooks"),
+        });
+      });
+
+      return SettingsStore.of({
+        changes,
+        update,
+        aiChanges,
+        putAi,
+        groupedBooks,
+        putGroupedBooks,
+      });
     }),
   );
 }

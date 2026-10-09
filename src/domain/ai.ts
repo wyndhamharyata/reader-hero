@@ -27,9 +27,20 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   model: Schema.String,
   effort: Schema.optional(Schema.String),
   consentedAt: Schema.optional(Schema.Int),
+  // The consent text that was allowed; unset is the text from before Series grouping.
+  consentVersion: Schema.optional(Schema.Int),
   // Records saved before these fields existed decode with their defaults.
   linesInContents: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
   autoSummary: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
+  seriesGrouping: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
+}) {}
+
+// The consent text's version; a reader who allowed an older text sees the note again.
+export const CONSENT_VERSION = 2;
+
+// The books that Series grouping sent, so each goes once; Remove key keeps this record.
+export class GroupedBooks extends Schema.Class<GroupedBooks>("reader-hero/domain/GroupedBooks")({
+  ids: Schema.Array(Schema.String),
 }) {}
 
 export const AiMessage = Schema.Struct({
@@ -69,5 +80,15 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
   // The chapter that held the position, up to the block before `end`; stale once the position moves.
   current: Schema.optional(
     Schema.Struct({ heading: Schema.String, end: Schema.Int, text: Schema.String }),
+  ),
+  // The book's paragraph for a series summary, from `chapters` summaries and the current text up to `current`.
+  volume: Schema.optional(
+    Schema.Struct({
+      text: Schema.String,
+      chapters: Schema.Int,
+      current: Schema.optional(Schema.Int),
+      model: Schema.String,
+      updatedAt: Schema.Int,
+    }),
   ),
 }) {}

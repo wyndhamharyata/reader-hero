@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect";
+import { Effect, Option, Schema, Stream } from "effect";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -11,7 +11,7 @@ import {
   useSettings,
   useSummary,
 } from "@/lib/hooks";
-import { AiSettings } from "@/domain/ai";
+import { AiSettings, CONSENT_VERSION } from "@/domain/ai";
 import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
@@ -21,6 +21,7 @@ import { slideTo } from "@/lib/slide-to";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
+import { SummaryJobs, type JobState } from "@/services/summary-jobs";
 import { chapters } from "@/use-cases/ai-context";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
@@ -119,6 +120,20 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     [bookId, loaded],
   );
   const series = seriesState.status === "done" ? seriesState.value : null;
+  const seriesId = series?.id ?? null;
+  // The series summary's run, kept here so the menu shows Stop while the sheet is closed.
+  const [seriesJob, setSeriesJob] = useState<JobState>({ run: null, error: null });
+  useEffect(() => {
+    if (seriesId === null) return;
+    const fiber = forkApp(
+      Effect.flatMap(SummaryJobs, (jobs) =>
+        jobs
+          .state(`series:${seriesId}`)
+          .pipe(Stream.runForEach((next) => Effect.sync(() => setSeriesJob(next)))),
+      ),
+    );
+    return () => stopFiber(fiber);
+  }, [seriesId]);
   // The saved place until a view reports one, so the original view opens at the saved page.
   const position = reported ?? data?.progress?.blockIndex ?? 0;
   useEffect(() => {
@@ -507,10 +522,14 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             ? null
             : `${series.name} · ${series.books.findIndex((card) => card.book.id === bookId) + 1} of ${series.count}`
         }
+        seriesRunning={seriesJob.run !== null}
         onSeries={() => {
           // The badges follow the reading done since the book opened.
           reloadSeries();
           setSeriesOpen(true);
+        }}
+        onStopSeries={() => {
+          forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(`series:${seriesId}`)));
         }}
         lines={lines}
         onSelect={selectToc}
@@ -541,14 +560,38 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           onAddName={addName}
           onEditName={editName}
           onConsent={() => {
-            if (ai !== null) putAi(new AiSettings({ ...ai, consentedAt: Date.now() }));
+            if (ai === null) return;
+            putAi(
+              new AiSettings({ ...ai, consentedAt: Date.now(), consentVersion: CONSENT_VERSION }),
+            );
           }}
           onClose={() => setSummarySheet(null)}
         />
       )}
 
       {seriesOpen && series !== null && (
-        <SeriesSheet series={series} bookId={bookId} onClose={() => setSeriesOpen(false)} />
+        <SeriesSheet
+          series={series}
+          bookId={bookId}
+          settings={ai}
+          reading={bookSettings}
+          state={seriesJob}
+          onStart={() => {
+            if (ai !== null) {
+              forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.startSeries(series, bookId, ai)));
+            }
+          }}
+          onStop={() => {
+            forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(`series:${series.id}`)));
+          }}
+          onConsent={() => {
+            if (ai === null) return;
+            putAi(
+              new AiSettings({ ...ai, consentedAt: Date.now(), consentVersion: CONSENT_VERSION }),
+            );
+          }}
+          onClose={() => setSeriesOpen(false)}
+        />
       )}
     </div>
   );

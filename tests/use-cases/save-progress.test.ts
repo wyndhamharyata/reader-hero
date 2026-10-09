@@ -1,10 +1,11 @@
 import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { ReadingProgress } from "@/domain/book";
+import { Block, PARSED_VERSION, ParsedBook, ReadingProgress } from "@/domain/book";
+import { ParsedMissing } from "@/domain/errors";
 import { BookStore } from "@/services/book-store";
 import { saveReadingProgress, setBookFinished } from "@/use-cases/save-progress";
 
-function harness(initial: ReadingProgress | null) {
+function harness(initial: ReadingProgress | null, blocks = 0) {
   const state = { progress: initial };
   const layer = Layer.succeed(
     BookStore,
@@ -19,7 +20,22 @@ function harness(initial: ReadingProgress | null) {
       putFile: () => Effect.die("not used"),
       getFile: () => Effect.die("not used"),
       putParsed: () => Effect.die("not used"),
-      getParsed: () => Effect.die("not used"),
+      getParsed: (id) =>
+        blocks === 0
+          ? Effect.fail(new ParsedMissing({ id }))
+          : Effect.succeed(
+              new ParsedBook({
+                version: PARSED_VERSION,
+                pageCount: 1,
+                charCount: 1,
+                blocks: Array.from(
+                  { length: blocks },
+                  (_, at) => new Block({ kind: "paragraph", level: 0, text: `b${at}`, page: 1 }),
+                ),
+                toc: [],
+                figuresThrough: 0,
+              }),
+            ),
       putImage: () => Effect.die("not used"),
       updates: () => Stream.empty,
       getImage: () => Effect.die("not used"),
@@ -87,32 +103,46 @@ describe("saveReadingProgress", () => {
 });
 
 describe("setBookFinished", () => {
-  it("given a saved position, changes Finished without moving any position fields", async () => {
-    const { layer, state } = harness(
-      new ReadingProgress({
-        blockIndex: 24,
-        percent: 0.24,
-        updatedAt: 5,
-        furthest: 30,
-        finished: false,
-      }),
-    );
+  const place = new ReadingProgress({
+    blockIndex: 24,
+    percent: 0.24,
+    updatedAt: 5,
+    furthest: 30,
+  });
 
-    await Effect.runPromise(setBookFinished("b1", true).pipe(Effect.provide(layer)));
+  it("given a parsed book, puts the position at the end and keeps the time", async () => {
+    const { layer, state } = harness(place, 101);
+
+    await Effect.runPromise(setBookFinished("b1", true, place).pipe(Effect.provide(layer)));
+
+    expect(state.progress).toMatchObject({
+      blockIndex: 100,
+      percent: 1,
+      updatedAt: 5,
+      furthest: 100,
+      finished: true,
+    });
+  });
+
+  it("given Finished turned off, goes back to the place the sheet opened at", async () => {
+    const { layer, state } = harness(place, 101);
+
+    await Effect.runPromise(setBookFinished("b1", true, place).pipe(Effect.provide(layer)));
+    await Effect.runPromise(setBookFinished("b1", false, place).pipe(Effect.provide(layer)));
 
     expect(state.progress).toMatchObject({
       blockIndex: 24,
       percent: 0.24,
       updatedAt: 5,
       furthest: 30,
-      finished: true,
+      finished: false,
     });
   });
 
-  it("given no saved position, stores Finished without moving the book", async () => {
+  it("given no parsed text, stores Finished without moving the book", async () => {
     const { layer, state } = harness(null);
 
-    await Effect.runPromise(setBookFinished("b1", true).pipe(Effect.provide(layer)));
+    await Effect.runPromise(setBookFinished("b1", true, null).pipe(Effect.provide(layer)));
 
     expect(state.progress).toMatchObject({
       blockIndex: 0,
