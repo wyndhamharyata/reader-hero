@@ -90,7 +90,7 @@ const stored = (fields: Partial<Summary> = {}): Summary =>
   });
 
 interface Harness {
-  readonly calls: Array<{ kind: string; user: string; json: boolean }>;
+  readonly calls: Array<{ kind: string; system: string; user: string; json: boolean }>;
   readonly puts: Array<Summary>;
   readonly layer: Layer.Layer<AiClient | SummaryStore>;
 }
@@ -117,7 +117,7 @@ function harness(
           : system.startsWith("You summarise the part")
             ? "current"
             : "names";
-        calls.push({ kind, user, json: request?.json === true });
+        calls.push({ kind, system, user, json: request?.json === true });
         if (options.during !== undefined) current = options.during(kind, current);
         const count = calls.length;
         const reply =
@@ -210,6 +210,13 @@ describe("coverage", () => {
   it("given a reference document, covers every section and reads none to here", () => {
     expect(coverage(list, novel, "reference", 3)).toEqual({ target: 3, current: null });
   });
+
+  it("given the end of a Finished book, covers every chapter", () => {
+    expect(coverage(list, novel, "story", novel.blocks.length)).toEqual({
+      target: list.length,
+      current: null,
+    });
+  });
 });
 
 describe("summariseNext", () => {
@@ -270,6 +277,24 @@ describe("summariseNext", () => {
     expect(calls.map((call) => call.kind)).toEqual(["names"]);
     expect(calls[0]?.user).toContain("Entries the reader asked for: Ben Gunn");
     expect(calls[0]?.user).toContain("New chapters:\n\nReturn the merged list.");
+  });
+
+  it("given names after the boundary, does not send or remove them during an update", async () => {
+    const later = { name: "Silver", note: "Appears later.", chapter: 2 };
+    const summary = stored({
+      names: [{ name: "Jim", note: "The narrator.", chapter: 1 }, later],
+      namesThrough: 2,
+      required: ["Ben Gunn"],
+    });
+    const { calls, layer } = harness(summary);
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 4 };
+
+    const result = await Effect.runPromise(
+      summariseNext(input, settings, () => Effect.void).pipe(Effect.provide(layer)),
+    );
+
+    expect(calls[0]?.user).not.toContain("Silver");
+    expect(result.names).toContainEqual(later);
   });
 
   it("given edited and removed entries, the merge keeps the edits and leaves the removed out", async () => {
@@ -400,6 +425,27 @@ describe("summaryFollowUp", () => {
     expect(result).toBeNull();
     expect(puts).toHaveLength(0);
   });
+
+  it("given a boundary before stored summaries, sends only chapters inside it", async () => {
+    const summary = stored({
+      names: [
+        { name: "Jim", note: "The narrator.", chapter: 1 },
+        { name: "Ben", note: "Appears later.", chapter: 2 },
+      ],
+    });
+    const { calls, layer } = harness(summary);
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 4 };
+
+    await Effect.runPromise(
+      summaryFollowUp(input, settings, summary, "Who is Jim?", () => undefined).pipe(
+        Effect.provide(layer),
+      ),
+    );
+
+    expect(calls[0]?.system).toContain("Chapter 1\nFirst.");
+    expect(calls[0]?.system).not.toContain("Chapter 2\nSecond.");
+    expect(calls[0]?.system).not.toContain("Ben: Appears later.");
+  });
 });
 
 describe("describeSummary", () => {
@@ -415,6 +461,13 @@ describe("describeSummary", () => {
   const chapter8 = { heading: "Chapter 8", page: 1, start: 0, end: 0 };
   const plain: Coverage = { target: 7, current: null };
   const reading: Coverage = { target: 7, current: { chapter: chapter8, end: 50, text: "" } };
+
+  it("given a boundary before stored summaries, counts only chapters inside it", () => {
+    expect(describeSummary(five, { target: 1, current: null }, null, "story")).toEqual({
+      row: "1 chapter",
+      action: null,
+    });
+  });
 
   it("given each coverage, names the row and the one action", () => {
     expect(describeSummary(null, plain, null, "story")).toEqual({

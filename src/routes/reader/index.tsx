@@ -24,11 +24,13 @@ import { PageRenderer } from "@/services/page-renderer";
 import { chapters } from "@/use-cases/ai-context";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
+import { findBookSeries } from "@/use-cases/series";
 import { coverage, describeSummary, type SummaryInput } from "@/use-cases/summary";
 import { MenuSheet } from "./_MenuSheet";
 import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
+import { SeriesSheet } from "./_SeriesSheet";
 import { SummarySheet } from "./_SummarySheet";
 import type { JumpRequest } from "./_ReaderView";
 
@@ -80,6 +82,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     editName,
   } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
+  const [seriesOpen, setSeriesOpen] = useState(false);
 
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
@@ -106,6 +109,16 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   }, [bookId, reload]);
 
   const data = state.status === "done" ? state.value : null;
+  // After the book shows, so the lookup does not slow its open.
+  const loaded = data !== null;
+  const { state: seriesState, reload: reloadSeries } = useAppEffect(
+    Effect.gen(function* () {
+      if (!loaded) return null;
+      return yield* findBookSeries(bookId);
+    }),
+    [bookId, loaded],
+  );
+  const series = seriesState.status === "done" ? seriesState.value : null;
   // The saved place until a view reports one, so the original view opens at the saved page.
   const position = reported ?? data?.progress?.blockIndex ?? 0;
   useEffect(() => {
@@ -141,7 +154,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   );
   // Off while a sheet is open, as each sheet takes its own Escape; moves are smooth so the eye can follow.
   useEffect(() => {
-    if (tocOpen || summarySheet !== null) return;
+    if (tocOpen || summarySheet !== null || seriesOpen) return;
     const line = bookSettings.fontSize * bookSettings.lineHeight;
     const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
@@ -250,7 +263,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       document.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", stop);
     };
-  }, [tocOpen, summarySheet, navigate, bookSettings.fontSize, bookSettings.lineHeight]);
+  }, [tocOpen, summarySheet, seriesOpen, navigate, bookSettings.fontSize, bookSettings.lineHeight]);
 
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
@@ -265,7 +278,9 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const epub = data?.meta.format === "epub";
 
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
-  const summaryIndex = Math.max(position, furthest);
+  const readingIndex = Math.max(position, furthest);
+  const finished = data?.progress?.finished ?? (data?.progress?.percent ?? 0) >= 0.98;
+  const summaryIndex = data !== null && finished ? data.parsed.blocks.length : readingIndex;
   const cover = useMemo(
     () =>
       data === null
@@ -273,16 +288,28 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         : coverage(chapterList, data.parsed, kind, summaryIndex),
     [data, chapterList, kind, summaryIndex],
   );
+  const readingCover = useMemo(
+    () =>
+      data === null
+        ? { target: 0, current: null }
+        : coverage(chapterList, data.parsed, kind, readingIndex),
+    [data, chapterList, kind, readingIndex],
+  );
   const summaryInput = useMemo<SummaryInput | null>(
     () =>
       data === null ? null : { meta: data.meta, parsed: data.parsed, kind, index: summaryIndex },
     [data, kind, summaryIndex],
+  );
+  const autoSummaryInput = useMemo<SummaryInput | null>(
+    () => (summaryInput === null ? null : { ...summaryInput, index: readingIndex }),
+    [summaryInput, readingIndex],
   );
   const summaryText = describeSummary(summary, cover, run, kind);
   const lines = useMemo(() => {
     const map = new Map<number, string>();
     if (ai === null || !ai.linesInContents || summary === null) return map;
     chapterList.forEach((chapter, index) => {
+      if (index >= cover.target) return;
       const stored = summary.chapters[index];
       // A re-parse can change the chapters; a line shows only under the heading it was made for.
       if (stored !== undefined && stored.heading === chapter.heading) {
@@ -290,21 +317,26 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       }
     });
     return map;
-  }, [ai, summary, chapterList]);
+  }, [ai, summary, chapterList, cover.target]);
 
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
   useEffect(() => {
-    if (ai === null || !ai.autoSummary || ai.consentedAt === undefined || summaryInput === null) {
+    if (
+      ai === null ||
+      !ai.autoSummary ||
+      ai.consentedAt === undefined ||
+      autoSummaryInput === null
+    ) {
       return;
     }
     // An error waits for a tap in the sheet, so a failing provider is not asked again and again.
     if (run !== null || summaryError !== null || !navigator.onLine) return;
-    if (cover.target <= autoTarget.current) return;
-    autoTarget.current = cover.target;
-    if ((summary?.chapters.length ?? 0) >= cover.target) return;
-    start(summaryInput, ai);
-  }, [ai, summaryInput, run, summaryError, summary, cover.target, start]);
+    if (readingCover.target <= autoTarget.current) return;
+    autoTarget.current = readingCover.target;
+    if ((summary?.chapters.length ?? 0) >= readingCover.target) return;
+    start(autoSummaryInput, ai);
+  }, [ai, autoSummaryInput, run, summaryError, summary, readingCover.target, start]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts now.
   useEffect(() => {
@@ -470,6 +502,16 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         summaryRunning={run !== null}
         onSummary={() => setSummarySheet({ openAt: null })}
         onStopSummary={stop}
+        series={
+          series === null
+            ? null
+            : `${series.name} · ${series.books.findIndex((card) => card.book.id === bookId) + 1} of ${series.count}`
+        }
+        onSeries={() => {
+          // The badges follow the reading done since the book opened.
+          reloadSeries();
+          setSeriesOpen(true);
+        }}
         lines={lines}
         onSelect={selectToc}
         onLine={(blockIndex) => {
@@ -503,6 +545,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           }}
           onClose={() => setSummarySheet(null)}
         />
+      )}
+
+      {seriesOpen && series !== null && (
+        <SeriesSheet series={series} bookId={bookId} onClose={() => setSeriesOpen(false)} />
       )}
     </div>
   );

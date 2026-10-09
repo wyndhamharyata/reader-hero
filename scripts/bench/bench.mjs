@@ -404,6 +404,176 @@ async function run(layoutName, layout) {
       "s; long frames",
       originalScroll.frames.over34,
     );
+
+    if (layoutName === "mobile") {
+      await page.goto(base);
+      await page.waitForFunction(libraryReady);
+      await page.evaluate(async () => {
+        const db = await new Promise((resolve, reject) => {
+          const request = indexedDB.open("reader-hero");
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+        const tx = db.transaction(["books", "progress", "images", "series"], "readwrite");
+        const done = new Promise((resolve, reject) => {
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+        const books = tx.objectStore("books");
+        const progress = tx.objectStore("progress");
+        const images = tx.objectStore("images");
+        const series = tx.objectStore("series");
+        books.clear();
+        progress.clear();
+        images.clear();
+        series.clear();
+        const cover = new Blob(
+          [
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 3"><rect width="2" height="3" fill="#456"/></svg>',
+          ],
+          { type: "image/svg+xml" },
+        );
+        const now = Date.now();
+        for (let seriesIndex = 0; seriesIndex < 10; seriesIndex += 1) {
+          const name = `Bench Series ${String(seriesIndex + 1).padStart(2, "0")}`;
+          const id = name.toLowerCase();
+          const members = [];
+          for (let volume = 0; volume < 20; volume += 1) {
+            const bookId = `bench-${seriesIndex}-${volume}`;
+            members.push({ id: bookId, number: volume + 1 });
+            books.put({
+              id: bookId,
+              title: `${name} Volume ${String(volume + 1).padStart(2, "0")}`,
+              author: "Benchmark Author",
+              series: name,
+              seriesNumber: volume + 1,
+              format: "epub",
+              addedAt: now + seriesIndex * 20 + volume,
+              fileSize: 4096,
+              pageCount: 200,
+              parseState: "ready",
+              charCount: 20000,
+              figures: "ready",
+            });
+            images.put({ blob: cover, width: 400, height: 600 }, `${bookId}/cover`);
+            if (volume === 9) {
+              progress.put({ blockIndex: 50, percent: 0.25, updatedAt: now + seriesIndex }, bookId);
+            }
+          }
+          series.put({ id, name, books: members, possible: [], edited: true, removed: [] });
+        }
+        await done;
+        db.close();
+      });
+      await page.reload();
+      await page.waitForFunction(libraryReady);
+      await page.waitForFunction(() => document.querySelectorAll("[data-series-root]").length > 0);
+      await page.waitForTimeout(1000);
+      result.series = { books: 200, series: 10, cycles: 10, runs: [] };
+
+      for (const view of ["list", "grid"]) {
+        const viewLabel = view === "list" ? "List view" : "Grid view";
+        await page.getByRole("button", { name: viewLabel }).click();
+        await page.waitForFunction(
+          (label) =>
+            [...document.querySelectorAll("button[aria-label]")].some(
+              (button) =>
+                button.getAttribute("aria-label") === label &&
+                button.getAttribute("aria-pressed") === "true",
+            ),
+          viewLabel,
+        );
+
+        for (const position of ["top", "middle"]) {
+          await page.evaluate((where) => {
+            const scroll = document.querySelector("[data-library-scroll]");
+            if (scroll === null) throw new Error("library scroll not found");
+            scroll.scrollTop =
+              where === "top" ? 0 : (scroll.scrollHeight - scroll.clientHeight) / 2;
+          }, position);
+          await page.evaluate(
+            () =>
+              new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+          );
+          const cpu = cpuSeconds();
+          const frames = await page.evaluate(
+            async ({ where, viewMode }) => {
+              const scroll = document.querySelector("[data-library-scroll]");
+              if (scroll === null) throw new Error("library scroll not found");
+              const bounds = scroll.getBoundingClientRect();
+              const visible = [...document.querySelectorAll("[data-series-root]")].filter(
+                (root) => {
+                  const rect = root.getBoundingClientRect();
+                  return rect.bottom > bounds.top && rect.top < bounds.bottom;
+                },
+              );
+              const middleCandidates = visible.filter((root) => {
+                const rect = root.getBoundingClientRect();
+                const column = root.parentElement
+                  ? [...root.parentElement.children].indexOf(root)
+                  : -1;
+                return (
+                  rect.bottom <= bounds.bottom &&
+                  rect.top <= bounds.top + bounds.height * 0.3 &&
+                  (viewMode !== "grid" || column === 0)
+                );
+              });
+              const root =
+                where === "top"
+                  ? visible[0]
+                  : (middleCandidates[0] ?? visible[Math.floor(visible.length / 2)]);
+              const seriesId = root?.getAttribute("data-series-root");
+              if (seriesId === null || seriesId === undefined) {
+                throw new Error(`no visible series at ${where}`);
+              }
+              const findRoot = () =>
+                [...document.querySelectorAll("[data-series-root]")].find(
+                  (candidate) => candidate.getAttribute("data-series-root") === seriesId,
+                );
+              const waitFor = async (expanded) => {
+                const deadline = performance.now() + 10000;
+                while (performance.now() < deadline) {
+                  const toggle = findRoot()?.querySelector("[data-series-toggle]");
+                  const transitioning =
+                    document
+                      .querySelector("main[data-series-transitioning]")
+                      ?.getAttribute("data-series-transitioning") === "true";
+                  if (
+                    toggle?.getAttribute("aria-expanded") === String(expanded) &&
+                    !transitioning
+                  ) {
+                    return;
+                  }
+                  await new Promise((resolve) => requestAnimationFrame(resolve));
+                }
+                throw new Error("series motion timed out");
+              };
+
+              window.__startSampler();
+              for (let cycle = 0; cycle < 10; cycle += 1) {
+                const toggle = findRoot()?.querySelector("[data-series-toggle]");
+                if (toggle === null || toggle === undefined)
+                  throw new Error("series toggle missing");
+                toggle.click();
+                await waitFor(true);
+                const expanded = findRoot()?.querySelector("[data-series-toggle]");
+                if (expanded === null || expanded === undefined) {
+                  throw new Error("expanded series toggle missing");
+                }
+                expanded.click();
+                await waitFor(false);
+              }
+              return window.__stopSampler();
+            },
+            { where: position, viewMode: view },
+          );
+          const cpuS = Math.round((cpuSeconds() - cpu) * 100) / 100;
+          result.series.runs.push({ view, position, cpuS, frames });
+          log("series", view, position, "CPU", cpuS, "s; frames", JSON.stringify(frames));
+        }
+      }
+    }
   } catch (error) {
     result.error = String(error).slice(0, 300);
     log("failed:", result.error);

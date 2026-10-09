@@ -75,6 +75,28 @@ describe("parseEpub", () => {
     expect(result.title).toBe("The Book");
     expect(result.author).toBe("Ann Author");
     expect(result.subject).toBe("fantasy, light novel");
+    expect(result.series).toBeUndefined();
+    expect(result.seriesNumber).toBeUndefined();
+  });
+
+  it("given Calibre series metadata, reads its name and numeric place", () => {
+    const files = book({
+      "OEBPS/content.opf": opf(
+        '<meta name="calibre:series" content="The Tide Cycle"/><meta name="calibre:series_index" content="2.5"/>',
+      ),
+    });
+
+    expect(run(files)).toMatchObject({ series: "The Tide Cycle", seriesNumber: 2.5 });
+  });
+
+  it("given EPUB 3 collection metadata, reads its group position", () => {
+    const files = book({
+      "OEBPS/content.opf": opf(
+        '<meta id="cycle" property="belongs-to-collection">The Tide Cycle</meta><meta refines="#cycle" property="group-position">3</meta>',
+      ),
+    });
+
+    expect(run(files)).toMatchObject({ series: "The Tide Cycle", seriesNumber: 3 });
   });
 
   it("given spine pages, builds blocks in reading order with collapsed whitespace", () => {

@@ -13,7 +13,6 @@ interface Props {
 
 const titles: Record<FilterGroup, string> = {
   status: "Reading status",
-  series: "Series",
   length: "Length",
   author: "Author",
 };
@@ -32,7 +31,10 @@ export function FilterSheet({
 
   if (!open) return null;
 
-  const count = shelf.cards.length;
+  const count = shelf.items.reduce(
+    (total, item) => total + (item.kind === "series" ? item.count : 1),
+    0,
+  );
   const showLabel = `Show ${count} ${count === 1 ? "book" : "books"}`;
   const groups = shelf.chips.filter((group) => group.chips.length > 0);
 

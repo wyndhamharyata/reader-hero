@@ -6,6 +6,8 @@ export interface EpubBook {
   readonly title?: string;
   readonly author?: string;
   readonly subject?: string;
+  readonly series?: string;
+  readonly seriesNumber?: number;
   readonly parsed: ParsedBook;
   readonly images: ReadonlyArray<{
     readonly id: string;
@@ -128,7 +130,8 @@ export function parseEpub(
     if (opf === null) return yield* corrupt;
     const opfDir = opfPath.slice(0, opfPath.lastIndexOf("/") + 1);
 
-    for (const meta of opf.getElementsByTagNameNS("*", "meta")) {
+    const metadataTags = [...opf.getElementsByTagNameNS("*", "meta")];
+    for (const meta of metadataTags) {
       if (
         meta.getAttribute("property") === "rendition:layout" &&
         meta.textContent?.trim() === "pre-paginated"
@@ -397,12 +400,57 @@ export function parseEpub(
       [...opf.getElementsByTagNameNS("*", name)]
         .map((element) => element.textContent?.trim() ?? "")
         .filter((value) => value !== "");
+    const collections = metadataTags.filter(
+      (meta) => meta.getAttribute("property") === "belongs-to-collection",
+    );
+    const collection =
+      collections.find((meta) => {
+        const id = meta.getAttribute("id");
+        return (
+          id !== null &&
+          metadataTags.some(
+            (refined) =>
+              refined.getAttribute("refines") === `#${id}` &&
+              refined.getAttribute("property") === "group-position",
+          )
+        );
+      }) ?? collections[0];
+    const epubSeries = collection?.textContent?.trim() || undefined;
+    const collectionId = collection?.getAttribute("id");
+    const groupPosition =
+      collectionId === null || collectionId === undefined
+        ? undefined
+        : metadataTags
+            .find(
+              (meta) =>
+                meta.getAttribute("refines") === `#${collectionId}` &&
+                meta.getAttribute("property") === "group-position",
+            )
+            ?.textContent?.trim();
+    const calibreSeries =
+      metadataTags
+        .find((meta) => meta.getAttribute("name") === "calibre:series")
+        ?.getAttribute("content")
+        ?.trim() || undefined;
+    const calibreSeriesNumber = metadataTags
+      .find((meta) => meta.getAttribute("name") === "calibre:series_index")
+      ?.getAttribute("content")
+      ?.trim();
+    const series = epubSeries ?? calibreSeries;
+    const seriesNumberText =
+      series === undefined ? undefined : (groupPosition ?? calibreSeriesNumber);
+    const parsedSeriesNumber =
+      seriesNumberText === undefined || seriesNumberText === ""
+        ? undefined
+        : Number(seriesNumberText);
     const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
 
     return {
       title: metadata("title")[0],
       author: metadata("creator")[0],
       subject: metadata("subject").join(", ") || undefined,
+      series,
+      seriesNumber: Number.isFinite(parsedSeriesNumber) ? parsedSeriesNumber : undefined,
       images,
       cover,
       parsed: new ParsedBook({

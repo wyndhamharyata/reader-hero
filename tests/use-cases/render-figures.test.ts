@@ -81,6 +81,10 @@ function harness(figures: FigureState): Harness {
     BookStore,
     BookStore.of({
       list: () => Effect.succeed([]),
+      listSeries: () => Effect.succeed([]),
+      getSeries: () => Effect.succeed(null),
+      putSeries: () => Effect.void,
+      removeSeries: () => Effect.void,
       get: () => Effect.succeed(state.meta),
       putMeta: (meta) =>
         Effect.sync(() => {
@@ -136,7 +140,7 @@ function harness(figures: FigureState): Harness {
           state.renders += 1;
           return [pageImage];
         }),
-        pageSize: () => Effect.die("not used"),
+      pageSize: () => Effect.die("not used"),
       readOutline: () => Effect.succeed([]),
       release: () => Effect.void,
       thumbnail: () => Effect.succeed(null),

@@ -36,6 +36,17 @@ export function stopFiber(fiber: Job): void {
   runtime.runFork(Fiber.interrupt(fiber));
 }
 
+// Mounted covers share one read and one object URL for each book image.
+const bookImages = new Map<
+  string,
+  {
+    url: string | null;
+    ratio: number | null;
+    users: Set<(image: { readonly url: string; readonly ratio: number | null } | null) => void>;
+    job: Job | null;
+  }
+>();
+
 export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): void {
   const jobs = useRef(new Map<string, Job>());
 
@@ -63,21 +74,55 @@ export function useBookImage(
   bookId: string,
   imageId: string,
 ): { readonly url: string | null; readonly ratio: number | null } {
-  const [image, setImage] = useState<{ url: string; ratio: number | null } | null>(null);
+  const key = `${bookId}/${imageId}`;
+  const [image, setImage] = useState<{ url: string; ratio: number | null } | null>(() => {
+    const shared = bookImages.get(key);
+    return shared?.url === null || shared === undefined
+      ? null
+      : { url: shared.url, ratio: shared.ratio };
+  });
 
   useEffect(() => {
-    let url: string | null = null;
-    const fiber = forkApp(
-      watchBookImage(bookId, imageId, (record) => {
-        if (record === null) return;
-        if (url !== null) URL.revokeObjectURL(url);
-        url = URL.createObjectURL(record.blob);
-        setImage({ url, ratio: record.height === 0 ? null : record.width / record.height });
-      }),
-    );
+    const update = (next: { readonly url: string; readonly ratio: number | null } | null): void =>
+      setImage(next);
+    let shared = bookImages.get(key);
+    if (shared === undefined) {
+      shared = { url: null, ratio: null, users: new Set(), job: null };
+      bookImages.set(key, shared);
+    }
+    const entry = shared;
+    entry.users.add(update);
+    if (entry.url !== null) setImage({ url: entry.url, ratio: entry.ratio });
+    if (entry.job === null) {
+      entry.job = forkApp(
+        watchBookImage(bookId, imageId, (record) => {
+          if (bookImages.get(key) !== entry) return;
+          if (record === null) {
+            if (entry.url !== null) URL.revokeObjectURL(entry.url);
+            entry.url = null;
+            entry.ratio = null;
+            for (const user of entry.users) user(null);
+            return;
+          }
+          if (entry.url !== null) URL.revokeObjectURL(entry.url);
+          entry.url = URL.createObjectURL(record.blob);
+          entry.ratio = record.height === 0 ? null : record.width / record.height;
+          for (const user of entry.users) {
+            user({ url: entry.url, ratio: entry.ratio });
+          }
+        }),
+      );
+    }
     return () => {
-      stopFiber(fiber);
-      if (url !== null) URL.revokeObjectURL(url);
+      if (bookImages.get(key) !== entry) return;
+      entry.users.delete(update);
+      // A tile that moves to another row mounts again in the same commit and takes the URL over.
+      queueMicrotask(() => {
+        if (entry.users.size > 0 || bookImages.get(key) !== entry) return;
+        if (entry.job !== null) stopFiber(entry.job);
+        if (entry.url !== null) URL.revokeObjectURL(entry.url);
+        bookImages.delete(key);
+      });
     };
   }, [bookId, imageId]);
 

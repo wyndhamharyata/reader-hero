@@ -113,6 +113,8 @@ export function addEpub(
         title: book.title ?? name,
         author: book.author,
         subject: book.subject,
+        series: book.series,
+        seriesNumber: book.seriesNumber,
         fileName: file.name,
         format: "epub",
         addedAt: Date.now(),

@@ -88,6 +88,9 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   subject: Schema.optional(Schema.String),
   keywords: Schema.optional(Schema.String),
   fileName: Schema.optional(Schema.String),
+  // Older EPUB imports receive these fields when rebuilt.
+  series: Schema.optional(Schema.String),
+  seriesNumber: Schema.optional(Schema.Number),
   // Books imported before EPUB support have no format and are PDFs.
   format: Schema.optional(Schema.Literals(["pdf", "epub"])),
   addedAt: Schema.Int,
@@ -102,6 +105,18 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   }
 }
 
+export class Series extends Schema.Class<Series>("reader-hero/domain/Series")({
+  id: Schema.String,
+  name: Schema.String,
+  books: Schema.Array(Schema.Struct({ id: Schema.String, number: Schema.optional(Schema.Number) })),
+  possible: Schema.Array(
+    Schema.Struct({ id: Schema.String, number: Schema.optional(Schema.Number) }),
+  ),
+  edited: Schema.optional(Schema.Boolean),
+  removed: Schema.Array(Schema.String),
+  hidden: Schema.optional(Schema.Boolean),
+}) {}
+
 export class ReadingProgress extends Schema.Class<ReadingProgress>(
   "reader-hero/domain/ReadingProgress",
 )({
@@ -110,6 +125,8 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
   updatedAt: Schema.Int,
   // The furthest block the reader reached; the summary follows it, so re-reading moves nothing.
   furthest: Schema.optional(Schema.Int),
+  // Unset means the 98% rule decides.
+  finished: Schema.optional(Schema.Boolean),
 }) {}
 
 // Sepia gave way to the temperature setting; a stored sepia choice opens as light.

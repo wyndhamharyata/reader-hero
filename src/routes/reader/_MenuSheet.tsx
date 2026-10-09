@@ -4,6 +4,7 @@ import {
   BookOpenIcon,
   ChevronDownIcon,
   DocumentTextIcon,
+  RectangleStackIcon,
   XMarkIcon,
 } from "@/components/icons";
 import type { ReaderSettings, TocEntry } from "@/domain/book";
@@ -20,6 +21,9 @@ interface Props {
   summaryRunning: boolean;
   onSummary: () => void;
   onStopSummary: () => void;
+  // The Series row's text, "The Tide Cycle · 3 of 4"; null hides the row, as for a book in no series.
+  series: string | null;
+  onSeries: () => void;
   // One-line summaries by the block index of their contents entry; empty when the toggle is off.
   lines: ReadonlyMap<number, string>;
   onSelect: (blockIndex: number) => void;
@@ -38,6 +42,8 @@ export function MenuSheet({
   summaryRunning,
   onSummary,
   onStopSummary,
+  series,
+  onSeries,
   lines,
   onSelect,
   onLine,
@@ -129,6 +135,23 @@ export function MenuSheet({
             </button>
           )}
         </section>
+
+        {series !== null && (
+          <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300 md:order-4">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
+              onClick={() => keepOpen(onSeries)}
+            >
+              <RectangleStackIcon className="size-6 md:size-4" />
+              <span className="shrink-0 text-left">Series</span>
+              <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
+                {series}
+              </span>
+              <span className="opacity-60">›</span>
+            </button>
+          </section>
+        )}
 
         <div className="mt-4 flex min-h-0 flex-1 flex-col md:order-5">
           <h3 className="text-sm font-semibold">Contents</h3>
