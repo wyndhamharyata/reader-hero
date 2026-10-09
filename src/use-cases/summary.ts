@@ -51,9 +51,6 @@ const units = (kind: BookKind): { one: string; many: string; names: string } =>
     ? { one: "chapter", many: "chapters", names: "characters" }
     : { one: "section", many: "sections", names: "terms" };
 
-export const namesStale = (summary: Summary): boolean =>
-  summary.namesThrough < summary.chapters.length || summary.required.length > 0;
-
 export const currentFresh = (summary: Summary | null, cover: Coverage): boolean =>
   cover.current === null ||
   (summary?.current !== undefined &&
@@ -74,7 +71,7 @@ export function describeSummary(
   if (run?.stage === "current") return { row: "Current position", action: null };
   if (run?.chapter === 0) return { row: "Starting", action: null };
   if (run !== null) return { row: `${amount(run.of - run.chapter + 1)} left`, action: null };
-  const count = summary?.chapters.length ?? 0;
+  const count = Math.min(summary?.chapters.length ?? 0, cover.target);
   const pending = Math.max(0, cover.target - count);
   const row =
     count === 0 ? "None" : `${amount(count)}${pending > 0 ? ` · ${pending} pending` : ""}`;
@@ -85,7 +82,9 @@ export function describeSummary(
   else if (stale) {
     action =
       summary?.current === undefined ? "Summarise current position" : "Update current position";
-  } else if (summary !== null && namesStale(summary)) action = `Update ${unit.names}`;
+  } else if (summary !== null && (summary.namesThrough < count || summary.required.length > 0)) {
+    action = `Update ${unit.names}`;
+  }
   return { row, action };
 }
 
@@ -220,19 +219,22 @@ export function summariseNext(
       });
     }
 
-    if (namesStale(record)) {
+    if (record.namesThrough < of || record.required.length > 0) {
       yield* onProgress({ stage: "names", chapter: record.chapters.length, of, text: "" });
       const namesSystem = story
         ? 'You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. Order the list by importance to the protagonist: the protagonist first, then those closest to them, then the rest. A note is at most 20 words and says who the character is to the story so far. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the chapter where the entry first appears.'
         : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. Order the list by importance to the subject of the document, the central terms first. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the section where the term first appears.';
-      const fresh = record.chapters.slice(record.namesThrough);
-      const pinned = record.names.filter((entry) => entry.edited === true);
+      const fresh = record.chapters.slice(record.namesThrough, of);
+      const visibleNames = record.names.filter(
+        (entry) => !story || entry.edited === true || entry.chapter <= of,
+      );
+      const pinned = visibleNames.filter((entry) => entry.edited === true);
       const user = [
         bookLine(input.meta),
         "",
         "List so far (JSON):",
         JSON.stringify(
-          record.names.map(({ name, note, chapter }) => ({ name, note, first: chapter })),
+          visibleNames.map(({ name, note, chapter }) => ({ name, note, first: chapter })),
         ),
         "",
         ...(record.required.length === 0
@@ -258,7 +260,7 @@ export function summariseNext(
         "Return the merged list.",
       ].join("\n");
       const text = yield* stream(namesSystem, user, null, true);
-      const names = parseNames(text, record.chapters.length);
+      const names = parseNames(text, Math.max(1, of));
       if (names === null) {
         return yield* new AiFailure({
           reason: "malformed",
@@ -266,7 +268,6 @@ export function summariseNext(
         });
       }
       const sent = record.required;
-      const through = record.chapters.length;
       // The reader's edits and removals win over the model's list, those made during the request too.
       record = yield* store.update(input.meta.id, (current) => {
         const base = current ?? record;
@@ -277,7 +278,7 @@ export function summariseNext(
             ),
         );
         for (const entry of base.names) {
-          if (entry.edited !== true) continue;
+          if (entry.edited !== true && (!story || entry.chapter <= of)) continue;
           const at = merged.findIndex(
             (candidate) => candidate.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
           );
@@ -288,7 +289,7 @@ export function summariseNext(
           ...base,
           updatedAt: Date.now(),
           names: merged,
-          namesThrough: through,
+          namesThrough: Math.min(base.chapters.length, Math.max(base.namesThrough, of)),
           required: base.required.filter((name) => !sent.includes(name)),
         });
       });
@@ -339,6 +340,18 @@ export function summaryFollowUp(
   return Effect.gen(function* () {
     const client = yield* AiClient;
     const store = yield* SummaryStore;
+    const list = chapters(input.parsed);
+    const cover = coverage(list, input.parsed, input.kind, input.index);
+    const covered = summary.chapters.slice(0, cover.target);
+    const current =
+      summary.current !== undefined &&
+      summary.current.end <= input.index + 1 &&
+      !covered.some((chapter) => chapter.heading === summary.current?.heading)
+        ? summary.current
+        : undefined;
+    const names = summary.names.filter(
+      (entry) => input.kind !== "story" || entry.edited === true || entry.chapter <= cover.target,
+    );
     const unit = units(input.kind);
     const system = [
       input.kind === "story"
@@ -349,12 +362,12 @@ export function summaryFollowUp(
       "",
       "Summary so far:",
       "",
-      ...summary.chapters.flatMap((chapter) => [chapter.heading, chapter.paragraph, ""]),
-      ...(summary.current === undefined
+      ...covered.flatMap((chapter) => [chapter.heading, chapter.paragraph, ""]),
+      ...(current === undefined
         ? []
-        : [`${summary.current.heading}, up to where the reader stopped`, summary.current.text, ""]),
+        : [`${current.heading}, up to where the reader stopped`, current.text, ""]),
       `${unit.names.charAt(0).toUpperCase()}${unit.names.slice(1)}:`,
-      ...summary.names.map((entry) => `${entry.name}: ${entry.note}`),
+      ...names.map((entry) => `${entry.name}: ${entry.note}`),
     ].join("\n");
     let text = "";
     yield* client

@@ -7,6 +7,7 @@ import {
   PARSED_VERSION,
   ParsedBook,
   ReadingProgress,
+  type Series,
   type PageText,
   type StoredImage,
 } from "@/domain/book";
@@ -18,6 +19,7 @@ import {
   decodeImageRecord,
   decodeParsedBook,
   decodeReadingProgress,
+  decodeSeries,
   decodeStoredPages,
 } from "@/lib/codecs";
 import { openReaderDb, type InboxFile } from "@/lib/db";
@@ -28,6 +30,7 @@ export interface StorageEstimate {
 }
 
 export type StoreUpdate =
+  | { readonly kind: "series" }
   | { readonly kind: "image"; readonly bookId: string; readonly imageId: string }
   | { readonly kind: "meta"; readonly bookId: string }
   | { readonly kind: "parsed"; readonly bookId: string }
@@ -46,6 +49,10 @@ export class BookStore extends Context.Service<
   BookStore,
   {
     list(): Effect.Effect<ReadonlyArray<BookMeta>, StorageFailure>;
+    listSeries(): Effect.Effect<ReadonlyArray<Series>, StorageFailure>;
+    getSeries(id: string): Effect.Effect<Series | null, StorageFailure>;
+    putSeries(series: Series): Effect.Effect<void, StorageFailure>;
+    removeSeries(id: string): Effect.Effect<void, StorageFailure>;
     get(id: string): Effect.Effect<BookMeta, BookNotFound | StorageFailure>;
     putMeta(meta: BookMeta): Effect.Effect<void, StorageFailure>;
     putFile(id: string, blob: Blob, meta: BookMeta): Effect.Effect<void, StorageFailure>;
@@ -66,7 +73,10 @@ export class BookStore extends Context.Service<
     getPrefs(id: string): Effect.Effect<BookPrefs | null, StorageFailure>;
     putPrefs(id: string, prefs: BookPrefs): Effect.Effect<void, StorageFailure>;
     getFigureCheckpoint(id: string): Effect.Effect<ReadonlyArray<number>, StorageFailure>;
-    putFigureCheckpoint(id: string, pages: ReadonlyArray<number>): Effect.Effect<void, StorageFailure>;
+    putFigureCheckpoint(
+      id: string,
+      pages: ReadonlyArray<number>,
+    ): Effect.Effect<void, StorageFailure>;
     putPages(id: string, pages: ReadonlyArray<PageText>): Effect.Effect<void, StorageFailure>;
     getPages(id: string): Effect.Effect<ReadonlyArray<PageText> | null, StorageFailure>;
     deletePages(id: string): Effect.Effect<void, StorageFailure>;
@@ -89,6 +99,31 @@ export class BookStore extends Context.Service<
             Effect.mapError((cause) => new StorageFailure({ operation: "decodeBookMeta", cause })),
           ),
         );
+      });
+
+      const listSeries = Effect.fn("BookStore.listSeries")(function* () {
+        const rows = yield* attempt("listSeries", () => db.getAll("series"));
+        // A series record that no longer decodes drops out, so the library still opens.
+        const series = yield* Effect.forEach(rows, (row) =>
+          decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null))),
+        );
+        return series.filter((entry) => entry !== null);
+      });
+
+      const getSeries = Effect.fn("BookStore.getSeries")(function* (id: string) {
+        const row = yield* attempt("getSeries", () => db.get("series", id));
+        if (row === undefined) return null;
+        return yield* decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null)));
+      });
+
+      const putSeries = Effect.fn("BookStore.putSeries")(function* (series: Series) {
+        yield* attempt("putSeries", () => db.put("series", series));
+        yield* PubSub.publish(updateBus, { kind: "series" });
+      });
+
+      const removeSeries = Effect.fn("BookStore.removeSeries")(function* (id: string) {
+        yield* attempt("removeSeries", () => db.delete("series", id));
+        yield* PubSub.publish(updateBus, { kind: "series" });
       });
 
       const get = Effect.fn("BookStore.get")(function* (id: string) {
@@ -304,6 +339,10 @@ export class BookStore extends Context.Service<
 
       return BookStore.of({
         list,
+        listSeries,
+        getSeries,
+        putSeries,
+        removeSeries,
         get,
         putMeta,
         putFile,

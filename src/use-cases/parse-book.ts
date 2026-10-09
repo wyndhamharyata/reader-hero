@@ -36,6 +36,8 @@ function parseBook(
           parseState: "ready",
           pageCount: book.parsed.pageCount,
           charCount: book.parsed.charCount,
+          series: book.series,
+          seriesNumber: book.seriesNumber,
         }),
       );
       return book.parsed;

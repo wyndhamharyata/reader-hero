@@ -91,13 +91,14 @@ export function SummarySheet({
   const { summary, run, error } = state;
   const story = input.kind === "story";
   const { row, action } = describeSummary(summary, cover, run, input.kind);
+  const visibleChapters = summary?.chapters.slice(0, cover.target) ?? [];
   // A story hides the names from after the position, so the list gives nothing away; the reader's own show.
   const names = (summary?.names ?? []).filter(
     (entry) => !story || entry.edited === true || entry.chapter <= cover.target,
   );
   const unit = story ? "chapter" : "section";
   const namesLabel = story ? "Characters" : "Terms";
-  const chapterCount = summary?.chapters.length ?? 0;
+  const chapterCount = visibleChapters.length;
   const spinner = <span className="loading loading-sm loading-spinner md:loading-xs" />;
 
   useEffect(() => {
@@ -152,7 +153,8 @@ export function SummarySheet({
   // A chapter with its own paragraph by now drops its "current position" entry.
   const stored =
     summary?.current !== undefined &&
-    !summary.chapters.some((chapter) => chapter.heading === summary.current?.heading)
+    summary.current.end <= input.index + 1 &&
+    !visibleChapters.some((chapter) => chapter.heading === summary.current?.heading)
       ? summary.current
       : undefined;
   const current =
@@ -167,7 +169,7 @@ export function SummarySheet({
     const copied =
       tab === "chapters"
         ? [
-            ...summary.chapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
+            ...visibleChapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
             ...(stored === undefined
               ? []
               : [`${stored.heading} · current position\n${stored.text}`]),
@@ -238,7 +240,7 @@ export function SummarySheet({
               className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
               inert={tab !== "chapters"}
             >
-              {(summary?.chapters ?? []).map((chapter, index) => (
+              {visibleChapters.map((chapter, index) => (
                 <div
                   key={index}
                   ref={
