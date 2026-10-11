@@ -112,23 +112,7 @@ export function describeSeries(
   let pending = 0;
   // Update only when every pending volume shows a paragraph already, as for the current position.
   let unmade = 0;
-  const rows = volumes.map(({ card, order, scope }) => {
-    if (order !== "earlier") {
-      // The book's own Summary up to its position, as the Summary sheet shows it; the run writes none.
-      const summary = summaries.get(card.book.id) ?? null;
-      const told = (summary?.chapters ?? []).slice(0, scope?.cover.target ?? 0);
-      const at = summary?.current;
-      const entries = [
-        ...told.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
-        ...(scope !== null &&
-        at !== undefined &&
-        at.end <= scope.input.index + 1 &&
-        !told.some((chapter) => chapter.heading === at.heading)
-          ? [`${at.heading} · current position\n${at.text}`]
-          : []),
-      ];
-      return { scope: null, text: entries.length === 0 ? null : entries.join("\n\n") };
-    }
+  const rows = volumes.map(({ card, scope }) => {
     if (scope === null) return { scope: null, text: null };
     const { input, cover } = scope;
     const unit = units(input.kind);
@@ -533,7 +517,7 @@ export function summaryFollowUp(
   });
 }
 
-// Each book of the series in order; only an earlier volume has a scope, up to its boundary.
+// Each book of the series in order; a started book has a scope, up to its boundary.
 export function seriesScope(
   series: Shelf["series"][number],
   bookId: string,
@@ -627,7 +611,7 @@ export function earlierNames(
   });
 }
 
-// One request per earlier volume, in series order, from its summaries inside the boundary and nothing past it.
+// One request per started volume, in series order, from its summaries inside the boundary and nothing past it.
 export function summariseSeries(
   series: Shelf["series"][number],
   bookId: string,
@@ -639,9 +623,8 @@ export function summariseSeries(
     const store = yield* SummaryStore;
     // The paragraph of the volume before, so names and threads go on from book to book.
     let previous: Array<string> = [];
-    for (const [place, { order, scope }] of (yield* seriesScope(series, bookId)).entries()) {
-      // The current and later books carry a scope for the sheet only; each Summary is its own.
-      if (scope === null || order !== "earlier") continue;
+    for (const [place, { scope }] of (yield* seriesScope(series, bookId)).entries()) {
+      if (scope === null) continue;
       const { input, cover } = scope;
       const book = input.meta.id;
       const stored = (yield* store.get(book))?.volume;

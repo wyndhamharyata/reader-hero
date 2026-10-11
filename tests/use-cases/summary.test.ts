@@ -864,7 +864,7 @@ describe("series summary boundary", () => {
     );
   });
 
-  it("given the current book and a later Finished one, sends none of their text", async () => {
+  it("given the current book and a later Finished one, writes the current one's paragraph and keeps the later one's", async () => {
     const state = {
       summaries: new Map([
         ["b1", kept("b1", "V1", 3)],
@@ -877,7 +877,7 @@ describe("series summary boundary", () => {
         ],
       ]),
     };
-    const { before, calls, reads } = await tap(
+    const { before, after, calls, reads } = await tap(
       [
         card(beacon, "finished"),
         card(shoal, "not-started"),
@@ -887,20 +887,21 @@ describe("series summary boundary", () => {
       state,
     );
 
-    // The current and the later book show their own Summary, which the run does not send.
-    expect(before.rows[2]).toEqual({
-      scope: null,
-      text: "Chapter 1\nV3 first.\n\nChapter 2\nV3 second.\n\nChapter 3\nV3 third.",
-    });
-    expect(before.rows[3]).toEqual({
-      scope: null,
-      text: "Chapter 1\nV4 first.\n\nChapter 2\nV4 second.\n\nChapter 3\nV4 third.",
-    });
-    expect(calls.map((call) => call.kind)).toEqual(["series"]);
-    const sent = calls.map((call) => call.user).join("\n");
-    expect(sent).not.toContain("V3");
-    expect(sent).not.toContain("V4");
-    // The current and later books' text is read for their rows only.
+    expect(before.rows[2]).toEqual({ scope: "1 pending", text: null });
+    expect(before.rows[3]).toEqual({ scope: null, text: "V4 paragraph." });
+    expect(before.action).toBe("Summarise 2 volumes");
+    expect(calls.map((call) => call.kind)).toEqual(["series", "series"]);
+    expect(calls[1]?.user).toContain("Series: The Tide Cycle, book 3 of 4.");
+    expect(calls[1]?.user).toContain("Book 1, Beacon at Low Water: Paragraph 1.");
+    expect(calls[1]?.user).toContain("Chapter 3\nV3 third.");
+    expect(calls.map((call) => call.user).join("\n")).not.toContain("V4");
+    expect(after.rows.map((row) => row.text)).toEqual([
+      "Paragraph 1.",
+      null,
+      "Paragraph 2.",
+      "V4 paragraph.",
+    ]);
+    expect(after.action).toBeNull();
     expect(new Set(reads)).toEqual(new Set(["b1", "b3", "b4"]));
   });
 
@@ -938,7 +939,7 @@ describe("series summary boundary", () => {
     expect(after.rows[0]?.text).toBe("Paragraph 2.");
   });
 
-  it("given a volume moved after the current book, leaves it out and keeps its paragraph on its record", async () => {
+  it("given a volume moved after the current book, shows its paragraph and sends none of its text", async () => {
     const paragraph = { text: "V1 paragraph.", chapters: 3, model: "flash", updatedAt: 1 };
     const state = {
       summaries: new Map([
@@ -956,11 +957,7 @@ describe("series summary boundary", () => {
       state,
     );
 
-    // A later book shows its own Summary, not its series paragraph.
-    expect(before.rows[2]).toEqual({
-      scope: null,
-      text: "Chapter 1\nV1 first.\n\nChapter 2\nV1 second.\n\nChapter 3\nV1 third.",
-    });
+    expect(before.rows[2]).toEqual({ scope: null, text: "V1 paragraph." });
     expect(calls.map((call) => call.kind)).toEqual(["series"]);
     expect(calls[0]?.user).toContain("Series: The Tide Cycle, book 1 of 4.");
     expect(calls[0]?.user).not.toContain("Beacon at Low Water");

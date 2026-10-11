@@ -28,7 +28,7 @@ export class SummaryJobs extends Context.Service<
     // The key: a book's id, `series:` plus a series id, or `names` for the character rebuild.
     state(key: string): Stream.Stream<JobState>;
     start(input: SummaryInput, settings: AiSettings): Effect.Effect<void>;
-    // The volumes before `bookId`, one request each; only a tap of Summarise starts it.
+    // Every started volume, one request each; only a tap of Summarise starts it.
     startSeries(
       series: Shelf["series"][number],
       bookId: string,
@@ -105,11 +105,10 @@ export class SummaryJobs extends Context.Service<
         const key = `series:${series.id}`;
         if (fibers.has(key)) return;
         const ref = yield* stateRef(key);
-        const at = series.books.findIndex((card) => card.book.id === bookId);
-        const earlier = series.books.slice(0, Math.max(0, at)).map((card) => card.book.id);
+        const volumes = series.books.map((card) => card.book.id);
         // Held first, then awaited, so a volume's own job ends before this run writes its record.
-        for (const id of earlier) held.set(id, key);
-        const running = earlier.flatMap((id) => {
+        for (const id of volumes) held.set(id, key);
+        const running = volumes.flatMap((id) => {
           const fiber = fibers.get(id);
           return fiber === undefined ? [] : [fiber];
         });
@@ -140,7 +139,7 @@ export class SummaryJobs extends Context.Service<
           Effect.ensuring(
             Effect.gen(function* () {
               fibers.delete(key);
-              for (const id of earlier) if (held.get(id) === key) held.delete(id);
+              for (const id of volumes) if (held.get(id) === key) held.delete(id);
               if (shown !== undefined) {
                 yield* SubscriptionRef.set(yield* stateRef(shown), { run: null, error: null });
               }
