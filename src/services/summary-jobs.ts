@@ -89,6 +89,7 @@ export class SummaryJobs extends Context.Service<
           ),
           Effect.provide(services),
           Effect.match({ onSuccess: () => null, onFailure: describeAiFailure }),
+          Effect.catchDefect((defect) => Effect.succeed(`Unexpected error: ${String(defect)}`)),
           Effect.flatMap((error) => SubscriptionRef.set(ref, { run: null, error })),
           Effect.onInterrupt(() => SubscriptionRef.set(ref, { run: null, error: null })),
           Effect.ensuring(Effect.sync(() => fibers.delete(bookId))),
@@ -133,6 +134,7 @@ export class SummaryJobs extends Context.Service<
           Effect.andThen(summariseSeries(series, bookId, settings, report)),
           Effect.provide(services),
           Effect.match({ onSuccess: () => null, onFailure: describeAiFailure }),
+          Effect.catchDefect((defect) => Effect.succeed(`Unexpected error: ${String(defect)}`)),
           Effect.flatMap((error) => SubscriptionRef.set(ref, { run: null, error })),
           Effect.onInterrupt(() => SubscriptionRef.set(ref, { run: null, error: null })),
           Effect.ensuring(
@@ -193,6 +195,7 @@ export class SummaryJobs extends Context.Service<
         }).pipe(
           Effect.provide(services),
           Effect.match({ onSuccess: () => null, onFailure: describeAiFailure }),
+          Effect.catchDefect((defect) => Effect.succeed(`Unexpected error: ${String(defect)}`)),
           Effect.flatMap((error) => SubscriptionRef.set(ref, { run: null, error })),
           Effect.onInterrupt(() => SubscriptionRef.set(ref, { run: null, error: null })),
           Effect.ensuring(
