@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { fontFamily, type Block, type ParsedBook, type ReaderSettings } from "@/domain/book";
+import { useTapGuard } from "@/lib/use-tap-guard";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
 
@@ -43,6 +44,7 @@ export const ReaderView = memo(function ReaderView({
   onToggleChrome,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const tap = useTapGuard();
   const articleRef = useRef<HTMLElement>(null);
   // Every block's top edge in content coordinates, read once per layout change.
   const blocksRef = useRef<{ nodes: HTMLElement[]; tops: number[] }>({ nodes: [], tops: [] });
@@ -164,6 +166,7 @@ export const ReaderView = memo(function ReaderView({
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("a, button") !== null) return;
+    if (!tap.isTap(event)) return;
     const container = containerRef.current;
     if (container === null) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -210,6 +213,7 @@ export const ReaderView = memo(function ReaderView({
       data-scroller
       // The resize handler holds the top block; browser anchoring too would move the view twice.
       className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
+      onPointerDown={tap.onPointerDown}
       onClick={handleClick}
     >
       {fontReady && (

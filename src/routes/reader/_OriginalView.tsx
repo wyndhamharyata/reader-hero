@@ -5,6 +5,7 @@ import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
 import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
+import { useTapGuard } from "@/lib/use-tap-guard";
 import { openOriginalPages, readPageSizes, releaseOriginalPages } from "@/use-cases/open-book";
 import type { RenderedDocument } from "@/services/page-renderer";
 import { PdfPage } from "./_PdfPage";
@@ -33,6 +34,7 @@ export function OriginalView({
   // A page's width, which is the list's own.
   const [width, setWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const tap = useTapGuard();
   const listRef = useRef<HTMLDivElement>(null);
   const docRef = useRef<RenderedDocument | null>(null);
   const didScroll = useRef(false);
@@ -163,7 +165,10 @@ export function OriginalView({
           ref={containerRef}
           data-scroller
           className="h-full overflow-y-auto overscroll-contain bg-base-300"
-          onClick={onToggleChrome}
+          onPointerDown={tap.onPointerDown}
+          onClick={(event) => {
+            if (tap.isTap(event)) onToggleChrome();
+          }}
         >
           {/* The sides are padding on the column, so a page is exactly as wide as the list. */}
           <div className="mx-auto max-w-3xl px-2 pb-[var(--safe-bottom)]">
