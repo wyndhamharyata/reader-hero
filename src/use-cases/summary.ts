@@ -295,8 +295,7 @@ export function mergeNames(
     // The reader's edits and removals win over the model's list, those made during the request too.
     return yield* store.update(input.meta.id, (current) => {
       const base = current ?? record;
-      // The model carries earlier books' characters over whole, so in a series an entry stays only
-      // when this book's summaries name it: the whole name, or one word of it that is not a title.
+      // The model carries earlier books' characters over whole; keep those this book names.
       const told = base.chapters
         .slice(0, of)
         .map((chapter) => `${chapter.heading}\n${chapter.paragraph}`)
@@ -590,8 +589,7 @@ export function seriesScope(
   });
 }
 
-// One list over the earlier volumes, the latest first, so a name keeps its newest note and no volume
-// needs a list of its own; at most 60 entries, so a long series does not fill each request.
+// Latest first, so a name keeps its newest note; at most 60, so each request stays small.
 export function earlierNames(
   series: Shelf["series"][number] | null,
   input: SummaryInput,
@@ -751,8 +749,7 @@ export function laterVolumes(): Effect.Effect<
   });
 }
 
-// The volume's list again, from its own chapter summaries and the earlier volumes' lists. It covers the
-// chapters it covered before, and the reader's edits and removals stay.
+// Covers the chapters it covered before, and keeps the reader's edits and removals.
 export function rebuildNames(
   series: Shelf["series"][number],
   card: LibraryCard,

@@ -306,15 +306,13 @@ export class PdfClient extends Context.Service<
       load: Effect.fn("PdfClient.load")(function* (data: ArrayBuffer) {
         const lib = yield* loadLib();
         const origin = (globalThis as { location?: { origin: string } }).location?.origin ?? "";
-        // Enable pdf.js's WASM decoders (JPEG 2000, JBIG2, ICC/qcms). Without a
-        // served wasmUrl they silently fall back to slow pure-JS decoding.
+        // Without a served wasmUrl, pdf.js falls back to slow pure-JS decoders.
         const task = lib.getDocument({
           data,
           useWorkerFetch: true,
           wasmUrl: `${origin}/wasm/`,
           iccUrl: `${origin}/icc/`,
-          // Safari exposes ImageDecoder in both contexts; make the preference
-          // explicit so the JPEG fast path cannot be lost to default merging.
+          // Explicit, so default merging cannot drop the JPEG fast path.
           isImageDecoderSupported: true,
         });
         const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure });
@@ -346,8 +344,7 @@ export class PdfClient extends Context.Service<
           return [];
         }
 
-        // A figure never shows wider than the screen, so it stores no more pixels than that;
-        // two device pixels per CSS pixel is sharp enough, and fewer pixels mean a faster job.
+        // No wider than the screen at 2 device pixels per CSS pixel: sharp, and a faster job.
         const maxDim = Math.min(1400, Math.round(screen.width * Math.min(2, devicePixelRatio)));
 
         const encoded = yield* Stream.fromIterable(paints).pipe(

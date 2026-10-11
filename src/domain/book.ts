@@ -46,8 +46,7 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
-// The figure job's finished pages, kept apart from ParsedBook so each page can move it cheaply.
-// `through` is the shape an earlier build wrote: every page up to it is finished.
+// Apart from ParsedBook so each page saves cheaply; `through` is an earlier build's shape.
 export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
   "reader-hero/domain/FigureCheckpoint",
 )({
@@ -250,8 +249,7 @@ export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/I
   blob: Schema.instanceOf(Blob),
   width: Schema.Number,
   height: Schema.Number,
-  // The placement on the page, kept so a resumed figure job can rebuild finished pages; images
-  // stored before this field existed do not have it.
+  // A resumed figure job rebuilds finished pages from it; older images lack it.
   x: Schema.optional(Schema.Number),
   y: Schema.optional(Schema.Number),
 }) {}

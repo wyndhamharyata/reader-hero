@@ -13,8 +13,7 @@ export interface TrayFlags {
 export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement | null {
   if (flags === null) return null;
   const { index, start, end, columns } = flags;
-  // The parts make one shape: a part with tray under it runs down to the next row, and only an
-  // outer side has a border and only an outer corner is round.
+  // The parts make one shape, so only outer sides have borders and outer corners round.
   const first = index % columns === 0 || index === start;
   const last = index % columns === columns - 1 || index === end;
   const above = index - columns >= start;

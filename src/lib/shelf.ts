@@ -101,8 +101,7 @@ export function buildShelf(
     return terms.every((term) => haystack.includes(term));
   });
 
-  // A title that ends in a volume number ("Vol. 3", "#4") leads with the words before it, and 2 such
-  // books are a series; else more than 3 books that open with the same three words are.
+  // 2 titles that end in a volume number ("Vol. 3", "#4"), or 4+ that share the first 3 words.
   const marked = new Set<string>();
   const leads = new Map(
     books.map((book) => {
@@ -387,8 +386,7 @@ export function buildShelf(
       },
     ];
   });
-  // The palette goes round the series, oldest book first, so newer books that start a series leave
-  // each older series its colour.
+  // Oldest book first, so a new series never takes an older series' colour.
   const turns = grouped
     .filter((group) => group.count >= 2)
     .map((group) => ({

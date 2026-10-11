@@ -40,9 +40,7 @@ export const PdfPage = memo(function PdfPage({ doc, size }: Props): ReactElement
       style={{ aspectRatio: `${size.width} / ${size.height}` }}
     >
       {failed && <p className="p-4 text-xs opacity-60">Page {size.page} could not be rendered.</p>}
-      {/* Sized in the markup and by its own ratio, never by a percent height: in WebKit a percent
-          height inside a flex item makes every layout of the list walk all 600 items, and a later
-          canvas size change triggers such a layout. An empty canvas holds no memory. */}
+      {/* No percent height: in WebKit each list layout then walks all 600 items. */}
       {!failed && (
         <canvas
           ref={canvasRef}

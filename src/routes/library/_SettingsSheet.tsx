@@ -61,8 +61,7 @@ export function SettingsSheet({
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
   const [test, setTest] = useState<Test>({ state: "idle" });
 
-  // Each open starts from the stored record, so a cancelled edit leaves nothing behind; a toggle's
-  // save leaves the Provider fields as they are.
+  // Reset on open, so a cancelled edit leaves nothing; a toggle's save keeps the Provider fields.
   useEffect(() => {
     if (!open) return;
     setProvider(ai?.provider ?? "deepseek");

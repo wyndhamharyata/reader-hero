@@ -71,8 +71,7 @@ export function groupSeries(
 
         const stored = yield* store.listSeries();
         const authors = new Set(batch.map((book) => book.author ?? ""));
-        // Only the series of this request's authors, so a large library does not fill each request,
-        // and without the books sent now, so no book shows twice.
+        // Only these authors' series, without the books sent now: no book shows twice.
         const sending = new Set(batch.map((book) => book.id));
         const existing = buildShelf(books, new Map(), "", none, "added", stored)
           .series.map((group) => ({
@@ -270,8 +269,7 @@ export function groupSeries(
                 continue;
               }
               const order = [...(record?.books ?? [])];
-              // Numbered books first, in number order (1000 is above every kept number); each goes
-              // before the first book with a higher number.
+              // 1000 is above every kept number, so an unnumbered book sorts last.
               for (const book of [...sure].sort(
                 (a, b) => (a.number ?? 1000) - (b.number ?? 1000),
               )) {

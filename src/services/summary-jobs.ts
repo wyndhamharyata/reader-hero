@@ -25,8 +25,7 @@ export interface JobState {
 export class SummaryJobs extends Context.Service<
   SummaryJobs,
   {
-    // The key is a book's id, `series:` and a series id for its series summary, or `names` for the
-    // rebuild of every later volume's character list.
+    // The key: a book's id, `series:` plus a series id, or `names` for the character rebuild.
     state(key: string): Stream.Stream<JobState>;
     start(input: SummaryInput, settings: AiSettings): Effect.Effect<void>;
     // The volumes before `bookId`, one request each; only a tap of Summarise starts it.
@@ -79,8 +78,7 @@ export class SummaryJobs extends Context.Service<
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
-        // A later volume's names merge carries on what its series' earlier books told of their characters.
-        // Without them, on a store failure, the book's own Summary still runs.
+        // On a store failure, the book's own Summary runs without the earlier names.
         const job = findBookSeries(bookId).pipe(
           Effect.flatMap((series) => earlierNames(series, input, settings)),
           Effect.orElseSucceed(() => []),

@@ -21,8 +21,7 @@ self.addEventListener("install", (event) => {
           .filter((url) => url !== "index.html")
           .map((url) => new Request(url, { cache: "reload" })),
       );
-      // Cloudflare answers /index.html with a 307 to /, and Safari refuses a navigation answered
-      // by a redirected response, so the shell is stored from / instead.
+      // Safari refuses a navigation answered by a redirect, and Cloudflare 307s /index.html to /.
       const shell = await fetch(new Request("/", { cache: "reload" }));
       if (!shell.ok) throw new Error(`Shell fetch failed: ${shell.status}`);
       await cache.put(INDEX, shell);
@@ -56,9 +55,7 @@ async function handleShare(request: Request): Promise<Response> {
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
-// The shell comes from the cache, so a launch never waits on a weak network. It is not refreshed
-// from the network: the shell must match this worker's precached assets, and a new build ships a
-// new worker that installs its own shell.
+// Cache only: the shell must match this worker's assets, and a new build ships a new worker.
 async function handleNavigate(request: Request): Promise<Response> {
   const cached = await caches.match(INDEX);
   if (cached !== undefined) return cached;

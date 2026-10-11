@@ -33,8 +33,7 @@ export function renderFigures(
 
       const handle = yield* pdf.load(data);
 
-      // Finished pages keep their stored figures, so a restarted job does not do them again.
-      // A book parsed by an earlier build has its resume point in the parsed record.
+      // A restarted job skips finished pages; an older build kept them in the parsed record.
       const existing = yield* store
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
@@ -106,12 +105,10 @@ export function renderFigures(
                 const entry = pagesByPage.get(page);
                 if (entry !== undefined) pagesByPage.set(page, { text: entry.text, images });
                 done.add(page);
-                // The finished pages are a small record of their own, so every page moves the
-                // resume point without rewriting the whole book; iOS interrupts this job often.
+                // Its own small record, so each page saves cheaply: iOS interrupts this job often.
                 yield* store.putFigureCheckpoint(bookId, [...done]);
                 if (images.length > 0) unpublished = true;
-                // An open reader reloads the whole book on each publish, so later figures land in
-                // batches at most every 2 seconds.
+                // An open reader reloads the book on each publish, so publish at most every 2s.
                 if (unpublished && Date.now() - publishedAt >= 2_000) {
                   yield* store.putParsed(bookId, yield* assemble());
                   publishedAt = Date.now();

@@ -16,8 +16,7 @@ export const sorts: ReadonlyArray<readonly [LibrarySort, string]> = [
 export function SortMenu({ sort, onChange }: Props): ReactElement {
   const label = sorts.find(([value]) => value === sort)?.[1] ?? "Sort";
 
-  // The header's only; a phone sorts in the filter sheet. A div trigger because Safari skips focus on a
-  // tapped button.
+  // A div trigger, because Safari skips focus on a tapped button.
   return (
     <div className="dropdown dropdown-end dropdown-bottom">
       <div

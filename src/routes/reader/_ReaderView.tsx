@@ -50,8 +50,7 @@ export const ReaderView = memo(function ReaderView({
   const positionRef = useRef(-1);
   const restoredRef = useRef(false);
 
-  // The text waits for its font: painted in the fallback font first, it reflows when the real one
-  // arrives, and WebKit has no scroll anchoring to hold the restored position through that.
+  // WebKit has no scroll anchoring, so a reflow for a late font loses the restored position.
   const fontSpec = `1em "${fontFamily[settings.font]}"`;
   const [fontReady, setFontReady] = useState(() => document.fonts.check(fontSpec));
   useEffect(() => {
@@ -83,8 +82,7 @@ export const ReaderView = memo(function ReaderView({
       target.getBoundingClientRect().top - container.getBoundingClientRect().top;
   }, [initialBlock, fontReady]);
 
-  // One pass of layout reads per layout change; a scroll then does a binary search instead of a hit
-  // test, and no observer watches every block (WebKit recomputes those on every frame).
+  // A binary search, not observers: WebKit recomputes observers on every frame.
   useEffect(() => {
     const container = containerRef.current;
     const article = articleRef.current;
@@ -125,8 +123,7 @@ export const ReaderView = memo(function ReaderView({
       if (node !== undefined && nodeTop !== undefined) {
         anchorRef.current = { element: node, offset: nodeTop - top };
       }
-      // The position is the top block: a resume puts the saved block at the top, so it shows the
-      // same screen. At the end of the book it is the last block, so the shelf can mark it finished.
+      // The top block, so a resume shows one screen; the last at the end, so the book reads finished.
       const atEnd = top + container.clientHeight >= container.scrollHeight - 2;
       const index = atEnd ? nodes.length - 1 : topIndex;
       if (index !== positionRef.current) {
@@ -207,8 +204,7 @@ export const ReaderView = memo(function ReaderView({
   // Justified lines without hyphenation leave wide gaps between words.
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
 
-  // The engine's own scroll anchoring is off: the resize handler above keeps the top block in
-  // place, and with both active a figure loading above the position moves the view twice.
+  // Off: the resize handler holds the top block, and both together move the view twice.
   return (
     <div
       ref={containerRef}

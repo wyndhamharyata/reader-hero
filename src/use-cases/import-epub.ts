@@ -83,8 +83,7 @@ export function buildEpub(
       }
     }
 
-    // Each illustration's block carries its shape, so its placeholder has the final size before
-    // the image loads and nothing above the reading position grows on a resume.
+    // The placeholder has the image's final size, so a resume does not shift as images load.
     const blocks = book.parsed.blocks.map((block) => {
       const ratio = block.imageId === undefined ? undefined : ratios.get(block.imageId);
       return ratio === undefined ? block : new Block({ ...block, ratio });

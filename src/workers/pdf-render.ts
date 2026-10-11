@@ -63,9 +63,7 @@ const fonts = (self as { fonts?: FontFaceSet }).fonts;
 const documents = new Map<number, { task: PDFDocumentLoadingTask; document: PDFDocumentProxy }>();
 const tasks = new Map<number, RenderTask>();
 
-// One pdf.js worker for every document. A "warm" message starts it early, so the first open
-// does not wait for its 1.3 MB script. pdf.js reads `window.location` before it makes its own
-// worker, which throws here, so the port is made here and parsing stays off this thread.
+// pdf.js reads `window.location` to make its worker, which throws here, so the port is made here.
 let shared: PDFWorker | null = null;
 const pdfWorker = (): PDFWorker => {
   if (shared !== null) return shared;
@@ -89,6 +87,7 @@ onmessage = async (event: MessageEvent) => {
     | { type: "cancel"; requestId: number }
     | { type: "close"; id: number };
   try {
+    // Starts the worker early, so the first open does not wait for its 1.3 MB script.
     if (message.type === "warm") {
       void pdfWorker().promise.catch(() => undefined);
       return;
@@ -104,8 +103,7 @@ onmessage = async (event: MessageEvent) => {
         wasmUrl: `${origin}/wasm/`,
         iccUrl: `${origin}/icc/`,
         isImageDecoderSupported: true,
-        // With a font set in this worker (Safari 16.4 and later) text paints through the font
-        // engine; without one every glyph is drawn as a path, which is slower.
+        // Safari 16.4+ paints text through the font engine, faster than glyph paths.
         ...(fonts === undefined
           ? { disableFontFace: true }
           : { disableFontFace: false, ownerDocument: { fonts } as never }),
