@@ -186,12 +186,23 @@ export function SeriesSheet({
                 </span>
               </>
             );
-            const rowClass = `flex min-w-0 flex-1 flex-col gap-1 rounded-field px-2 py-2 text-left ${current ? "bg-base-300" : ""} ${text}`;
+            // The series colour, so the book being read reads apart from a hovered row.
+            const rowStyle = current
+              ? {
+                  backgroundColor: `color-mix(in oklab, oklch(var(--tray) ${series.color}) 40%, var(--color-base-100))`,
+                }
+              : undefined;
+            const rowClass = `flex min-w-0 flex-1 flex-col gap-1 rounded-field px-2 py-2 text-left ${text}`;
             return (
               <li key={card.book.id} className="px-2 font-sans">
                 <div className="flex items-center gap-1">
                   {paragraph === null || fixed ? (
-                    <div data-row aria-current={current ? "true" : undefined} className={rowClass}>
+                    <div
+                      data-row
+                      aria-current={current ? "true" : undefined}
+                      className={rowClass}
+                      style={rowStyle}
+                    >
                       {line}
                     </div>
                   ) : (
@@ -201,6 +212,7 @@ export function SeriesSheet({
                       data-row
                       aria-current={current ? "true" : undefined}
                       aria-expanded={open}
+                      style={rowStyle}
                       onClick={(event) => {
                         if (listRef.current !== null)
                           holdLowestRow(listRef.current, event.currentTarget);
