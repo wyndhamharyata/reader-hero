@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { ArrowRightIcon, CheckIcon, ClipboardIcon, XMarkIcon } from "@/components/icons";
+import { ArrowRightIcon, XMarkIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
 import { CONSENT_VERSION, type AiSettings, type Summary } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
@@ -13,6 +13,7 @@ import type { JobState } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 import { describeSeries, seriesScope } from "@/use-cases/summary";
 import { ConsentNote } from "./_ConsentNote";
+import { CopyButton } from "./_CopyButton";
 
 const text = "text-base md:text-sm";
 const button = "btn md:btn-sm";
@@ -46,7 +47,6 @@ export function SeriesSheet({
   const listRef = useRef<HTMLUListElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [consentPending, setConsentPending] = useState(false);
-  const [copyResult, setCopyResult] = useState<"Copied" | "Copy failed" | null>(null);
   const [summaries, setSummaries] = useState<ReadonlyMap<string, Summary | null>>(new Map());
   // A desktop has the room, so the paragraphs up to the current book stay open there.
   const [desktop] = useState(() => window.matchMedia("(width >= 48rem)").matches);
@@ -97,23 +97,12 @@ export function SeriesSheet({
     onStart();
   };
 
-  const copy = (): void => {
-    const copied = cards.flatMap((card, index) => {
+  const copied = cards
+    .flatMap((card, index) => {
       const paragraph = rows[index]?.text ?? null;
       return paragraph === null ? [] : [`${card.book.title}\n${paragraph}`];
-    });
-    // Inside the chain, so a missing clipboard API (a plain IP) also shows as a failure.
-    void Promise.resolve()
-      .then(() => navigator.clipboard.writeText(copied.join("\n\n")))
-      .then(
-        () => "Copied" as const,
-        () => "Copy failed" as const,
-      )
-      .then((result) => {
-        setCopyResult(result);
-        setTimeout(() => setCopyResult(null), 1500);
-      });
-  };
+    })
+    .join("\n\n");
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
@@ -300,22 +289,7 @@ export function SeriesSheet({
 
             <div className="mt-2 flex items-center gap-2">
               <span className="flex-1" />
-              <button
-                type="button"
-                className={`${button} btn-square btn-ghost`}
-                aria-label={copyResult ?? "Copy"}
-                title={copyResult ?? "Copy"}
-                disabled={!rows.some((entry) => entry.text !== null)}
-                onClick={copy}
-              >
-                {copyResult === "Copied" ? (
-                  <CheckIcon className="size-6 md:size-4" />
-                ) : copyResult === "Copy failed" ? (
-                  <XMarkIcon className="size-6 text-error md:size-4" />
-                ) : (
-                  <ClipboardIcon className="size-6 md:size-4" />
-                )}
-              </button>
+              <CopyButton text={copied} />
               <button
                 type="button"
                 className={`${button} btn-square btn-ghost`}

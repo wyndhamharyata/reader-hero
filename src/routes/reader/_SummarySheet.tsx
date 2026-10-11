@@ -1,14 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import {
-  ArrowUpIcon,
-  CheckIcon,
-  ClipboardIcon,
-  PencilIcon,
-  PlusIcon,
-  TrashIcon,
-  XMarkIcon,
-} from "@/components/icons";
+import { ArrowUpIcon, PencilIcon, PlusIcon, TrashIcon, XMarkIcon } from "@/components/icons";
 import type { AiSettings, BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
@@ -24,6 +16,7 @@ import {
   type SummaryInput,
 } from "@/use-cases/summary";
 import { ConsentNote } from "./_ConsentNote";
+import { CopyButton } from "./_CopyButton";
 import { NameSheet } from "./_NameSheet";
 
 interface Props {
@@ -76,7 +69,6 @@ export function SummarySheet({
   const [tab, setTab] = useState<"chapters" | "names">("chapters");
   const [consentPending, setConsentPending] = useState(false);
   const [discardPending, setDiscardPending] = useState(false);
-  const [copyResult, setCopyResult] = useState<"Copied" | "Copy failed" | null>(null);
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
@@ -173,29 +165,13 @@ export function SummarySheet({
         ? null
         : { heading: stored.heading, text: stored.text };
 
-  const copy = (): void => {
-    if (summary === null) return;
-    const copied =
-      tab === "chapters"
-        ? [
-            ...visibleChapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
-            ...(stored === undefined
-              ? []
-              : [`${stored.heading} · current position\n${stored.text}`]),
-          ].join("\n\n")
-        : names.map((entry) => `${entry.name}: ${entry.note}`).join("\n");
-    // Inside the chain, so a missing clipboard API (a plain IP) also shows as a failure.
-    void Promise.resolve()
-      .then(() => navigator.clipboard.writeText(copied))
-      .then(
-        () => "Copied" as const,
-        () => "Copy failed" as const,
-      )
-      .then((result) => {
-        setCopyResult(result);
-        setTimeout(() => setCopyResult(null), 1500);
-      });
-  };
+  const copied =
+    tab === "chapters"
+      ? [
+          ...visibleChapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
+          ...(stored === undefined ? [] : [`${stored.heading} · current position\n${stored.text}`]),
+        ].join("\n\n")
+      : names.map((entry) => `${entry.name}: ${entry.note}`).join("\n");
 
   const close = (): void => {
     if (job.current !== null) stopFiber(job.current);
@@ -527,22 +503,7 @@ export function SummarySheet({
                 ))}
               </div>
               <span className="flex-1" />
-              <button
-                type="button"
-                className={`${button} btn-square btn-ghost`}
-                aria-label={copyResult ?? "Copy"}
-                title={copyResult ?? "Copy"}
-                disabled={summary === null}
-                onClick={copy}
-              >
-                {copyResult === "Copied" ? (
-                  <CheckIcon className="size-6 md:size-4" />
-                ) : copyResult === "Copy failed" ? (
-                  <XMarkIcon className="size-6 text-error md:size-4" />
-                ) : (
-                  <ClipboardIcon className="size-6 md:size-4" />
-                )}
-              </button>
+              <CopyButton text={copied} />
               <button
                 type="button"
                 className={`${button} btn-square btn-ghost text-error`}
