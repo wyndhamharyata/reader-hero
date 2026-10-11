@@ -219,7 +219,7 @@ export const ReaderView = memo(function ReaderView({
       {fontReady && (
         <article
           ref={articleRef}
-          className="reader-body mx-auto max-w-prose px-4 pt-4 pb-[calc(1rem+var(--safe-bottom))] md:max-w-[var(--text-width)]"
+          className="reader-body mx-auto max-w-prose overflow-x-clip px-4 pt-4 pb-[calc(1rem+var(--safe-bottom))] md:max-w-[var(--text-width)]"
           data-font={settings.font}
           style={
             {

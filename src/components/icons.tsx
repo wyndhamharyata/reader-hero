@@ -32,6 +32,14 @@ export function ArrowLeftIcon({ className }: IconProps): ReactElement {
   );
 }
 
+export function ArrowRightIcon({ className }: IconProps): ReactElement {
+  return (
+    <Icon className={className}>
+      <path d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+    </Icon>
+  );
+}
+
 export function Bars3Icon({ className }: IconProps): ReactElement {
   return (
     <Icon className={className}>

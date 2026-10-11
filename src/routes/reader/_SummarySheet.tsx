@@ -11,6 +11,7 @@ import {
 import type { AiSettings, BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
+import { holdLowestRow } from "@/lib/hold-lowest-row";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { useTabSwipe } from "@/lib/use-tab-swipe";
@@ -77,6 +78,12 @@ export function SummarySheet({
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
+  // Every entry starts closed, except the chapter opened from Contents.
+  // A desktop has the room, so every entry stays open there.
+  const [desktop] = useState(() => window.matchMedia("(width >= 48rem)").matches);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    new Set(openAt === null ? [] : [`${openAt}`]),
+  );
   // The entry open in its own sheet; `entry` is null for a new one.
   const [nameSheet, setNameSheet] = useState<{
     entry: { name: string; note: string } | null;
@@ -98,11 +105,12 @@ export function SummarySheet({
   );
   const unit = story ? "chapter" : "section";
   const namesLabel = story ? "Characters" : "Terms";
-  const chapterCount = visibleChapters.length;
   const spinner = <span className="loading loading-sm loading-spinner md:loading-xs" />;
 
   useEffect(() => {
-    if (openAt !== null) setTab("chapters");
+    if (openAt === null) return;
+    setTab("chapters");
+    setExpanded((keys) => new Set(keys).add(`${openAt}`));
   }, [openAt]);
   useEffect(() => {
     if (tab !== "chapters") return;
@@ -240,34 +248,78 @@ export function SummarySheet({
               className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
               inert={tab !== "chapters"}
             >
-              {visibleChapters.map((chapter, index) => (
-                <div
-                  key={index}
-                  ref={
-                    index === openAt
-                      ? opened
-                      : current === null && index === chapterCount - 1
-                        ? latest
-                        : undefined
-                  }
-                  className="mt-3 px-4 first:mt-0"
-                >
-                  <p className="font-medium">{chapter.heading}</p>
-                  <p className="whitespace-pre-wrap">{chapter.paragraph}</p>
-                </div>
-              ))}
-              {run !== null && run.stage === "chapter" && run.chapter > 0 && (
-                <div ref={latest} className="mt-3 px-4 first:mt-0">
-                  <p className="font-medium">{list[run.chapter - 1]?.heading ?? ""}</p>
-                  <p className="whitespace-pre-wrap">{run.text}</p>
-                </div>
-              )}
-              {current !== null && (
-                <div ref={latest} className="mt-3 px-4 first:mt-0">
-                  <p className="font-medium">{current.heading} · current position</p>
-                  <p className="whitespace-pre-wrap">{current.text}</p>
-                </div>
-              )}
+              {/* The chapter in writing shares its stored key, so it stays open once it is stored. */}
+              {[
+                ...visibleChapters.map((chapter, index) => ({
+                  key: `${index}`,
+                  heading: chapter.heading,
+                  text: chapter.paragraph,
+                })),
+                ...(run !== null && run.stage === "chapter" && run.chapter > 0
+                  ? [
+                      {
+                        key: `${run.chapter - 1}`,
+                        heading: list[run.chapter - 1]?.heading ?? "",
+                        text: run.text,
+                      },
+                    ]
+                  : []),
+                ...(current === null
+                  ? []
+                  : [
+                      {
+                        key: "current",
+                        heading: `${current.heading} · current position`,
+                        text: current.text,
+                      },
+                    ]),
+              ].map((entry, index, all) => {
+                const open = desktop || expanded.has(entry.key);
+                return (
+                  <div
+                    key={index}
+                    ref={
+                      entry.key === `${openAt}`
+                        ? opened
+                        : index === all.length - 1
+                          ? latest
+                          : undefined
+                    }
+                    className="px-2"
+                  >
+                    {desktop ? (
+                      <p className="px-2 py-2 font-medium">{entry.heading}</p>
+                    ) : (
+                      <button
+                        type="button"
+                        className="w-full rounded-field px-2 py-2 text-left font-medium hover:bg-base-300"
+                        data-row
+                        aria-expanded={open}
+                        onClick={(event) => {
+                          if (body.current !== null)
+                            holdLowestRow(body.current, event.currentTarget);
+                          setExpanded((keys) => {
+                            const next = new Set(keys);
+                            if (open) next.delete(entry.key);
+                            else next.add(entry.key);
+                            return next;
+                          });
+                        }}
+                      >
+                        {entry.heading}
+                      </button>
+                    )}
+                    <div
+                      className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+                      inert={!open}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <p className="px-2 pb-2 whitespace-pre-wrap">{entry.text}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
               {summary === null && run === null && (
                 <p className="px-4 opacity-70">
                   {action === null ? `No ${unit}s before this position` : "No summaries"}

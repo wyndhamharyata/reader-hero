@@ -105,7 +105,7 @@ export function describeSeries(
   summaries: ReadonlyMap<string, Summary | null>,
   run: SummaryRun | null,
 ): {
-  readonly rows: ReadonlyArray<{ readonly scope: string; readonly text: string | null }>;
+  readonly rows: ReadonlyArray<{ readonly scope: string | null; readonly text: string | null }>;
   readonly action: string | null;
   readonly status: string | null;
 } {
@@ -113,9 +113,23 @@ export function describeSeries(
   // Update only when every pending volume shows a paragraph already, as for the current position.
   let unmade = 0;
   const rows = volumes.map(({ card, order, scope }) => {
-    if (order === "current") return { scope: "Current · in Summary", text: null };
-    if (order === "later") return { scope: "Later · not included", text: null };
-    if (scope === null) return { scope: "Not included", text: null };
+    if (order !== "earlier") {
+      // The book's own Summary up to its position, as the Summary sheet shows it; the run writes none.
+      const summary = summaries.get(card.book.id) ?? null;
+      const told = (summary?.chapters ?? []).slice(0, scope?.cover.target ?? 0);
+      const at = summary?.current;
+      const entries = [
+        ...told.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
+        ...(scope !== null &&
+        at !== undefined &&
+        at.end <= scope.input.index + 1 &&
+        !told.some((chapter) => chapter.heading === at.heading)
+          ? [`${at.heading} · current position\n${at.text}`]
+          : []),
+      ];
+      return { scope: null, text: entries.length === 0 ? null : entries.join("\n\n") };
+    }
+    if (scope === null) return { scope: null, text: null };
     const { input, cover } = scope;
     const unit = units(input.kind);
     const summary = summaries.get(card.book.id) ?? null;
@@ -132,19 +146,15 @@ export function describeSeries(
         (stored.chapters === cover.target && (stored.current ?? 0) > (cover.current?.end ?? 0)));
     if (!fresh) pending += 1;
     if (!fresh && (stored === undefined || past)) unmade += 1;
-    const whole =
-      card.status === "finished" || input.kind === "reference"
-        ? "Whole book"
-        : "Up to current position";
     const streaming =
       run?.stage === "volume" && run.book === card.book.id && run.text !== "" ? run.text : null;
     return {
       scope:
         missing > 0
-          ? `${whole} · ${missing} ${missing === 1 ? unit.one : unit.many} pending`
+          ? `${missing} ${missing === 1 ? unit.one : unit.many} pending`
           : fresh
-            ? whole
-            : `${whole} · 1 pending`,
+            ? null
+            : "1 pending",
       text: streaming ?? (stored === undefined || past ? null : stored.text),
     };
   });
@@ -546,7 +556,7 @@ export function seriesScope(
         Effect.gen(function* () {
           const order: "earlier" | "current" | "later" =
             place < at ? "earlier" : place === at ? "current" : "later";
-          if (order !== "earlier" || card.status === "not-started") {
+          if (card.status === "not-started") {
             return { card, order, scope: null };
           }
           const id = card.book.id;
@@ -631,8 +641,9 @@ export function summariseSeries(
     const store = yield* SummaryStore;
     // The paragraph of the volume before, so names and threads go on from book to book.
     let previous: Array<string> = [];
-    for (const [place, { scope }] of (yield* seriesScope(series, bookId)).entries()) {
-      if (scope === null) continue;
+    for (const [place, { order, scope }] of (yield* seriesScope(series, bookId)).entries()) {
+      // The current and later books carry a scope for the sheet only; each Summary is its own.
+      if (scope === null || order !== "earlier") continue;
       const { input, cover } = scope;
       const book = input.meta.id;
       const stored = (yield* store.get(book))?.volume;

@@ -94,101 +94,109 @@ export function MenuSheet({
           </button>
         </div>
 
-        <section className="mt-3 flex shrink-0 flex-col rounded-box bg-base-300 md:order-3">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
-            aria-expanded={textOpen}
-            onClick={() => setTextOpen(!textOpen)}
-          >
-            <AdjustmentsIcon className="size-6 md:size-4" />
-            <span className="flex-1 text-left">Text settings</span>
-            <ChevronDownIcon className={`size-6 transition-transform md:size-4 ${chevronTurn}`} />
-          </button>
+        {/* One scroll for the settings, the Summary, the Series and Contents, so all of them move together. */}
+        <div className="-mx-4 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-4 md:order-3">
+          <section className="mt-3 flex shrink-0 flex-col rounded-box bg-base-300">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
+              aria-expanded={textOpen}
+              onClick={() => setTextOpen(!textOpen)}
+            >
+              <AdjustmentsIcon className="size-6 md:size-4" />
+              <span className="flex-1 text-left">Text settings</span>
+              <ChevronDownIcon className={`size-6 transition-transform md:size-4 ${chevronTurn}`} />
+            </button>
 
-          {/* Rows animate between 0fr and 1fr, so the panel grows to its own height. */}
-          <div
-            className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${textOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-            inert={!textOpen}
-          >
-            <div className="min-h-0 overflow-hidden">
-              {/* Capped so the open panel never pushes the buttons below it off the sheet. */}
-              <div className="max-h-[40dvh] overflow-y-auto overscroll-contain md:max-h-[60dvh]">
+            {/* Rows animate between 0fr and 1fr, so the panel grows to its own height. */}
+            <div
+              className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${textOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+              inert={!textOpen}
+            >
+              <div className="min-h-0 overflow-hidden">
                 <TextSettings settings={settings} onChange={onSettingsChange} />
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300 md:order-4">
-          <button
-            type="button"
-            className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
-            onClick={() => keepOpen(onSummary)}
-          >
-            <DocumentTextIcon className="size-6 md:size-4" />
-            <span className="shrink-0 text-left">Summary</span>
-            <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
-              {summary}
-            </span>
-            {!summaryRunning && <span className="opacity-60">›</span>}
-          </button>
-          {summaryRunning && (
-            <button type="button" className="btn mr-2 btn-ghost md:btn-sm" onClick={onStopSummary}>
-              Stop
-            </button>
-          )}
-        </section>
-
-        {series !== null && (
-          <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300 md:order-4">
+          <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300">
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
-              onClick={() => keepOpen(onSeries)}
+              onClick={() => keepOpen(onSummary)}
             >
-              <RectangleStackIcon className="size-6 md:size-4" />
-              <span className="shrink-0 text-left">Series</span>
+              <DocumentTextIcon className="size-6 md:size-4" />
+              <span className="shrink-0 text-left">Summary</span>
               <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
-                {series}
+                {summary}
               </span>
-              {!seriesRunning && <span className="opacity-60">›</span>}
+              {!summaryRunning && <span className="opacity-60">›</span>}
             </button>
-            {seriesRunning && (
-              <button type="button" className="btn mr-2 btn-ghost md:btn-sm" onClick={onStopSeries}>
+            {summaryRunning && (
+              <button
+                type="button"
+                className="btn mr-2 btn-ghost md:btn-sm"
+                onClick={onStopSummary}
+              >
                 Stop
               </button>
             )}
           </section>
-        )}
 
-        <div className="mt-4 flex min-h-0 flex-1 flex-col md:order-5">
-          <h3 className="text-sm font-semibold">Contents</h3>
-          <ul className="-mx-4 mt-1 flex min-h-0 flex-1 flex-col divide-y divide-base-300 overflow-y-auto overscroll-contain">
-            {toc.length === 0 && (
-              <li className="p-2 text-sm opacity-70">No table of contents found.</li>
-            )}
-            {toc.map((entry, index) => (
-              <li key={index} className="shrink-0 px-2">
+          {series !== null && (
+            <section className="mt-3 flex shrink-0 items-center rounded-box bg-base-300">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 p-4 text-base font-medium md:p-3 md:text-sm"
+                onClick={() => keepOpen(onSeries)}
+              >
+                <RectangleStackIcon className="size-6 md:size-4" />
+                <span className="shrink-0 text-left">Series</span>
+                <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
+                  {series}
+                </span>
+                {!seriesRunning && <span className="opacity-60">›</span>}
+              </button>
+              {seriesRunning && (
                 <button
                   type="button"
-                  className="my-1 w-full rounded-field px-2 py-3 text-left text-base whitespace-normal hover:bg-base-300 md:py-2 md:text-sm"
-                  onClick={() => dismiss(() => onSelect(entry.blockIndex))}
+                  className="btn mr-2 btn-ghost md:btn-sm"
+                  onClick={onStopSeries}
                 >
-                  {entry.title}
+                  Stop
                 </button>
-                {lines.get(entry.blockIndex) !== undefined && (
+              )}
+            </section>
+          )}
+
+          <div className="mt-4 shrink-0">
+            <h3 className="text-sm font-semibold">Contents</h3>
+            <ul className="-mx-4 mt-1 flex flex-col divide-y divide-base-300">
+              {toc.length === 0 && (
+                <li className="p-2 text-sm opacity-70">No table of contents found.</li>
+              )}
+              {toc.map((entry, index) => (
+                <li key={index} className="shrink-0 px-2">
                   <button
                     type="button"
-                    className="mb-1 w-full rounded-field px-2 pb-2 text-left text-base opacity-70 hover:bg-base-300 md:text-sm"
-                    onClick={() => keepOpen(() => onLine(entry.blockIndex))}
+                    className="my-1 w-full rounded-field px-2 py-3 text-left text-base whitespace-normal hover:bg-base-300 md:py-2 md:text-sm"
+                    onClick={() => dismiss(() => onSelect(entry.blockIndex))}
                   >
-                    <span className="line-clamp-2 block">{lines.get(entry.blockIndex)}</span>
+                    {entry.title}
                   </button>
-                )}
-              </li>
-            ))}
-          </ul>
+                  {lines.get(entry.blockIndex) !== undefined && (
+                    <button
+                      type="button"
+                      className="mb-1 w-full rounded-field px-2 pb-2 text-left text-base opacity-70 hover:bg-base-300 md:text-sm"
+                      onClick={() => keepOpen(() => onLine(entry.blockIndex))}
+                    >
+                      <span className="line-clamp-2 block">{lines.get(entry.blockIndex)}</span>
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
         <div className="mt-3 flex gap-2 md:order-2 md:mt-2">
           {onToggleMode !== undefined && (
