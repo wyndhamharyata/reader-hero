@@ -533,6 +533,44 @@ describe("summaryFollowUp", () => {
     expect(calls[0]?.system).not.toContain("Chapter 2\nSecond.");
     expect(calls[0]?.system).not.toContain("Ben: Appears later.");
   });
+
+  it("given a thread, marks the summary and the last answer for the cache, and not the new question", async () => {
+    const thread: Array<AiMessage> = [
+      { role: "user", content: "Who is Jim?" },
+      { role: "assistant", content: "The narrator." },
+    ];
+    const summary = stored({ thread });
+    const { layer } = harness(summary);
+    const sent: Array<{ system: unknown; messages: unknown }> = [];
+    const client = Layer.succeed(
+      AiClient,
+      AiClient.of({
+        complete: (_settings, system, messages) => {
+          sent.push({ system, messages });
+          return Stream.fromArray([{ type: "text" as const, text: "An answer." }]);
+        },
+        models: () => Effect.succeed([]),
+        balance: () => Effect.succeed(null),
+      }),
+    );
+    const input: SummaryInput = { meta, parsed: novel, kind: "story", index: 7 };
+
+    await Effect.runPromise(
+      summaryFollowUp(input, settings, summary, "And Silver?", () => undefined).pipe(
+        Effect.provide(client),
+        Effect.provide(layer),
+      ),
+    );
+
+    expect(sent[0]?.system).toEqual([
+      { text: expect.stringContaining("Summary so far:"), cache: true },
+    ]);
+    expect(sent[0]?.messages).toEqual([
+      { role: "user", content: "Who is Jim?" },
+      { role: "assistant", content: [{ text: "The narrator.", cache: true }] },
+      { role: "user", content: "And Silver?" },
+    ]);
+  });
 });
 
 describe("describeSummary", () => {
@@ -1374,6 +1412,44 @@ describe("rebuild", () => {
     expect(state.summaries.get("b4")?.volume).toBeUndefined();
     // A book alone that was never summarised stays so.
     expect(state.summaries.has("b3")).toBe(false);
+  });
+
+  it("given a second rebuild, sends each chapter as before up to the end of its text", async () => {
+    const state = {
+      summaries: new Map([["b4", kept("b4", "V4", 3)]]),
+      books: [deep],
+      progress: new Map([["b4", done]]),
+    };
+    const { calls, layer } = seriesHarness(state);
+    const rebuild = Effect.gen(function* () {
+      const jobs = yield* SummaryJobs;
+      yield* jobs.startRebuild(consented);
+      yield* jobs.state("rebuild").pipe(
+        Stream.filter((job) => job.run === null),
+        Stream.runHead,
+      );
+    });
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* rebuild;
+        // The run shows as ended a moment before its cleanup lets the next one start.
+        yield* Effect.sleep("1 millis");
+        yield* rebuild;
+      }).pipe(Effect.provide(SummaryJobs.layer.pipe(Layer.provide(layer)))),
+    );
+
+    const chapters = calls.filter((call) => call.kind === "chapter").map((call) => call.user);
+    expect(chapters).toHaveLength(6);
+    const [first, second] = [chapters.slice(0, 3), chapters.slice(3)];
+    for (const [index, user] of first.entries()) {
+      // The part a cache can reuse: everything before the previous summary, the whole text included.
+      const cut = user.indexOf("Previous chapter's summary:");
+      const prefix = cut === -1 ? user : user.slice(0, cut);
+      expect(prefix).toContain(`Text:\nChapter ${index + 1}\n\nw0 w1`);
+      expect(second[index]?.startsWith(prefix)).toBe(true);
+    }
+    // The summaries were written again, so the requests differ after the text.
+    expect(second[1]).not.toBe(first[1]);
   });
 
   it("given a volume with no paragraph, counts it, and on open counts only the volumes before the book", async () => {

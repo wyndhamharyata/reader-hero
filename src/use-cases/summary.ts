@@ -384,14 +384,15 @@ export function summariseNext(
       const chapter = list[index];
       if (chapter === undefined) break;
       const previous = record.chapters[index - 1]?.paragraph;
+      // The text before the previous summary: a rebuild writes that summary again, and a cache matches only up to a change.
       const user = [
         bookLine(input.meta),
         `Heading: ${chapter.heading}.`,
         "",
-        ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         "Text:",
         spanText(input.parsed, chapter.start, chapter.end),
         "",
+        ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         `Summarise this ${unit.one}.`,
       ].join("\n");
       yield* onProgress({ stage: "chapter", chapter: index + 1, of, text: "" });
@@ -428,10 +429,10 @@ export function summariseNext(
         bookLine(input.meta),
         `Heading: ${cover.current.chapter.heading}, up to where the reader stopped.`,
         "",
-        ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         "Text:",
         cover.current.text,
         "",
+        ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         `Summarise this part of the ${unit.one}.`,
       ].join("\n");
       yield* onProgress({ stage: "current", chapter: number, of, text: "" });
@@ -498,9 +499,20 @@ export function summaryFollowUp(
     ].join("\n");
     let text = "";
     yield* client
-      .complete(settings, system, [...summary.thread, { role: "user", content: question }], {
-        purpose: { stage: "question", book: summary.bookId },
-      })
+      .complete(
+        settings,
+        // The summary and the thread so far come back with the next question, so both are worth a cache write.
+        [{ text: system, cache: true }],
+        [
+          ...summary.thread.map((message, index) =>
+            index === summary.thread.length - 1
+              ? { role: message.role, content: [{ text: message.content, cache: true }] }
+              : message,
+          ),
+          { role: "user", content: question },
+        ],
+        { purpose: { stage: "question", book: summary.bookId } },
+      )
       .pipe(
         Stream.runForEach((delta) =>
           Effect.sync(() => {
