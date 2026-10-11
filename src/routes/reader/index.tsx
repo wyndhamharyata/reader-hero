@@ -26,7 +26,7 @@ import { chapters } from "@/use-cases/ai-context";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
-import { coverage, describeSummary, type SummaryInput } from "@/use-cases/summary";
+import { coverage, describeSummary, pendingVolumes, type SummaryInput } from "@/use-cases/summary";
 import { MenuSheet } from "./_MenuSheet";
 import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
@@ -346,12 +346,49 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       return;
     }
     // An error waits for a tap in the sheet, so a failing provider is not asked again and again.
-    if (run !== null || summaryError !== null || !navigator.onLine) return;
+    if (run !== null || summaryError !== null || seriesJob.run !== null || !navigator.onLine) {
+      return;
+    }
     if (readingCover.target <= autoTarget.current) return;
     autoTarget.current = readingCover.target;
     if ((summary?.chapters.length ?? 0) >= readingCover.target) return;
     start(autoSummaryInput, ai);
-  }, [ai, autoSummaryInput, run, summaryError, summary, readingCover.target, start]);
+  }, [ai, autoSummaryInput, run, summaryError, seriesJob.run, summary, readingCover.target, start]);
+
+  // After the book's own job catches up, once per finished chapter, on Finished, and on open for earlier volumes.
+  const seriesTarget = useRef(-1);
+  useEffect(() => {
+    if (
+      ai === null ||
+      !ai.autoSummary ||
+      ai.consentedAt === undefined ||
+      ai.consentVersion !== CONSENT_VERSION ||
+      seriesId === null
+    ) {
+      return;
+    }
+    if (
+      run !== null ||
+      summaryError !== null ||
+      seriesJob.run !== null ||
+      seriesJob.error !== null
+    ) {
+      return;
+    }
+    if (!navigator.onLine || (summary?.chapters.length ?? 0) < readingCover.target) return;
+    const target = finished ? Number.POSITIVE_INFINITY : readingCover.target;
+    if (target <= seriesTarget.current) return;
+    const opening = seriesTarget.current === -1;
+    seriesTarget.current = target;
+    // Read again, so the statuses include this visit's reading and a first open counts as started.
+    const program = Effect.gen(function* () {
+      const series = yield* findBookSeries(bookId);
+      if (series === null) return;
+      if ((yield* pendingVolumes(series, opening ? bookId : undefined)) === 0) return;
+      yield* (yield* SummaryJobs).startSeries(series, bookId, ai);
+    });
+    forkApp(program.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
+  }, [ai, seriesId, bookId, run, summaryError, seriesJob, summary, readingCover.target, finished]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts now.
   useEffect(() => {

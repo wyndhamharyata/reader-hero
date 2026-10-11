@@ -55,9 +55,9 @@ export function SettingsSheet({
   const [seriesGrouping, setSeriesGrouping] = useState(false);
   const [consentPending, setConsentPending] = useState(false);
   // The action whose consent note shows, under its own control.
-  const [consentFor, setConsentFor] = useState<"grouping" | "names" | null>(null);
+  const [consentFor, setConsentFor] = useState<"grouping" | "rebuild" | null>(null);
   const consentNote = useRef<HTMLDivElement>(null);
-  const names = useJob("names");
+  const rebuild = useJob("rebuild");
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
   const [test, setTest] = useState<Test>({ state: "idle" });
 
@@ -258,7 +258,71 @@ export function SettingsSheet({
                   />
                 </label>
                 <p className="text-sm opacity-60 md:text-xs">
-                  Automatic summary sends each chapter when it is read.
+                  Automatic summary sends each chapter when it is read. In a series, it then writes
+                  the book's series paragraph again, and the paragraph of each earlier volume that
+                  has none.
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3 py-1 text-base md:text-sm">
+                  <span>All summaries</span>
+                  {rebuild.run === null ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost md:btn-sm"
+                      disabled={ai === null}
+                      onClick={() => {
+                        if (ai === null) return;
+                        // Only the current consent text names what a series paragraph and a later volume's list send.
+                        if (ai.consentedAt === undefined || ai.consentVersion !== CONSENT_VERSION) {
+                          setConsentFor("rebuild");
+                          return;
+                        }
+                        rebuild.startRebuild(ai);
+                      }}
+                    >
+                      Rebuild
+                    </button>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span className="loading loading-sm loading-spinner md:loading-xs" />
+                      {rebuild.run.of === 0
+                        ? "Starting"
+                        : `${rebuild.run.of - rebuild.run.chapter + 1} ${rebuild.run.of - rebuild.run.chapter === 0 ? "book" : "books"} left`}
+                      <button
+                        type="button"
+                        className="btn btn-ghost md:btn-sm"
+                        onClick={rebuild.stop}
+                      >
+                        Stop
+                      </button>
+                    </span>
+                  )}
+                </div>
+                {consentFor === "rebuild" && ai !== null && (
+                  <div className="mb-3" ref={consentNote}>
+                    <ConsentNote
+                      provider={ai.provider}
+                      onCancel={() => setConsentFor(null)}
+                      onAllow={() => {
+                        setConsentFor(null);
+                        const next = new AiSettings({
+                          ...ai,
+                          consentedAt: Date.now(),
+                          consentVersion: CONSENT_VERSION,
+                        });
+                        putAi(next);
+                        rebuild.startRebuild(next);
+                      }}
+                    />
+                  </div>
+                )}
+                {rebuild.error !== null && (
+                  <p className="text-base text-error md:text-sm">{rebuild.error}</p>
+                )}
+                <p className="text-sm opacity-60 md:text-xs">
+                  Rebuild writes every summary again up to where you read: the chapters, the
+                  characters and the series paragraph, each series first volume to last. It sends
+                  one request per chapter read, and stops any summary that runs. Edited characters
+                  stay; questions and answers go.
                 </p>
               </section>
 
@@ -332,67 +396,6 @@ export function SettingsSheet({
                       </p>
                     </>
                   ))}
-                <div className="mt-2 flex items-center justify-between gap-3 py-1 text-base md:text-sm">
-                  <span>Characters in series</span>
-                  {names.run === null ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost md:btn-sm"
-                      disabled={ai === null}
-                      onClick={() => {
-                        if (ai === null) return;
-                        // Only the current consent text names what a later volume's list sends.
-                        if (ai.consentedAt === undefined || ai.consentVersion !== CONSENT_VERSION) {
-                          setConsentFor("names");
-                          return;
-                        }
-                        names.startNames(ai);
-                      }}
-                    >
-                      Rebuild
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <span className="loading loading-sm loading-spinner md:loading-xs" />
-                      {names.run.of === 0
-                        ? "Starting"
-                        : `${names.run.of - names.run.chapter + 1} ${names.run.of - names.run.chapter === 0 ? "volume" : "volumes"} left`}
-                      <button
-                        type="button"
-                        className="btn btn-ghost md:btn-sm"
-                        onClick={names.stop}
-                      >
-                        Stop
-                      </button>
-                    </span>
-                  )}
-                </div>
-                {consentFor === "names" && ai !== null && (
-                  <div className="mb-3" ref={consentNote}>
-                    <ConsentNote
-                      provider={ai.provider}
-                      onCancel={() => setConsentFor(null)}
-                      onAllow={() => {
-                        setConsentFor(null);
-                        const next = new AiSettings({
-                          ...ai,
-                          consentedAt: Date.now(),
-                          consentVersion: CONSENT_VERSION,
-                        });
-                        putAi(next);
-                        names.startNames(next);
-                      }}
-                    />
-                  </div>
-                )}
-                {names.error !== null && (
-                  <p className="text-base text-error md:text-sm">{names.error}</p>
-                )}
-                <p className="text-sm opacity-60 md:text-xs">
-                  Rebuild writes the character list of each later volume in a series again, first
-                  volume to last, so each list knows the books before it. It sends one request per
-                  volume with a list. Edited characters stay.
-                </p>
               </section>
             </div>
             <div className="flex h-full w-full shrink-0 flex-col" inert={tab !== "provider"}>

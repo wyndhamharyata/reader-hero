@@ -20,9 +20,9 @@ export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElemen
         series that exist for its author. A series summary sends the stored summaries of each
         started volume, one volume per request. The character list of a later volume also sends the
         characters from the stored summaries of earlier volumes. With Automatic summary on, each
-        chapter is sent when it is read. Reader Hero's server does not receive the text or the key.{" "}
-        {name}'s terms apply to the text it receives. Summaries are stored on this device and read
-        offline.
+        chapter is sent when it is read, and in a series the series summary follows it. Reader
+        Hero's server does not receive the text or the key. {name}'s terms apply to the text it
+        receives. Summaries are stored on this device and read offline.
       </p>
       <div className="flex justify-end gap-2">
         <button type="button" className="btn btn-ghost md:btn-sm" onClick={onCancel}>

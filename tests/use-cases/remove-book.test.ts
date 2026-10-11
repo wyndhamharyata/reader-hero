@@ -45,7 +45,7 @@ describe("removeBook", () => {
         state: () => Stream.empty,
         start: () => Effect.void,
         startSeries: () => Effect.void,
-        startNames: () => Effect.void,
+        startRebuild: () => Effect.void,
         stop: (id) => Effect.sync(() => state.stopped.push(id)),
       }),
     );

@@ -24,6 +24,7 @@ import {
   earlierNames,
   describeSummary,
   mergeNames,
+  pendingVolumes,
   seriesScope,
   summariseNext,
   summariseSeries,
@@ -1277,62 +1278,117 @@ describe("earlier names", () => {
       'Known from earlier books (JSON):\n[{"name":"jim","note":"Now a ship\'s boy."},{"name":"Pew","note":"Blind, as the reader wrote."}]',
     );
   });
+});
 
-  it("given a rebuild, writes each later volume's list again in order, each with the books before it", async () => {
+describe("rebuild", () => {
+  const consented = new AiSettings({
+    ...settings,
+    consentedAt: 1,
+    consentVersion: CONSENT_VERSION,
+  });
+  const done = new ReadingProgress({
+    blockIndex: 8,
+    percent: 1,
+    updatedAt: 1,
+    furthest: 8,
+    finished: true,
+  });
+  const thread: Array<AiMessage> = [
+    { role: "user", content: "Who is Jim?" },
+    { role: "assistant", content: "The narrator." },
+  ];
+  const old = { text: "Old paragraph.", chapters: 3, model: "flash", updatedAt: 1 };
+
+  it("given every summary, writes each again, series first volume to last, with edits kept and threads gone", async () => {
     const state = {
       summaries: new Map([
         [
           "b1",
-          kept("b1", "V1", 2, { names: [{ name: "Jim", note: "A boy at an inn.", chapter: 1 }] }),
-        ],
-        [
-          "b2",
-          kept("b2", "V2", 2, {
+          kept("b1", "V1", 3, {
             names: [
-              { name: "Jim", note: "Old note.", chapter: 1 },
+              { name: "Jim", note: "A boy at an inn.", chapter: 1 },
               { name: "Pew", note: "Blind, as the reader wrote.", chapter: 1, edited: true },
             ],
+            thread,
+            volume: old,
           }),
         ],
-        ["b3", kept("b3", "V3", 2, { names: [{ name: "Silver", note: "A cook.", chapter: 1 }] })],
+        ["b2", kept("b2", "V2", 3, { removed: ["Ben"], volume: old })],
+        ["b4", kept("b4", "V4", 3, { thread })],
       ]),
-      books: [beacon, shoal, salt],
+      books: [beacon, shoal, salt, deep],
       series: [
         new Series({
           id: "the tide cycle",
           name: "The Tide Cycle",
-          books: [{ id: "b1" }, { id: "b2" }, { id: "b3" }],
+          books: [{ id: "b1" }, { id: "b2" }],
           possible: [],
           removed: [],
           edited: true,
         }),
       ],
+      progress: new Map([
+        ["b1", done],
+        ["b2", done],
+        ["b3", reading(7)],
+        ["b4", done],
+      ]),
     };
     const { calls, layer } = seriesHarness(state);
     await Effect.runPromise(
       Effect.gen(function* () {
         const jobs = yield* SummaryJobs;
-        yield* jobs.startNames(consented);
-        yield* jobs.state("names").pipe(
-          Stream.filter((state) => state.run === null),
+        yield* jobs.startRebuild(consented);
+        yield* jobs.state("rebuild").pipe(
+          Stream.filter((job) => job.run === null),
           Stream.runHead,
         );
       }).pipe(Effect.provide(SummaryJobs.layer.pipe(Layer.provide(layer)))),
     );
 
-    expect(calls.map((call) => call.kind)).toEqual(["names", "names"]);
-    expect(calls[0]?.user).toContain(
-      'List so far (JSON):\n[{"name":"Pew","note":"Blind, as the reader wrote.","first":1}]',
+    const book = ["chapter", "chapter", "chapter", "names"];
+    expect(calls.map((call) => call.kind)).toEqual([...book, "series", ...book, "series", ...book]);
+    // The first chapter starts from nothing, not from the old summaries.
+    expect(calls[0]?.user).not.toContain("V1");
+    expect(calls[8]?.user).toContain(
+      'Known from earlier books (JSON):\n[{"name":"Pew","note":"Blind, as the reader wrote."}]',
     );
-    expect(calls[0]?.user).toContain(
-      'Known from earlier books (JSON):\n[{"name":"Jim","note":"A boy at an inn."}]',
-    );
-    expect(calls[0]?.user).toContain("#1 Chapter 1\nV2 first.\n\n#2 Chapter 2\nV2 second.");
-    // The second volume's rebuilt list, which kept only the edited entry, reaches the third.
-    expect(calls[1]?.user).toContain(
-      'Known from earlier books (JSON):\n[{"name":"Pew","note":"Blind, as the reader wrote."},{"name":"Jim","note":"A boy at an inn."}]',
-    );
-    expect(state.summaries.get("b2")?.names.map((entry) => entry.name)).toEqual(["Pew"]);
-    expect(state.summaries.get("b2")?.namesThrough).toBe(2);
+    expect(calls[9]?.user).toContain("Series: The Tide Cycle, book 2 of 2.");
+    expect(calls[9]?.user).toContain("Book 1, Beacon at Low Water: Paragraph 5.");
+    expect(calls.map((call) => call.user).join("\n")).not.toContain("Old paragraph.");
+
+    const b1 = state.summaries.get("b1");
+    expect(b1?.chapters.map((chapter) => chapter.paragraph)).toEqual([
+      "Paragraph 1.",
+      "Paragraph 2.",
+      "Paragraph 3.",
+    ]);
+    expect(b1?.names.map((entry) => entry.name)).toEqual(["Pew"]);
+    expect(b1?.thread).toEqual([]);
+    expect(b1?.volume?.text).toBe("Paragraph 5.");
+    expect(state.summaries.get("b2")?.removed).toEqual(["Ben"]);
+    expect(state.summaries.get("b4")?.thread).toEqual([]);
+    expect(state.summaries.get("b4")?.volume).toBeUndefined();
+    // A book alone that was never summarised stays so.
+    expect(state.summaries.has("b3")).toBe(false);
+  });
+
+  it("given a volume with no paragraph, counts it, and on open counts only the volumes before the book", async () => {
+    const state = {
+      summaries: new Map([
+        ["b1", kept("b1", "V1", 3, { volume: old })],
+        ["b2", kept("b2", "V2", 3)],
+      ]),
+      progress: new Map([["b3", reading(7)]]),
+    };
+    const series = tide([card(beacon, "finished"), card(shoal, "finished"), card(salt, "reading")]);
+    const { calls, layer } = seriesHarness(state);
+    const count = (before?: string) =>
+      Effect.runPromise(pendingVolumes(series, before).pipe(Effect.provide(layer)));
+
+    expect(await count()).toBe(2);
+    expect(await count("b3")).toBe(1);
+    expect(await count("b1")).toBe(0);
+    expect(calls).toEqual([]);
   });
 });

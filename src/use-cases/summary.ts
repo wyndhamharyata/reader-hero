@@ -63,6 +63,9 @@ export const currentFresh = (summary: Summary | null, cover: Coverage): boolean 
     summary.current.heading === cover.current.chapter.heading &&
     summary.current.end === cover.current.end);
 
+export const volumeFresh = (stored: Summary["volume"], cover: Coverage): boolean =>
+  stored !== undefined && stored.chapters === cover.target && stored.current === cover.current?.end;
+
 // The action is null when the summary is current.
 export function describeSummary(
   summary: Summary | null,
@@ -119,10 +122,7 @@ export function describeSeries(
     const summary = summaries.get(card.book.id) ?? null;
     const stored = summary?.volume;
     const missing = cover.target - Math.min(summary?.chapters.length ?? 0, cover.target);
-    const fresh =
-      stored !== undefined &&
-      stored.chapters === cover.target &&
-      stored.current === cover.current?.end;
+    const fresh = volumeFresh(stored, cover);
     // A paragraph past the boundary, as after Finished is turned off, would tell what was not read.
     const past =
       stored !== undefined &&
@@ -517,6 +517,42 @@ export function summaryFollowUp(
   });
 }
 
+export type VolumeScope = { readonly input: SummaryInput; readonly cover: Coverage } | null;
+
+// Null for a book with nothing to summarise: not started, no reader text, or nothing read yet.
+export function volumeScope(
+  card: LibraryCard,
+): Effect.Effect<VolumeScope, StorageFailure, BookStore> {
+  return Effect.gen(function* () {
+    if (card.status === "not-started") return null;
+    const store = yield* BookStore;
+    const id = card.book.id;
+    const [parsed, progress, prefs] = yield* Effect.all(
+      [
+        store.getParsed(id).pipe(
+          Effect.catchTags({
+            BookNotFound: () => Effect.succeed(null),
+            ParsedMissing: () => Effect.succeed(null),
+          }),
+        ),
+        store.getProgress(id),
+        store.getPrefs(id),
+      ],
+      { concurrency: "unbounded" },
+    );
+    if (parsed === null) return null;
+    const kind = prefs?.kind ?? guessKind(card.book, parsed);
+    // The boundary of the book's own Summary: its end when Finished, else its furthest position.
+    const index =
+      card.status === "finished"
+        ? parsed.blocks.length
+        : Math.max(progress?.blockIndex ?? 0, progress?.furthest ?? 0);
+    const cover = coverage(chapters(parsed), parsed, kind, index);
+    if (cover.target === 0 && cover.current === null) return null;
+    return { input: { meta: card.book, parsed, kind, index }, cover };
+  });
+}
+
 // Each book of the series in order; a started book has a scope, up to its boundary.
 export function seriesScope(
   series: Shelf["series"][number],
@@ -525,51 +561,47 @@ export function seriesScope(
   ReadonlyArray<{
     readonly card: LibraryCard;
     readonly order: "earlier" | "current" | "later";
-    readonly scope: { readonly input: SummaryInput; readonly cover: Coverage } | null;
+    readonly scope: VolumeScope;
   }>,
   StorageFailure,
   BookStore
 > {
+  const at = series.books.findIndex((card) => card.book.id === bookId);
+  return Effect.forEach(
+    series.books,
+    (card, place) =>
+      Effect.map(volumeScope(card), (scope) => ({
+        card,
+        order:
+          place < at
+            ? ("earlier" as const)
+            : place === at
+              ? ("current" as const)
+              : ("later" as const),
+        scope,
+      })),
+    { concurrency: "unbounded" },
+  );
+}
+
+// How many volumes have no paragraph or one from an older boundary, so an automatic run starts only for them.
+export function pendingVolumes(
+  series: Shelf["series"][number],
+  // Counts only the volumes before this book, as on open, when the book's own paragraph waits for a chapter.
+  before?: string,
+): Effect.Effect<number, StorageFailure, BookStore | SummaryStore> {
   return Effect.gen(function* () {
-    const store = yield* BookStore;
-    const at = series.books.findIndex((card) => card.book.id === bookId);
-    return yield* Effect.forEach(
-      series.books,
-      (card, place) =>
-        Effect.gen(function* () {
-          const order: "earlier" | "current" | "later" =
-            place < at ? "earlier" : place === at ? "current" : "later";
-          if (card.status === "not-started") {
-            return { card, order, scope: null };
-          }
-          const id = card.book.id;
-          const [parsed, progress, prefs] = yield* Effect.all(
-            [
-              // A book with no reader text has nothing to summarise.
-              store.getParsed(id).pipe(
-                Effect.catchTags({
-                  BookNotFound: () => Effect.succeed(null),
-                  ParsedMissing: () => Effect.succeed(null),
-                }),
-              ),
-              store.getProgress(id),
-              store.getPrefs(id),
-            ],
-            { concurrency: "unbounded" },
-          );
-          if (parsed === null) return { card, order, scope: null };
-          const kind = prefs?.kind ?? guessKind(card.book, parsed);
-          // The boundary of the book's own Summary: its end when Finished, else its furthest position.
-          const index =
-            card.status === "finished"
-              ? parsed.blocks.length
-              : Math.max(progress?.blockIndex ?? 0, progress?.furthest ?? 0);
-          const cover = coverage(chapters(parsed), parsed, kind, index);
-          if (cover.target === 0 && cover.current === null) return { card, order, scope: null };
-          return { card, order, scope: { input: { meta: card.book, parsed, kind, index }, cover } };
-        }),
-      { concurrency: "unbounded" },
-    );
+    const store = yield* SummaryStore;
+    const at = series.books.findIndex((card) => card.book.id === before);
+    let pending = 0;
+    for (const card of before === undefined
+      ? series.books
+      : series.books.slice(0, Math.max(0, at))) {
+      const scope = yield* volumeScope(card);
+      if (scope === null) continue;
+      if (!volumeFresh((yield* store.get(card.book.id))?.volume, scope.cover)) pending += 1;
+    }
+    return pending;
   });
 }
 
@@ -617,6 +649,8 @@ export function summariseSeries(
   bookId: string,
   settings: AiSettings,
   onProgress: (run: SummaryRun) => Effect.Effect<void>,
+  // The last volume to write, so a rebuild writes each paragraph right after its book.
+  through?: string,
 ): Effect.Effect<void, AiFailure | StorageFailure, AiClient | SummaryStore | BookStore> {
   return Effect.gen(function* () {
     const client = yield* AiClient;
@@ -629,11 +663,7 @@ export function summariseSeries(
       const book = input.meta.id;
       const stored = (yield* store.get(book))?.volume;
       let paragraph = stored?.text ?? "";
-      if (
-        stored === undefined ||
-        stored.chapters !== cover.target ||
-        stored.current !== cover.current?.end
-      ) {
+      if (!volumeFresh(stored, cover)) {
         const record = yield* summariseNext(
           input,
           settings,
@@ -710,60 +740,80 @@ export function summariseSeries(
         if (saved === null) return;
       }
       previous = [`Book ${place + 1}, ${input.meta.title}: ${paragraph}`];
+      if (book === through) return;
     }
   });
 }
 
-// Every later volume of every series, first to last, so each rebuilt list reaches the volumes after it.
-export function laterVolumes(): Effect.Effect<
-  ReadonlyArray<{ readonly series: Shelf["series"][number]; readonly card: LibraryCard }>,
+// Each series first volume to last, so a rebuilt list and paragraph reach the volumes after them.
+export function rebuildPlan(): Effect.Effect<
+  ReadonlyArray<{ readonly series: Shelf["series"][number] | null; readonly card: LibraryCard }>,
   StorageFailure,
-  BookStore
+  BookStore | SummaryStore
 > {
   return Effect.gen(function* () {
     const store = yield* BookStore;
+    const summaries = yield* SummaryStore;
     const [books, stored] = yield* Effect.all([store.list(), store.listSeries()], {
       concurrency: "unbounded",
     });
+    const [reading, found] = yield* Effect.all(
+      [
+        Effect.forEach(
+          books,
+          (book) =>
+            Effect.map(store.getProgress(book.id), (progress) => [book.id, progress] as const),
+          { concurrency: "unbounded" },
+        ),
+        Effect.forEach(books, (book) => summaries.get(book.id), { concurrency: "unbounded" }),
+      ],
+      { concurrency: "unbounded" },
+    );
     const none = { status: null, length: null, author: null };
-    return buildShelf(books, new Map(), "", none, "added", stored)
-      .series.filter((series) => series.count >= 2)
-      .flatMap((series) => series.books.slice(1).map((card) => ({ series, card })));
+    const shelf = buildShelf(books, new Map(reading), "", none, "added", stored);
+    const series = shelf.series.filter((entry) => entry.count >= 2);
+    const grouped = new Set(series.flatMap((entry) => entry.books.map((card) => card.book.id)));
+    // A book alone goes only with a summary; a series book goes when started, as its paragraph needs it.
+    const alone = books.flatMap((book, index) => {
+      const card = shelf.cards.get(book.id);
+      return card === undefined || grouped.has(book.id) || found[index] === null
+        ? []
+        : [{ series: null, card }];
+    });
+    return [
+      ...series.flatMap((entry) => entry.books.map((card) => ({ series: entry, card }))),
+      ...alone,
+    ].filter(({ card }) => card.status !== "not-started");
   });
 }
 
-// It keeps the covered chapters and the reader's edits, so only the earlier books' context changes.
-export function rebuildNames(
-  series: Shelf["series"][number],
+// Edits and removals stay for the new list; the thread goes, as it asked about the old summaries.
+export function rebuildBook(
+  series: Shelf["series"][number] | null,
   card: LibraryCard,
   settings: AiSettings,
+  onProgress: (run: SummaryRun) => Effect.Effect<void>,
 ): Effect.Effect<void, AiFailure | StorageFailure, AiClient | BookStore | SummaryStore> {
   return Effect.gen(function* () {
+    const scope = yield* volumeScope(card);
+    if (scope === null) return;
     const id = card.book.id;
-    const summary = yield* (yield* SummaryStore).get(id);
-    if (summary === null || summary.namesThrough === 0) return;
-    const store = yield* BookStore;
-    const parsed = yield* store.getParsed(id).pipe(
-      Effect.catchTags({
-        BookNotFound: () => Effect.succeed(null),
-        ParsedMissing: () => Effect.succeed(null),
-      }),
-    );
-    if (parsed === null) return;
-    const kind = (yield* store.getPrefs(id))?.kind ?? guessKind(card.book, parsed);
-    if (kind !== "story") return;
-    const input: SummaryInput = { meta: card.book, parsed, kind, index: 0 };
-    const earlier = yield* earlierNames(series, input, settings);
-    // Only the edited entries go back in, so every other note is written again with the earlier books.
-    yield* mergeNames(
-      { ...input, earlier },
-      new Summary({
-        ...summary,
-        names: summary.names.filter((entry) => entry.edited === true),
+    const reset = yield* (yield* SummaryStore).update(id, (stored) => {
+      if (stored === null) return null;
+      const { current: _current, volume: _volume, ...kept } = stored;
+      return new Summary({
+        ...kept,
+        model: settings.model,
+        updatedAt: Date.now(),
+        chapters: [],
+        names: stored.names.filter((entry) => entry.edited === true),
         namesThrough: 0,
-      }),
-      summary.namesThrough,
-      settings,
-    );
+        thread: [],
+      });
+    });
+    if (reset === null && series === null) return;
+    const earlier = yield* earlierNames(series, scope.input, settings);
+    yield* summariseNext({ ...scope.input, earlier }, settings, onProgress);
+    if (series !== null) yield* summariseSeries(series, id, settings, onProgress, id);
   });
 }

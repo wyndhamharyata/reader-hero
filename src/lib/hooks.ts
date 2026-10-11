@@ -225,7 +225,7 @@ export function useAiSettings(): {
 
 // A job's run and error by its key, live, for a job that no single book's Summary shows.
 export function useJob(key: string): JobState & {
-  readonly startNames: (settings: AiSettings) => void;
+  readonly startRebuild: (settings: AiSettings) => void;
   readonly stop: () => void;
 } {
   const [job, setJob] = useState<JobState>({ run: null, error: null });
@@ -237,13 +237,13 @@ export function useJob(key: string): JobState & {
     );
     return () => stopFiber(fiber);
   }, [key]);
-  const startNames = useCallback((settings: AiSettings) => {
-    forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.startNames(settings)));
+  const startRebuild = useCallback((settings: AiSettings) => {
+    forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.startRebuild(settings)));
   }, []);
   const stop = useCallback(() => {
     forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(key)));
   }, [key]);
-  return { ...job, startNames, stop };
+  return { ...job, startRebuild, stop };
 }
 
 export interface SummaryState {
