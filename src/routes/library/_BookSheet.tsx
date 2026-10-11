@@ -4,6 +4,7 @@ import { formatPercent } from "@/lib/format";
 import type { ReadingProgress } from "@/domain/book";
 import type { LibraryCard, Shelf } from "@/lib/shelf";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
+import { BookCover } from "./_BookCover";
 
 export function BookSheet({
   card,
@@ -14,6 +15,8 @@ export function BookSheet({
   onEditSeries,
   onRemove,
   onReparse,
+  onCover,
+  onResetCover,
   onClose,
 }: {
   card: LibraryCard;
@@ -31,6 +34,8 @@ export function BookSheet({
   }) => void;
   onRemove: (id: string) => void;
   onReparse: (id: string) => void;
+  onCover: (id: string, picture: File) => void;
+  onResetCover: (id: string) => void;
   onClose: () => void;
 }): ReactElement {
   const sheetRef = useRef<HTMLElement>(null);
@@ -38,6 +43,9 @@ export function BookSheet({
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [finished, setFinished] = useState(card.status === "finished");
   const [place] = useState(progress);
+  // The sheet keeps the card it opened with, so Reset follows the choices made in it.
+  const [custom, setCustom] = useState(card.book.customCover === true);
+  const pictureInput = useRef<HTMLInputElement>(null);
   // A choice shows until the library reads the store again; from then the stored series shows.
   const [choice, setChoice] = useState<{
     seriesId: string | null;
@@ -78,6 +86,44 @@ export function BookSheet({
           )}
         </div>
         <div className="mt-1 divide-y divide-base-content/10 rounded-box bg-base-300">
+          <div className="flex items-center gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
+            <span className="w-10 shrink-0">
+              <BookCover bookId={card.book.id} rounded="rounded-md" />
+            </span>
+            <span className="flex-1">Cover</span>
+            {custom && (
+              <button
+                type="button"
+                className="btn btn-ghost md:btn-sm"
+                onClick={() => {
+                  setCustom(false);
+                  onResetCover(card.book.id);
+                }}
+              >
+                Reset
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn md:btn-sm"
+              onClick={() => pictureInput.current?.click()}
+            >
+              Change
+            </button>
+            <input
+              ref={pictureInput}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) => {
+                const picture = event.target.files?.[0];
+                event.target.value = "";
+                if (picture === undefined) return;
+                setCustom(true);
+                onCover(card.book.id, picture);
+              }}
+            />
+          </div>
           {/* A button, not a switch: it moves the saved position. The sheet stays open, so a second tap undoes it. */}
           <div className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
             <span>{finished ? "Finished" : `${formatPercent(place?.percent ?? 0)} read`}</span>

@@ -28,7 +28,7 @@ import {
 } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
-import { ensureCovers } from "@/use-cases/book-image";
+import { ensureCovers, resetBookCover, setBookCover } from "@/use-cases/book-image";
 import type { ParseProgress } from "@/use-cases/extract";
 import { groupSeries, resetGrouping } from "@/use-cases/group-series";
 import { importBooks } from "@/use-cases/import-books";
@@ -832,6 +832,38 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
           onEditSeries={setSeriesEdit}
           onRemove={remove}
           onReparse={reparse}
+          onCover={(id, picture) => {
+            setMessage(null);
+            void runApp(
+              setBookCover(id, picture).pipe(
+                Effect.flatMap((saved) =>
+                  Effect.sync(() => {
+                    if (!saved)
+                      setMessage(`${picture.name} is not a picture Reader Hero can read.`);
+                  }),
+                ),
+                Effect.catchTags({
+                  BookNotFound: (error) =>
+                    Effect.sync(() => setMessage(describeError(error, "This book"))),
+                  StorageFailure: (error) =>
+                    Effect.sync(() => setMessage(describeError(error, "This cover"))),
+                }),
+              ),
+            );
+          }}
+          onResetCover={(id) => {
+            setMessage(null);
+            void runApp(
+              resetBookCover(id).pipe(
+                Effect.catchTags({
+                  BookNotFound: (error) =>
+                    Effect.sync(() => setMessage(describeError(error, "This book"))),
+                  StorageFailure: (error) =>
+                    Effect.sync(() => setMessage(describeError(error, "This cover"))),
+                }),
+              ),
+            );
+          }}
           onClose={() => setBookActions(null)}
         />
       )}

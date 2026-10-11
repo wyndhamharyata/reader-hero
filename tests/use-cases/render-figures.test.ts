@@ -105,6 +105,7 @@ function harness(figures: FigureState): Harness {
         Effect.sync(() => {
           state.images.push(image);
         }),
+      removeImage: () => Effect.void,
       updates: () => Stream.empty,
       getImage: () => Effect.succeed(null),
       listImages: () =>

@@ -60,6 +60,7 @@ export class BookStore extends Context.Service<
     putParsed(id: string, parsed: ParsedBook): Effect.Effect<void, StorageFailure>;
     getParsed(id: string): Effect.Effect<ParsedBook, BookNotFound | ParsedMissing | StorageFailure>;
     putImage(bookId: string, image: StoredImage): Effect.Effect<void, StorageFailure>;
+    removeImage(bookId: string, imageId: string): Effect.Effect<void, StorageFailure>;
     updates(): Stream.Stream<StoreUpdate>;
     getImage(bookId: string, imageId: string): Effect.Effect<ImageRecord | null, StorageFailure>;
     listImages(
@@ -194,6 +195,14 @@ export class BookStore extends Context.Service<
           ),
         );
         yield* PubSub.publish(updateBus, { kind: "image", bookId, imageId: image.id });
+      });
+
+      const removeImage = Effect.fn("BookStore.removeImage")(function* (
+        bookId: string,
+        imageId: string,
+      ) {
+        yield* attempt("removeImage", () => db.delete("images", `${bookId}/${imageId}`));
+        yield* PubSub.publish(updateBus, { kind: "image", bookId, imageId });
       });
 
       const updates = () => Stream.fromPubSub(updateBus);
@@ -350,6 +359,7 @@ export class BookStore extends Context.Service<
         putParsed,
         getParsed,
         putImage,
+        removeImage,
         updates,
         getImage,
         listImages,

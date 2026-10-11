@@ -1,6 +1,7 @@
 import { Effect, Stream } from "effect";
-import type { ImageRecord } from "@/domain/book";
-import { StorageFailure } from "@/domain/errors";
+import { BookMeta, type ImageRecord } from "@/domain/book";
+import { StorageFailure, type BookNotFound } from "@/domain/errors";
+import { shrinkPicture } from "@/lib/picture";
 import { BookStore } from "@/services/book-store";
 import { PdfClient } from "@/services/pdf-client";
 
@@ -58,4 +59,55 @@ export function ensureCovers(
       }).pipe(Effect.catch(() => Effect.void)),
     { discard: true },
   );
+}
+
+// The book's own cover is kept the first time, so Reset can bring it back; false when the picture does not decode.
+export function setBookCover(
+  bookId: string,
+  picture: Blob,
+): Effect.Effect<boolean, BookNotFound | StorageFailure, BookStore> {
+  return Effect.gen(function* () {
+    const store = yield* BookStore;
+    const shrunk = yield* shrinkPicture(picture);
+    if (shrunk === null) return false;
+    const meta = yield* store.get(bookId);
+    if (meta.customCover !== true) {
+      const own = yield* store.getImage(bookId, "cover");
+      if (own !== null) {
+        yield* store.putImage(bookId, {
+          id: "cover-default",
+          blob: own.blob,
+          width: own.width,
+          height: own.height,
+        });
+      }
+    }
+    yield* store.putImage(bookId, { id: "cover", ...shrunk });
+    yield* store.putMeta(new BookMeta({ ...meta, customCover: true }));
+    return true;
+  });
+}
+
+// A PDF with no kept cover renders its first page again, as a new import does.
+export function resetBookCover(
+  bookId: string,
+): Effect.Effect<void, BookNotFound | StorageFailure, BookStore | PdfClient> {
+  return Effect.gen(function* () {
+    const store = yield* BookStore;
+    const meta = yield* store.get(bookId);
+    const own = yield* store.getImage(bookId, "cover-default");
+    if (own === null) yield* store.removeImage(bookId, "cover");
+    else {
+      yield* store.putImage(bookId, {
+        id: "cover",
+        blob: own.blob,
+        width: own.width,
+        height: own.height,
+      });
+      yield* store.removeImage(bookId, "cover-default");
+    }
+    const { customCover: _customCover, ...rest } = meta;
+    yield* store.putMeta(new BookMeta(rest));
+    yield* ensureCovers([bookId]);
+  });
 }

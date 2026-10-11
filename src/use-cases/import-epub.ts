@@ -4,6 +4,7 @@ import { Block, BookMeta, ParsedBook } from "@/domain/book";
 import { EpubFailure, StorageFailure } from "@/domain/errors";
 import { parseEpub, type EpubBook } from "@/lib/epub/parse";
 import { newId } from "@/lib/id";
+import { shrinkPicture } from "@/lib/picture";
 import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "./extract";
 
@@ -60,26 +61,16 @@ export function buildEpub(
     const coverBytes =
       cover === null ? undefined : (yield* unzip((name) => name === cover.path))[cover.path];
     if (cover !== null && coverBytes !== undefined) {
-      const bitmap = yield* decode(
+      const shrunk = yield* shrinkPicture(
         new Blob([coverBytes as Uint8Array<ArrayBuffer>], { type: cover.type }),
       );
-      if (bitmap._tag === "Some") {
-        const canvas = document.createElement("canvas");
-        canvas.width = 400;
-        canvas.height = Math.round((400 * bitmap.value.height) / bitmap.value.width);
-        canvas.getContext("2d")?.drawImage(bitmap.value, 0, 0, canvas.width, canvas.height);
-        bitmap.value.close();
-        const blob = yield* Effect.callback<Blob | null>((resume) =>
-          canvas.toBlob((value) => resume(Effect.succeed(value)), "image/jpeg", 0.85),
-        );
-        if (blob !== null) {
-          yield* store.putImage(bookId, {
-            id: "cover",
-            blob,
-            width: canvas.width,
-            height: canvas.height,
-          });
-        }
+      // A rebuild keeps the reader's own cover, so the book's own goes where Reset finds it.
+      const custom = yield* store.get(bookId).pipe(
+        Effect.map((meta) => meta.customCover === true),
+        Effect.orElseSucceed(() => false),
+      );
+      if (shrunk !== null) {
+        yield* store.putImage(bookId, { id: custom ? "cover-default" : "cover", ...shrunk });
       }
     }
 

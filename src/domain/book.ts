@@ -98,6 +98,8 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   parseState: ParseState,
   charCount: Schema.Int,
   figures: Schema.optional(FigureState),
+  // The reader's own picture is the cover; the book's own is kept as image "cover-default".
+  customCover: Schema.optional(Schema.Boolean),
 }) {
   get figuresPending(): boolean {
     return this.figures === "pending";

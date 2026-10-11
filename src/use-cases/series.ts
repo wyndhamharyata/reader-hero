@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { Series } from "@/domain/book";
 import type { StorageFailure } from "@/domain/errors";
+import { shrinkPicture } from "@/lib/picture";
 import { buildShelf, seriesKey, type Shelf } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
 
@@ -65,31 +66,10 @@ export function saveSeries(edit: {
     let cover = edit.cover === undefined ? current?.cover : (edit.cover ?? undefined);
     const image = edit.image;
     if (cover === "image" && image !== undefined) {
-      // A small JPEG, like a book's cover, so a large photo does not fill the store.
-      const bitmap = yield* Effect.option(Effect.tryPromise(() => createImageBitmap(image)));
-      const canvas = document.createElement("canvas");
-      if (bitmap._tag === "Some") {
-        canvas.width = 400;
-        canvas.height = Math.round((400 * bitmap.value.height) / bitmap.value.width);
-        canvas.getContext("2d")?.drawImage(bitmap.value, 0, 0, canvas.width, canvas.height);
-        bitmap.value.close();
-      }
-      const blob =
-        bitmap._tag === "None"
-          ? null
-          : yield* Effect.callback<Blob | null>((resume) =>
-              canvas.toBlob((value) => resume(Effect.succeed(value)), "image/jpeg", 0.85),
-            );
+      const shrunk = yield* shrinkPicture(image);
       // A picture that does not decode leaves the cover as it was.
-      if (blob === null) cover = current?.cover;
-      else {
-        yield* store.putImage(`series:${id}`, {
-          id: "cover",
-          blob,
-          width: canvas.width,
-          height: canvas.height,
-        });
-      }
+      if (shrunk === null) cover = current?.cover;
+      else yield* store.putImage(`series:${id}`, { id: "cover", ...shrunk });
     }
     yield* store.putSeries(
       new Series({
