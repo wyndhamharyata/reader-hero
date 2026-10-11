@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { ArrowRightIcon, XMarkIcon } from "@/components/icons";
+import { ArrowLeftIcon, ArrowRightIcon, XMarkIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
 import { CONSENT_VERSION, type AiSettings, type Summary } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
@@ -29,6 +29,7 @@ export function SeriesSheet({
   onStop,
   onConsent,
   onClose,
+  onBack,
 }: {
   series: Shelf["series"][number];
   bookId: string;
@@ -41,6 +42,8 @@ export function SeriesSheet({
   onStop: () => void;
   onConsent: () => void;
   onClose: () => void;
+  // Set on the bottom sheet, so Back turns to the menu instead of closing both.
+  onBack?: () => void;
 }): ReactElement {
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
@@ -288,7 +291,17 @@ export function SeriesSheet({
             )}
 
             <div className="mt-2 flex items-center gap-2">
-              <span className="flex-1" />
+              {onBack !== undefined && (
+                <button
+                  type="button"
+                  className={`${button} flex-1 md:hidden`}
+                  onClick={() => dismiss(onBack)}
+                >
+                  <ArrowLeftIcon className="size-6" />
+                  Back
+                </button>
+              )}
+              <span className={onBack === undefined ? "flex-1" : "hidden flex-1 md:block"} />
               <CopyButton text={copied} />
               <button
                 type="button"

@@ -603,6 +603,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             );
           }}
           onClose={() => setSummarySheet(null)}
+          onBack={() => setTocOpen(true)}
         />
       )}
 
@@ -628,6 +629,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             );
           }}
           onClose={() => setSeriesOpen(false)}
+          onBack={() => setTocOpen(true)}
         />
       )}
     </div>

@@ -1,6 +1,13 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { ArrowUpIcon, PencilIcon, PlusIcon, TrashIcon, XMarkIcon } from "@/components/icons";
+import {
+  ArrowLeftIcon,
+  ArrowUpIcon,
+  PencilIcon,
+  PlusIcon,
+  TrashIcon,
+  XMarkIcon,
+} from "@/components/icons";
 import type { AiSettings, BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
@@ -38,6 +45,8 @@ interface Props {
   onEditName: (name: string, next: { name: string; note: string } | null) => void;
   onConsent: () => void;
   onClose: () => void;
+  // Set on the bottom sheet, so Back turns to the menu instead of closing both.
+  onBack?: () => void;
 }
 
 const text = "text-base md:text-sm";
@@ -62,6 +71,7 @@ export function SummarySheet({
   onEditName,
   onConsent,
   onClose,
+  onBack,
 }: Props): ReactElement {
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
@@ -487,22 +497,27 @@ export function SummarySheet({
             </form>
 
             {/* The kind sits here, in the foot, so it takes no row from the content. */}
-            <div className="mt-2 flex items-center gap-2">
-              <div className="join">
-                {(["story", "reference"] as const).map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`${button} join-item px-3 md:px-4 ${input.kind === value ? "btn-neutral" : ""}`}
-                    aria-pressed={input.kind === value}
-                    disabled={run !== null}
-                    onClick={() => onKind(value)}
-                  >
-                    {value === "story" ? "Story" : "Document"}
-                  </button>
-                ))}
-              </div>
-              <span className="flex-1" />
+            <div className="mt-2 flex items-center gap-1 md:gap-2">
+              {onBack !== undefined && (
+                <button
+                  type="button"
+                  className={`${button} flex-1 px-3 md:hidden`}
+                  onClick={() => dismiss(onBack)}
+                >
+                  <ArrowLeftIcon className="size-6" />
+                  Back
+                </button>
+              )}
+              <button
+                type="button"
+                className={`${button} px-3 md:px-4`}
+                aria-label={story ? "Book kind: Story" : "Book kind: Document"}
+                disabled={run !== null}
+                onClick={() => onKind(story ? "reference" : "story")}
+              >
+                {story ? "Story" : "Document"}
+              </button>
+              <span className={onBack === undefined ? "flex-1" : "hidden flex-1 md:block"} />
               <CopyButton text={copied} />
               <button
                 type="button"
