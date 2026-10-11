@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { ArrowLeftIcon, ArrowRightIcon, XMarkIcon } from "@/components/icons";
+import { ArrowLeftIcon, BookOpenIcon, XMarkIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
 import { CONSENT_VERSION, type AiSettings, type Summary } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
@@ -155,23 +155,11 @@ export function SeriesSheet({
                 summary.volume !== undefined);
             const line = (
               <>
-                {/* The number column is as wide as the longest number, so every title starts at one edge. */}
-                <span className="flex items-center gap-3">
-                  <span
-                    className="shrink-0 tabular-nums opacity-60"
-                    style={{ width: `${String(cards.length).length}ch` }}
-                  >
-                    {index + 1}
-                  </span>
-                  {/* Clipped at the start, as in the library, so "Vol. 3" stays in view. */}
-                  <span className="min-w-0 flex-1 truncate text-left font-medium [direction:rtl]">
-                    <bdi dir="ltr">{card.book.title}</bdi>
-                  </span>
+                {/* Clipped at the start, as in the library, so "Vol. 3" stays in view. */}
+                <span className="min-w-0 truncate text-left font-medium [direction:rtl]">
+                  <bdi dir="ltr">{card.book.title}</bdi>
                 </span>
-                <span
-                  className="flex flex-wrap items-center gap-x-2 gap-y-1"
-                  style={{ paddingLeft: `calc(${String(cards.length).length}ch + 0.75rem)` }}
-                >
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={card.badge.className}>{card.badge.label}</span>
                   {summarised ? (
                     <span className="badge badge-sm badge-neutral">Summarised</span>
@@ -195,7 +183,7 @@ export function SeriesSheet({
             const rowClass = `flex min-w-0 flex-1 flex-col gap-1 rounded-field px-2 py-2 text-left ${text}`;
             return (
               <li key={card.book.id} className="px-2 font-sans">
-                <div className="flex items-center gap-1">
+                <div className="flex items-stretch gap-1">
                   {paragraph === null || fixed ? (
                     <div
                       data-row
@@ -231,11 +219,11 @@ export function SeriesSheet({
                     <SlideLink
                       to={`/book/${card.book.id}`}
                       direction="in"
-                      className={`${button} btn-square shrink-0 btn-ghost`}
+                      className={`${button} btn-square h-auto shrink-0 self-stretch btn-ghost`}
                       aria-label="Open book"
                       title="Open book"
                     >
-                      <ArrowRightIcon className="size-5 opacity-60 md:size-4" />
+                      <BookOpenIcon className="size-5 opacity-60 md:size-4" />
                     </SlideLink>
                   )}
                 </div>
@@ -246,7 +234,14 @@ export function SeriesSheet({
                     inert={!open}
                   >
                     <div className="min-h-0 overflow-hidden">
-                      <p className={`px-2 pb-3 whitespace-pre-wrap ${text}`}>{paragraph}</p>
+                      {/* The summary follows the reader's text settings, as the book's own Summary does. */}
+                      <p
+                        className="px-2 pb-3 whitespace-pre-wrap"
+                        data-font={reading.font}
+                        style={{ lineHeight: reading.lineHeight }}
+                      >
+                        {paragraph}
+                      </p>
                     </div>
                   </div>
                 )}
