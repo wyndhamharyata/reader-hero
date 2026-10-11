@@ -71,7 +71,7 @@ export function groupSeries(
 
         const stored = yield* store.listSeries();
         const authors = new Set(batch.map((book) => book.author ?? ""));
-        // Only these authors' series, without the books sent now: no book shows twice.
+        // Only these authors' series keep the request small; this batch stays out, so none repeats.
         const sending = new Set(batch.map((book) => book.id));
         const existing = buildShelf(books, new Map(), "", none, "added", stored)
           .series.map((group) => ({

@@ -312,7 +312,7 @@ export class PdfClient extends Context.Service<
           useWorkerFetch: true,
           wasmUrl: `${origin}/wasm/`,
           iccUrl: `${origin}/icc/`,
-          // Explicit, so default merging cannot drop the JPEG fast path.
+          // Set explicitly, so default merging cannot drop Safari's ImageDecoder JPEG fast path.
           isImageDecoderSupported: true,
         });
         const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure });
@@ -344,7 +344,7 @@ export class PdfClient extends Context.Service<
           return [];
         }
 
-        // No wider than the screen at 2 device pixels per CSS pixel: sharp, and a faster job.
+        // A figure never shows wider than the screen, and 2 pixels per CSS pixel is sharp enough.
         const maxDim = Math.min(1400, Math.round(screen.width * Math.min(2, devicePixelRatio)));
 
         const encoded = yield* Stream.fromIterable(paints).pipe(

@@ -295,7 +295,7 @@ export function mergeNames(
     // The reader's edits and removals win over the model's list, those made during the request too.
     return yield* store.update(input.meta.id, (current) => {
       const base = current ?? record;
-      // The model carries earlier books' characters over whole; keep those this book names.
+      // The model copies earlier names: keep one this book names whole or by a non-title word.
       const told = base.chapters
         .slice(0, of)
         .map((chapter) => `${chapter.heading}\n${chapter.paragraph}`)
@@ -749,7 +749,7 @@ export function laterVolumes(): Effect.Effect<
   });
 }
 
-// Covers the chapters it covered before, and keeps the reader's edits and removals.
+// It keeps the covered chapters and the reader's edits, so only the earlier books' context changes.
 export function rebuildNames(
   series: Shelf["series"][number],
   card: LibraryCard,

@@ -63,7 +63,7 @@ const fonts = (self as { fonts?: FontFaceSet }).fonts;
 const documents = new Map<number, { task: PDFDocumentLoadingTask; document: PDFDocumentProxy }>();
 const tasks = new Map<number, RenderTask>();
 
-// pdf.js reads `window.location` to make its worker, which throws here, so the port is made here.
+// One pdf.js worker for every document; pdf.js cannot make it here, as it reads `window.location`.
 let shared: PDFWorker | null = null;
 const pdfWorker = (): PDFWorker => {
   if (shared !== null) return shared;

@@ -101,7 +101,7 @@ export function buildShelf(
     return terms.every((term) => haystack.includes(term));
   });
 
-  // 2 titles that end in a volume number ("Vol. 3", "#4"), or 4+ that share the first 3 words.
+  // A volume number ("Vol. 3", "#4") is strong, so its lead needs 2 books; a 3-word start needs 4.
   const marked = new Set<string>();
   const leads = new Map(
     books.map((book) => {
@@ -386,7 +386,7 @@ export function buildShelf(
       },
     ];
   });
-  // Oldest book first, so a new series never takes an older series' colour.
+  // Oldest book first, so a new series leaves each older series its colour.
   const turns = grouped
     .filter((group) => group.count >= 2)
     .map((group) => ({

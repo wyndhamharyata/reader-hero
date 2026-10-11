@@ -27,7 +27,7 @@ export function saveReadingProgress(
   }).pipe(Effect.catchTag("StorageFailure", () => Effect.void));
 }
 
-// Unmarked, the book goes back to `place` from the sheet's opening, so on and off loses nothing.
+// Finished puts the position at the end; unmarked, it returns to `place`: a toggle loses nothing.
 export function setBookFinished(
   bookId: string,
   finished: boolean,

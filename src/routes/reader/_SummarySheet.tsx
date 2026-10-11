@@ -72,7 +72,7 @@ export function SummarySheet({
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
-  // Entries start closed, except the chapter opened from Contents; a desktop has the room to keep all open.
+  // Only the Contents chapter starts open, so the list stays short; a desktop has room for all.
   const [desktop] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     new Set(openAt === null ? [] : [`${openAt}`]),

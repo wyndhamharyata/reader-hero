@@ -46,7 +46,7 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
-// Apart from ParsedBook so each page saves cheaply; `through` is an earlier build's shape.
+// It lives apart from ParsedBook, so each finished page saves cheaply; `through` is an older shape.
 export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
   "reader-hero/domain/FigureCheckpoint",
 )({

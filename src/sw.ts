@@ -55,7 +55,7 @@ async function handleShare(request: Request): Promise<Response> {
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
-// Cache only: the shell must match this worker's assets, and a new build ships a new worker.
+// The shell comes only from the cache: a launch never waits, and it must match this build's assets.
 async function handleNavigate(request: Request): Promise<Response> {
   const cached = await caches.match(INDEX);
   if (cached !== undefined) return cached;

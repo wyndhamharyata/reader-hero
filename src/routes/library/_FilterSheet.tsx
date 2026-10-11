@@ -21,7 +21,7 @@ const titles: Record<FilterGroup, string> = {
   author: "Author",
 };
 
-// Phone only: the sideways chip row hides most chips and has no room for the sort.
+// Phone only, because the sideways chip row hides most chips and has no room for the sort.
 export function FilterSheet({
   open,
   shelf,

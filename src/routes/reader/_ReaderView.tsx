@@ -50,7 +50,7 @@ export const ReaderView = memo(function ReaderView({
   const positionRef = useRef(-1);
   const restoredRef = useRef(false);
 
-  // WebKit has no scroll anchoring, so a reflow for a late font loses the restored position.
+  // The text waits for its font: WebKit has no scroll anchoring to hold the position in a reflow.
   const fontSpec = `1em "${fontFamily[settings.font]}"`;
   const [fontReady, setFontReady] = useState(() => document.fonts.check(fontSpec));
   useEffect(() => {
@@ -82,7 +82,7 @@ export const ReaderView = memo(function ReaderView({
       target.getBoundingClientRect().top - container.getBoundingClientRect().top;
   }, [initialBlock, fontReady]);
 
-  // A binary search, not observers: WebKit recomputes observers on every frame.
+  // A scroll does a binary search, not observers: WebKit recomputes observers on every frame.
   useEffect(() => {
     const container = containerRef.current;
     const article = articleRef.current;
@@ -123,7 +123,7 @@ export const ReaderView = memo(function ReaderView({
       if (node !== undefined && nodeTop !== undefined) {
         anchorRef.current = { element: node, offset: nodeTop - top };
       }
-      // The top block, so a resume shows one screen; the last at the end, so the book reads finished.
+      // The top block brings a resume to the same screen; the last block marks the book finished.
       const atEnd = top + container.clientHeight >= container.scrollHeight - 2;
       const index = atEnd ? nodes.length - 1 : topIndex;
       if (index !== positionRef.current) {
@@ -204,11 +204,11 @@ export const ReaderView = memo(function ReaderView({
   // Justified lines without hyphenation leave wide gaps between words.
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
 
-  // Off: the resize handler holds the top block, and both together move the view twice.
   return (
     <div
       ref={containerRef}
       data-scroller
+      // The resize handler holds the top block; browser anchoring too would move the view twice.
       className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
       onClick={handleClick}
     >

@@ -138,7 +138,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // The phone action row stays while the search and chips hide on a scroll down.
+  // A scroll down hides the phone search and chips to give the list room; the action row stays.
   useEffect(() => {
     const box = scrollRef.current;
     if (box === null) return;
@@ -271,7 +271,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     return () => stopFiber(fiber);
   }, [hidden, bookIds]);
 
-  // No run during an import, so the new books of one import group together.
+  // A finished parse starts a run, but none starts during an import, so its books group together.
   const groupable = books
     .filter((book) => book.parseState !== "parsing" && book.parseState !== "pending")
     .map((book) => book.id)
@@ -304,7 +304,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     for (const family of Object.values(fontFamily)) void document.fonts.load(`1em "${family}"`);
   }, []);
 
-  // After launch settles, so the original view opens later without this wait.
+  // The page renderer loads its scripts after launch settles, so the original view has no wait.
   const hasPdf = books.some((book) => book.format !== "epub");
   const figuresBusy = books.some((book) => book.figuresPending);
   useEffect(() => {
@@ -561,7 +561,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]"
       >
         <div
-          // 1px taller: iOS gives a swipe on a box with no scroll to the page, which bounces.
+          // It is 1px taller: iOS bounces the bars on a swipe over a box with nothing to scroll.
           className="mx-auto flex min-h-[calc(100%+1px)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] md:max-w-5xl"
           // Room under the last row for the search panel that floats over it on a phone.
           style={{ paddingBottom: `calc(2rem + ${searchPanelHeight}px)` }}
@@ -699,7 +699,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         }}
       />
 
-      {/* Floats, so the list keeps its size: an iOS scroll box that resizes stutters. */}
+      {/* The panel floats, so the list keeps its size: an iOS scroll box that resizes stutters. */}
       <div className="group relative z-20 shrink-0 md:hidden">
         <div
           ref={searchPanel}
