@@ -70,7 +70,7 @@ export function AddToSeries({
         role="dialog"
         aria-modal="true"
         aria-label="Add book"
-        className="relative z-10 mx-auto flex h-[calc(100%-var(--safe-top)-1rem)] w-full max-w-xl flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:h-[min(40rem,85vh)] md:w-[28rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
+        className="relative z-10 flex h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-auto md:h-[min(40rem,85vh)] md:w-[28rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
       >
         <div className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
         <p className="truncate text-xs font-medium tracking-wide uppercase opacity-60">
