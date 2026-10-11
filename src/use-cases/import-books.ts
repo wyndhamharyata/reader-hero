@@ -1,4 +1,5 @@
 import { Effect, Ref, Stream } from "effect";
+import type { BookMeta } from "@/domain/book";
 import {
   PdfFailure,
   type EpubFailure,
@@ -18,6 +19,16 @@ export function importBooks(
   onMessage: (message: string) => void,
 ): Effect.Effect<void, never, BookStore | PdfClient> {
   return Effect.gen(function* () {
+    const store = yield* BookStore;
+    // The same name and size is the same file, sent here again; importing it twice helps no one.
+    const held = (file: File): string => `${file.name}|${file.size}`;
+    // A library that cannot be read yet counts as empty, so such a shelf still imports.
+    const stored = yield* store
+      .list()
+      .pipe(Effect.orElseSucceed((): ReadonlyArray<BookMeta> => []));
+    const known = new Set(stored.map((book) => `${book.fileName ?? ""}|${book.fileSize}`));
+    const skipped = files.filter((file) => known.has(held(file)));
+    const wanted = files.flatMap((file, index) => (known.has(held(file)) ? [] : [{ file, index }]));
     const tally = yield* Ref.make<{ added: number; failures: ReadonlyArray<string> }>({
       added: 0,
       failures: [],
@@ -28,7 +39,16 @@ export function importBooks(
     }: {
       added: number;
       failures: ReadonlyArray<string>;
-    }): string => [`Added ${added} of ${files.length} books.`, ...failures].join("\n");
+    }): string =>
+      [
+        `Added ${added} of ${files.length} books.`,
+        ...(skipped.length === 0
+          ? []
+          : [`Already in the library: ${skipped.map((file) => file.name).join(", ")}.`]),
+        ...failures,
+      ].join("\n");
+    // Shown before the imports, so a batch of books already in the library says so at once.
+    if (skipped.length > 0) onMessage(summary({ added: 0, failures: [] }));
 
     const importOne = (
       file: File,
@@ -79,9 +99,8 @@ export function importBooks(
       );
     };
 
-    yield* Stream.fromIterable(files).pipe(
-      Stream.zipWithIndex,
-      Stream.mapEffect(([file, index]) => importOne(file, index)),
+    yield* Stream.fromIterable(wanted).pipe(
+      Stream.mapEffect(({ file, index }) => importOne(file, index)),
       Stream.runDrain,
       Effect.onInterrupt(() =>
         Ref.get(tally).pipe(
@@ -91,6 +110,6 @@ export function importBooks(
         ),
       ),
     );
-    yield* Effect.flatMap(BookStore, (store) => store.requestPersistent());
+    yield* store.requestPersistent();
   });
 }

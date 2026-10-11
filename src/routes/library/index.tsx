@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
 import type { AiSettings } from "@/domain/ai";
 import { fontFamily } from "@/domain/book";
@@ -15,6 +15,7 @@ import {
   useSettings,
   type Job,
 } from "@/lib/hooks";
+import { onLaunchFiles } from "@/lib/launch-files";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import {
   buildShelf,
@@ -492,6 +493,20 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   // Back from a book the shelf stays, unless the sort moved the book out of view; then it shows it.
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  // A file the app was opened with imports like a choice from the picker, and the shelf comes first.
+  const launch = useRef({ importFiles, hidden });
+  useEffect(() => {
+    launch.current = { importFiles, hidden };
+  });
+  useEffect(() => {
+    onLaunchFiles((files) => {
+      if (files.length === 0) return;
+      if (launch.current.hidden) navigate("/");
+      launch.current.importFiles(files);
+    });
+  }, [navigate]);
   const opened = useRef<string | null>(null);
   useEffect(() => {
     if (hidden) opened.current = pathname;
