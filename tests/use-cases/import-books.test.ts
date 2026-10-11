@@ -33,7 +33,7 @@ const pdf = (onLoad: () => void): Layer.Layer<PdfClient> =>
   );
 
 describe("importBooks", () => {
-  it("given a file the library already holds, adds nothing and says which one", async () => {
+  it("given a file the library already holds, adds nothing, says nothing, and returns that book", async () => {
     const messages: string[] = [];
     let loaded = 0;
     const layer = bookStore({
@@ -41,7 +41,7 @@ describe("importBooks", () => {
       requestPersistent: () => Effect.succeed(true),
     });
 
-    await Effect.runPromise(
+    const ids = await Effect.runPromise(
       importBooks(
         [file("mixed.pdf", 100)],
         () => {},
@@ -50,8 +50,8 @@ describe("importBooks", () => {
     );
 
     expect(loaded).toBe(0);
-    expect(messages.join("\n")).toContain("Added 0 of 1 books.");
-    expect(messages.join("\n")).toContain("Already in the library: mixed.pdf.");
+    expect(messages).toEqual([]);
+    expect(ids).toEqual(["b1"]);
   });
 
   it("given the same name with another size, imports it, as a different book would", async () => {
@@ -62,7 +62,7 @@ describe("importBooks", () => {
       requestPersistent: () => Effect.succeed(true),
     });
 
-    await Effect.runPromise(
+    const ids = await Effect.runPromise(
       importBooks(
         [file("mixed.pdf", 200)],
         () => {},
@@ -71,6 +71,8 @@ describe("importBooks", () => {
     );
 
     expect(loaded).toBe(1);
-    expect(messages.join("\n")).not.toContain("Already in the library");
+    // The fake PDF fails to load, so the file has no book and the summary counts only it.
+    expect(messages.join("\n")).toContain("Added 0 of 1 books.");
+    expect(ids).toEqual([]);
   });
 });

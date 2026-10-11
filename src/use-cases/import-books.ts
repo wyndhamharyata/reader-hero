@@ -12,12 +12,12 @@ import type { PdfClient } from "@/services/pdf-client";
 import type { ParseProgress } from "./extract";
 import { addBook } from "./import-book";
 
-// One file at a time: each import holds a whole book in memory.
+// One file at a time: each import holds a whole book in memory. Each file's book id, in order; a failed one has none.
 export function importBooks(
   files: ReadonlyArray<File>,
   onProgress: (progress: ParseProgress) => void,
   onMessage: (message: string) => void,
-): Effect.Effect<void, never, BookStore | PdfClient> {
+): Effect.Effect<ReadonlyArray<string>, never, BookStore | PdfClient> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
     // The same name and size is the same file, sent here again; importing it twice helps no one.
@@ -26,9 +26,11 @@ export function importBooks(
     const stored = yield* store
       .list()
       .pipe(Effect.orElseSucceed((): ReadonlyArray<BookMeta> => []));
-    const known = new Set(stored.map((book) => `${book.fileName ?? ""}|${book.fileSize}`));
-    const skipped = files.filter((file) => known.has(held(file)));
-    const wanted = files.flatMap((file, index) => (known.has(held(file)) ? [] : [{ file, index }]));
+    const known = new Map<string, string>(
+      stored.map((book) => [`${book.fileName ?? ""}|${book.fileSize}`, book.id] as const),
+    );
+    const ids: Array<string | null> = files.map((file) => known.get(held(file)) ?? null);
+    const wanted = files.flatMap((file, index) => (ids[index] === null ? [{ file, index }] : []));
     const tally = yield* Ref.make<{ added: number; failures: ReadonlyArray<string> }>({
       added: 0,
       failures: [],
@@ -39,20 +41,12 @@ export function importBooks(
     }: {
       added: number;
       failures: ReadonlyArray<string>;
-    }): string =>
-      [
-        `Added ${added} of ${files.length} books.`,
-        ...(skipped.length === 0
-          ? []
-          : [`Already in the library: ${skipped.map((file) => file.name).join(", ")}.`]),
-        ...failures,
-      ].join("\n");
-    // Shown before the imports, so a batch of books already in the library says so at once.
-    if (skipped.length > 0) onMessage(summary({ added: 0, failures: [] }));
+    }): string => [`Added ${added} of ${wanted.length} books.`, ...failures].join("\n");
 
     const importOne = (
       file: File,
       index: number,
+      position: number,
     ): Effect.Effect<void, never, BookStore | PdfClient> => {
       const report = (
         error: UnsupportedFile | PdfFailure | EpubFailure | StorageFailure,
@@ -80,16 +74,22 @@ export function importBooks(
           }
         }
       });
-      const progressFile = { index: index + 1, count: files.length, name: file.name };
+      const progressFile = { index: position + 1, count: wanted.length, name: file.name };
       const work = addBook(file, (progress) => {
         lastProgress = Date.now();
         onProgress({ ...progress, file: progressFile });
       });
 
       return Effect.raceFirst(work, stalled).pipe(
-        Effect.tap(() =>
-          Ref.update(tally, (current) => ({ ...current, added: current.added + 1 })),
+        Effect.tap((meta) =>
+          Effect.andThen(
+            Ref.update(tally, (current) => ({ ...current, added: current.added + 1 })),
+            Effect.sync(() => {
+              ids[index] = meta.id;
+            }),
+          ),
         ),
+        Effect.asVoid,
         Effect.catchTags({
           UnsupportedFile: report,
           PdfFailure: report,
@@ -100,7 +100,8 @@ export function importBooks(
     };
 
     yield* Stream.fromIterable(wanted).pipe(
-      Stream.mapEffect(({ file, index }) => importOne(file, index)),
+      Stream.zipWithIndex,
+      Stream.mapEffect(([{ file, index }, position]) => importOne(file, index, position)),
       Stream.runDrain,
       Effect.onInterrupt(() =>
         Ref.get(tally).pipe(
@@ -111,5 +112,6 @@ export function importBooks(
       ),
     );
     yield* store.requestPersistent();
+    return ids.filter((id) => id !== null);
   });
 }

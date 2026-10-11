@@ -6,12 +6,18 @@ import { slideTo } from "@/lib/slide-to";
 export function SlideLink({
   to,
   direction,
+  replace = false,
   ...rest
-}: Omit<LinkProps, "to" | "onClick"> & { to: string; direction: "in" | "out" }): ReactElement {
+}: Omit<LinkProps, "to" | "onClick" | "replace"> & {
+  to: string;
+  direction: "in" | "out";
+  replace?: boolean;
+}): ReactElement {
   const navigate = useNavigate();
   return (
     <Link
       to={to}
+      replace={replace}
       {...rest}
       onClick={(event) => {
         if (
@@ -24,7 +30,7 @@ export function SlideLink({
           return;
         }
         event.preventDefault();
-        slideTo(navigate, to, direction);
+        slideTo(navigate, to, direction, replace);
       }}
     />
   );

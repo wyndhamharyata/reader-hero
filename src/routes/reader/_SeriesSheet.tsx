@@ -18,7 +18,7 @@ import { CopyButton } from "./_CopyButton";
 const text = "text-base md:text-sm";
 const button = "btn md:btn-sm";
 
-// Another book opens over this one, so Back in it returns here; closing the sheet leaves the run going.
+// Another book takes this one's place in the history, so Back goes to the library; closing the sheet leaves the run going.
 export function SeriesSheet({
   series,
   bookId,
@@ -219,6 +219,7 @@ export function SeriesSheet({
                     <SlideLink
                       to={`/book/${card.book.id}`}
                       direction="in"
+                      replace
                       className={`${button} btn-square h-auto shrink-0 self-stretch btn-ghost`}
                       aria-label="Open book"
                       title="Open book"

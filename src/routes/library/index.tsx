@@ -17,6 +17,7 @@ import {
 } from "@/lib/hooks";
 import { onLaunchFiles } from "@/lib/launch-files";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
+import { slideTo } from "@/lib/slide-to";
 import {
   buildShelf,
   shelfRecords,
@@ -346,7 +347,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     return () => stopFiber(fiber);
   }, [hidden, reload]);
 
-  const importFiles = (files: ReadonlyArray<File>): void => {
+  const importFiles = (
+    files: ReadonlyArray<File>,
+    then?: (ids: ReadonlyArray<string>) => void,
+  ): void => {
     if (files.length === 0) return;
     setBusy(true);
     setImporting(true);
@@ -360,7 +364,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       reload();
     });
     importJob.current = forkApp(
-      importBooks(files, setProgress, setMessage).pipe(Effect.ensuring(settle)),
+      importBooks(files, setProgress, setMessage).pipe(
+        Effect.tap((ids) => Effect.sync(() => then?.(ids))),
+        Effect.ensuring(settle),
+      ),
     );
   };
 
@@ -495,7 +502,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  // A file the app was opened with imports like a choice from the picker, and the shelf comes first.
+  // A file the app was opened with imports like a choice from the picker, then opens; one it holds opens at once.
+  const [launched, setLaunched] = useState<string | null>(null);
   const launch = useRef({ importFiles, hidden });
   useEffect(() => {
     launch.current = { importFiles, hidden };
@@ -503,10 +511,17 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   useEffect(() => {
     onLaunchFiles((files) => {
       if (files.length === 0) return;
-      if (launch.current.hidden) navigate("/");
-      launch.current.importFiles(files);
+      // Back to the shelf by a history step, so the import shows and the new book is one step from it.
+      if (launch.current.hidden) slideTo(navigate, "/", "out");
+      launch.current.importFiles(files, (ids) => setLaunched(ids[0] ?? null));
     });
   }, [navigate]);
+  // Opened once the shelf shows, so the step back to it cannot land after the book and undo it.
+  useEffect(() => {
+    if (launched === null || hidden) return;
+    setLaunched(null);
+    slideTo(navigate, `/book/${launched}`, "in");
+  }, [launched, hidden, navigate]);
   const opened = useRef<string | null>(null);
   useEffect(() => {
     if (hidden) opened.current = pathname;
