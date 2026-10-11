@@ -1,3 +1,6 @@
+// A second tap within the 300ms takes over, so two loops never both scroll the list.
+let frame = 0;
+
 // Keeps the lowest visible `data-row` in place on screen while a row above it opens or closes.
 export function holdLowestRow(list: HTMLElement, tapped: Element): void {
   const bottom = list.getBoundingClientRect().bottom;
@@ -15,7 +18,8 @@ export function holdLowestRow(list: HTMLElement, tapped: Element): void {
       anchor.getBoundingClientRect().top - top,
       tapped.getBoundingClientRect().top - list.getBoundingClientRect().top,
     );
-    if (performance.now() - start < 300) requestAnimationFrame(step);
+    if (performance.now() - start < 300) frame = requestAnimationFrame(step);
   };
-  requestAnimationFrame(step);
+  cancelAnimationFrame(frame);
+  frame = requestAnimationFrame(step);
 }

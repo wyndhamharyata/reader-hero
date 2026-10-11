@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
   ArrowUpIcon,
+  CheckIcon,
   ClipboardIcon,
   PencilIcon,
   PlusIcon,
@@ -75,11 +76,11 @@ export function SummarySheet({
   const [tab, setTab] = useState<"chapters" | "names">("chapters");
   const [consentPending, setConsentPending] = useState(false);
   const [discardPending, setDiscardPending] = useState(false);
+  const [copyResult, setCopyResult] = useState<"Copied" | "Copy failed" | null>(null);
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
-  // Every entry starts closed, except the chapter opened from Contents.
-  // A desktop has the room, so every entry stays open there.
+  // Entries start closed, except the chapter opened from Contents; a desktop has the room to keep all open.
   const [desktop] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     new Set(openAt === null ? [] : [`${openAt}`]),
@@ -183,7 +184,17 @@ export function SummarySheet({
               : [`${stored.heading} · current position\n${stored.text}`]),
           ].join("\n\n")
         : names.map((entry) => `${entry.name}: ${entry.note}`).join("\n");
-    void navigator.clipboard.writeText(copied);
+    // Inside the chain, so a missing clipboard API (a plain IP) also shows as a failure.
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(copied))
+      .then(
+        () => "Copied" as const,
+        () => "Copy failed" as const,
+      )
+      .then((result) => {
+        setCopyResult(result);
+        setTimeout(() => setCopyResult(null), 1500);
+      });
   };
 
   const close = (): void => {
@@ -519,12 +530,18 @@ export function SummarySheet({
               <button
                 type="button"
                 className={`${button} btn-square btn-ghost`}
-                aria-label="Copy"
-                title="Copy"
+                aria-label={copyResult ?? "Copy"}
+                title={copyResult ?? "Copy"}
                 disabled={summary === null}
                 onClick={copy}
               >
-                <ClipboardIcon className="size-6 md:size-4" />
+                {copyResult === "Copied" ? (
+                  <CheckIcon className="size-6 md:size-4" />
+                ) : copyResult === "Copy failed" ? (
+                  <XMarkIcon className="size-6 text-error md:size-4" />
+                ) : (
+                  <ClipboardIcon className="size-6 md:size-4" />
+                )}
               </button>
               <button
                 type="button"

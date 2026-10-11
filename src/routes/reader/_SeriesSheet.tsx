@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { ArrowRightIcon, ClipboardIcon, XMarkIcon } from "@/components/icons";
+import { ArrowRightIcon, CheckIcon, ClipboardIcon, XMarkIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
 import { CONSENT_VERSION, type AiSettings, type Summary } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
@@ -46,6 +46,7 @@ export function SeriesSheet({
   const listRef = useRef<HTMLUListElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [consentPending, setConsentPending] = useState(false);
+  const [copyResult, setCopyResult] = useState<"Copied" | "Copy failed" | null>(null);
   const [summaries, setSummaries] = useState<ReadonlyMap<string, Summary | null>>(new Map());
   // A desktop has the room, so the paragraphs up to the current book stay open there.
   const [desktop] = useState(() => window.matchMedia("(width >= 48rem)").matches);
@@ -101,7 +102,17 @@ export function SeriesSheet({
       const paragraph = rows[index]?.text ?? null;
       return paragraph === null ? [] : [`${card.book.title}\n${paragraph}`];
     });
-    void navigator.clipboard.writeText(copied.join("\n\n"));
+    // Inside the chain, so a missing clipboard API (a plain IP) also shows as a failure.
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(copied.join("\n\n")))
+      .then(
+        () => "Copied" as const,
+        () => "Copy failed" as const,
+      )
+      .then((result) => {
+        setCopyResult(result);
+        setTimeout(() => setCopyResult(null), 1500);
+      });
   };
 
   return (
@@ -292,12 +303,18 @@ export function SeriesSheet({
               <button
                 type="button"
                 className={`${button} btn-square btn-ghost`}
-                aria-label="Copy"
-                title="Copy"
+                aria-label={copyResult ?? "Copy"}
+                title={copyResult ?? "Copy"}
                 disabled={!rows.some((entry) => entry.text !== null)}
                 onClick={copy}
               >
-                <ClipboardIcon className="size-6 md:size-4" />
+                {copyResult === "Copied" ? (
+                  <CheckIcon className="size-6 md:size-4" />
+                ) : copyResult === "Copy failed" ? (
+                  <XMarkIcon className="size-6 text-error md:size-4" />
+                ) : (
+                  <ClipboardIcon className="size-6 md:size-4" />
+                )}
               </button>
               <button
                 type="button"

@@ -5,9 +5,9 @@ import { Block, BookMeta, PARSED_VERSION, ParsedBook, Series } from "@/domain/bo
 import { AiFailure, ParsedMissing } from "@/domain/errors";
 import { buildShelf } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
-import { BookStore } from "@/services/book-store";
 import { SettingsStore } from "@/services/settings-store";
 import { groupSeries, resetGrouping } from "@/use-cases/group-series";
+import { bookStore } from "../_support/book-store";
 
 const book = (id: string, title: string, overrides: Partial<BookMeta> = {}): BookMeta =>
   new BookMeta({
@@ -97,46 +97,20 @@ function harness(state: State, reply: (user: string) => string) {
       balance: () => Effect.succeed(null),
     }),
   );
-  const books = Layer.succeed(
-    BookStore,
-    BookStore.of({
-      list: () => Effect.sync(() => state.books),
-      listSeries: () => Effect.sync(() => [...state.series]),
-      getSeries: () => Effect.die("not used"),
-      putSeries: (series) =>
-        Effect.sync(() => {
-          state.series = [...state.series.filter((entry) => entry.id !== series.id), series];
-        }),
-      removeSeries: (id) =>
-        Effect.sync(() => {
-          state.series = state.series.filter((entry) => entry.id !== id);
-        }),
-      get: () => Effect.die("not used"),
-      putMeta: () => Effect.die("not used"),
-      putFile: () => Effect.die("not used"),
-      getFile: () => Effect.die("not used"),
-      putParsed: () => Effect.die("not used"),
-      getParsed: (id) =>
-        id === "b2" ? Effect.succeed(opening) : Effect.fail(new ParsedMissing({ id })),
-      putImage: () => Effect.die("not used"),
-      updates: () => Stream.empty,
-      getImage: () => Effect.die("not used"),
-      listImages: () => Effect.die("not used"),
-      putProgress: () => Effect.die("not used"),
-      getProgress: () => Effect.die("not used"),
-      getPrefs: () => Effect.die("not used"),
-      putPrefs: () => Effect.die("not used"),
-      getFigureCheckpoint: () => Effect.die("not used"),
-      putFigureCheckpoint: () => Effect.die("not used"),
-      putPages: () => Effect.die("not used"),
-      getPages: () => Effect.die("not used"),
-      deletePages: () => Effect.die("not used"),
-      remove: () => Effect.die("not used"),
-      estimate: () => Effect.succeed(null),
-      requestPersistent: () => Effect.succeed(false),
-      takeInbox: () => Effect.succeed([]),
-    }),
-  );
+  const books = bookStore({
+    list: () => Effect.sync(() => state.books),
+    listSeries: () => Effect.sync(() => [...state.series]),
+    putSeries: (series) =>
+      Effect.sync(() => {
+        state.series = [...state.series.filter((entry) => entry.id !== series.id), series];
+      }),
+    removeSeries: (id) =>
+      Effect.sync(() => {
+        state.series = state.series.filter((entry) => entry.id !== id);
+      }),
+    getParsed: (id) =>
+      id === "b2" ? Effect.succeed(opening) : Effect.fail(new ParsedMissing({ id })),
+  });
   const settings = Layer.succeed(
     SettingsStore,
     SettingsStore.of({

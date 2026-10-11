@@ -15,7 +15,6 @@ import { readingBadge } from "@/lib/badges";
 import { decodeSummary } from "@/lib/codecs";
 import type { LibraryCard, Shelf } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
-import { BookStore } from "@/services/book-store";
 import { SummaryJobs } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 import { chapters, spanText } from "@/use-cases/ai-context";
@@ -32,6 +31,7 @@ import {
   type Coverage,
   type SummaryInput,
 } from "@/use-cases/summary";
+import { bookStore } from "../_support/book-store";
 
 const meta = new BookMeta({
   id: "b1",
@@ -729,43 +729,17 @@ function seriesHarness(state: SeriesState) {
       changes: () => Stream.empty,
     }),
   );
-  const books = Layer.succeed(
-    BookStore,
-    BookStore.of({
-      list: () => Effect.succeed(state.books ?? []),
-      listSeries: () => Effect.succeed(state.series ?? []),
-      getSeries: () => Effect.die("not used"),
-      putSeries: () => Effect.die("not used"),
-      removeSeries: () => Effect.die("not used"),
-      get: () => Effect.die("not used"),
-      putMeta: () => Effect.die("not used"),
-      putFile: () => Effect.die("not used"),
-      getFile: () => Effect.die("not used"),
-      putParsed: () => Effect.die("not used"),
-      getParsed: (id) =>
-        Effect.sync(() => {
-          reads.push(id);
-          return novel;
-        }),
-      putImage: () => Effect.die("not used"),
-      updates: () => Stream.empty,
-      getImage: () => Effect.die("not used"),
-      listImages: () => Effect.die("not used"),
-      putProgress: () => Effect.die("not used"),
-      getProgress: (id) => Effect.succeed(state.progress?.get(id) ?? null),
-      getPrefs: (id) => Effect.succeed(new BookPrefs({ kind: state.kinds?.get(id) ?? "story" })),
-      putPrefs: () => Effect.die("not used"),
-      getFigureCheckpoint: () => Effect.die("not used"),
-      putFigureCheckpoint: () => Effect.die("not used"),
-      putPages: () => Effect.die("not used"),
-      getPages: () => Effect.die("not used"),
-      deletePages: () => Effect.die("not used"),
-      remove: () => Effect.die("not used"),
-      estimate: () => Effect.succeed(null),
-      requestPersistent: () => Effect.succeed(false),
-      takeInbox: () => Effect.succeed([]),
-    }),
-  );
+  const books = bookStore({
+    list: () => Effect.succeed(state.books ?? []),
+    listSeries: () => Effect.succeed(state.series ?? []),
+    getParsed: (id) =>
+      Effect.sync(() => {
+        reads.push(id);
+        return novel;
+      }),
+    getProgress: (id) => Effect.succeed(state.progress?.get(id) ?? null),
+    getPrefs: (id) => Effect.succeed(new BookPrefs({ kind: state.kinds?.get(id) ?? "story" })),
+  });
   return { calls, reads, layer: Layer.mergeAll(client, store, books) };
 }
 
@@ -1198,7 +1172,10 @@ describe("series summary requests", () => {
       Effect.gen(function* () {
         const jobs = yield* SummaryJobs;
         yield* jobs.start({ meta: salt, parsed: novel, kind: "story", index: 7 }, settings);
-        yield* Effect.sleep("20 millis");
+        yield* jobs.state(salt.id).pipe(
+          Stream.filter((state) => state.run === null),
+          Stream.runHead,
+        );
       }).pipe(Effect.provide(SummaryJobs.layer.pipe(Layer.provide(layer)))),
     );
 
@@ -1214,7 +1191,10 @@ describe("series summary requests", () => {
         const jobs = yield* SummaryJobs;
         yield* jobs.startSeries(series, "b3", settings);
         yield* jobs.start({ meta: beacon, parsed: novel, kind: "story", index: 8 }, settings);
-        yield* Effect.sleep("20 millis");
+        yield* jobs.state(`series:${series.id}`).pipe(
+          Stream.filter((state) => state.run === null),
+          Stream.runHead,
+        );
       }).pipe(Effect.provide(SummaryJobs.layer.pipe(Layer.provide(layer)))),
     );
 
@@ -1289,7 +1269,10 @@ describe("earlier names", () => {
       Effect.gen(function* () {
         const jobs = yield* SummaryJobs;
         yield* jobs.start({ meta: salt, parsed: novel, kind: "story", index: 7 }, consented);
-        yield* Effect.sleep("20 millis");
+        yield* jobs.state(salt.id).pipe(
+          Stream.filter((state) => state.run === null),
+          Stream.runHead,
+        );
       }).pipe(Effect.provide(SummaryJobs.layer.pipe(Layer.provide(layer)))),
     );
 
@@ -1333,7 +1316,10 @@ describe("earlier names", () => {
       Effect.gen(function* () {
         const jobs = yield* SummaryJobs;
         yield* jobs.startNames(consented);
-        yield* Effect.sleep("20 millis");
+        yield* jobs.state("names").pipe(
+          Stream.filter((state) => state.run === null),
+          Stream.runHead,
+        );
       }).pipe(Effect.provide(SummaryJobs.layer.pipe(Layer.provide(layer)))),
     );
 

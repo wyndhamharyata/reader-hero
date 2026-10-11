@@ -1,9 +1,10 @@
-import { Effect, Layer, Stream } from "effect";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { BookMeta, ReadingProgress, Series } from "@/domain/book";
 import { buildShelf } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
 import { findBookSeries, hideSeries, saveSeries, setBookSeries } from "@/use-cases/series";
+import { bookStore } from "../_support/book-store";
 
 const book = (id: string, title: string, overrides: Partial<BookMeta> = {}): BookMeta =>
   new BookMeta({
@@ -40,46 +41,20 @@ const run = async <A>(
     reads?: Array<string>;
   },
 ): Promise<A> => {
-  const layer = Layer.succeed(
-    BookStore,
-    BookStore.of({
-      list: () => Effect.succeed(state.books),
-      listSeries: () => Effect.sync(() => [...state.series]),
-      getSeries: (id) => Effect.sync(() => state.series.find((series) => series.id === id) ?? null),
-      putSeries: (series) =>
-        Effect.sync(() => {
-          state.series = [...state.series.filter((entry) => entry.id !== series.id), series];
-        }),
-      removeSeries: () => Effect.die("not used"),
-      get: () => Effect.die("not used"),
-      putMeta: () => Effect.die("not used"),
-      putFile: () => Effect.die("not used"),
-      getFile: () => Effect.die("not used"),
-      putParsed: () => Effect.die("not used"),
-      getParsed: () => Effect.die("not used"),
-      putImage: () => Effect.die("not used"),
-      updates: () => Stream.empty,
-      getImage: () => Effect.die("not used"),
-      listImages: () => Effect.die("not used"),
-      putProgress: () => Effect.die("not used"),
-      getProgress: (id) =>
-        Effect.sync(() => {
-          state.reads?.push(id);
-          return state.progress?.get(id) ?? null;
-        }),
-      getPrefs: () => Effect.die("not used"),
-      putPrefs: () => Effect.die("not used"),
-      getFigureCheckpoint: () => Effect.die("not used"),
-      putFigureCheckpoint: () => Effect.die("not used"),
-      putPages: () => Effect.die("not used"),
-      getPages: () => Effect.die("not used"),
-      deletePages: () => Effect.die("not used"),
-      remove: () => Effect.die("not used"),
-      estimate: () => Effect.succeed(null),
-      requestPersistent: () => Effect.succeed(false),
-      takeInbox: () => Effect.succeed([]),
-    }),
-  );
+  const layer = bookStore({
+    list: () => Effect.succeed(state.books),
+    listSeries: () => Effect.sync(() => [...state.series]),
+    getSeries: (id) => Effect.sync(() => state.series.find((series) => series.id === id) ?? null),
+    putSeries: (series) =>
+      Effect.sync(() => {
+        state.series = [...state.series.filter((entry) => entry.id !== series.id), series];
+      }),
+    getProgress: (id) =>
+      Effect.sync(() => {
+        state.reads?.push(id);
+        return state.progress?.get(id) ?? null;
+      }),
+  });
   return Effect.runPromise(effect.pipe(Effect.provide(layer)));
 };
 

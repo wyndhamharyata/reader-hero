@@ -22,6 +22,6 @@ describe("decodeGroupedBooks", () => {
     const broken = await Effect.runPromise(Effect.flip(decodeGroupedBooks({ ids: "b1" })));
 
     expect(decoded.ids).toEqual(["b1", "b2"]);
-    expect(broken).toBeDefined();
+    expect(broken._tag).toBe("SchemaError");
   });
 });

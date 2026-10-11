@@ -1,63 +1,35 @@
-import { Effect, Layer, Stream } from "effect";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { Block, PARSED_VERSION, ParsedBook, ReadingProgress } from "@/domain/book";
 import { ParsedMissing } from "@/domain/errors";
-import { BookStore } from "@/services/book-store";
 import { saveReadingProgress, setBookFinished } from "@/use-cases/save-progress";
+import { bookStore } from "../_support/book-store";
 
 function harness(initial: ReadingProgress | null, blocks = 0) {
   const state = { progress: initial };
-  const layer = Layer.succeed(
-    BookStore,
-    BookStore.of({
-      list: () => Effect.die("not used"),
-      listSeries: () => Effect.die("not used"),
-      getSeries: () => Effect.die("not used"),
-      putSeries: () => Effect.die("not used"),
-      removeSeries: () => Effect.die("not used"),
-      get: () => Effect.die("not used"),
-      putMeta: () => Effect.die("not used"),
-      putFile: () => Effect.die("not used"),
-      getFile: () => Effect.die("not used"),
-      putParsed: () => Effect.die("not used"),
-      getParsed: (id) =>
-        blocks === 0
-          ? Effect.fail(new ParsedMissing({ id }))
-          : Effect.succeed(
-              new ParsedBook({
-                version: PARSED_VERSION,
-                pageCount: 1,
-                charCount: 1,
-                blocks: Array.from(
-                  { length: blocks },
-                  (_, at) => new Block({ kind: "paragraph", level: 0, text: `b${at}`, page: 1 }),
-                ),
-                toc: [],
-                figuresThrough: 0,
-              }),
-            ),
-      putImage: () => Effect.die("not used"),
-      updates: () => Stream.empty,
-      getImage: () => Effect.die("not used"),
-      listImages: () => Effect.die("not used"),
-      putProgress: (_id, progress) =>
-        Effect.sync(() => {
-          state.progress = progress;
-        }),
-      getProgress: () => Effect.succeed(state.progress),
-      getPrefs: () => Effect.die("not used"),
-      putPrefs: () => Effect.die("not used"),
-      getFigureCheckpoint: () => Effect.die("not used"),
-      putFigureCheckpoint: () => Effect.die("not used"),
-      putPages: () => Effect.die("not used"),
-      getPages: () => Effect.die("not used"),
-      deletePages: () => Effect.die("not used"),
-      remove: () => Effect.die("not used"),
-      estimate: () => Effect.succeed(null),
-      requestPersistent: () => Effect.succeed(false),
-      takeInbox: () => Effect.succeed([]),
-    }),
-  );
+  const layer = bookStore({
+    getParsed: (id) =>
+      blocks === 0
+        ? Effect.fail(new ParsedMissing({ id }))
+        : Effect.succeed(
+            new ParsedBook({
+              version: PARSED_VERSION,
+              pageCount: 1,
+              charCount: 1,
+              blocks: Array.from(
+                { length: blocks },
+                (_, at) => new Block({ kind: "paragraph", level: 0, text: `b${at}`, page: 1 }),
+              ),
+              toc: [],
+              figuresThrough: 0,
+            }),
+          ),
+    putProgress: (_id, progress) =>
+      Effect.sync(() => {
+        state.progress = progress;
+      }),
+    getProgress: () => Effect.succeed(state.progress),
+  });
   return { layer, state };
 }
 
