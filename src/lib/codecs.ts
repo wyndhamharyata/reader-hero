@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { AiSettings, GroupedBooks, Summary } from "@/domain/ai";
+import { AiSettings, GroupedBooks, Summary, UsageTally } from "@/domain/ai";
 import {
   BookMeta,
   BookPrefs,
@@ -24,3 +24,4 @@ export const decodeStoredPages = Schema.decodeUnknownEffect(StoredPages);
 export const decodeAiSettings = Schema.decodeUnknownEffect(AiSettings);
 export const decodeSummary = Schema.decodeUnknownEffect(Summary);
 export const decodeGroupedBooks = Schema.decodeUnknownEffect(GroupedBooks);
+export const decodeUsageTally = Schema.decodeUnknownEffect(UsageTally);

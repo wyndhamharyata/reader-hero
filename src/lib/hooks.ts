@@ -7,7 +7,7 @@ import {
   useState,
   type DependencyList,
 } from "react";
-import { Summary, type AiSettings } from "@/domain/ai";
+import { Summary, type AiSettings, type UsageTally } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { runtime, type AppServices } from "@/runtime";
 import { SettingsStore } from "@/services/settings-store";
@@ -221,6 +221,27 @@ export function useAiSettings(): {
   }, []);
 
   return { ai, putAi };
+}
+
+// The cache tallies by "provider/model", live, so the sheet's numbers move as requests finish.
+export function useUsage(): {
+  readonly tallies: ReadonlyMap<string, UsageTally>;
+  readonly reset: (key: string) => void;
+} {
+  const [tallies, setTallies] = useState<ReadonlyMap<string, UsageTally>>(new Map());
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.flatMap(SettingsStore, (store) =>
+        Stream.runForEach(store.usageChanges(), (next) => Effect.sync(() => setTallies(next))),
+      ),
+    );
+    return () => stopFiber(fiber);
+  }, []);
+  const reset = useCallback((key: string) => {
+    const program = Effect.flatMap(SettingsStore, (store) => store.resetUsage(key));
+    forkApp(program.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
+  }, []);
+  return { tallies, reset };
 }
 
 // A job's run and error by its key, live, for a job that no single book's Summary shows.

@@ -10,7 +10,10 @@ import { SummaryJobs } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 
 // The summary jobs run on the AI client and the stores, which the app shares with them.
-const aiLayer = Layer.mergeAll(SummaryStore.layer, AiClient.layer);
+const aiLayer = Layer.mergeAll(
+  SummaryStore.layer,
+  AiClient.layer.pipe(Layer.provide(SettingsStore.layer)),
+);
 
 const appLayer = Layer.mergeAll(
   BookStore.layer,

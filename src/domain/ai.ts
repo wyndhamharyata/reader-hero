@@ -49,6 +49,36 @@ export const AiMessage = Schema.Struct({
 });
 export type AiMessage = typeof AiMessage.Type;
 
+// `cache` ends a prefix worth keeping; a provider that bills cache writes keeps only marked prefixes.
+export interface PromptPart {
+  readonly text: string;
+  readonly cache?: boolean;
+}
+
+// The parts join with nothing between them, so a split prompt sends the same text as one string.
+export interface PromptMessage {
+  readonly role: "user" | "assistant";
+  readonly content: string | ReadonlyArray<PromptPart>;
+}
+
+// `input` counts every prompt token, `hit` and `write` included; a missing field was not reported.
+export interface AiUsage {
+  readonly input?: number;
+  readonly hit?: number;
+  readonly write?: number;
+  readonly output?: number;
+}
+
+// One record per provider and model, so a model change starts its own hit rate.
+export class UsageTally extends Schema.Class<UsageTally>("reader-hero/domain/UsageTally")({
+  requests: Schema.Int,
+  input: Schema.Int,
+  hit: Schema.Int,
+  write: Schema.Int,
+  output: Schema.Int,
+  since: Schema.Int,
+}) {}
+
 // One record per book, so the job appends to it and never sends a finished chapter twice.
 export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")({
   bookId: Schema.String,

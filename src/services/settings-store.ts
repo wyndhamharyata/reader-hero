@@ -1,8 +1,13 @@
 import { Context, Effect, Layer, Stream, SubscriptionRef } from "effect";
-import { GroupedBooks, type AiSettings } from "@/domain/ai";
+import { GroupedBooks, UsageTally, type AiSettings, type AiUsage } from "@/domain/ai";
 import { DEFAULT_SETTINGS, ReaderSettings } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
-import { decodeAiSettings, decodeGroupedBooks, decodeReaderSettings } from "@/lib/codecs";
+import {
+  decodeAiSettings,
+  decodeGroupedBooks,
+  decodeReaderSettings,
+  decodeUsageTally,
+} from "@/lib/codecs";
 import { AI_SETTINGS_KEY, openReaderDb, SETTINGS_KEY } from "@/lib/db";
 
 const storageFailure = (operation: string) => (cause: unknown) =>
@@ -17,6 +22,10 @@ export class SettingsStore extends Context.Service<
     putAi(next: AiSettings | null): Effect.Effect<void, StorageFailure>;
     groupedBooks(): Effect.Effect<ReadonlyArray<string>, StorageFailure>;
     putGroupedBooks(ids: ReadonlyArray<string>): Effect.Effect<void, StorageFailure>;
+    // By "provider/model"; each request adds its reported tokens.
+    usageChanges(): Stream.Stream<ReadonlyMap<string, UsageTally>>;
+    addUsage(key: string, usage: AiUsage): Effect.Effect<void, StorageFailure>;
+    resetUsage(key: string): Effect.Effect<void, StorageFailure>;
   }
 >()("reader-hero/SettingsStore") {
   static readonly layer = Layer.effect(
@@ -109,6 +118,60 @@ export class SettingsStore extends Context.Service<
         });
       });
 
+      const usageKeys = yield* Effect.tryPromise({
+        try: () => db.getAllKeys("settings"),
+        catch: storageFailure("getUsageKeys"),
+      });
+      const tallies = yield* Effect.forEach(
+        usageKeys.filter((key) => key.startsWith("usage:")),
+        (key) =>
+          Effect.tryPromise({
+            try: () => db.get("settings", key),
+            catch: storageFailure("getUsage"),
+          }).pipe(
+            Effect.flatMap((row) => decodeUsageTally(row)),
+            Effect.map((tally) => [[key.slice(6), tally] as const]),
+            // A tally that no longer decodes starts again from nothing.
+            Effect.catchTag("SchemaError", () => Effect.succeed([])),
+          ),
+      );
+      const usageRef = yield* SubscriptionRef.make<ReadonlyMap<string, UsageTally>>(
+        new Map(tallies.flat()),
+      );
+
+      const usageChanges = () => SubscriptionRef.changes(usageRef);
+
+      const addUsage = Effect.fn("SettingsStore.addUsage")(function* (key: string, usage: AiUsage) {
+        const next = yield* SubscriptionRef.modify(usageRef, (current) => {
+          const before = current.get(key);
+          const tally = new UsageTally({
+            requests: (before?.requests ?? 0) + 1,
+            input: (before?.input ?? 0) + (usage.input ?? 0),
+            hit: (before?.hit ?? 0) + (usage.hit ?? 0),
+            write: (before?.write ?? 0) + (usage.write ?? 0),
+            output: (before?.output ?? 0) + (usage.output ?? 0),
+            since: before?.since ?? Date.now(),
+          });
+          return [tally, new Map(current).set(key, tally)];
+        });
+        yield* Effect.tryPromise({
+          try: () => db.put("settings", next, `usage:${key}`),
+          catch: storageFailure("putUsage"),
+        });
+      });
+
+      const resetUsage = Effect.fn("SettingsStore.resetUsage")(function* (key: string) {
+        yield* SubscriptionRef.update(usageRef, (current) => {
+          const next = new Map(current);
+          next.delete(key);
+          return next;
+        });
+        yield* Effect.tryPromise({
+          try: () => db.delete("settings", `usage:${key}`),
+          catch: storageFailure("deleteUsage"),
+        });
+      });
+
       return SettingsStore.of({
         changes,
         update,
@@ -116,6 +179,9 @@ export class SettingsStore extends Context.Service<
         putAi,
         groupedBooks,
         putGroupedBooks,
+        usageChanges,
+        addUsage,
+        resetUsage,
       });
     }),
   );

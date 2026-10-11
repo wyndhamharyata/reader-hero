@@ -1,10 +1,10 @@
 // A module of its own, so this code loads on the first request, like pdf.js, and not at launch.
 import { Effect, Stream } from "effect";
-import type { AiMessage, AiProvider, AiSettings } from "@/domain/ai";
+import type { AiProvider, AiSettings, PromptMessage, PromptPart } from "@/domain/ai";
 import { AiFailure } from "@/domain/errors";
 import { emptyEventStream, endEventStream, pushEventStream, type Delta } from "@/lib/event-stream";
 
-// Every preset speaks OpenAI chat completions and answers a browser page directly, measured on 7 October 2026.
+// Every preset answers a browser page directly, measured on 7 October 2026; Anthropic alone gets its own API, for caching.
 const bases: Record<AiProvider, string> = {
   deepseek: "https://api.deepseek.com",
   openrouter: "https://openrouter.ai/api/v1",
@@ -73,36 +73,145 @@ const request = (
     return yield* statusFailure(response.status, body);
   });
 
+export interface CompleteOptions {
+  readonly json?: boolean;
+  // What the request is for: the console line names it, and the book keys the provider's cache.
+  readonly purpose?: { readonly stage: string; readonly book?: string };
+}
+
+const joined = (content: string | ReadonlyArray<PromptPart>): string =>
+  typeof content === "string" ? content : content.map((part) => part.text).join("");
+
+// Unmarked runs merged and empty parts dropped; null with no mark, so the plain string goes.
+function marked(content: string | ReadonlyArray<PromptPart>): ReadonlyArray<PromptPart> | null {
+  if (typeof content === "string" || !content.some((part) => part.cache === true)) return null;
+  const out: Array<{ text: string; cache: boolean }> = [];
+  for (const part of content) {
+    const last = out[out.length - 1];
+    if (last !== undefined && !last.cache) {
+      last.text += part.text;
+      last.cache = part.cache === true;
+    } else {
+      out.push({ text: part.text, cache: part.cache === true });
+    }
+  }
+  return out.filter((part) => part.text !== "");
+}
+
+// GPT-5.6 and later bill a cache write at 1.25x, so there only the marked prefixes are kept.
+export function writeBilled(model: string): boolean {
+  const match = /^(?:openai\/)?gpt-(\d+)(?:\.(\d+))?/.exec(model);
+  if (match === null) return false;
+  const major = Number(match[1]);
+  return major > 5 || (major === 5 && Number(match[2] ?? 0) >= 6);
+}
+
+export function requestOf(
+  settings: AiSettings,
+  system: string | ReadonlyArray<PromptPart>,
+  messages: ReadonlyArray<PromptMessage>,
+  options: CompleteOptions = {},
+): { readonly path: string; readonly body: Record<string, unknown> } {
+  const effort =
+    settings.effort === undefined || settings.effort === "off" ? null : settings.effort;
+  const purpose = options.purpose;
+  const key = purpose === undefined ? undefined : `reader-hero:${purpose.book ?? purpose.stage}`;
+
+  if (settings.provider === "anthropic") {
+    const marks = [system, ...messages.map((message) => message.content)].reduce(
+      (sum, content) => sum + (marked(content)?.filter((part) => part.cache === true).length ?? 0),
+      0,
+    );
+    // Anthropic takes 4 breakpoints; the latest ones cover the longest prefixes.
+    let drop = Math.max(0, marks - 4);
+    const blocks = (content: string | ReadonlyArray<PromptPart>) => {
+      const parts = marked(content);
+      if (parts === null) return joined(content);
+      return parts.map((part) => ({
+        type: "text",
+        text: part.text,
+        ...(part.cache === true && drop-- <= 0 ? { cache_control: { type: "ephemeral" } } : {}),
+      }));
+    };
+    return {
+      path: "/messages",
+      body: {
+        model: settings.model,
+        // A limit on thinking and text together, so high effort still has room to answer.
+        max_tokens: 32000,
+        system: blocks(system),
+        messages: messages.map((message) => ({
+          role: message.role,
+          content: blocks(message.content),
+        })),
+        stream: true,
+        ...(effort === null ? {} : { output_config: { effort } }),
+      },
+    };
+  }
+
+  const explicit =
+    (settings.provider === "openai" || settings.provider === "openrouter") &&
+    writeBilled(settings.model);
+  // DeepSeek and Gemini cache every prefix with no write charge, so they take plain strings.
+  const content = (value: string | ReadonlyArray<PromptPart>) => {
+    const parts =
+      settings.provider === "openrouter" || (settings.provider === "openai" && explicit)
+        ? marked(value)
+        : null;
+    if (parts === null) return joined(value);
+    return parts.map((part) => ({
+      type: "text",
+      text: part.text,
+      ...(part.cache !== true
+        ? {}
+        : settings.provider === "openrouter"
+          ? { cache_control: { type: "ephemeral" } }
+          : { prompt_cache_breakpoint: { mode: "explicit" } }),
+    }));
+  };
+  const body: Record<string, unknown> = {
+    model: settings.model,
+    messages: [
+      { role: "system", content: content(system) },
+      ...messages.map((message) => ({ role: message.role, content: content(message.content) })),
+    ],
+    stream: true,
+    stream_options: { include_usage: true },
+  };
+  // DeepSeek thinks by default and must be told not to; the others think only when asked.
+  if (effort === null) {
+    if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
+  } else {
+    body.reasoning_effort = effort;
+  }
+  // JSON mode where it is documented; the other presets get JSON from the prompt alone.
+  if (
+    options.json === true &&
+    (settings.provider === "deepseek" || settings.provider === "openai")
+  ) {
+    body.response_format = { type: "json_object" };
+  }
+  if (explicit) body.prompt_cache_options = { mode: "explicit" };
+  // OpenAI routes by the key to a machine with the cache; OpenRouter keeps the session on one provider.
+  if (key !== undefined && settings.provider === "openai") body.prompt_cache_key = key;
+  if (key !== undefined && settings.provider === "openrouter") body.session_id = key;
+  return { path: "/chat/completions", body };
+}
+
 export function complete(
   settings: AiSettings,
-  system: string,
-  messages: ReadonlyArray<AiMessage>,
-  options: { readonly json?: boolean } = {},
+  system: string | ReadonlyArray<PromptPart>,
+  messages: ReadonlyArray<PromptMessage>,
+  options: CompleteOptions = {},
 ): Stream.Stream<Delta, AiFailure> {
   return Stream.unwrap(
     Effect.gen(function* () {
       // Interrupting the stream aborts the request, the way a page render is cancelled today.
       const controller = new AbortController();
       yield* Effect.addFinalizer(() => Effect.sync(() => controller.abort()));
-      const body: Record<string, unknown> = {
-        model: settings.model,
-        messages: [{ role: "system", content: system }, ...messages],
-        stream: true,
-      };
-      // DeepSeek thinks by default and must be told not to; the others think only when asked.
-      if (settings.effort === undefined || settings.effort === "off") {
-        if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
-      } else {
-        body.reasoning_effort = settings.effort;
-      }
-      // JSON mode where it is documented; the other presets get JSON from the prompt alone.
-      if (
-        options.json === true &&
-        (settings.provider === "deepseek" || settings.provider === "openai")
-      ) {
-        body.response_format = { type: "json_object" };
-      }
-      const response = yield* request(settings, "/chat/completions", {
+      const { path, body } = requestOf(settings, system, messages, options);
+      const response = yield* request(settings, path, {
         method: "POST",
         body: JSON.stringify(body),
         signal: controller.signal,

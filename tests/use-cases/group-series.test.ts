@@ -8,6 +8,7 @@ import { AiClient } from "@/services/ai-client";
 import { SettingsStore } from "@/services/settings-store";
 import { groupSeries, resetGrouping } from "@/use-cases/group-series";
 import { bookStore } from "../_support/book-store";
+import { plain } from "../_support/prompt";
 
 const book = (id: string, title: string, overrides: Partial<BookMeta> = {}): BookMeta =>
   new BookMeta({
@@ -79,8 +80,8 @@ function harness(state: State, reply: (user: string) => string) {
       complete: (_settings, system, messages, options) =>
         Stream.unwrap(
           Effect.gen(function* () {
-            const user = messages[0]?.content ?? "";
-            calls.push({ system, user, json: options?.json === true });
+            const user = plain(messages[0]?.content ?? "");
+            calls.push({ system: plain(system), user, json: options?.json === true });
             open.now += 1;
             open.peak = Math.max(open.peak, open.now);
             yield* Effect.sleep("2 millis");
@@ -123,6 +124,9 @@ function harness(state: State, reply: (user: string) => string) {
         Effect.sync(() => {
           state.sent = ids;
         }),
+      usageChanges: () => Stream.empty,
+      addUsage: () => Effect.void,
+      resetUsage: () => Effect.void,
     }),
   );
   const layer = Layer.mergeAll(client, books, settings);

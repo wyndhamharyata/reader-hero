@@ -143,7 +143,7 @@ export function groupSeries(
             settings,
             'Group these books into series. A series is a set of books that its publisher numbers or orders. Use the titles, authors, file names and opening text. You may use what you know about published series. Put a book you are not sure of under "possible". Leave out books in no series. A side series with its own numbering is a separate series, even when its name starts like another. A book of a series that exists goes under that series\' name. Reply with JSON only, in this shape: {"series":[{"name":"","books":[{"key":"b1","number":1}],"possible":[{"key":"b2","number":2}]}]}, where number is the volume number, if known.',
             [{ role: "user", content: user }],
-            { json: true },
+            { json: true, purpose: { stage: "grouping" } },
           )
           .pipe(
             Stream.runForEach((delta) =>

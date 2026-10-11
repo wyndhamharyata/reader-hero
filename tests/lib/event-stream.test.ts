@@ -57,4 +57,70 @@ describe("event stream parser", () => {
   it("given a last event with no blank line after it, flushes it at the end", () => {
     expect(collect([event({ content: "x" }).trimEnd()])).toEqual([{ type: "text", text: "x" }]);
   });
+
+  it("given OpenAI's last chunk with no choices, yields its cached and written tokens", () => {
+    const usage = {
+      prompt_tokens: 3000,
+      completion_tokens: 120,
+      prompt_tokens_details: { cached_tokens: 2048, cache_write_tokens: 512 },
+    };
+    expect(collect([`data: ${JSON.stringify({ choices: [], usage })}\n\n`])).toEqual([
+      { type: "usage", usage: { input: 3000, hit: 2048, write: 512, output: 120 } },
+    ]);
+  });
+
+  it("given DeepSeek's usage, reads its own hit count", () => {
+    const usage = {
+      prompt_tokens: 5000,
+      completion_tokens: 150,
+      prompt_cache_hit_tokens: 4096,
+      prompt_cache_miss_tokens: 904,
+    };
+    const chunk = { choices: [{ delta: { content: "" } }], usage };
+    expect(collect([`data: ${JSON.stringify(chunk)}\n\n`])).toEqual([
+      { type: "usage", usage: { input: 5000, hit: 4096, write: 0, output: 150 } },
+    ]);
+  });
+
+  it("given a null usage on a middle chunk, yields only its text", () => {
+    const chunk = { choices: [{ delta: { content: "a" } }], usage: null };
+    expect(collect([`data: ${JSON.stringify(chunk)}\n\n`])).toEqual([{ type: "text", text: "a" }]);
+  });
+});
+
+describe("Anthropic event stream", () => {
+  const sse = (type: string, data: Record<string, unknown>): string =>
+    `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+
+  it("given a whole message, yields thinking, text, the input with its cache, then the output", () => {
+    expect(
+      collect([
+        sse("message_start", {
+          message: {
+            usage: {
+              input_tokens: 40,
+              cache_read_input_tokens: 2000,
+              cache_creation_input_tokens: 600,
+              output_tokens: 1,
+            },
+          },
+        }),
+        sse("content_block_start", { index: 0, content_block: { type: "thinking" } }),
+        sse("content_block_delta", { index: 0, delta: { type: "thinking_delta", thinking: "hm" } }),
+        sse("content_block_delta", {
+          index: 0,
+          delta: { type: "signature_delta", signature: "x" },
+        }),
+        sse("content_block_delta", { index: 1, delta: { type: "text_delta", text: "Jim fled." } }),
+        sse("message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 90 } }),
+        sse("message_stop", {}),
+        ": ping\n\n",
+      ]),
+    ).toEqual([
+      { type: "usage", usage: { input: 2640, hit: 2000, write: 600, output: 1 } },
+      { type: "reasoning", text: "hm" },
+      { type: "text", text: "Jim fled." },
+      { type: "usage", usage: { output: 90 } },
+    ]);
+  });
 });

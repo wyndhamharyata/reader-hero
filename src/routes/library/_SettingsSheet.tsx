@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ThemeControls } from "@/components/ThemeControls";
 import { AiProvider, AiSettings, CONSENT_VERSION, providerLabels } from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
-import { runApp, useAiSettings, useJob, useSettings } from "@/lib/hooks";
+import { formatPercent } from "@/lib/format";
+import { runApp, useAiSettings, useJob, useSettings, useUsage } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { useTabSwipe } from "@/lib/use-tab-swipe";
 import { ConsentNote } from "@/routes/reader/_ConsentNote";
@@ -58,6 +59,7 @@ export function SettingsSheet({
   const [consentFor, setConsentFor] = useState<"grouping" | "rebuild" | null>(null);
   const consentNote = useRef<HTMLDivElement>(null);
   const rebuild = useJob("rebuild");
+  const usage = useUsage();
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
   const [test, setTest] = useState<Test>({ state: "idle" });
 
@@ -177,6 +179,10 @@ export function SettingsSheet({
     ...(effort === "off" || levels.includes(effort) ? [] : [effort]),
   ];
   const ready = apiKey.trim() !== "" && model.trim() !== "";
+  // The form's provider and model, so picking another model shows its own numbers.
+  const usageKey = `${provider}/${model.trim()}`;
+  const tally = usage.tallies.get(usageKey);
+  const compact = new Intl.NumberFormat(undefined, { notation: "compact" });
   const field = "select w-full text-base md:text-sm";
 
   return (
@@ -495,6 +501,38 @@ export function SettingsSheet({
                   </select>
                   <p className="mt-2 text-sm opacity-60 md:text-xs">
                     Higher levels take longer to start.
+                  </p>
+                </section>
+
+                <section className="mt-4 px-4 pb-1">
+                  <p className={heading}>Input cache</p>
+                  {tally === undefined || tally.input === 0 ? (
+                    <p className="text-base opacity-70 md:text-sm">No requests with this model</p>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3 text-base md:text-sm">
+                      <span>
+                        {formatPercent(tally.hit / tally.input)} from cache ·{" "}
+                        {compact.format(tally.input)} input ·{" "}
+                        <span className="opacity-70">
+                          {tally.requests} {tally.requests === 1 ? "request" : "requests"} since{" "}
+                          {new Date(tally.since).toLocaleDateString(undefined, {
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost md:btn-sm"
+                        onClick={() => usage.reset(usageKey)}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  )}
+                  <p className="mt-2 text-sm opacity-60 md:text-xs">
+                    The share of input tokens the provider read from its cache, as it reports them,
+                    for the provider and model above.
                   </p>
                 </section>
               </div>

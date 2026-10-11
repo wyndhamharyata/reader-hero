@@ -33,6 +33,7 @@ import {
   type SummaryInput,
 } from "@/use-cases/summary";
 import { bookStore } from "../_support/book-store";
+import { plain } from "../_support/prompt";
 
 const meta = new BookMeta({
   id: "b1",
@@ -131,8 +132,9 @@ function harness(
   const client = Layer.succeed(
     AiClient,
     AiClient.of({
-      complete: (_settings, system, messages: ReadonlyArray<AiMessage>, request) => {
-        const user = messages[messages.length - 1]?.content ?? "";
+      complete: (_settings, prompt, messages, request) => {
+        const system = plain(prompt);
+        const user = plain(messages[messages.length - 1]?.content ?? "");
         const kind = system.startsWith("You summarise one")
           ? "chapter"
           : system.startsWith("You summarise the part")
@@ -688,8 +690,9 @@ function seriesHarness(state: SeriesState) {
   const client = Layer.succeed(
     AiClient,
     AiClient.of({
-      complete: (_settings, system, messages) => {
-        const user = messages[messages.length - 1]?.content ?? "";
+      complete: (_settings, prompt, messages) => {
+        const system = plain(prompt);
+        const user = plain(messages[messages.length - 1]?.content ?? "");
         const kind = system.startsWith("Summarise one book of a series")
           ? "series"
           : system.startsWith("You summarise one")

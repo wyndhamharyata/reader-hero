@@ -257,7 +257,10 @@ export function mergeNames(
     ].join("\n");
     let text = "";
     yield* client
-      .complete(settings, namesSystem, [{ role: "user", content: user }], { json: true })
+      .complete(settings, namesSystem, [{ role: "user", content: user }], {
+        json: true,
+        purpose: { stage: "names", book: input.meta.id },
+      })
       .pipe(
         Stream.runForEach((delta) =>
           Effect.sync(() => {
@@ -349,17 +352,20 @@ export function summariseNext(
       system: string,
       user: string,
       report: ((text: string) => Effect.Effect<void>) | null,
-      json = false,
+      stage: string,
     ): Effect.Effect<string, AiFailure> =>
       Effect.gen(function* () {
         let text = "";
-        yield* client.complete(settings, system, [{ role: "user", content: user }], { json }).pipe(
-          Stream.runForEach((delta) => {
-            if (delta.type !== "text") return Effect.void;
-            text += delta.text;
-            return report === null ? Effect.void : report(text);
-          }),
-        );
+        const purpose = { stage, book: input.meta.id };
+        yield* client
+          .complete(settings, system, [{ role: "user", content: user }], { purpose })
+          .pipe(
+            Stream.runForEach((delta) => {
+              if (delta.type !== "text") return Effect.void;
+              text += delta.text;
+              return report === null ? Effect.void : report(text);
+            }),
+          );
         // A blocked or cut-off reply must not be stored as a finished chapter.
         if (text.trim() === "") {
           return yield* new AiFailure({
@@ -389,8 +395,11 @@ export function summariseNext(
         `Summarise this ${unit.one}.`,
       ].join("\n");
       yield* onProgress({ stage: "chapter", chapter: index + 1, of, text: "" });
-      const text = yield* stream(system, user, (soFar) =>
-        onProgress({ stage: "chapter", chapter: index + 1, of, text: soFar }),
+      const text = yield* stream(
+        system,
+        user,
+        (soFar) => onProgress({ stage: "chapter", chapter: index + 1, of, text: soFar }),
+        "chapter",
       );
       const { line, paragraph } = parseReply(text);
       record = yield* store.update(input.meta.id, (current) => {
@@ -430,6 +439,7 @@ export function summariseNext(
         "You summarise the part of a chapter a reader has read so far. Use only the text given and the previous summary. Do not name anyone who does not appear in them. Write in the language of the text. Reply with one paragraph of at most 120 words in the present tense. No headings, no labels, no markdown.",
         user,
         (soFar) => onProgress({ stage: "current", chapter: number, of, text: soFar }),
+        "current",
       );
       const current = {
         heading: cover.current.chapter.heading,
@@ -488,7 +498,9 @@ export function summaryFollowUp(
     ].join("\n");
     let text = "";
     yield* client
-      .complete(settings, system, [...summary.thread, { role: "user", content: question }])
+      .complete(settings, system, [...summary.thread, { role: "user", content: question }], {
+        purpose: { stage: "question", book: summary.bookId },
+      })
       .pipe(
         Stream.runForEach((delta) =>
           Effect.sync(() => {
@@ -701,6 +713,7 @@ export function summariseSeries(
             settings,
             "Summarise one book of a series from its chapter summaries. Use only the text given. Write one paragraph, at most 150 words, in the past tense. No headings, lists, predictions, opinions or questions. Write in the language of the summaries.",
             [{ role: "user", content: user }],
+            { purpose: { stage: "series", book } },
           )
           .pipe(
             Stream.runForEach((delta) => {
