@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactElement } from "react";
 import { PencilIcon } from "@/components/icons";
-import { formatPercent } from "@/lib/format";
+import { formatPercent, formatSize } from "@/lib/format";
 import type { ReadingProgress } from "@/domain/book";
 import type { LibraryCard, Shelf } from "@/lib/shelf";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
@@ -78,38 +78,43 @@ export function BookSheet({
         className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-auto md:w-[36rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
       >
         <div className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
-        <p className="text-xs font-medium tracking-wide uppercase opacity-60">Book</p>
-        <div>
-          <h2 className="text-lg font-semibold">{card.book.title}</h2>
-          {card.book.author !== undefined && (
-            <p className="text-base opacity-70 md:text-sm">{card.book.author}</p>
-          )}
-        </div>
-        <div className="mt-1 divide-y divide-base-content/10 rounded-box bg-base-300">
-          <div className="flex items-center gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
-            <span className="w-10 shrink-0">
-              <BookCover bookId={card.book.id} rounded="rounded-md" />
-            </span>
-            <span className="flex-1">Cover</span>
-            {custom && (
-              <button
-                type="button"
-                className="btn btn-ghost md:btn-sm"
-                onClick={() => {
-                  setCustom(false);
-                  onResetCover(card.book.id);
-                }}
-              >
-                Reset
-              </button>
-            )}
+        <div className="flex gap-4 md:gap-5">
+          <div className="flex w-28 shrink-0 flex-col items-center gap-1 md:w-36">
             <button
               type="button"
-              className="btn md:btn-sm"
+              className="group relative w-full overflow-hidden rounded-md shadow-lg ring-1 ring-black/10"
+              aria-label="Change cover"
+              title="Change cover"
               onClick={() => pictureInput.current?.click()}
             >
-              Change
+              <BookCover bookId={card.book.id} rounded="rounded-md" />
+              {/* A shade down the left edge reads as the spine of a printed book. */}
+              <span className="pointer-events-none absolute inset-y-0 left-0 w-2.5 bg-linear-to-r from-black/25 to-transparent" />
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 py-1.5 text-center text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                Change cover
+              </span>
             </button>
+            <span className="flex">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => pictureInput.current?.click()}
+              >
+                Change
+              </button>
+              {custom && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setCustom(false);
+                    onResetCover(card.book.id);
+                  }}
+                >
+                  Reset
+                </button>
+              )}
+            </span>
             <input
               ref={pictureInput}
               type="file"
@@ -124,6 +129,43 @@ export function BookSheet({
               }}
             />
           </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <p className="text-xs font-medium tracking-wide uppercase opacity-60">Book</p>
+            <div>
+              <h2
+                className="line-clamp-4 text-xl leading-tight font-semibold break-words md:text-2xl"
+                data-font="serif"
+              >
+                {card.book.title}
+              </h2>
+              {card.book.author !== undefined && (
+                <p className="mt-1 text-base opacity-70 md:text-sm">{card.book.author}</p>
+              )}
+            </div>
+            <span className={`${card.badge.className} self-start`}>{card.badge.label}</span>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm md:text-xs">
+              <dt className="opacity-60">Format</dt>
+              <dd>{card.book.format === "epub" ? "EPUB" : "PDF"}</dd>
+              <dt className="opacity-60">Length</dt>
+              {/* An EPUB has no pages, so its count is an estimate. */}
+              <dd>
+                {card.book.format === "epub" ? "~" : ""}
+                {card.book.pageCount} pages
+              </dd>
+              <dt className="opacity-60">Size</dt>
+              <dd>{formatSize(card.book.fileSize)}</dd>
+              <dt className="opacity-60">Added</dt>
+              <dd>
+                {new Date(card.book.addedAt).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+              </dd>
+            </dl>
+          </div>
+        </div>
+        <div className="mt-2 divide-y divide-base-content/10 rounded-box bg-base-300">
           {/* A button, not a switch: it moves the saved position. The sheet stays open, so a second tap undoes it. */}
           <div className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
             <span>{finished ? "Finished" : `${formatPercent(place?.percent ?? 0)} read`}</span>
