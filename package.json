@@ -23,7 +23,8 @@
     "bench": "node scripts/bench/bench.mjs",
     "bench:compare": "node scripts/bench/compare.mjs",
     "bench:probe": "node scripts/bench/probe-original.mjs",
-    "bench:serve": "node scripts/bench/serve.mjs"
+    "bench:serve": "node scripts/bench/serve.mjs",
+    "licences": "node scripts/make-licences.mjs"
   },
   "dependencies": {
     "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",

@@ -20,6 +20,7 @@ interface Props {
     | null;
   onRetry: () => void;
   onReset: () => void;
+  onLicences: () => void;
   onClose: () => void;
 }
 
@@ -36,6 +37,7 @@ export function SettingsSheet({
   grouping,
   onRetry,
   onReset,
+  onLicences,
   onClose,
 }: Props): ReactElement | null {
   const { ai, putAi } = useAiSettings();
@@ -402,6 +404,13 @@ export function SettingsSheet({
                       </p>
                     </>
                   ))}
+              </section>
+
+              <section className="mt-4 px-4 pb-1">
+                <p className={heading}>About</p>
+                <button type="button" className="btn btn-ghost w-full md:btn-sm" onClick={onLicences}>
+                  Open source licences
+                </button>
               </section>
             </div>
             <div className="flex h-full w-full shrink-0 flex-col" inert={tab !== "provider"}>

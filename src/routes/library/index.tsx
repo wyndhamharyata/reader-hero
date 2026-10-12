@@ -52,6 +52,7 @@ import { SearchField } from "./_SearchField";
 import { SeriesCard } from "./_SeriesCard";
 import { SeriesSheet } from "./_SeriesSheet";
 import { SeriesTile } from "./_SeriesTile";
+import { LicencesSheet } from "./_LicencesSheet";
 import { SettingsSheet } from "./_SettingsSheet";
 import { SortMenu } from "./_SortMenu";
 import { StorageUsage } from "./_StorageUsage";
@@ -117,6 +118,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   }, []);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [licencesOpen, setLicencesOpen] = useState(false);
   const [bookActions, setBookActions] = useState<LibraryCard | null>(null);
   // A null id is a new series from the Book sheet.
   const [seriesEdit, setSeriesEdit] = useState<{
@@ -802,7 +804,13 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
           );
         }}
         onClose={() => setSettingsOpen(false)}
+        onLicences={() => {
+          setSettingsOpen(false);
+          setLicencesOpen(true);
+        }}
       />
+
+      {licencesOpen && <LicencesSheet onClose={() => setLicencesOpen(false)} />}
 
       {bookActions !== null && (
         <BookSheet
