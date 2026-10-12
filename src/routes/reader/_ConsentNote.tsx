@@ -11,18 +11,27 @@ interface Props {
 export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElement {
   const name = providerLabels[provider];
   return (
-    <div className="mt-3 flex min-h-0 flex-col gap-3">
+    // The note takes the sheet's width and never sets it, so a long note cannot widen a reader sheet.
+    <div className="mt-3 flex min-h-0 flex-col gap-3 [contain:inline-size]">
       <p className="text-base font-medium md:text-sm">Text sent to {name}</p>
       <p className="text-base md:text-sm">
-        Reader Hero sends the book's text to {name} with the stored key, one chapter per request. A
-        question sends the stored summary. With Series grouping on, Reader Hero sends the title,
-        author, file name and first 200 words of each new book, and the names and titles of the
-        series that exist for its author. A series summary sends the stored summaries of each
-        started volume, one volume per request. The character list of a later volume also sends the
-        characters from the stored summaries of earlier volumes. With Automatic summary on, each
-        chapter is sent when it is read, and in a series the series summary follows it. Reader
-        Hero's server does not receive the text or the key. {name}'s terms apply to the text it
-        receives. Summaries are stored on this device and read offline.
+        Reader Hero sends your text straight to {name} with your key. Reader Hero's server never
+        sees your text or your key.
+      </p>
+      <ul className="flex list-disc flex-col gap-1 pl-5 text-base md:text-sm">
+        <li>Chapter summary: that chapter, in one request.</li>
+        <li>A question: the summary already stored.</li>
+        <li>
+          Series grouping: each new book's title, author, file name and first 200 words, and the
+          series already stored for the author.
+        </li>
+        <li>A series summary: the stored chapter summaries of one started book, in one request.</li>
+        <li>A later book's character list: the characters stored for the earlier books.</li>
+        <li>Automatic summary: each chapter as you read it.</li>
+      </ul>
+      <p className="text-base md:text-sm">
+        {name}'s terms cover the text it receives. Your summaries stay on this device and read
+        offline.
       </p>
       <div className="flex justify-end gap-2">
         <button type="button" className="btn btn-ghost md:btn-sm" onClick={onCancel}>
