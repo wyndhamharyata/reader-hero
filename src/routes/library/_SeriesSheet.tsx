@@ -79,6 +79,11 @@ export function SeriesSheet({
   const ids = rows.map((card) => card.book.id);
   const author = [...rows, ...series.books].find((card) => card.book.author !== undefined)?.book
     .author;
+  // The picture the library shows: the reader's choice, else the book in progress, else the first.
+  const front =
+    cover === "image"
+      ? `series:${series.id}`
+      : (cover ?? (rows.find((card) => card.status === "reading") ?? rows[0])?.book.id);
   const possible = (stored?.possible ?? []).flatMap(({ id, number }) => {
     const card = cards.get(id);
     if (card === undefined || ids.includes(id)) return [];
@@ -121,49 +126,79 @@ export function SeriesSheet({
         className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-auto md:max-h-[85vh] md:w-[40rem] md:max-w-2xl md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
       >
         <div className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
-        <p className="text-xs font-medium tracking-wide uppercase opacity-60">Series</p>
-        <input
-          type="text"
-          className="input w-full shrink-0 text-base md:text-sm md:input-sm"
-          placeholder="Name"
-          aria-label="Name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-        <p
-          aria-hidden="true"
-          className="mt-1 text-xs font-medium tracking-wide uppercase opacity-60"
-        >
-          Colour
-        </p>
-        <fieldset className="-mt-1 flex shrink-0 gap-1">
-          <legend className="sr-only">Colour</legend>
-          {seriesColors.map(({ name: label, hue }) => (
-            <label
-              key={hue}
-              className="grid size-11 cursor-pointer place-items-center md:size-8"
-              title={label}
+        <div className="flex gap-4 md:gap-5">
+          <div className="w-32 shrink-0 md:w-36">
+            <span className="relative block w-full overflow-hidden rounded-md shadow-lg ring-1 ring-black/10">
+              {cover === "image" && picture !== null ? (
+                <img
+                  src={picture.url}
+                  alt=""
+                  className="aspect-[2/3] w-full rounded-md bg-white object-cover object-top"
+                />
+              ) : front !== undefined ? (
+                <BookCover bookId={front} rounded="rounded-md" />
+              ) : (
+                <span className="grid aspect-[2/3] w-full place-items-center rounded-md bg-base-300 text-xs">
+                  Auto
+                </span>
+              )}
+              {/* A shade down the left edge reads as the spine of a printed book. */}
+              <span className="pointer-events-none absolute inset-y-0 left-0 w-2.5 bg-linear-to-r from-black/25 to-transparent" />
+            </span>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <p className="text-xs font-medium tracking-wide uppercase opacity-60">Series</p>
+            <input
+              type="text"
+              className="input h-auto w-full shrink-0 px-3 py-1.5 text-lg font-semibold md:text-xl"
+              data-font="serif"
+              placeholder="Name"
+              aria-label="Name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            {author !== undefined && (
+              <p className="text-base opacity-70 md:text-sm">{author}</p>
+            )}
+            <p className="text-sm opacity-60 md:text-xs">
+              {rows.length} {rows.length === 1 ? "book" : "books"}
+            </p>
+            <p
+              aria-hidden="true"
+              className="mt-1 text-xs font-medium tracking-wide uppercase opacity-60"
             >
-              <input
-                type="radio"
-                name="series-colour"
-                className="peer sr-only"
-                aria-label={label}
-                checked={shownColor === hue}
-                onChange={() => setColor(hue)}
-              />
-              <span
-                className="grid size-8 place-items-center rounded-full border-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary md:size-6"
-                style={{
-                  borderColor: `oklch(var(--tray) ${hue})`,
-                  backgroundColor: `color-mix(in oklab, oklch(var(--tray) ${hue}) 40%, var(--color-base-100))`,
-                }}
-              >
-                {shownColor === hue && <CheckIcon className="size-5 md:size-4" />}
-              </span>
-            </label>
-          ))}
-        </fieldset>
+              Colour
+            </p>
+            <fieldset className="grid grid-cols-3 justify-items-center gap-1 md:flex md:flex-wrap">
+              <legend className="sr-only">Colour</legend>
+              {seriesColors.map(({ name: label, hue }) => (
+                <label
+                  key={hue}
+                  className="grid size-11 cursor-pointer place-items-center md:size-8"
+                  title={label}
+                >
+                  <input
+                    type="radio"
+                    name="series-colour"
+                    className="peer sr-only"
+                    aria-label={label}
+                    checked={shownColor === hue}
+                    onChange={() => setColor(hue)}
+                  />
+                  <span
+                    className="grid size-8 place-items-center rounded-full border-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary md:size-6"
+                    style={{
+                      borderColor: `oklch(var(--tray) ${hue})`,
+                      backgroundColor: `color-mix(in oklab, oklch(var(--tray) ${hue}) 40%, var(--color-base-100))`,
+                    }}
+                  >
+                    {shownColor === hue && <CheckIcon className="size-5 md:size-4" />}
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          </div>
+        </div>
         <p aria-hidden="true" className="text-xs font-medium tracking-wide uppercase opacity-60">
           Cover
         </p>
