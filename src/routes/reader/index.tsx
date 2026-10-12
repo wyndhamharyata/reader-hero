@@ -427,6 +427,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   };
 
   const loadError = state.status === "error" ? state.error : null;
+  // A launch into a book that is gone should not open it again.
+  useEffect(() => {
+    if (loadError?._tag !== "BookNotFound") return;
+    try {
+      localStorage.removeItem("last-screen");
+    } catch {
+      // Without storage the launch opens the library.
+    }
+  }, [loadError]);
   const title = data?.meta.title ?? glance?.meta.title ?? "Reader";
   const toc = data?.parsed.toc ?? [];
   const total = data === null ? 1 : Math.max(1, data.parsed.blocks.length - 1);
