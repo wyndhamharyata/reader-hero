@@ -10,6 +10,8 @@ import {
 const event = (delta: Record<string, string>): string =>
   `data: ${JSON.stringify({ choices: [{ delta }] })}\n\n`;
 
+const raw = (payload: string): string => `data: ${payload}\n\n`;
+
 function collect(chunks: ReadonlyArray<string>): Array<Delta> {
   let state: EventStreamState = emptyEventStream;
   const out: Array<Delta> = [];
@@ -85,6 +87,30 @@ describe("event stream parser", () => {
   it("given a null usage on a middle chunk, yields only its text", () => {
     const chunk = { choices: [{ delta: { content: "a" } }], usage: null };
     expect(collect([`data: ${JSON.stringify(chunk)}\n\n`])).toEqual([{ type: "text", text: "a" }]);
+  });
+
+  it("given an OpenAI-style error payload, yields its message", () => {
+    expect(
+      collect([raw('{"error":{"message":"Rate limit reached for gemini-3.5-flash-lite"}}')]),
+    ).toEqual([{ type: "error", message: "Rate limit reached for gemini-3.5-flash-lite" }]);
+  });
+
+  it("given an Anthropic-style error event, yields its message", () => {
+    expect(
+      collect([raw('{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}')]),
+    ).toEqual([{ type: "error", message: "Overloaded" }]);
+  });
+
+  it("given content with a stop finish reason, yields only the text", () => {
+    const chunk = { choices: [{ delta: { content: "Jim fled." }, finish_reason: "stop" }] };
+    expect(collect([raw(JSON.stringify(chunk))])).toEqual([{ type: "text", text: "Jim fled." }]);
+  });
+
+  it("given a content_filter finish reason, yields one error naming it", () => {
+    const chunk = { choices: [{ delta: {}, finish_reason: "content_filter" }] };
+    expect(collect([raw(JSON.stringify(chunk))])).toMatchObject([
+      { type: "error", message: expect.stringContaining("content_filter") },
+    ]);
   });
 });
 

@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { Effect, Stream } from "effect";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AiSettings, type AiProvider, type PromptPart } from "@/domain/ai";
-import { requestOf, writeBilled } from "@/lib/ai-transport";
+import { complete, models, requestOf, writeBilled } from "@/lib/ai-transport";
 
 const settingsFor = (provider: AiProvider, model: string, effort?: string): AiSettings =>
   new AiSettings({
@@ -23,6 +24,10 @@ const sent = (provider: AiProvider, model: string, effort?: string) =>
   requestOf(settingsFor(provider, model, effort), system, [{ role: "user", content: split }], {
     purpose: { stage: "chapter", book: "b3" },
   });
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("request per provider", () => {
   it("given DeepSeek, sends plain strings, asks for usage, and turns thinking off", () => {
@@ -134,6 +139,31 @@ describe("request per provider", () => {
     ]);
   });
 
+  it("given an OpenAI-compatible provider, sends plain strings with no provider fields", () => {
+    const { body } = sent("compatible", "llama");
+    expect(Object.keys(body).sort()).toEqual(["messages", "model", "stream", "stream_options"]);
+    expect(sent("compatible", "llama", "low").body.reasoning_effort).toBe("low");
+  });
+
+  it("given an OpenAI-compatible provider, asks the relay with the target URL", async () => {
+    const mock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ data: [{ id: "m1" }] })),
+    );
+    vi.stubGlobal("fetch", mock);
+    const settings = new AiSettings({
+      ...settingsFor("compatible", "m1"),
+      baseUrl: "https://api.groq.com/openai/v1/",
+    });
+    const list = await Effect.runPromise(models(settings));
+    const request = mock.mock.calls[0];
+    expect(request?.[0]).toBe("/relay");
+    const headers = new Headers(request?.[1]?.headers);
+    expect(headers.get("x-relay-target")).toBe("https://api.groq.com/openai/v1/models");
+    expect(headers.get("authorization")).toBe("Bearer k");
+    expect(list.map((entry) => entry.id)).toEqual(["m1"]);
+  });
+
   it("given the model names, bills cache writes from GPT-5.6 on", () => {
     expect(["gpt-5.5", "gpt-5", "o4-mini", "gpt-4.1"].map(writeBilled)).toEqual([
       false,
@@ -142,5 +172,28 @@ describe("request per provider", () => {
       false,
     ]);
     expect(["gpt-5.6", "gpt-6", "openai/gpt-6.1-sol"].map(writeBilled)).toEqual([true, true, true]);
+  });
+
+  it("given a provider that fails after its 200, fails the stream with its reason", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response('data: {"error":{"message":"Rate limit reached"}}\n\ndata: [DONE]\n\n', {
+            headers: { "content-type": "text/event-stream" },
+          }),
+        ),
+      ),
+    );
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Stream.runCollect(
+          complete(settingsFor("gemini", "gemini-3.5-flash-lite"), system, [
+            { role: "user", content: "One chapter." },
+          ]),
+        ),
+      ),
+    );
+    expect(failure.message).toContain("Rate limit reached");
   });
 });

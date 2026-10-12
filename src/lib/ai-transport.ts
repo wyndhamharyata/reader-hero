@@ -5,7 +5,7 @@ import { AiFailure } from "@/domain/errors";
 import { emptyEventStream, endEventStream, pushEventStream, type Delta } from "@/lib/event-stream";
 
 // Every preset answers a browser page directly, measured on 7 October 2026; Anthropic alone gets its own API, for caching.
-const bases: Record<AiProvider, string> = {
+const bases: Record<Exclude<AiProvider, "compatible">, string> = {
   deepseek: "https://api.deepseek.com",
   openrouter: "https://openrouter.ai/api/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -61,11 +61,28 @@ const request = (
   settings: AiSettings,
   path: string,
   init: RequestInit,
+  session = "reader-hero",
 ): Effect.Effect<Response, AiFailure> =>
   Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
-      try: () =>
-        fetch(`${bases[settings.provider]}${path}`, { ...init, headers: headers(settings) }),
+      try: () => {
+        if (settings.provider !== "compatible")
+          return fetch(`${bases[settings.provider]}${path}`, {
+            ...init,
+            headers: headers(settings),
+          });
+        // Its providers refuse browser requests, so they go through the app's own Worker.
+        const base = settings.baseUrl ?? "";
+        const trimmed = base.endsWith("/") ? base.slice(0, -1) : base;
+        return fetch("/relay", {
+          ...init,
+          headers: {
+            ...headers(settings),
+            "x-relay-target": `${trimmed}${path}`,
+            "x-opencode-session": session,
+          },
+        });
+      },
       catch: networkFailure,
     });
     if (response.ok) return response;
@@ -211,11 +228,18 @@ export function complete(
       const controller = new AbortController();
       yield* Effect.addFinalizer(() => Effect.sync(() => controller.abort()));
       const { path, body } = requestOf(settings, system, messages, options);
-      const response = yield* request(settings, path, {
-        method: "POST",
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      const response = yield* request(
+        settings,
+        path,
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        },
+        options.purpose === undefined
+          ? undefined
+          : `reader-hero:${options.purpose.book ?? options.purpose.stage}`,
+      );
       const stream = response.body;
       if (stream === null) {
         return yield* new AiFailure({ reason: "malformed", message: "Provider returned no text" });
@@ -226,6 +250,12 @@ export function complete(
       }).pipe(
         Stream.decodeText(),
         Stream.mapAccum(() => emptyEventStream, pushEventStream, { onHalt: endEventStream }),
+        // A provider can report a failure after its 200, and that must fail the stream.
+        Stream.tap((delta) =>
+          delta.type === "error"
+            ? Effect.fail(new AiFailure({ reason: "provider", message: delta.message }))
+            : Effect.void,
+        ),
       );
     }),
   );

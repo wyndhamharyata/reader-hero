@@ -6,6 +6,7 @@ export const AiProvider = Schema.Literals([
   "gemini",
   "anthropic",
   "openai",
+  "compatible",
 ]);
 export type AiProvider = typeof AiProvider.Type;
 
@@ -15,6 +16,7 @@ export const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",
   anthropic: "Anthropic",
   openai: "OpenAI",
+  compatible: "OpenAI-compatible",
 };
 
 export const BookKind = Schema.Literals(["story", "reference"]);
@@ -26,6 +28,8 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   apiKey: Schema.String,
   model: Schema.String,
   effort: Schema.optional(Schema.String),
+  // Only the OpenAI-compatible provider has one; its requests go through the relay.
+  baseUrl: Schema.optional(Schema.String),
   consentedAt: Schema.optional(Schema.Int),
   // The consent text that was allowed; unset is the text from before Series grouping.
   consentVersion: Schema.optional(Schema.Int),

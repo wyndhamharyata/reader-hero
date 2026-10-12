@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
+import { ChevronDownIcon } from "@/components/icons";
 import { ThemeControls } from "@/components/ThemeControls";
 import { AiProvider, AiSettings, CONSENT_VERSION, providerLabels } from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
@@ -50,6 +51,9 @@ export function SettingsSheet({
   const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
   useTabSwipe(viewport, track, ["general", "provider"] as const, tab, setTab);
   const [provider, setProvider] = useState<AiProvider>("deepseek");
+  const [baseUrl, setBaseUrl] = useState("");
+  // The provider to go back to on Cancel.
+  const [relayNotice, setRelayNotice] = useState<AiProvider | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("off");
@@ -63,6 +67,8 @@ export function SettingsSheet({
   const rebuild = useJob("rebuild");
   const usage = useUsage();
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
+  // The model list's filter while it is open; the chevron opens it with none, so every model shows.
+  const [modelFilter, setModelFilter] = useState<string | null>(null);
   const [test, setTest] = useState<Test>({ state: "idle" });
 
   // Reset on open, so a cancelled edit leaves nothing; a toggle's save keeps the Provider fields.
@@ -72,11 +78,14 @@ export function SettingsSheet({
     setApiKey(ai?.apiKey ?? "");
     setModel(ai?.model ?? "");
     setEffort(ai?.effort ?? "off");
+    setBaseUrl(ai?.baseUrl ?? "");
+    setRelayNotice(null);
     setConsentPending(false);
     setConsentFor(null);
     setModels([]);
+    setModelFilter(null);
     setTest({ state: "idle" });
-  }, [open, ai?.provider, ai?.apiKey, ai?.model, ai?.effort]);
+  }, [open, ai?.provider, ai?.apiKey, ai?.model, ai?.effort, ai?.baseUrl]);
   useEffect(() => {
     if (!open) return;
     setLinesInContents(ai?.linesInContents ?? true);
@@ -98,6 +107,7 @@ export function SettingsSheet({
       apiKey: apiKey.trim(),
       model: model.trim(),
       effort: effort === "off" ? undefined : effort,
+      baseUrl: provider === "compatible" ? baseUrl.trim() : undefined,
       consentedAt,
       consentVersion,
       linesInContents,
@@ -119,7 +129,8 @@ export function SettingsSheet({
         Effect.match({
           onSuccess: ({ list, balance }) => {
             setModels(list);
-            if (list.length > 0 && !list.some((entry) => entry.id === model)) {
+            // A filled field is kept as typed, so a model the provider's list leaves out survives the test.
+            if (list.length > 0 && model.trim() === "") {
               setModel(list[0]?.id ?? "");
             }
             setTest({ state: "valid", balance });
@@ -155,7 +166,8 @@ export function SettingsSheet({
 
   const save = (): void => {
     // Consent is per provider: a new provider asks again on the first action.
-    const same = provider === ai?.provider;
+    const same =
+      provider === ai?.provider && (provider !== "compatible" || baseUrl.trim() === ai.baseUrl);
     // Series grouping sends with no tap, so the note for the current text shows before it goes on.
     if (
       seriesGrouping &&
@@ -180,7 +192,8 @@ export function SettingsSheet({
     ...levels,
     ...(effort === "off" || levels.includes(effort) ? [] : [effort]),
   ];
-  const ready = apiKey.trim() !== "" && model.trim() !== "";
+  const relayReady = provider !== "compatible" || baseUrl.trim().startsWith("https://");
+  const ready = apiKey.trim() !== "" && model.trim() !== "" && relayReady;
   // The form's provider and model, so picking another model shows its own numbers.
   const usageKey = `${provider}/${model.trim()}`;
   const tally = usage.tallies.get(usageKey);
@@ -408,7 +421,11 @@ export function SettingsSheet({
 
               <section className="mt-4 px-4 pb-1">
                 <p className={heading}>About</p>
-                <button type="button" className="btn btn-ghost w-full md:btn-sm" onClick={onLicences}>
+                <button
+                  type="button"
+                  className="btn w-full btn-ghost md:btn-sm"
+                  onClick={onLicences}
+                >
                   Open source licences
                 </button>
               </section>
@@ -422,7 +439,12 @@ export function SettingsSheet({
                     aria-label="Provider"
                     value={provider}
                     onChange={(event) => {
-                      setProvider(event.target.value as AiProvider);
+                      const next = event.target.value as AiProvider;
+                      if (next === "compatible" && provider !== "compatible")
+                        setRelayNotice(provider);
+                      setProvider(next);
+                      // Another provider's model id means nothing here, so Test fills the field afresh.
+                      setModel(next === ai?.provider ? ai.model : "");
                       setModels([]);
                       setTest({ state: "idle" });
                     }}
@@ -434,6 +456,29 @@ export function SettingsSheet({
                     ))}
                   </select>
                 </section>
+
+                {provider === "compatible" && (
+                  <section className="mt-4 px-4">
+                    <p className={heading}>Base URL</p>
+                    <input
+                      type="url"
+                      className="input w-full text-base md:text-sm"
+                      autoComplete="off"
+                      aria-label="Base URL"
+                      placeholder="https://api.groq.com/openai/v1"
+                      value={baseUrl}
+                      onChange={(event) => {
+                        setBaseUrl(event.target.value);
+                        setModels([]);
+                        setTest({ state: "idle" });
+                      }}
+                    />
+                    <p className="mt-2 text-sm opacity-60 md:text-xs">
+                      The relay reaches Groq, Cerebras, Z.ai, OpenCode, NVIDIA, Cloudflare, Mistral
+                      and Together.
+                    </p>
+                  </section>
+                )}
 
                 <section className="mt-4 px-4">
                   <p className={heading}>API key</p>
@@ -453,7 +498,7 @@ export function SettingsSheet({
                     <button
                       type="button"
                       className="btn"
-                      disabled={apiKey.trim() === "" || test.state === "testing"}
+                      disabled={apiKey.trim() === "" || test.state === "testing" || !relayReady}
                       onClick={testKey}
                     >
                       Test
@@ -469,29 +514,73 @@ export function SettingsSheet({
 
                 <section className="mt-3 px-4">
                   <p className={heading}>Model</p>
-                  {models.length > 0 ? (
-                    <select
-                      className={field}
-                      aria-label="Model"
-                      value={model}
-                      onChange={(event) => setModel(event.target.value)}
-                    >
-                      {models.map((entry) => (
-                        <option key={entry.id} value={entry.id}>
-                          {entry.id}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      className="input w-full text-base md:text-sm"
-                      aria-label="Model"
-                      placeholder="Model"
-                      value={model}
-                      onChange={(event) => setModel(event.target.value)}
-                    />
-                  )}
+                  {/* A provider's list can leave models out, as Z.ai's does its free ones, so the field also takes a typed id. */}
+                  <div className="relative">
+                    <label className="input w-full pr-1 text-base md:text-sm">
+                      <input
+                        type="text"
+                        role="combobox"
+                        aria-label="Model"
+                        aria-expanded={modelFilter !== null}
+                        aria-controls="provider-models"
+                        placeholder="Model"
+                        autoComplete="off"
+                        value={model}
+                        onChange={(event) => {
+                          setModel(event.target.value);
+                          setModelFilter(event.target.value);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "ArrowDown") setModelFilter("");
+                          if (event.key === "Escape" && modelFilter !== null) {
+                            event.stopPropagation();
+                            setModelFilter(null);
+                          }
+                        }}
+                        onBlur={() => setModelFilter(null)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-square btn-ghost btn-sm"
+                        aria-label="Show models"
+                        disabled={models.length === 0}
+                        // Keeps the focus in the field, so its blur does not close the list this opens.
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => setModelFilter(modelFilter === null ? "" : null)}
+                      >
+                        <ChevronDownIcon className="size-4" />
+                      </button>
+                    </label>
+                    {modelFilter !== null && models.length > 0 && (
+                      <ul
+                        id="provider-models"
+                        role="listbox"
+                        aria-label="Models"
+                        className="absolute inset-x-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
+                      >
+                        {models
+                          .filter((entry) => entry.id.includes(modelFilter.trim()))
+                          .map((entry) => (
+                            <li
+                              key={entry.id}
+                              role="option"
+                              aria-selected={entry.id === model}
+                              className={`cursor-pointer rounded-field px-3 py-2 text-base md:py-1.5 md:text-sm ${entry.id === model ? "bg-base-200 font-medium" : "hover:bg-base-200"}`}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => {
+                                setModel(entry.id);
+                                setModelFilter(null);
+                              }}
+                            >
+                              {entry.id}
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                  </div>
+                  <p className="mt-2 text-sm opacity-60 md:text-xs">
+                    Pick a model from the list, or type any model id.
+                  </p>
                 </section>
 
                 <section className="mt-4 px-4">
@@ -580,6 +669,57 @@ export function SettingsSheet({
             </div>
           </div>
         </div>
+
+        {relayNotice !== null && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center p-4">
+            <div className="absolute inset-0 rounded-[inherit] bg-(--backdrop)" />
+            <div
+              role="alertdialog"
+              aria-label="Requests go through the relay"
+              className="relative w-full max-w-sm rounded-box bg-base-100 p-4 shadow-xl"
+            >
+              <p className="text-base font-medium md:text-sm">Requests go through our relay</p>
+              <p className="mt-2 text-base md:text-sm">
+                These providers do not accept requests from a web page. So Reader Hero sends them
+                through its own Cloudflare Worker. The Worker passes each request to the provider
+                and streams the answer back.
+              </p>
+              <p className="mt-2 text-base md:text-sm">
+                The relay keeps nothing. Its code does not log, store or read your key or your
+                book's text. You can check the code:{" "}
+                <a
+                  className="link"
+                  href="https://github.com/wyndhamharyata/reader-hero/blob/main/src/worker/relay.ts"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  src/worker/relay.ts
+                </a>
+                .
+              </p>
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="btn btn-ghost md:btn-sm"
+                  onClick={() => {
+                    setProvider(relayNotice);
+                    setModel(relayNotice === ai?.provider ? ai.model : "");
+                    setRelayNotice(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary md:btn-sm"
+                  onClick={() => setRelayNotice(null)}
+                >
+                  Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </aside>
     </div>
   );

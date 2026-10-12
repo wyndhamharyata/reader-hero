@@ -13,13 +13,28 @@ export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElemen
   return (
     // The note takes the sheet's width and never sets it, so its text cannot widen a reader sheet.
     <div className="mt-3 flex min-h-0 flex-col gap-3 [contain:inline-size]">
-      <p className="text-base font-medium md:text-sm">Text sent to {name}</p>
-      <p className="text-base md:text-sm">
-        Reader Hero sends your book's text to {name} with your key, straight from this device. Our
-        server never sees it. Series grouping also sends each new book's title, author, file name
-        and first 200 words. Your summaries stay on this device, and {name}'s terms cover what it
-        receives.
-      </p>
+      {provider === "compatible" ? (
+        <>
+          <p className="text-base font-medium md:text-sm">Text sent through the relay</p>
+          <p className="text-base md:text-sm">
+            Reader Hero sends your book's text with your key to the provider at your base URL. It
+            goes through our relay, a Cloudflare Worker that passes each request on and keeps
+            nothing. Series grouping also sends each new book's title, author, file name and first
+            200 words. Your summaries stay on this device, and the provider's terms cover what it
+            receives.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-base font-medium md:text-sm">Text sent to {name}</p>
+          <p className="text-base md:text-sm">
+            Reader Hero sends your book's text to {name} with your key, straight from this device.
+            Our server never sees it. Series grouping also sends each new book's title, author, file
+            name and first 200 words. Your summaries stay on this device, and {name}'s terms cover
+            what it receives.
+          </p>
+        </>
+      )}
       <div className="flex justify-end gap-2">
         <button type="button" className="btn btn-ghost md:btn-sm" onClick={onCancel}>
           Cancel

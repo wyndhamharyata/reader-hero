@@ -10,7 +10,8 @@ import type { AiUsage } from "@/domain/ai";
 
 export type Delta =
   | { readonly type: "text" | "reasoning"; readonly text: string }
-  | { readonly type: "usage"; readonly usage: AiUsage };
+  | { readonly type: "usage"; readonly usage: AiUsage }
+  | { readonly type: "error"; readonly message: string };
 
 export function pushEventStream(
   state: EventStreamState,
@@ -52,9 +53,21 @@ function deltasOf(data: ReadonlyArray<string>): ReadonlyArray<Delta> {
   } catch {
     return [];
   }
+  // A provider that fails after its 200 sends the reason here, OpenAI-style or Anthropic-style.
+  const failure = (parsed as { error?: unknown }).error;
+  if (typeof failure === "string") return [{ type: "error", message: failure }];
+  if (typeof failure === "object" && failure !== null) {
+    const message = (failure as { message?: unknown }).message;
+    return [
+      {
+        type: "error",
+        message: typeof message === "string" ? message : JSON.stringify(failure).slice(0, 200),
+      },
+    ];
+  }
   if (typeof (parsed as { type?: unknown }).type === "string") return anthropicDeltas(parsed);
   const chunk = parsed as {
-    choices?: Array<{ delta?: Record<string, unknown> }>;
+    choices?: Array<{ delta?: Record<string, unknown>; finish_reason?: unknown }>;
     usage?: Record<string, unknown> | null;
   };
   const out: Array<Delta> = [];
@@ -80,6 +93,13 @@ function deltasOf(data: ReadonlyArray<string>): ReadonlyArray<Delta> {
       },
     });
   }
+  // Any reason but these means the provider stopped the reply on purpose, often a filter.
+  const finish = chunk.choices?.[0]?.finish_reason;
+  if (
+    typeof finish === "string" &&
+    !["stop", "length", "tool_calls", "function_call"].includes(finish)
+  )
+    out.push({ type: "error", message: `The provider stopped this reply: ${finish}` });
   return out;
 }
 

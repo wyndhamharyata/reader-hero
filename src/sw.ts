@@ -86,7 +86,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (event.request.method !== "GET" || url.origin !== self.location.origin) return;
+  // The relay answers per provider and key, and nothing it returns may be stored.
+  if (
+    event.request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    url.pathname === "/relay"
+  )
+    return;
 
   if (event.request.mode === "navigate") {
     event.respondWith(handleNavigate(event.request));

@@ -52,7 +52,7 @@ src/
 
 ## Invariants
 
-- **100% client-side.** The worker only serves files. No document, text, or
+- **100% client-side.** The worker serves files and the relay below. No document, text, or
   progress leaves the device. Two exceptions send text straight to the provider
   the reader set up with their own key, never through the worker, and only after
   a consent sheet:
@@ -70,6 +70,11 @@ src/
     updates the list. It sends them only with consent to the current text.
     Rebuild, in Settings, sends one such request per later volume, with that
     volume's stored chapter summaries, only on a tap.
+  - The OpenAI-compatible provider is the one exception to "never through the worker": its
+    providers refuse browser requests, so its requests go through `/relay` in
+    `src/worker/relay.ts`. The relay reaches a fixed list of hosts, streams each body
+    through, and logs, stores and reads nothing. The service worker never caches `/relay`.
+    A dialog says so when the reader picks the provider.
 - **Effect owns side effects.** Parsing, storage, and rendering pages return
   `Effect`s. React components render state and handle interaction; they never
   import pdf.js or IndexedDB directly. Services are reached through the runtime
@@ -95,4 +100,6 @@ the commit before it: build, `npm run bench -- before`, apply the change, build,
 
 `npm run dev` binds every interface so a phone on the tailnet can open the plain
 IP. A service worker cannot register on a plain IP (not a secure context), so
-develop and read on the IP, and test install/offline on the dev deployment.
+develop and read on the IP, and test install/offline on the dev deployment. The
+dev server answers `/relay` with the Worker's own relay code, through a plugin in
+`vite.config.ts`.
