@@ -59,6 +59,7 @@ export function ReaderBody({
           jump={jump}
           onPosition={onPosition}
           onToggleChrome={onToggleChrome}
+          customCover={meta.customCover === true}
         />
       )}
 

@@ -17,6 +17,8 @@ interface Props {
   jump: JumpRequest | null;
   onPosition: (blockIndex: number) => void;
   onToggleChrome: () => void;
+  // The reader's own picture: it opens the book, above the first block.
+  customCover: boolean;
 }
 
 const headingClass: Record<number, string> = {
@@ -42,6 +44,7 @@ export const ReaderView = memo(function ReaderView({
   jump,
   onPosition,
   onToggleChrome,
+  customCover,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tap = useTapGuard();
@@ -206,6 +209,8 @@ export const ReaderView = memo(function ReaderView({
 
   // Justified lines without hyphenation leave wide gaps between words.
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
+  // The book's own first page is its cover picture in most EPUBs: the reader's picture takes that place.
+  const shown = customCover && parsed.blocks[0]?.kind === "image" ? nodes.slice(1) : nodes;
 
   return (
     <div
@@ -231,7 +236,12 @@ export const ReaderView = memo(function ReaderView({
             } as CSSProperties
           }
         >
-          {nodes.map((entry) => (
+          {customCover && (
+            <div className="mx-auto max-w-xs">
+              <ReaderImage bookId={bookId} imageId="cover" />
+            </div>
+          )}
+          {shown.map((entry) => (
             <div key={entry.key} data-block={entry.index} className={entry.className}>
               {entry.node}
             </div>
