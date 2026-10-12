@@ -19,7 +19,7 @@ export default defineConfig({
       configureServer(server) {
         server.middlewares.use("/relay", (req, res) => {
           const bodyless = req.method === "GET" || req.method === "HEAD";
-          const request = new Request("http://localhost/relay", {
+          const request = new Request(`http://${req.headers.host ?? "localhost"}/relay`, {
             method: req.method,
             headers: Object.entries(req.headers).flatMap(([name, value]) =>
               typeof value === "string" ? [[name, value] as [string, string]] : [],

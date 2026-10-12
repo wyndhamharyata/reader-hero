@@ -4,13 +4,48 @@ import { relay } from "@/worker/relay";
 const target = "https://api.groq.com/openai/v1/chat/completions";
 
 const call = (headers: Record<string, string>, body = "{}"): Request =>
-  new Request("https://reader-hero.example/relay", { method: "POST", headers, body });
+  new Request("https://reader-hero.example/relay", {
+    method: "POST",
+    headers: { origin: "https://reader-hero.example", ...headers },
+    body,
+  });
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("relay", () => {
+  it("given a request from another site or from no browser page, refuses with 403 and calls nothing", async () => {
+    const mock = vi.fn();
+    vi.stubGlobal("fetch", mock);
+    const outsider = await relay(
+      call({
+        origin: "https://evil.example",
+        "sec-fetch-site": "cross-site",
+        "x-relay-target": target,
+      }),
+    );
+    const bare = await relay(
+      new Request("https://reader-hero.example/relay", { headers: { "x-relay-target": target } }),
+    );
+    expect(outsider.status).toBe(403);
+    expect(bare.status).toBe(403);
+    expect(await outsider.json()).toEqual({ error: { message: "The relay serves only this app" } });
+    expect(mock).not.toHaveBeenCalled();
+  });
+
+  it("given a same-origin GET, which carries no Origin, forwards it", async () => {
+    const mock = vi.fn(() => Promise.resolve(new Response("{}")));
+    vi.stubGlobal("fetch", mock);
+    const response = await relay(
+      new Request("https://reader-hero.example/relay", {
+        headers: { "sec-fetch-site": "same-origin", "x-relay-target": target },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mock).toHaveBeenCalledOnce();
+  });
+
   it("given no target, refuses with 400 and calls nothing", async () => {
     const mock = vi.fn();
     vi.stubGlobal("fetch", mock);

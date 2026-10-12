@@ -72,7 +72,8 @@ src/
     volume's stored chapter summaries, only on a tap.
   - The OpenAI-compatible provider is the one exception to "never through the worker": its
     providers refuse browser requests, so its requests go through `/relay` in
-    `src/worker/relay.ts`. The relay reaches a fixed list of hosts, streams each body
+    `src/worker/relay.ts`. The relay answers only the app's own pages (by
+    `Sec-Fetch-Site` or `Origin`), reaches a fixed list of hosts, streams each body
     through, and logs, stores and reads nothing. The service worker never caches `/relay`.
     A dialog says so when the reader picks the provider.
 - **Effect owns side effects.** Parsing, storage, and rendering pages return

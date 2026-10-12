@@ -17,6 +17,13 @@ const refuse = (message: string, status: number): Response =>
 
 // Bodies stream straight through: this code logs nothing, stores nothing and never reads them.
 export async function relay(request: Request): Promise<Response> {
+  // Browsers set both headers themselves, so a page on another site cannot borrow the relay; a same-origin GET carries no Origin.
+  if (
+    request.headers.get("sec-fetch-site") !== "same-origin" &&
+    request.headers.get("origin") !== new URL(request.url).origin
+  ) {
+    return refuse("The relay serves only this app", 403);
+  }
   let url: URL;
   try {
     url = new URL(request.headers.get("x-relay-target") ?? "");
