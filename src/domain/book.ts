@@ -179,6 +179,7 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
   // -1 is the coolest, 0 neutral, 1 the warmest.
   temperature: Schema.Number.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
+  tour: Schema.optional(Schema.Int),
 }) {}
 
 export const ReaderMode = Schema.Literals(["reader", "original"]);
@@ -197,6 +198,9 @@ export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookP
   textWidth: Schema.optional(Schema.Int),
   temperature: Schema.optional(Schema.Number),
 }) {}
+
+// The onboarding acts a reader has seen; a later version shows the tour again.
+export const TOUR_VERSION = 1;
 
 export const DEFAULT_SETTINGS = new ReaderSettings({
   theme: "rhlight",

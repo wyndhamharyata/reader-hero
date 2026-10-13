@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElemen
 import { useLocation, useNavigate } from "react-router";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
 import type { AiSettings } from "@/domain/ai";
-import { fontFamily } from "@/domain/book";
+import { fontFamily, TOUR_VERSION } from "@/domain/book";
 import {
   forkApp,
   runApp,
@@ -18,6 +18,7 @@ import {
 import { onLaunchFiles } from "@/lib/launch-files";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import { slideTo } from "@/lib/slide-to";
+import { tourSteps } from "@/lib/tour";
 import {
   buildShelf,
   shelfRecords,
@@ -57,6 +58,7 @@ import { SettingsSheet } from "./_SettingsSheet";
 import { SortMenu } from "./_SortMenu";
 import { StorageUsage } from "./_StorageUsage";
 import type { TrayFlags } from "./_TrayPart";
+import { Tour } from "./_Tour";
 import { ViewToggle } from "./_ViewToggle";
 
 const showInstallHint = isIosBrowser && !isInstalled;
@@ -258,6 +260,12 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const estimate = state.status === "done" ? state.value.estimate : null;
   const reading = state.status === "done" ? state.value.reading : null;
   const series = state.status === "done" ? state.value.series : [];
+  const steps = tourSteps({ books: books.length > 0, install: showInstallHint });
+  const touring =
+    !hidden &&
+    state.status !== "loading" &&
+    (settings.tour ?? 0) < TOUR_VERSION &&
+    steps.length > 0;
   useFigureJobs(hidden ? [] : books);
 
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
@@ -615,6 +623,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
                 className="btn btn-primary btn-sm"
                 onClick={pickFiles}
                 disabled={busy}
+                data-tour="import"
               >
                 <PlusIcon className="size-4" />
                 {actionLabel}
@@ -645,6 +654,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
                 key={row.key}
                 ref={virtualizer.measureElement}
                 data-index={row.index}
+                {...(row.index === 0 ? { "data-tour": "book" } : {})}
                 // Above the next row while a tile's menu is open, so the menu is not under it.
                 className={`absolute inset-x-0 top-0 grid gap-x-3 focus-within:z-10 ${grid ? "pb-5" : "pb-3"}`}
                 style={{
@@ -769,6 +779,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
             className="btn flex-1 btn-primary"
             onClick={pickFiles}
             disabled={busy}
+            data-tour="import"
           >
             {actionLabel}
           </button>
@@ -784,6 +795,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         onClear={clearFilters}
         onClose={() => setFiltersOpen(false)}
       />
+
+      {touring && <Tour steps={steps} onDone={() => update({ tour: TOUR_VERSION })} />}
 
       <SettingsSheet
         open={settingsOpen}
