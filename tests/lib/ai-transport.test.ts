@@ -3,17 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AiSettings, type AiProvider, type PromptPart } from "@/domain/ai";
 import { complete, models, requestOf, writeBilled } from "@/lib/ai-transport";
 
-const settingsFor = (
-  provider: AiProvider,
-  model: string,
-  effort?: string,
-  reasoningOff?: boolean,
-): AiSettings =>
+const settingsFor = (provider: AiProvider, model: string, reasoningOff?: boolean): AiSettings =>
   new AiSettings({
     provider,
     apiKey: "k",
     model,
-    ...(effort === undefined ? {} : { effort }),
     ...(reasoningOff === undefined ? {} : { reasoningOff }),
     linesInContents: true,
     autoSummary: false,
@@ -26,8 +20,8 @@ const split: ReadonlyArray<PromptPart> = [
   { text: "Text:\nThe tide came in.", cache: true },
   { text: "\nPrevious summary: none." },
 ];
-const sent = (provider: AiProvider, model: string, effort?: string) =>
-  requestOf(settingsFor(provider, model, effort), system, [{ role: "user", content: split }], {
+const sent = (provider: AiProvider, model: string) =>
+  requestOf(settingsFor(provider, model), system, [{ role: "user", content: split }], {
     purpose: { stage: "chapter", book: "b3" },
   });
 
@@ -104,7 +98,7 @@ describe("request per provider", () => {
   });
 
   it("given OpenRouter with thinking allowed off, turns thinking off for Off", () => {
-    const { body } = requestOf(settingsFor("openrouter", "x", undefined, true), system, [
+    const { body } = requestOf(settingsFor("openrouter", "x", true), system, [
       { role: "user", content: "One chapter." },
     ]);
     expect(body.reasoning).toEqual({ enabled: false });
@@ -119,16 +113,8 @@ describe("request per provider", () => {
     expect(body).not.toHaveProperty("reasoning_effort");
   });
 
-  it("given OpenRouter with an effort level, sends the effort and no disable", () => {
-    const { body } = requestOf(settingsFor("openrouter", "x", "low", true), system, [
-      { role: "user", content: "One chapter." },
-    ]);
-    expect(body.reasoning_effort).toBe("low");
-    expect(body.reasoning).toBeUndefined();
-  });
-
-  it("given Anthropic, uses its own API with the effort and a breakpoint on the marked prefix", () => {
-    const { path, body } = sent("anthropic", "claude-sonnet-5-5", "medium");
+  it("given Anthropic, uses its own API with a breakpoint on the marked prefix", () => {
+    const { path, body } = sent("anthropic", "claude-sonnet-5-5");
     expect(path).toBe("/messages");
     expect(body.system).toBe(system);
     expect(body.messages).toEqual([
@@ -144,7 +130,7 @@ describe("request per provider", () => {
         ],
       },
     ]);
-    expect(body.output_config).toEqual({ effort: "medium" });
+    expect(body).not.toHaveProperty("output_config");
     expect(body.max_tokens).toBeGreaterThan(0);
     expect(body).not.toHaveProperty("stream_options");
     expect(body).not.toHaveProperty("thinking");
@@ -171,7 +157,7 @@ describe("request per provider", () => {
 
   it("given an OpenAI-compatible provider, sends plain strings with no provider fields", () => {
     const { body } = sent("compatible", "llama");
-    // Off asks the provider for no thinking in the OpenAI way, which OpenCode maps for DeepSeek.
+    // No thinking, asked the OpenAI way, which OpenCode maps for DeepSeek.
     expect(Object.keys(body).sort()).toEqual([
       "messages",
       "model",
@@ -180,7 +166,6 @@ describe("request per provider", () => {
       "stream_options",
     ]);
     expect(body.reasoning_effort).toBe("none");
-    expect(sent("compatible", "llama", "low").body.reasoning_effort).toBe("low");
     expect(body).not.toHaveProperty("thinking");
     expect(body).not.toHaveProperty("reasoning");
   });
@@ -204,6 +189,25 @@ describe("request per provider", () => {
     expect(list.map((entry) => entry.id)).toEqual(["m1"]);
   });
 
+  it("given a relay service by name, calls the relay at its own URL with no effort fields", async () => {
+    const mock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ data: [{ id: "m1" }] })),
+    );
+    vi.stubGlobal("fetch", mock);
+    const list = await Effect.runPromise(models(settingsFor("groq", "m1")));
+    const request = mock.mock.calls[0];
+    expect(request?.[0]).toBe("/relay");
+    expect(new Headers(request?.[1]?.headers).get("x-relay-target")).toBe(
+      "https://api.groq.com/openai/v1/models",
+    );
+    expect(list.map((entry) => entry.id)).toEqual(["m1"]);
+    const { body } = sent("groq", "m1");
+    expect(body).not.toHaveProperty("reasoning_effort");
+    expect(body).not.toHaveProperty("thinking");
+    expect(body).not.toHaveProperty("reasoning");
+  });
+
   it("given the model list, marks only the models the provider says may skip thinking", async () => {
     vi.stubGlobal(
       "fetch",
@@ -222,11 +226,7 @@ describe("request per provider", () => {
       ),
     );
     const list = await Effect.runPromise(models(settingsFor("openrouter", "x")));
-    expect(list).toEqual([
-      { id: "a", efforts: ["low", "medium", "high"], reasoningOff: true },
-      { id: "b", efforts: ["low", "medium", "high"] },
-      { id: "c", efforts: ["low", "medium", "high"] },
-    ]);
+    expect(list).toEqual([{ id: "a", reasoningOff: true }, { id: "b" }, { id: "c" }]);
   });
 
   it("given the model names, bills cache writes from GPT-5.6 on", () => {

@@ -1,23 +1,38 @@
 // A module of its own, so this code loads on the first request, like pdf.js, and not at launch.
 import { Effect, Stream } from "effect";
-import type { AiProvider, AiSettings, PromptMessage, PromptPart } from "@/domain/ai";
+import {
+  relayedProviders,
+  type AiProvider,
+  type AiSettings,
+  type PromptMessage,
+  type PromptPart,
+} from "@/domain/ai";
 import { AiFailure } from "@/domain/errors";
 import { emptyEventStream, endEventStream, pushEventStream, type Delta } from "@/lib/event-stream";
 
-// Every preset answers a browser page directly, measured on 7 October 2026; Anthropic alone gets its own API, for caching.
+// Every service answers on its own URL; the relay ones get there through the Worker because their hosts refuse browsers.
 const bases: Record<Exclude<AiProvider, "compatible">, string> = {
   deepseek: "https://api.deepseek.com",
   openrouter: "https://openrouter.ai/api/v1",
   gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
   anthropic: "https://api.anthropic.com/v1",
   openai: "https://api.openai.com/v1",
+  groq: "https://api.groq.com/openai/v1",
+  cerebras: "https://api.cerebras.ai/v1",
+  zai: "https://api.z.ai/api/paas/v4",
+  opencode: "https://opencode.ai/zen/go/v1",
+  nvidia: "https://integrate.api.nvidia.com/v1",
+  mistral: "https://api.mistral.ai/v1",
+  together: "https://api.together.xyz/v1",
 };
+
+// A custom service brings its own URL; every named service already has one.
+const baseOf = (settings: AiSettings): string =>
+  settings.provider === "compatible" ? (settings.baseUrl ?? "") : bases[settings.provider];
 
 export interface ModelInfo {
   readonly id: string;
-  // The effort levels the provider lists for this model; undefined when it lists none.
-  readonly efforts?: ReadonlyArray<string>;
-  // The provider says this model may answer without thinking, so Off can turn its thinking off.
+  // The provider says this model may answer without thinking, so the request asks for none.
   readonly reasoningOff?: boolean;
 }
 
@@ -68,13 +83,13 @@ const request = (
   Effect.gen(function* () {
     const response = yield* Effect.tryPromise({
       try: () => {
-        if (settings.provider !== "compatible")
-          return fetch(`${bases[settings.provider]}${path}`, {
+        if (!relayedProviders.has(settings.provider))
+          return fetch(`${baseOf(settings)}${path}`, {
             ...init,
             headers: headers(settings),
           });
         // Its providers refuse browser requests, so they go through the app's own Worker.
-        const base = settings.baseUrl ?? "";
+        const base = baseOf(settings);
         const trimmed = base.endsWith("/") ? base.slice(0, -1) : base;
         return fetch("/relay", {
           ...init,
@@ -131,8 +146,6 @@ export function requestOf(
   messages: ReadonlyArray<PromptMessage>,
   options: CompleteOptions = {},
 ): { readonly path: string; readonly body: Record<string, unknown> } {
-  const effort =
-    settings.effort === undefined || settings.effort === "off" ? null : settings.effort;
   const purpose = options.purpose;
   const key = purpose === undefined ? undefined : `reader-hero:${purpose.book ?? purpose.stage}`;
 
@@ -156,7 +169,7 @@ export function requestOf(
       path: "/messages",
       body: {
         model: settings.model,
-        // A limit on thinking and text together, so high effort still has room to answer.
+        // A limit on thinking and text together, so the answer has room.
         max_tokens: 32000,
         system: blocks(system),
         messages: messages.map((message) => ({
@@ -164,7 +177,6 @@ export function requestOf(
           content: blocks(message.content),
         })),
         stream: true,
-        ...(effort === null ? {} : { output_config: { effort } }),
       },
     };
   }
@@ -198,16 +210,13 @@ export function requestOf(
     stream: true,
     stream_options: { include_usage: true },
   };
-  // DeepSeek thinks by default and must be told not to; the others think only when asked.
-  if (effort === null) {
-    if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
-    if (settings.provider === "openrouter" && settings.reasoningOff === true)
-      body.reasoning = { enabled: false };
-    // The relay's providers are asked in the OpenAI way, which OpenCode maps to no thinking for DeepSeek.
-    if (settings.provider === "compatible") body.reasoning_effort = "none";
-  } else {
-    body.reasoning_effort = effort;
-  }
+  // Each service gets the setting we measured as best, so a reader never chooses an effort level.
+  if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
+  if (settings.provider === "openrouter" && settings.reasoningOff === true)
+    body.reasoning = { enabled: false };
+  // Measured on OpenCode Zen: 9.2s to 1.2s on deepseek-v4.1-flash, and it is the OpenAI way of no thinking.
+  if (settings.provider === "opencode" || settings.provider === "compatible")
+    body.reasoning_effort = "none";
   // JSON mode where it is documented; the other presets get JSON from the prompt alone.
   if (
     options.json === true &&
@@ -279,17 +288,10 @@ export function models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelI
       if (typeof row.id !== "string") return [];
       // Gemini lists "models/gemini-…"; its chat endpoint takes the bare name.
       const id = row.id.startsWith("models/") ? row.id.slice(7) : row.id;
-      const effort = row.effort as { supported_levels?: Array<string> } | undefined;
-      const parameters = row.supported_parameters as Array<string> | undefined;
       // Only OpenRouter publishes whether a model may skip thinking.
       const reasoningOff =
         (row.reasoning as { mandatory?: boolean } | undefined)?.mandatory === false;
-      const off = reasoningOff ? { reasoningOff: true } : {};
-      if (Array.isArray(effort?.supported_levels))
-        return [{ id, efforts: effort.supported_levels, ...off }];
-      if (parameters?.includes("reasoning"))
-        return [{ id, efforts: ["low", "medium", "high"], ...off }];
-      return [{ id, ...off }];
+      return [{ id, ...(reasoningOff ? { reasoningOff: true } : {}) }];
     });
   });
 }

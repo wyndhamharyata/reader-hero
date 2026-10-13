@@ -14,6 +14,21 @@ describe("decodeAiSettings", () => {
     expect(decoded.seriesGrouping).toBe(false);
     expect(decoded.autoSummary).toBe(false);
   });
+
+  it("given a record that still holds an effort level, keeps its key and ignores the level", async () => {
+    const decoded = await Effect.runPromise(
+      decodeAiSettings({
+        provider: "deepseek",
+        apiKey: "k",
+        model: "flash",
+        effort: "high",
+        consentedAt: 5,
+      }),
+    );
+
+    expect(decoded.apiKey).toBe("k");
+    expect(decoded.model).toBe("flash");
+  });
 });
 
 describe("decodeGroupedBooks", () => {

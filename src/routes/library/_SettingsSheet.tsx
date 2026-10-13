@@ -2,7 +2,13 @@ import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ChevronDownIcon } from "@/components/icons";
 import { ThemeControls } from "@/components/ThemeControls";
-import { AiProvider, AiSettings, CONSENT_VERSION, providerLabels } from "@/domain/ai";
+import {
+  AiProvider,
+  AiSettings,
+  CONSENT_VERSION,
+  providerLabels,
+  relayedProviders,
+} from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
 import { formatPercent } from "@/lib/format";
 import { runApp, useAiSettings, useJob, useSettings, useUsage } from "@/lib/hooks";
@@ -26,6 +32,22 @@ interface Props {
 }
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
+
+// Where a reader makes a key, so the sheet points the way instead of leaving them to search.
+const keyPages: Partial<Record<AiProvider, string>> = {
+  deepseek: "https://platform.deepseek.com/api_keys",
+  openrouter: "https://openrouter.ai/settings/keys",
+  gemini: "https://aistudio.google.com/apikey",
+  anthropic: "https://console.anthropic.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+  groq: "https://console.groq.com/keys",
+  cerebras: "https://cloud.cerebras.ai/",
+  zai: "https://z.ai/manage-apikey/apikey-list",
+  opencode: "https://opencode.ai/auth",
+  nvidia: "https://build.nvidia.com/settings/api-keys",
+  mistral: "https://console.mistral.ai/api-keys",
+  together: "https://api.together.ai/settings/api-keys",
+};
 
 type Test =
   | { readonly state: "idle" }
@@ -56,7 +78,6 @@ export function SettingsSheet({
   const [relayNotice, setRelayNotice] = useState<AiProvider | null>(null);
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
-  const [effort, setEffort] = useState("off");
   const [linesInContents, setLinesInContents] = useState(true);
   const [autoSummary, setAutoSummary] = useState(false);
   const [seriesGrouping, setSeriesGrouping] = useState(false);
@@ -77,7 +98,6 @@ export function SettingsSheet({
     setProvider(ai?.provider ?? "deepseek");
     setApiKey(ai?.apiKey ?? "");
     setModel(ai?.model ?? "");
-    setEffort(ai?.effort ?? "off");
     setBaseUrl(ai?.baseUrl ?? "");
     setRelayNotice(null);
     setConsentPending(false);
@@ -85,7 +105,7 @@ export function SettingsSheet({
     setModels([]);
     setModelFilter(null);
     setTest({ state: "idle" });
-  }, [open, ai?.provider, ai?.apiKey, ai?.model, ai?.effort, ai?.baseUrl]);
+  }, [open, ai?.provider, ai?.apiKey, ai?.model, ai?.baseUrl]);
   useEffect(() => {
     if (!open) return;
     setLinesInContents(ai?.linesInContents ?? true);
@@ -106,7 +126,6 @@ export function SettingsSheet({
       provider,
       apiKey: apiKey.trim(),
       model: model.trim(),
-      effort: effort === "off" ? undefined : effort,
       // With no list to ask, the stored answer stands.
       reasoningOff:
         models.length === 0
@@ -190,20 +209,12 @@ export function SettingsSheet({
     dismiss();
   };
 
-  const levels = models.find((entry) => entry.id === model)?.efforts ?? ["low", "medium", "high"];
-  // A stored level the model does not list stays choosable, so the select shows what is saved.
-  const efforts = [
-    "off",
-    ...levels,
-    ...(effort === "off" || levels.includes(effort) ? [] : [effort]),
-  ];
   const relayReady = provider !== "compatible" || baseUrl.trim().startsWith("https://");
   const ready = apiKey.trim() !== "" && model.trim() !== "" && relayReady;
   // The form's provider and model, so picking another model shows its own numbers.
   const usageKey = `${provider}/${model.trim()}`;
   const tally = usage.tallies.get(usageKey);
   const compact = new Intl.NumberFormat(undefined, { notation: "compact" });
-  const field = "select w-full text-base md:text-sm";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
@@ -440,12 +451,12 @@ export function SettingsSheet({
                 <section className="px-4 pt-1">
                   <p className={heading}>Provider</p>
                   <select
-                    className={field}
+                    className="select w-full text-base md:text-sm"
                     aria-label="Provider"
                     value={provider}
                     onChange={(event) => {
                       const next = event.target.value as AiProvider;
-                      if (next === "compatible" && provider !== "compatible")
+                      if (relayedProviders.has(next) && !relayedProviders.has(provider))
                         setRelayNotice(provider);
                       setProvider(next);
                       // Another provider's model id means nothing here, so Test fills the field afresh.
@@ -454,11 +465,25 @@ export function SettingsSheet({
                       setTest({ state: "idle" });
                     }}
                   >
-                    {AiProvider.literals.map((value) => (
-                      <option key={value} value={value}>
-                        {providerLabels[value]}
-                      </option>
-                    ))}
+                    <optgroup label="Direct">
+                      {AiProvider.literals
+                        .filter((value) => value !== "compatible" && !relayedProviders.has(value))
+                        .map((value) => (
+                          <option key={value} value={value}>
+                            {providerLabels[value]}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="Through our relay">
+                      {AiProvider.literals
+                        .filter((value) => value !== "compatible" && relayedProviders.has(value))
+                        .map((value) => (
+                          <option key={value} value={value}>
+                            {providerLabels[value]}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <option value="compatible">Other (own URL)</option>
                   </select>
                 </section>
 
@@ -494,6 +519,7 @@ export function SettingsSheet({
                       className="input w-full text-base md:text-sm"
                       autoComplete="off"
                       aria-label="API key"
+                      placeholder="Paste your key"
                       value={apiKey}
                       onChange={(event) => {
                         setApiKey(event.target.value);
@@ -515,6 +541,19 @@ export function SettingsSheet({
                       (test.balance === null ? "Valid" : `Valid · balance ${test.balance}`)}
                     {test.state === "failed" && <span className="text-error">{test.message}</span>}
                   </p>
+                  {keyPages[provider] !== undefined && (
+                    <p className="text-sm opacity-60 md:text-xs">
+                      No key yet?{" "}
+                      <a
+                        className="link"
+                        href={keyPages[provider]}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Get one from {providerLabels[provider]}
+                      </a>
+                    </p>
+                  )}
                 </section>
 
                 <section className="mt-3 px-4">
@@ -583,35 +622,11 @@ export function SettingsSheet({
                       </ul>
                     )}
                   </div>
-                  <p className="mt-2 text-sm opacity-60 md:text-xs">
-                    Pick a model from the list, or type any model id.
-                  </p>
                 </section>
 
-                <section className="mt-4 px-4">
-                  <p className={heading}>Effort</p>
-                  <select
-                    className={field}
-                    aria-label="Effort"
-                    value={effort}
-                    onChange={(event) => setEffort(event.target.value)}
-                  >
-                    {efforts.map((level) => (
-                      <option key={level} value={level}>
-                        {level.charAt(0).toUpperCase() + level.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-2 text-sm opacity-60 md:text-xs">
-                    Higher levels take longer to start.
-                  </p>
-                </section>
-
-                <section className="mt-4 px-4 pb-1">
-                  <p className={heading}>Input cache</p>
-                  {tally === undefined || tally.input === 0 ? (
-                    <p className="text-base opacity-70 md:text-sm">No requests with this model</p>
-                  ) : (
+                {tally !== undefined && tally.input > 0 && (
+                  <section className="mt-4 px-4 pb-1">
+                    <p className={heading}>Input cache</p>
                     <div className="flex items-center justify-between gap-3 text-base md:text-sm">
                       <span>
                         {formatPercent(tally.hit / tally.input)} from cache ·{" "}
@@ -632,12 +647,12 @@ export function SettingsSheet({
                         Reset
                       </button>
                     </div>
-                  )}
-                  <p className="mt-2 text-sm opacity-60 md:text-xs">
-                    The share of input tokens the provider read from its cache, as it reports them,
-                    for the provider and model above.
-                  </p>
-                </section>
+                    <p className="mt-2 text-sm opacity-60 md:text-xs">
+                      The share of input tokens the provider read from its cache, as it reports
+                      them, for the provider and model above.
+                    </p>
+                  </section>
+                )}
               </div>
 
               {consentPending ? (

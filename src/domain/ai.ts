@@ -6,6 +6,13 @@ export const AiProvider = Schema.Literals([
   "gemini",
   "anthropic",
   "openai",
+  "groq",
+  "cerebras",
+  "zai",
+  "opencode",
+  "nvidia",
+  "mistral",
+  "together",
   "compatible",
 ]);
 export type AiProvider = typeof AiProvider.Type;
@@ -16,8 +23,27 @@ export const providerLabels: Record<AiProvider, string> = {
   gemini: "Gemini",
   anthropic: "Anthropic",
   openai: "OpenAI",
+  groq: "Groq",
+  cerebras: "Cerebras",
+  zai: "Z.ai",
+  opencode: "OpenCode Zen",
+  nvidia: "NVIDIA",
+  mistral: "Mistral",
+  together: "Together",
   compatible: "OpenAI-compatible",
 };
+
+// These hosts refuse requests from a web page, so their keys call through the relay.
+export const relayedProviders: ReadonlySet<AiProvider> = new Set([
+  "groq",
+  "cerebras",
+  "zai",
+  "opencode",
+  "nvidia",
+  "mistral",
+  "together",
+  "compatible",
+]);
 
 export const BookKind = Schema.Literals(["story", "reference"]);
 export type BookKind = typeof BookKind.Type;
@@ -27,7 +53,6 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   provider: AiProvider,
   apiKey: Schema.String,
   model: Schema.String,
-  effort: Schema.optional(Schema.String),
   // True only when the provider's list said this model may skip thinking; unset leaves the model to decide.
   reasoningOff: Schema.optional(Schema.Boolean),
   // Only the OpenAI-compatible provider has one; its requests go through the relay.
