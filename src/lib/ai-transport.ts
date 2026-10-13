@@ -17,6 +17,8 @@ export interface ModelInfo {
   readonly id: string;
   // The effort levels the provider lists for this model; undefined when it lists none.
   readonly efforts?: ReadonlyArray<string>;
+  // The provider says this model may answer without thinking, so Off can turn its thinking off.
+  readonly reasoningOff?: boolean;
 }
 
 function headers(settings: AiSettings): Record<string, string> {
@@ -199,6 +201,8 @@ export function requestOf(
   // DeepSeek thinks by default and must be told not to; the others think only when asked.
   if (effort === null) {
     if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
+    if (settings.provider === "openrouter" && settings.reasoningOff === true)
+      body.reasoning = { enabled: false };
   } else {
     body.reasoning_effort = effort;
   }
@@ -275,10 +279,15 @@ export function models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelI
       const id = row.id.startsWith("models/") ? row.id.slice(7) : row.id;
       const effort = row.effort as { supported_levels?: Array<string> } | undefined;
       const parameters = row.supported_parameters as Array<string> | undefined;
+      // Only OpenRouter publishes whether a model may skip thinking.
+      const reasoningOff =
+        (row.reasoning as { mandatory?: boolean } | undefined)?.mandatory === false;
+      const off = reasoningOff ? { reasoningOff: true } : {};
       if (Array.isArray(effort?.supported_levels))
-        return [{ id, efforts: effort.supported_levels }];
-      if (parameters?.includes("reasoning")) return [{ id, efforts: ["low", "medium", "high"] }];
-      return [{ id }];
+        return [{ id, efforts: effort.supported_levels, ...off }];
+      if (parameters?.includes("reasoning"))
+        return [{ id, efforts: ["low", "medium", "high"], ...off }];
+      return [{ id, ...off }];
     });
   });
 }

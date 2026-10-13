@@ -28,6 +28,8 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   apiKey: Schema.String,
   model: Schema.String,
   effort: Schema.optional(Schema.String),
+  // True only when the provider's list said this model may skip thinking; unset leaves the model to decide.
+  reasoningOff: Schema.optional(Schema.Boolean),
   // Only the OpenAI-compatible provider has one; its requests go through the relay.
   baseUrl: Schema.optional(Schema.String),
   consentedAt: Schema.optional(Schema.Int),

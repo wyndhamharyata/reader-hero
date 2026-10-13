@@ -3,12 +3,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AiSettings, type AiProvider, type PromptPart } from "@/domain/ai";
 import { complete, models, requestOf, writeBilled } from "@/lib/ai-transport";
 
-const settingsFor = (provider: AiProvider, model: string, effort?: string): AiSettings =>
+const settingsFor = (
+  provider: AiProvider,
+  model: string,
+  effort?: string,
+  reasoningOff?: boolean,
+): AiSettings =>
   new AiSettings({
     provider,
     apiKey: "k",
     model,
     ...(effort === undefined ? {} : { effort }),
+    ...(reasoningOff === undefined ? {} : { reasoningOff }),
     linesInContents: true,
     autoSummary: false,
     seriesGrouping: false,
@@ -97,6 +103,30 @@ describe("request per provider", () => {
     });
   });
 
+  it("given OpenRouter with thinking allowed off, turns thinking off for Off", () => {
+    const { body } = requestOf(settingsFor("openrouter", "x", undefined, true), system, [
+      { role: "user", content: "One chapter." },
+    ]);
+    expect(body.reasoning).toEqual({ enabled: false });
+    expect(body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("given OpenRouter without that answer, sends no reasoning field", () => {
+    const { body } = requestOf(settingsFor("openrouter", "x"), system, [
+      { role: "user", content: "One chapter." },
+    ]);
+    expect(body).not.toHaveProperty("reasoning");
+    expect(body).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("given OpenRouter with an effort level, sends the effort and no disable", () => {
+    const { body } = requestOf(settingsFor("openrouter", "x", "low", true), system, [
+      { role: "user", content: "One chapter." },
+    ]);
+    expect(body.reasoning_effort).toBe("low");
+    expect(body.reasoning).toBeUndefined();
+  });
+
   it("given Anthropic, uses its own API with the effort and a breakpoint on the marked prefix", () => {
     const { path, body } = sent("anthropic", "claude-sonnet-5-5", "medium");
     expect(path).toBe("/messages");
@@ -162,6 +192,31 @@ describe("request per provider", () => {
     expect(headers.get("x-relay-target")).toBe("https://api.groq.com/openai/v1/models");
     expect(headers.get("authorization")).toBe("Bearer k");
     expect(list.map((entry) => entry.id)).toEqual(["m1"]);
+  });
+
+  it("given the model list, marks only the models the provider says may skip thinking", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: [
+                { id: "a", supported_parameters: ["reasoning"], reasoning: { mandatory: false } },
+                { id: "b", supported_parameters: ["reasoning"], reasoning: { mandatory: true } },
+                { id: "c", supported_parameters: ["reasoning"] },
+              ],
+            }),
+          ),
+        ),
+      ),
+    );
+    const list = await Effect.runPromise(models(settingsFor("openrouter", "x")));
+    expect(list).toEqual([
+      { id: "a", efforts: ["low", "medium", "high"], reasoningOff: true },
+      { id: "b", efforts: ["low", "medium", "high"] },
+      { id: "c", efforts: ["low", "medium", "high"] },
+    ]);
   });
 
   it("given the model names, bills cache writes from GPT-5.6 on", () => {

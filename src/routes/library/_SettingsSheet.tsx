@@ -107,6 +107,11 @@ export function SettingsSheet({
       apiKey: apiKey.trim(),
       model: model.trim(),
       effort: effort === "off" ? undefined : effort,
+      // With no list to ask, the stored answer stands.
+      reasoningOff:
+        models.length === 0
+          ? ai?.reasoningOff
+          : models.find((entry) => entry.id === model.trim())?.reasoningOff,
       baseUrl: provider === "compatible" ? baseUrl.trim() : undefined,
       consentedAt,
       consentVersion,
