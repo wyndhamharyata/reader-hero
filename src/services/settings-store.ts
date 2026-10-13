@@ -65,6 +65,7 @@ export class SettingsStore extends Context.Service<
           textAlign: patch.textAlign ?? current.textAlign,
           temperature: patch.temperature ?? current.temperature,
           tour: patch.tour ?? current.tour,
+          readerTour: patch.readerTour ?? current.readerTour,
         });
         // Applied before the save, so a failed write still changes this session.
         yield* SubscriptionRef.set(ref, next);

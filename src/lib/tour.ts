@@ -1,4 +1,4 @@
-export type TourArt = "reflow" | "shelf" | "share" | "book" | "reader";
+export type TourArt = "hero" | "shelf" | "share" | "book" | "reader" | "contents";
 
 export interface TourStep {
   readonly anchor: string | null;
@@ -29,7 +29,7 @@ export function tourSteps(options: {
       anchor: null,
       title: "Welcome to Reader Hero",
       body: "It turns a PDF or an EPUB into a book that reads well on a phone. Everything stays on this device, and the reader works with no network.",
-      art: "reflow",
+      art: "hero",
     },
     {
       anchor: "import",
@@ -62,6 +62,29 @@ export function tourSteps(options: {
       title: "Read on",
       body: "While you read, tap the text to hide the bars. The Menu holds the contents, your summaries, the character list and the text size.",
       art: "reader",
+    },
+  ];
+}
+
+export function readerTourSteps(): ReadonlyArray<TourStep> {
+  return [
+    {
+      anchor: "reader-nav",
+      art: "reader",
+      title: "The bars come and go",
+      body: "The bar holds your place in the book and the menu. Tap the text while you read and the bars slide away; tap again to bring them back.",
+    },
+    {
+      anchor: "reader-menu",
+      art: "contents",
+      title: "The Menu",
+      body: "Contents, your chapter summaries, the character list and the text size all live here.",
+    },
+    {
+      anchor: null,
+      art: "book",
+      title: "Read on",
+      body: "Your place is saved in every book, and reading works with no network.",
     },
   ];
 }

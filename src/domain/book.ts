@@ -180,6 +180,7 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   // -1 is the coolest, 0 neutral, 1 the warmest.
   temperature: Schema.Number.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
   tour: Schema.optional(Schema.Int),
+  readerTour: Schema.optional(Schema.Int),
 }) {}
 
 export const ReaderMode = Schema.Literals(["reader", "original"]);

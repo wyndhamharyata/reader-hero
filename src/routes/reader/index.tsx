@@ -12,13 +12,15 @@ import {
   useSummary,
 } from "@/lib/hooks";
 import { AiSettings, CONSENT_VERSION } from "@/domain/ai";
-import { BookPrefs, ReaderSettings, type ReaderMode } from "@/domain/book";
+import { BookPrefs, ReaderSettings, TOUR_VERSION, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
 import { shelfRecords } from "@/lib/shelf";
 import { slideTo } from "@/lib/slide-to";
+import { readerTourSteps } from "@/lib/tour";
 import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
+import { Tour } from "@/routes/library/_Tour";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
@@ -291,6 +293,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const kind = prefs.kind ?? guessedKind;
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
+  const touring = (settings.readerTour ?? 0) < TOUR_VERSION;
 
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
   const readingIndex = Math.max(position, furthest);
@@ -545,6 +548,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         total={total}
         onMenu={() => setTocOpen(true)}
       />
+
+      {data !== null && touring && (
+        <Tour steps={readerTourSteps()} onDone={() => update({ readerTour: TOUR_VERSION })} />
+      )}
 
       {message !== null && (
         <div className="absolute inset-x-0 bottom-[calc(7.5rem+var(--safe-bottom))] z-40 px-3 md:bottom-[calc(4rem+var(--safe-bottom))]">

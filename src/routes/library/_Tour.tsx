@@ -125,8 +125,11 @@ export function Tour({ steps, onDone }: Props): ReactElement | null {
           key={index}
           className="pointer-events-auto w-full max-w-sm rounded-box bg-base-100 p-4 shadow-2xl motion-safe:animate-dialog-in"
         >
-          <div className="mb-3 rounded-box bg-base-200 p-3">
-            <TourArt name={step.art} className="h-24 w-full" />
+          <div className={`mb-3 rounded-box bg-base-200 p-3 ${step.art === "hero" ? "h-40" : ""}`}>
+            <TourArt
+              name={step.art}
+              className={step.art === "hero" ? "h-32 w-full" : "h-24 w-full"}
+            />
           </div>
           <p className="text-lg font-semibold">{step.title}</p>
           <p className="mt-1 text-base opacity-80 md:text-sm">{step.body}</p>

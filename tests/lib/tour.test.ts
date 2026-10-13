@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dockAt, tourSteps, type Box } from "@/lib/tour";
+import { dockAt, readerTourSteps, tourSteps, type Box } from "@/lib/tour";
 
 describe("dockAt", () => {
   it("given no spotlight, centres the card", () => {
@@ -68,7 +68,17 @@ describe("tourSteps", () => {
     const full = tourSteps({ books: true, install: true });
     const bare = tourSteps({ books: false, install: false });
 
-    expect(full.map((step) => step.art)).toEqual(["reflow", "shelf", "share", "book", "reader"]);
-    expect(bare.map((step) => step.art)).toEqual(["reflow", "shelf", "reader"]);
+    expect(full.map((step) => step.art)).toEqual(["hero", "shelf", "share", "book", "reader"]);
+    expect(bare.map((step) => step.art)).toEqual(["hero", "shelf", "reader"]);
+  });
+});
+
+describe("readerTourSteps", () => {
+  it("returns three steps over the reader's own controls, in order", () => {
+    const steps = readerTourSteps();
+
+    expect(steps).toHaveLength(3);
+    expect(steps.map((step) => step.anchor)).toEqual(["reader-nav", "reader-menu", null]);
+    expect(steps.map((step) => step.art)).toEqual(["reader", "contents", "book"]);
   });
 });

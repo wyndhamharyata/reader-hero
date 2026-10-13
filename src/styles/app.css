@@ -10,6 +10,7 @@
   --animate-tour-line: tour-line 700ms ease-out both;
   --animate-tour-drop: tour-drop 600ms ease-out both;
   --animate-tour-bars: tour-bars 4s ease-in-out infinite;
+  --animate-tour-pulse: tour-pulse 2.4s ease-in-out infinite;
 
   @keyframes sheet-up {
     from {
@@ -55,6 +56,15 @@
     }
     100% {
       transform: translateY(0);
+    }
+  }
+  @keyframes tour-pulse {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 0.75;
     }
   }
 }
