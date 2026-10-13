@@ -7,6 +7,9 @@
   --animate-slide-in: slide-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-fade-in: fade-in 240ms ease-out;
   --animate-dialog-in: dialog-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-tour-line: tour-line 700ms ease-out both;
+  --animate-tour-drop: tour-drop 600ms ease-out both;
+  --animate-tour-bars: tour-bars 4s ease-in-out infinite;
 
   @keyframes sheet-up {
     from {
@@ -27,6 +30,31 @@
     from {
       opacity: 0;
       transform: scale(0.96);
+    }
+  }
+  @keyframes tour-line {
+    from {
+      stroke-dashoffset: 96;
+    }
+  }
+  @keyframes tour-drop {
+    from {
+      opacity: 0;
+      transform: translateX(14px);
+    }
+  }
+  @keyframes tour-bars {
+    0%,
+    30% {
+      transform: translateY(0);
+    }
+    50%,
+    70% {
+      opacity: 0;
+      transform: translateY(26px);
+    }
+    100% {
+      transform: translateY(0);
     }
   }
 }

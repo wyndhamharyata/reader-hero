@@ -63,4 +63,12 @@ describe("tourSteps", () => {
     expect(steps).toHaveLength(5);
     expect(steps.map((step) => step.anchor)).toEqual([null, "import", "install", "book", null]);
   });
+
+  it("gives every step its own drawing, in order", () => {
+    const full = tourSteps({ books: true, install: true });
+    const bare = tourSteps({ books: false, install: false });
+
+    expect(full.map((step) => step.art)).toEqual(["reflow", "shelf", "share", "book", "reader"]);
+    expect(bare.map((step) => step.art)).toEqual(["reflow", "shelf", "reader"]);
+  });
 });
