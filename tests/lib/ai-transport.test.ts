@@ -208,6 +208,21 @@ describe("request per provider", () => {
     expect(body).not.toHaveProperty("reasoning");
   });
 
+  it("given OpenCode Go or Console, asks its gateway for no thinking", async () => {
+    for (const provider of ["opencode", "opencodeConsole"] as const) {
+      expect(sent(provider, "deepseek-v4.1-flash").body.reasoning_effort).toBe("none");
+    }
+    const mock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ data: [{ id: "m1" }] })),
+    );
+    vi.stubGlobal("fetch", mock);
+    await Effect.runPromise(models(settingsFor("opencodeConsole", "m1")));
+    expect(new Headers(mock.mock.calls[0]?.[1]?.headers).get("x-relay-target")).toBe(
+      "https://opencode.ai/inference/v1/models",
+    );
+  });
+
   it("given the model list, marks only the models the provider says may skip thinking", async () => {
     vi.stubGlobal(
       "fetch",

@@ -21,6 +21,7 @@ const bases: Record<Exclude<AiProvider, "compatible">, string> = {
   cerebras: "https://api.cerebras.ai/v1",
   zai: "https://api.z.ai/api/paas/v4",
   opencode: "https://opencode.ai/zen/go/v1",
+  opencodeConsole: "https://opencode.ai/inference/v1",
   nvidia: "https://integrate.api.nvidia.com/v1",
   mistral: "https://api.mistral.ai/v1",
   together: "https://api.together.xyz/v1",
@@ -214,8 +215,12 @@ export function requestOf(
   if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
   if (settings.provider === "openrouter" && settings.reasoningOff === true)
     body.reasoning = { enabled: false };
-  // Measured on OpenCode Zen: 9.2s to 1.2s on deepseek-v4.1-flash, and it is the OpenAI way of no thinking.
-  if (settings.provider === "opencode" || settings.provider === "compatible")
+  // Measured on OpenCode Go: 9.2s to 1.2s on deepseek-v4.1-flash, and Console is the same gateway.
+  if (
+    settings.provider === "opencode" ||
+    settings.provider === "opencodeConsole" ||
+    settings.provider === "compatible"
+  )
     body.reasoning_effort = "none";
   // JSON mode where it is documented; the other presets get JSON from the prompt alone.
   if (

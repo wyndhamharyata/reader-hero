@@ -16,6 +16,7 @@ import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { useTabSwipe } from "@/lib/use-tab-swipe";
 import { ConsentNote } from "@/routes/reader/_ConsentNote";
 import { AiClient } from "@/services/ai-client";
+import { ProviderPicker } from "./_ProviderPicker";
 
 interface Props {
   open: boolean;
@@ -43,7 +44,8 @@ const keyPages: Partial<Record<AiProvider, string>> = {
   groq: "https://console.groq.com/keys",
   cerebras: "https://cloud.cerebras.ai/",
   zai: "https://z.ai/manage-apikey/apikey-list",
-  opencode: "https://opencode.ai/auth",
+  opencode: "https://opencode.ai/console/go",
+  opencodeConsole: "https://opencode.ai/console",
   nvidia: "https://build.nvidia.com/settings/api-keys",
   mistral: "https://console.mistral.ai/api-keys",
   together: "https://api.together.ai/settings/api-keys",
@@ -450,12 +452,9 @@ export function SettingsSheet({
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <section className="px-4 pt-1">
                   <p className={heading}>Provider</p>
-                  <select
-                    className="select w-full text-base md:text-sm"
-                    aria-label="Provider"
+                  <ProviderPicker
                     value={provider}
-                    onChange={(event) => {
-                      const next = event.target.value as AiProvider;
+                    onChange={(next) => {
                       if (relayedProviders.has(next) && !relayedProviders.has(provider))
                         setRelayNotice(provider);
                       setProvider(next);
@@ -464,27 +463,7 @@ export function SettingsSheet({
                       setModels([]);
                       setTest({ state: "idle" });
                     }}
-                  >
-                    <optgroup label="Direct">
-                      {AiProvider.literals
-                        .filter((value) => value !== "compatible" && !relayedProviders.has(value))
-                        .map((value) => (
-                          <option key={value} value={value}>
-                            {providerLabels[value]}
-                          </option>
-                        ))}
-                    </optgroup>
-                    <optgroup label="Through our relay">
-                      {AiProvider.literals
-                        .filter((value) => value !== "compatible" && relayedProviders.has(value))
-                        .map((value) => (
-                          <option key={value} value={value}>
-                            {providerLabels[value]}
-                          </option>
-                        ))}
-                    </optgroup>
-                    <option value="compatible">Other (own URL)</option>
-                  </select>
+                  />
                 </section>
 
                 {provider === "compatible" && (
