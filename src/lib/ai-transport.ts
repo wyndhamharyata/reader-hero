@@ -203,6 +203,8 @@ export function requestOf(
     if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
     if (settings.provider === "openrouter" && settings.reasoningOff === true)
       body.reasoning = { enabled: false };
+    // The relay's providers are asked in the OpenAI way, which OpenCode maps to no thinking for DeepSeek.
+    if (settings.provider === "compatible") body.reasoning_effort = "none";
   } else {
     body.reasoning_effort = effort;
   }

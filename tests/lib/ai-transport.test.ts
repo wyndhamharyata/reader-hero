@@ -171,8 +171,18 @@ describe("request per provider", () => {
 
   it("given an OpenAI-compatible provider, sends plain strings with no provider fields", () => {
     const { body } = sent("compatible", "llama");
-    expect(Object.keys(body).sort()).toEqual(["messages", "model", "stream", "stream_options"]);
+    // Off asks the provider for no thinking in the OpenAI way, which OpenCode maps for DeepSeek.
+    expect(Object.keys(body).sort()).toEqual([
+      "messages",
+      "model",
+      "reasoning_effort",
+      "stream",
+      "stream_options",
+    ]);
+    expect(body.reasoning_effort).toBe("none");
     expect(sent("compatible", "llama", "low").body.reasoning_effort).toBe("low");
+    expect(body).not.toHaveProperty("thinking");
+    expect(body).not.toHaveProperty("reasoning");
   });
 
   it("given an OpenAI-compatible provider, asks the relay with the target URL", async () => {
