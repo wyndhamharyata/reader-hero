@@ -17,10 +17,11 @@ const refuse = (message: string, status: number): Response =>
 
 // Bodies stream straight through: this code logs nothing, stores nothing and never reads them.
 export async function relay(request: Request): Promise<Response> {
+  const origin = new URL(request.url).origin;
   // Browsers set both headers themselves, so a page on another site cannot borrow the relay; a same-origin GET carries no Origin.
   if (
     request.headers.get("sec-fetch-site") !== "same-origin" &&
-    request.headers.get("origin") !== new URL(request.url).origin
+    request.headers.get("origin") !== origin
   ) {
     return refuse("The relay serves only this app", 403);
   }
@@ -33,7 +34,8 @@ export async function relay(request: Request): Promise<Response> {
   if (url.protocol !== "https:" || !hosts.has(url.hostname)) {
     return refuse(`The relay does not reach ${url.host}`, 403);
   }
-  const headers = new Headers({ "user-agent": "reader-hero/1.0" });
+  // The provider sees who calls it, with the deployment that did: the app and nothing else.
+  const headers = new Headers({ "user-agent": `reader-hero/1.0 (+${origin})` });
   for (const name of forwarded) {
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);

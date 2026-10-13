@@ -105,7 +105,7 @@ describe("relay", () => {
     expect(headers.get("authorization")).toBe("Bearer k");
     expect(headers.get("content-type")).toBe("application/json");
     expect(headers.get("x-opencode-session")).toBe("reader-hero:b3");
-    expect(headers.get("user-agent")).toBe("reader-hero/1.0");
+    expect(headers.get("user-agent")).toBe("reader-hero/1.0 (+https://reader-hero.example)");
     expect(headers.get("cookie")).toBeNull();
     expect(headers.get("x-relay-target")).toBeNull();
   });
