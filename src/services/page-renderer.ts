@@ -1,4 +1,5 @@
 import { Context, Effect, Layer } from "effect";
+import type { PDFPageProxy } from "pdfjs-dist";
 import type { PageSize } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 
@@ -6,6 +7,25 @@ export interface RenderedDocument {
   readonly id: number;
   readonly pageCount: number;
   readonly first: PageSize;
+}
+
+// A link's box is a share of the drawn page, so it fits any width the page is shown at.
+export interface PageLink {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+  readonly target: { readonly url: string } | { readonly page: number };
+}
+
+// pdf.js's text content, with the page's own box, which its text layer places text in.
+export interface PageTextContent {
+  readonly content: Awaited<ReturnType<PDFPageProxy["getTextContent"]>>;
+  readonly rotation: number;
+  readonly pageWidth: number;
+  readonly pageHeight: number;
+  readonly pageX: number;
+  readonly pageY: number;
 }
 
 let renderer: Worker | null = null;
@@ -66,6 +86,8 @@ export class PageRenderer extends Context.Service<
       page: number,
       scale: number,
     ): Effect.Effect<ImageBitmap, PdfFailure>;
+    links(doc: RenderedDocument, page: number): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure>;
+    text(doc: RenderedDocument, page: number): Effect.Effect<PageTextContent, PdfFailure>;
     close(doc: RenderedDocument): Effect.Effect<void>;
   }
 >()("reader-hero/PageRenderer") {
@@ -92,6 +114,16 @@ export class PageRenderer extends Context.Service<
         Effect.map(
           request({ type: "render", id: doc.id, page, scale }, [], true),
           (reply) => reply.bitmap as ImageBitmap,
+        ),
+      links: (doc, page) =>
+        Effect.map(
+          request({ type: "links", id: doc.id, page }, [], false),
+          (reply) => reply.links as ReadonlyArray<PageLink>,
+        ),
+      text: (doc, page) =>
+        Effect.map(
+          request({ type: "text", id: doc.id, page }, [], false),
+          (reply) => reply.text as PageTextContent,
         ),
       close: (doc) =>
         Effect.sync(() => {

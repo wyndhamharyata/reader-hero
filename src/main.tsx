@@ -10,6 +10,7 @@ import "@fontsource-variable/atkinson-hyperlegible-next/wght-italic.css";
 import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
 import "@fontsource-variable/atkinson-hyperlegible-mono/wght-italic.css";
 import "@/styles/app.css";
+import "@/styles/text-layer.css";
 
 const container = document.getElementById("root");
 if (container === null) throw new Error("Root element is missing");

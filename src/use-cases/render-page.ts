@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { PdfFailure } from "@/domain/errors";
-import { PageRenderer, type RenderedDocument } from "@/services/page-renderer";
+import { PageRenderer, type PageLink, type RenderedDocument } from "@/services/page-renderer";
 
 // Paints one page: the worker renders a bitmap and the canvas adopts it without a copy.
 export function renderPdfPage(
@@ -30,4 +30,12 @@ export function renderPdfPage(
     context.drawImage(bitmap, 0, 0);
     bitmap.close();
   });
+}
+
+// Read after the page draws, so a page's links never hold up its pixels.
+export function readPageLinks(
+  doc: RenderedDocument,
+  page: number,
+): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure, PageRenderer> {
+  return Effect.flatMap(PageRenderer, (renderer) => renderer.links(doc, page));
 }

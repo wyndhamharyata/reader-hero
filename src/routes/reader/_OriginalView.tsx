@@ -1,6 +1,13 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
 import { pageBadge } from "@/lib/badges";
@@ -9,6 +16,9 @@ import { useTapGuard } from "@/lib/use-tap-guard";
 import { openOriginalPages, readPageSizes, releaseOriginalPages } from "@/use-cases/open-book";
 import type { RenderedDocument } from "@/services/page-renderer";
 import { PdfPage } from "./_PdfPage";
+
+// Long enough that a pause between flicks is not a rest.
+const TEXT_SETTLE_MS = 150;
 
 interface Props {
   bookId: string;
@@ -119,6 +129,41 @@ export function OriginalView({
       onPageChange(page);
     },
   });
+  // The page being read gets its text once scrolling rests, so a fling builds none along the way.
+  const [textPage, setTextPage] = useState<number | null>(null);
+  const textPageRef = useRef<number | null>(null);
+  const textReady = useRef<number | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const showText = useCallback((page: number | null) => {
+    if (textPageRef.current === page) return;
+    textPageRef.current = page;
+    textReady.current = null;
+    setTextPage(page);
+  }, []);
+  const onTextReady = useCallback((page: number) => {
+    if (textPageRef.current === page) textReady.current = page;
+  }, []);
+  const waitToSettle = useCallback(() => {
+    clearTimeout(settle.current);
+    settle.current = setTimeout(() => showText(shown.current), TEXT_SETTLE_MS);
+  }, [showText]);
+  // A scroll that starts while the text is still being built stops it; a finished layer stays until the next rest.
+  const onScroll = useCallback(() => {
+    waitToSettle();
+    if (textPageRef.current !== null && textReady.current !== textPageRef.current) showText(null);
+  }, [waitToSettle, showText]);
+  useEffect(() => {
+    if (doc === null) return;
+    waitToSettle();
+    return () => clearTimeout(settle.current);
+  }, [doc, waitToSettle]);
+
+  // Stable, so a link's jump does not re-render every memoised page.
+  const jumpTo = useCallback(
+    (page: number) => virtualizer.scrollToIndex(page - 1, { align: "start" }),
+    [virtualizer],
+  );
+
   // New sizes or width change every page's height: first the view goes to the saved page, then the page being read stays.
   const startPage = useRef(initialPage);
   useLayoutEffect(() => {
@@ -166,6 +211,7 @@ export function OriginalView({
           data-scroller
           className="h-full overflow-y-auto overscroll-contain bg-base-300"
           onPointerDown={tap.onPointerDown}
+          onScroll={onScroll}
           onClick={(event) => {
             if (tap.isTap(event)) onToggleChrome();
           }}
@@ -184,7 +230,14 @@ export function OriginalView({
                       className="absolute inset-x-0 top-0"
                       style={{ transform: `translateY(${item.start}px)` }}
                     >
-                      <PdfPage doc={doc} size={size} />
+                      <PdfPage
+                        doc={doc}
+                        size={size}
+                        scale={width / size.width}
+                        text={textPage === size.page}
+                        onTextReady={onTextReady}
+                        onJump={jumpTo}
+                      />
                     </div>
                   )
                 );
