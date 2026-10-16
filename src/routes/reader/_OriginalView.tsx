@@ -15,6 +15,7 @@ import { forkApp, stopFiber } from "@/lib/hooks";
 import { useTapGuard } from "@/lib/use-tap-guard";
 import { openOriginalPages, readPageSizes, releaseOriginalPages } from "@/use-cases/open-book";
 import type { RenderedDocument } from "@/services/page-renderer";
+import { PageSearch } from "./_PageSearch";
 import { PdfPage } from "./_PdfPage";
 
 // Long enough that a pause between flicks is not a rest.
@@ -25,6 +26,10 @@ interface Props {
   pageCount: number;
   initialPage: number;
   showChrome: boolean;
+  // The parsed text, which the search goes through; null hides the search, as for a scanned book.
+  blocks: ReadonlyArray<{ readonly text: string; readonly page: number }> | null;
+  searching: boolean;
+  onCloseSearch: () => void;
   onPageChange: (page: number) => void;
   onToggleChrome: () => void;
 }
@@ -34,6 +39,9 @@ export function OriginalView({
   pageCount,
   initialPage,
   showChrome,
+  blocks,
+  searching,
+  onCloseSearch,
   onPageChange,
   onToggleChrome,
 }: Props): ReactElement {
@@ -41,6 +49,7 @@ export function OriginalView({
   const [sizes, setSizes] = useState<ReadonlyArray<PageSize>>([]);
   const [current, setCurrent] = useState(initialPage);
   const [failed, setFailed] = useState(false);
+  const [query, setQuery] = useState("");
   // A page's width, which is the list's own.
   const [width, setWidth] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -117,6 +126,8 @@ export function OriginalView({
     },
     gap: 12,
     paddingStart: 8,
+    // A page the search goes to starts below the search bar, not under it.
+    scrollPaddingStart: searching ? 64 : 0,
     // Two pages each side are drawn before they scroll in.
     overscan: 2,
     // The page at the middle of the screen is the one being read.
@@ -235,6 +246,7 @@ export function OriginalView({
                         size={size}
                         scale={width / size.width}
                         text={textPage === size.page}
+                        query={textPage === size.page ? query : ""}
                         onTextReady={onTextReady}
                         onJump={jumpTo}
                       />
@@ -247,7 +259,17 @@ export function OriginalView({
         </div>
       )}
 
-      {doc !== null && showChrome && (
+      {doc !== null && searching && blocks !== null && (
+        <PageSearch
+          blocks={blocks}
+          currentPage={current}
+          onGo={jumpTo}
+          onQuery={setQuery}
+          onClose={onCloseSearch}
+        />
+      )}
+
+      {doc !== null && showChrome && !searching && (
         <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
           <span className={pageBadge}>
             Page {current} of {pageCount}

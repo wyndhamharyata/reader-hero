@@ -67,6 +67,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const [tocOpen, setTocOpen] = useState(false);
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reported, setReported] = useState<number | null>(null);
@@ -501,7 +502,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     void runApp(program);
   };
 
-  const toggleMode = (): void => savePrefs({ mode: mode === "reader" ? "original" : "reader" });
+  const toggleMode = (): void => {
+    setSearchOpen(false);
+    savePrefs({ mode: mode === "reader" ? "original" : "reader" });
+  };
+  // The search goes through the parsed text, so a scanned book, which has none, has no search.
+  const searchable = showsPages && data?.meta.parseState !== "scanned";
   const toggleChrome = useCallback(() => setChrome((value) => !value), []);
   const closeToc = () => setTocOpen(false);
   const selectToc = (blockIndex: number) => {
@@ -540,6 +546,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             chrome={chrome}
             settings={bookSettings}
             jump={jump}
+            searching={searchOpen && searchable}
+            onCloseSearch={() => setSearchOpen(false)}
             onToggleChrome={toggleChrome}
           />
         )}
@@ -552,6 +560,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         position={shown}
         total={total}
         onMenu={() => setTocOpen(true)}
+        onSearch={searchable ? () => setSearchOpen(true) : undefined}
       />
 
       {data !== null && touring && (

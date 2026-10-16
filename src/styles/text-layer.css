@@ -157,3 +157,9 @@
 .textLayer[data-main-rotation="270"] {
   transform: rotate(270deg) translateX(-100%);
 }
+
+/* Search matches on the page being read, painted over the transparent text like a selection. */
+::highlight(reader-hero-search) {
+  background-color: rgb(250 204 21 / 0.5);
+  color: transparent;
+}

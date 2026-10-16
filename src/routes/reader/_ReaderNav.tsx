@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { ArrowLeftIcon, Bars3Icon } from "@/components/icons";
+import { ArrowLeftIcon, Bars3Icon, MagnifyingGlassIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   position: number;
   total: number;
   onMenu: () => void;
+  // Only the original view searches; undefined hides the button.
+  onSearch?: () => void;
 }
 
 // A bottom bar on phones, within thumb reach, and a top bar from md up.
@@ -19,6 +21,7 @@ export function ReaderNav({
   position,
   total,
   onMenu,
+  onSearch,
 }: Props): ReactElement {
   const hidden = chrome ? "" : "translate-y-full md:-translate-y-full";
 
@@ -38,6 +41,17 @@ export function ReaderNav({
           <ArrowLeftIcon className="size-6 md:size-5" />
         </SlideLink>
         <h1 className="min-w-0 flex-1 truncate text-base font-medium md:text-sm">{title}</h1>
+        {onSearch !== undefined && (
+          <button
+            type="button"
+            className="btn btn-square btn-ghost md:btn-sm"
+            aria-label="Search pages"
+            title="Search pages"
+            onClick={onSearch}
+          >
+            <MagnifyingGlassIcon className="size-6 md:size-5" />
+          </button>
+        )}
         <button
           type="button"
           data-tour="reader-menu"

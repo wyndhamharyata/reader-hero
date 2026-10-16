@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { PdfFailure } from "@/domain/errors";
+import { searchForm } from "@/lib/find-text";
 import {
   PageRenderer,
   type PageTextContent,
@@ -9,8 +10,68 @@ import {
 export interface DrawnTextLayer {
   // Measures the text again for a new page width.
   readonly update: (scale: number) => void;
+  // Marks every match on the page; an empty query clears the marks.
+  readonly highlight: (query: string) => void;
   readonly remove: () => void;
 }
+
+const SEARCH_HIGHLIGHT = "reader-hero-search";
+
+// The CSS Custom Highlight API paints ranges without touching the text nodes; Safari 17.2+ and Chrome 105+ have it.
+const highlights = (): HighlightRegistry | null =>
+  typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined"
+    ? CSS.highlights
+    : null;
+
+// The layer's text in search form, with the node and offset each of its characters came from.
+const searchMap = (layer: HTMLElement) => {
+  let text = "";
+  const from: Array<{ node: Text; offset: number }> = [];
+  let last: { node: Text; offset: number } | null = null;
+  const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    // A line end is a <br>; it reads as a space, at the end of the text before it.
+    if (node instanceof HTMLBRElement) {
+      if (last !== null && !text.endsWith(" ")) {
+        text += " ";
+        from.push(last);
+      }
+      continue;
+    }
+    if (!(node instanceof Text)) continue;
+    const value = node.data;
+    for (let offset = 0; offset < value.length; offset += 1) {
+      const folded = searchForm(value.charAt(offset));
+      if (folded === " " && text.endsWith(" ")) continue;
+      for (const char of folded) {
+        text += char;
+        from.push({ node, offset });
+      }
+      last = { node, offset: offset + 1 };
+    }
+  }
+  return { text, from };
+};
+
+const markMatches = (layer: HTMLElement, query: string): void => {
+  const registry = highlights();
+  if (registry === null) return;
+  registry.delete(SEARCH_HIGHLIGHT);
+  const wanted = searchForm(query).trim();
+  if (wanted === "") return;
+  const { text, from } = searchMap(layer);
+  const ranges: Range[] = [];
+  for (let at = text.indexOf(wanted); at !== -1; at = text.indexOf(wanted, at + wanted.length)) {
+    const start = from[at];
+    const end = from[at + wanted.length - 1];
+    if (start === undefined || end === undefined) continue;
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, Math.min(end.offset + 1, end.node.length));
+    ranges.push(range);
+  }
+  if (ranges.length > 0) registry.set(SEARCH_HIGHLIGHT, new Highlight(...ranges));
+};
 
 // pdf.js measures each run of text with the canvas on the main thread; a slice this size stays short on a slow phone.
 const ITEMS_PER_SLICE = 150;
@@ -98,8 +159,10 @@ export function drawTextLayer(
 
     return {
       update: (next) => layer.update({ viewport: viewportOf(text, next) as never }),
+      highlight: (query) => markMatches(div, query),
       remove: () => {
         listening.abort();
+        highlights()?.delete(SEARCH_HIGHLIGHT);
         div.remove();
       },
     };

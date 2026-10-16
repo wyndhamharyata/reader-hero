@@ -19,6 +19,8 @@ interface Props {
   chrome: boolean;
   settings: ReaderSettings;
   jump: JumpRequest | null;
+  searching: boolean;
+  onCloseSearch: () => void;
   onToggleChrome: () => void;
 }
 
@@ -32,6 +34,8 @@ export function ReaderBody({
   chrome,
   settings,
   jump,
+  searching,
+  onCloseSearch,
   onToggleChrome,
 }: Props): ReactElement {
   const scanned = meta.parseState === "scanned";
@@ -69,6 +73,9 @@ export function ReaderBody({
           pageCount={meta.pageCount}
           initialPage={currentPage}
           showChrome={chrome}
+          blocks={scanned ? null : parsed.blocks}
+          searching={searching}
+          onCloseSearch={onCloseSearch}
           onPageChange={onOriginalPage}
           onToggleChrome={onToggleChrome}
         />

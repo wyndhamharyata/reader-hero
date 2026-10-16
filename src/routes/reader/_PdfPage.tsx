@@ -16,6 +16,8 @@ interface Props {
   scale: number;
   // Only the page being read holds its text, so the list never carries many pages of text nodes.
   text: boolean;
+  // The search to mark on this page's text; empty for none.
+  query: string;
   onTextReady: (page: number) => void;
   onJump: (page: number) => void;
 }
@@ -33,6 +35,7 @@ export const PdfPage = memo(function PdfPage({
   size,
   scale,
   text,
+  query,
   onTextReady,
   onJump,
 }: Props): ReactElement {
@@ -40,6 +43,7 @@ export const PdfPage = memo(function PdfPage({
   const textRef = useRef<HTMLDivElement>(null);
   const textLayer = useRef<DrawnTextLayer | null>(null);
   const scaleRef = useRef(scale);
+  const queryRef = useRef(query);
   const [failed, setFailed] = useState(false);
   const [links, setLinks] = useState<ReadonlyArray<PageLink>>([]);
 
@@ -72,6 +76,7 @@ export const PdfPage = memo(function PdfPage({
         Effect.tap((drawn) =>
           Effect.sync(() => {
             textLayer.current = drawn;
+            drawn.highlight(queryRef.current);
             onTextReady(size.page);
           }),
         ),
@@ -84,6 +89,11 @@ export const PdfPage = memo(function PdfPage({
       textLayer.current = null;
     };
   }, [doc, size.page, text, onTextReady]);
+
+  useEffect(() => {
+    queryRef.current = query;
+    textLayer.current?.highlight(query);
+  }, [query]);
 
   useEffect(() => {
     scaleRef.current = scale;
