@@ -60,8 +60,28 @@ class NoFilterFactory {
 }
 
 const fonts = (self as { fonts?: FontFaceSet }).fonts;
-const documents = new Map<number, { task: PDFDocumentLoadingTask; document: PDFDocumentProxy }>();
+const documents = new Map<
+  number,
+  { task: PDFDocumentLoadingTask; document: PDFDocumentProxy; drawn: Set<number> }
+>();
 const tasks = new Map<number, RenderTask>();
+
+// pdf.js's own viewer keeps its last 10 pages: fewer re-parses a page on the way back, more holds memory.
+const KEEP_PAGES = 10;
+
+// Oldest first, so a page drawn again moves to the end and the first one is the one to free.
+const keepDrawn = async (
+  opened: { document: PDFDocumentProxy; drawn: Set<number> },
+  page: number,
+) => {
+  opened.drawn.delete(page);
+  opened.drawn.add(page);
+  if (opened.drawn.size <= KEEP_PAGES) return;
+  const [oldest] = opened.drawn;
+  if (oldest === undefined) return;
+  opened.drawn.delete(oldest);
+  (await opened.document.getPage(oldest)).cleanup();
+};
 
 // One pdf.js worker for every document; pdf.js cannot make it here, as it reads `window.location`.
 let shared: PDFWorker | null = null;
@@ -112,7 +132,7 @@ onmessage = async (event: MessageEvent) => {
         worker: pdfWorker(),
       });
       const document = await task.promise;
-      documents.set(message.id, { task, document });
+      documents.set(message.id, { task, document, drawn: new Set() });
       const first = (await document.getPage(1)).getViewport({ scale: 1 });
       postMessage({
         type: "opened",
@@ -158,6 +178,7 @@ onmessage = async (event: MessageEvent) => {
     }
     const bitmap = canvas.transferToImageBitmap();
     postMessage({ type: "rendered", requestId: message.requestId, bitmap }, [bitmap]);
+    await keepDrawn(opened, message.page);
   } catch (cause) {
     const key =
       "requestId" in message ? message.requestId : message.type === "open" ? message.id : null;
