@@ -51,13 +51,25 @@ export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): vo
   const jobs = useRef(new Map<string, Job>());
 
   useEffect(() => {
-    for (const book of books) {
-      if (!book.figuresPending || jobs.current.has(book.id)) continue;
-      const bookId = book.id;
+    // A book that leaves the list pauses: its job keeps a checkpoint, so the next start resumes it.
+    const wanted = new Set(books.filter((book) => book.figuresPending).map((book) => book.id));
+    for (const [bookId, fiber] of jobs.current) {
+      if (wanted.has(bookId)) continue;
+      stopFiber(fiber);
+      jobs.current.delete(bookId);
+    }
+    for (const bookId of wanted) {
+      if (jobs.current.has(bookId)) continue;
+      let fiber: Job | null = null;
       const job = renderFigures(bookId, startPage).pipe(
-        Effect.ensuring(Effect.sync(() => jobs.current.delete(bookId))),
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (jobs.current.get(bookId) === fiber) jobs.current.delete(bookId);
+          }),
+        ),
       );
-      jobs.current.set(bookId, forkApp(job));
+      fiber = forkApp(job);
+      jobs.current.set(bookId, fiber);
     }
   }, [books, startPage]);
 

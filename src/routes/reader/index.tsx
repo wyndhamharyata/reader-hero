@@ -144,10 +144,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     furthestRef.current = Math.max(furthestRef.current, stored.furthest ?? stored.blockIndex);
     setFurthest(furthestRef.current);
   }, [data]);
-  const pendingBooks = useMemo(() => (data === null ? [] : [data.meta]), [data]);
-  // The figure job starts at the page being read, so its figures land first.
-  const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
-  useFigureJobs(pendingBooks, startPage);
 
   // The book's saved choices, with this visit's changes on top until a reload reads them back.
   const prefs = useMemo<Partial<BookPrefs>>(
@@ -399,6 +395,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
   }, [data, epub]);
   const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
+  // Figures only show in the reader view, so the job pauses while the original pages show.
+  const showsPages = mode === "original" || data?.meta.parseState === "scanned";
+  const pendingBooks = useMemo(
+    () => (data === null || showsPages ? [] : [data.meta]),
+    [data, showsPages],
+  );
+  // The figure job starts at the page being read, so its figures land first.
+  const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
+  useFigureJobs(pendingBooks, startPage);
 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
   useLayoutEffect(() => {
