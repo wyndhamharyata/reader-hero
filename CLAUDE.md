@@ -218,17 +218,38 @@ code around it. Words such as `no longer`, `used to`, `previously`, `older build
 - A blank line groups a block. One idea per block, about five statements.
 - Control flow is its own block. An `if`, a loop, a `switch` or a `try` of more than one line has a
   blank line before and after it, unless it opens or closes its block. A one-line one needs none.
+  A run of early exits, or of one-line `if` statements, stays together.
 - Declare, then use. A run of declarations has a blank line between it and the statements around it.
+- Inside a run of declarations, the inputs come first, then the values worked out from them, then
+  what is built from those, each with a blank line between.
 - A function of more than three lines keeps a blank line before its last return.
 - Name a compound condition before you test it: `const canDraw = hasSize && isVisible`.
 - A ternary fits on one line. Never nest one.
 - Build a list with `if` and `push`. Never `[a && x, b && y].filter(Boolean)`.
 - Name a lookup table above the line that indexes it.
-- Keep a function under 15 branch points. Count `if`, `else if`, `for`, `while`, `case`, `catch`,
-  a ternary, `&&`, `||` and `??`.
+- Keep a function to 15 branch points or fewer. Count `if`, `else if`, `for`, `while`, `case`,
+  `catch`, a ternary, `&&`, `||` and `??`.
 - Use `startsWith`, `indexOf`, `slice` and `split` before regex.
 
-## 7. Tests state the situation and the result.
+## 7. Functions, constants and files.
+
+- When two or more places do the same work, pull it into one function. Two copies drift apart.
+- A function inside a function that is called twice moves to the top level, with its inputs as
+  parameters. A hook keeps the state its methods share.
+- A one-line body counts when two copies could disagree, such as a formula, a selector or a rule
+  about when something is off. A plain call with a new name does not count.
+- Write a named constant or a shared type when two or more places use it.
+- Before you write a new file or helper, ask one question. If you deleted it and put its code back
+  where it is used, would the code be harder to follow? If not, do not write it.
+- Each formula is a named function, even when one place uses it, as `clamp` is. `20 * Math.log10(x)`
+  is `linearToDb(x)`.
+- Code that two contexts both need goes in one shared place. Do not copy a worker helper into the
+  app.
+- A function that runs past about 80 lines is two functions. Split by what the reader needs at
+  one time, not by line count.
+- A function name's verb says what it does. A name that makes the reader look at the body is wrong.
+
+## 8. Tests state the situation and the result.
 
 - A test name says what is given and what happens: `given a page with two columns, reads the left
 column first`.
@@ -238,8 +259,40 @@ column first`.
 - Use the real pipeline where you can. A stub stands in for a service boundary, not for the logic
   under test.
 
+## 9. Scope of a change.
+
+- Touch only what the task needs. Match the style already in the file. Do not tidy nearby code.
+- Fewer lines wins a tie. A named value that saves the reader time stays, even when it costs a line.
+- Run the formatter only on the files you changed.
+
+## 10. JSDoc gives types and nothing else.
+
+- TypeScript types carry the contract, so a JSDoc block is not used. A reason goes in one `//` line
+  above the function, under rule 3.
+- A type that two or more places use is a named `type` or `interface` in the file that owns it.
+
+## Accepted exceptions
+
+Each one names the rule it breaks and the reason. `scripts/check-structure.mjs` keeps the branch
+count of each at or below the number it has today, so none can grow.
+
+- The node walk inside `parseEpub` in `src/lib/epub/parse.ts` has 72 branch points, against rule 6.
+  It shares one block buffer, one mark list and one page state with every element case. A split
+  would pass that whole context through each call.
+- `buildShelf` in `src/lib/shelf.ts` has 64 branch points, against rule 6. It derives one shelf in
+  stages, and each stage reads the lead and series maps the one before it wrote.
+- `SummarySheet` has 52 branch points, against rule 6. Its JSX branches all test the one sheet's
+  state, and the sections share its refs and callbacks.
+- `ReaderRoute` has 40 branch points, against rule 6. It is one screen's event wiring and layout.
+- `SettingsSheet` has 35 branch points, against rule 6. It is one sheet's controls and their save.
+- `LibraryRoute` has 28 branch points, against rule 6. It is one route's toolbar, grid and sheets.
+
 ## What the check enforces
 
-`npm run lint` runs `scripts/check-words.mjs` after ESLint. It checks rules 2 and 3 where a machine
-can: banned words, dashes and semicolons in prose, and a comment over one line. A generated file
-and a dependency's own text are not checked. The rest needs a person.
+`npm run lint` runs `scripts/check-words.mjs` and `scripts/check-structure.mjs` after ESLint.
+
+`check-words.mjs` checks rules 2 and 3 where a machine can: banned words, dashes and semicolons in
+prose, and a comment over one line. `check-structure.mjs` checks rule 6 where a machine can: the
+15-branch limit, the blank line before a last return, the blank lines around multi-line control
+flow, and a run of declarations set apart from the statements around it. A generated file and a
+dependency's own text are not checked. The rest needs a person.
