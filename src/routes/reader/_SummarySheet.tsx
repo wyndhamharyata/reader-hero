@@ -1,18 +1,10 @@
 import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import {
-  ArrowLeftIcon,
-  ArrowUpIcon,
-  PencilIcon,
-  PlusIcon,
-  TrashIcon,
-  XMarkIcon,
-} from "@/components/icons";
+import { ArrowLeftIcon, ArrowUpIcon, TrashIcon, XMarkIcon } from "@/components/icons";
 import { hasConsent, type AiSettings, type BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
-import { holdLowestRow } from "@/lib/hold-lowest-row";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { useTabSwipe } from "@/lib/use-tab-swipe";
@@ -23,8 +15,10 @@ import {
   type Coverage,
   type SummaryInput,
 } from "@/use-cases/summary";
+import { ChapterList } from "./_ChapterList";
 import { ConsentNote } from "./_ConsentNote";
 import { CopyButton } from "./_CopyButton";
+import { NameList } from "./_NameList";
 import { NameSheet } from "./_NameSheet";
 
 interface Props {
@@ -254,156 +248,38 @@ export function SummarySheet({
               className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
               inert={tab !== "chapters"}
             >
-              {/* The chapter in writing shares its stored key, so it stays open once it is stored. */}
-              {[
-                ...visibleChapters.map((chapter, index) => ({
-                  key: `${index}`,
-                  heading: chapter.heading,
-                  text: chapter.paragraph,
-                })),
-                ...(run !== null && run.stage === "chapter" && run.chapter > 0
-                  ? [
-                      {
-                        key: `${run.chapter - 1}`,
-                        heading: list[run.chapter - 1]?.heading ?? "",
-                        text: run.text,
-                      },
-                    ]
-                  : []),
-                ...(current === null
-                  ? []
-                  : [
-                      {
-                        key: "current",
-                        heading: `${current.heading} · current position`,
-                        text: current.text,
-                      },
-                    ]),
-              ].map((entry, index, all) => {
-                const open = desktop || expanded.has(entry.key);
-                return (
-                  <div
-                    key={entry.key}
-                    ref={
-                      entry.key === `${openAt}`
-                        ? opened
-                        : index === all.length - 1
-                          ? latest
-                          : undefined
-                    }
-                    className="px-2"
-                  >
-                    {desktop ? (
-                      <p className="px-2 py-2 font-medium">{entry.heading}</p>
-                    ) : (
-                      <button
-                        type="button"
-                        className="w-full rounded-field px-2 py-2 text-left font-medium hover:bg-base-300"
-                        data-row
-                        aria-expanded={open}
-                        onClick={(event) => {
-                          if (body.current !== null)
-                            holdLowestRow(body.current, event.currentTarget);
-
-                          setExpanded((keys) => {
-                            const next = new Set(keys);
-
-                            if (open) next.delete(entry.key);
-                            else next.add(entry.key);
-
-                            return next;
-                          });
-                        }}
-                      >
-                        {entry.heading}
-                      </button>
-                    )}
-                    <div
-                      className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-                      inert={!open}
-                    >
-                      <div className="min-h-0 overflow-hidden">
-                        <p className="px-2 pb-2 whitespace-pre-wrap">{entry.text}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {summary === null && run === null && (
-                <p className="px-4 opacity-70">
-                  {action === null ? `No ${unit}s before this position` : "No summaries"}
-                </p>
-              )}
-              {(summary?.thread ?? []).map((message, index) => (
-                <p
-                  key={index}
-                  className={`mt-3 px-4 whitespace-pre-wrap ${message.role === "user" ? "font-medium" : ""}`}
-                >
-                  {message.content}
-                </p>
-              ))}
-              {pending !== null && (
-                <p className="mt-3 px-4 whitespace-pre-wrap">
-                  {pending === "" ? (
-                    <span className="flex items-center gap-2 opacity-70">
-                      {spinner}
-                      Waiting for an answer
-                    </span>
-                  ) : (
-                    pending
-                  )}
-                </p>
-              )}
-              {askError !== null && <p className="mt-2 px-4 text-error">{askError}</p>}
+              <ChapterList
+                visibleChapters={visibleChapters}
+                run={run}
+                list={list}
+                current={current}
+                isDesktop={desktop}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                openAt={openAt}
+                opened={opened}
+                latest={latest}
+                body={body}
+                summary={summary}
+                unit={unit}
+                action={action}
+                pending={pending}
+                askError={askError}
+                spinner={spinner}
+              />
             </div>
             <div
               className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
               inert={tab !== "names"}
             >
-              {names.length === 0 && (
-                <p className="px-4 opacity-70">No {namesLabel.toLowerCase()}</p>
-              )}
-              <ul className="flex flex-col">
-                {names.map((entry) => (
-                  <li key={entry.name} className="px-2">
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between gap-3 rounded-field px-2 py-2 text-left hover:bg-base-300"
-                      aria-label={`Edit ${entry.name}`}
-                      onClick={() =>
-                        setNameSheet({ entry: { name: entry.name, note: entry.note } })
-                      }
-                    >
-                      <span>
-                        <span className="font-medium">{entry.name}</span>{" "}
-                        <span className="text-[0.75em] opacity-60">
-                          {list[entry.chapter - 1]?.heading}
-                        </span>
-                        <br />
-                        {entry.note}
-                      </span>
-                      <PencilIcon className="size-5 shrink-0 opacity-60 md:size-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              {summary !== null && (
-                <div className="mt-1 px-2 pb-1 font-sans">
-                  <button
-                    type="button"
-                    className="btn w-full justify-start btn-ghost px-2 md:btn-sm"
-                    onClick={() => setNameSheet({ entry: null })}
-                  >
-                    <PlusIcon className="size-6 opacity-60 md:size-4" />
-                    {story ? "Add character" : "Add term"}
-                  </button>
-                </div>
-              )}
-              {summary !== null && summary.required.length > 0 && (
-                <p className="mt-2 px-4 text-[0.75em] opacity-60">
-                  Pending: {summary.required.join(", ")}
-                </p>
-              )}
+              <NameList
+                names={names}
+                list={list}
+                story={story}
+                namesLabel={namesLabel}
+                summary={summary}
+                onEdit={(entry) => setNameSheet({ entry })}
+              />
             </div>
           </div>
         </div>

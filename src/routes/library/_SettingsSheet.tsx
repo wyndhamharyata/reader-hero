@@ -1,8 +1,6 @@
 import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { ChevronDownIcon } from "@/components/icons";
-import { ThemeControls } from "@/components/ThemeControls";
 import {
   AiProvider,
   AiSettings,
@@ -12,29 +10,26 @@ import {
   relayedProviders,
 } from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
-import { formatPercent } from "@/lib/format";
 import { runApp, useAiSettings, useJob, useSettings, useUsage } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { useTabSwipe } from "@/lib/use-tab-swipe";
 import { ConsentNote } from "@/routes/reader/_ConsentNote";
 import { AiClient } from "@/services/ai-client";
+import { GeneralSettings } from "./_GeneralSettings";
+import { ModelPicker } from "./_ModelPicker";
+import { UsagePanel } from "./_UsagePanel";
+import { settingsHeading, type GroupingState } from "./_settings-shared";
 import { ProviderPicker } from "./_ProviderPicker";
 
 interface Props {
   isOpen: boolean;
   // The library's grouping run: books left while it runs, then the totals, or its error.
-  grouping:
-    | { readonly left: number }
-    | { readonly books: number; readonly series: number }
-    | { readonly error: string }
-    | null;
+  grouping: GroupingState;
   onRetry: () => void;
   onReset: () => void;
   onLicences: () => void;
   onClose: () => void;
 }
-
-const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
 
 // Where a reader makes a key, so the sheet points the way instead of sending them to search.
 const keyPages: Partial<Record<AiProvider, string>> = {
@@ -228,7 +223,6 @@ export function SettingsSheet({
   // The form's provider and model, so picking another model shows its own numbers.
   const usageKey = `${provider}/${model.trim()}`;
   const tally = usage.tallies.get(usageKey);
-  const compact = new Intl.NumberFormat(undefined, { notation: "compact" });
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
@@ -272,194 +266,29 @@ export function SettingsSheet({
               className="h-full w-full shrink-0 overflow-y-auto overscroll-contain"
               inert={tab !== "general"}
             >
-              <div className="mx-4 mb-1 rounded-box bg-base-300 p-3">
-                <ThemeControls settings={settings} onChange={update} />
-              </div>
-              {ai === null && (
-                <p className="mx-4 mt-4 text-sm opacity-60 md:text-xs">
-                  Summary and Series grouping need a provider and key, set in Provider.
-                </p>
-              )}
-              <section className="mt-4 px-4">
-                <p className={heading}>Summary</p>
-                <label className="flex items-center justify-between gap-3 py-2 text-base md:text-sm">
-                  <span>Summaries in Contents</span>
-                  <input
-                    type="checkbox"
-                    className="toggle md:toggle-sm"
-                    checked={linesInContents}
-                    disabled={ai === null}
-                    onChange={(event) => saveToggles({ linesInContents: event.target.checked })}
-                  />
-                </label>
-                <label className="flex items-center justify-between gap-3 py-2 text-base md:text-sm">
-                  <span>Automatic summary</span>
-                  <input
-                    type="checkbox"
-                    className="toggle md:toggle-sm"
-                    checked={autoSummary}
-                    disabled={ai === null}
-                    onChange={(event) => saveToggles({ autoSummary: event.target.checked })}
-                  />
-                </label>
-                <p className="text-sm opacity-60 md:text-xs">
-                  Automatic summary sends each chapter when it is read. In a series, it then writes
-                  the book's series paragraph again, and the paragraph of each earlier volume that
-                  has none.
-                </p>
-                <div className="mt-2 flex items-center justify-between gap-3 py-1 text-base md:text-sm">
-                  <span>All summaries</span>
-                  {rebuild.run === null ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost md:btn-sm"
-                      disabled={ai === null}
-                      onClick={() => {
-                        if (ai === null) return;
-                        // Only the current consent text names what a series paragraph and a later volume's list send.
-                        if (!hasConsent(ai)) {
-                          setConsentFor("rebuild");
-                          return;
-                        }
-
-                        rebuild.startRebuild(ai);
-                      }}
-                    >
-                      Rebuild
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <span className="loading loading-sm loading-spinner md:loading-xs" />
-                      {rebuild.run.of === 0
-                        ? "Starting"
-                        : `${rebuild.run.of - rebuild.run.chapter + 1} ${rebuild.run.of - rebuild.run.chapter === 0 ? "book" : "books"} left`}
-                      <button
-                        type="button"
-                        className="btn btn-ghost md:btn-sm"
-                        onClick={rebuild.stop}
-                      >
-                        Stop
-                      </button>
-                    </span>
-                  )}
-                </div>
-                {consentFor === "rebuild" && ai !== null && (
-                  <div className="mb-3" ref={consentNote}>
-                    <ConsentNote
-                      provider={ai.provider}
-                      onCancel={() => setConsentFor(null)}
-                      onAllow={() => {
-                        setConsentFor(null);
-
-                        const next = new AiSettings({
-                          ...ai,
-                          consentedAt: Date.now(),
-                          consentVersion: CONSENT_VERSION,
-                        });
-
-                        putAi(next);
-                        rebuild.startRebuild(next);
-                      }}
-                    />
-                  </div>
-                )}
-                {rebuild.error !== null && (
-                  <p className="text-base text-error md:text-sm">{rebuild.error}</p>
-                )}
-                <p className="text-sm opacity-60 md:text-xs">
-                  Rebuild writes every summary again up to where you read: the chapters, the
-                  characters and the series paragraph, each series first volume to last. It sends
-                  one request per chapter read, and stops any summary that runs. Edited characters
-                  stay; questions and answers go.
-                </p>
-              </section>
-
-              <section className="mt-4 px-4 pb-1">
-                <p className={heading}>Series</p>
-                <label className="flex items-center justify-between gap-3 py-2 text-base md:text-sm">
-                  <span>Series grouping</span>
-                  <input
-                    type="checkbox"
-                    className="toggle md:toggle-sm"
-                    checked={seriesGrouping}
-                    disabled={ai === null}
-                    onChange={(event) => {
-                      const on = event.target.checked;
-
-                      // Grouping sends with no tap, so the note for the current text shows before it goes on.
-                      if (on && !hasConsent(ai)) {
-                        setConsentFor("grouping");
-                        return;
-                      }
-
-                      saveToggles({ seriesGrouping: on });
-                    }}
-                  />
-                </label>
-                {consentFor === "grouping" && ai !== null && (
-                  <div className="mb-3" ref={consentNote}>
-                    <ConsentNote
-                      provider={ai.provider}
-                      onCancel={() => setConsentFor(null)}
-                      onAllow={() => {
-                        setConsentFor(null);
-                        saveToggles({ seriesGrouping: true }, Date.now());
-                      }}
-                    />
-                  </div>
-                )}
-                <p className="text-sm opacity-60 md:text-xs">
-                  Series grouping sends the title, author, file name and first 200 words of each new
-                  book, and the series that exist for its author.
-                </p>
-                {seriesGrouping &&
-                  grouping !== null &&
-                  ("error" in grouping ? (
-                    <p className="mt-2 flex items-center gap-3 text-base text-error md:text-sm">
-                      {grouping.error}
-                      <button type="button" className="btn btn-ghost md:btn-sm" onClick={onRetry}>
-                        Retry
-                      </button>
-                    </p>
-                  ) : "left" in grouping ? (
-                    <p className="mt-2 flex items-center gap-2 text-base md:text-sm">
-                      <span className="loading loading-sm loading-spinner md:loading-xs" />
-                      {grouping.left} {grouping.left === 1 ? "book" : "books"} left
-                    </p>
-                  ) : (
-                    <>
-                      <p className="mt-2 flex items-center justify-between gap-3 text-base md:text-sm">
-                        <span className="opacity-70">
-                          {grouping.books} {grouping.books === 1 ? "book" : "books"} ·{" "}
-                          {grouping.series} series
-                        </span>
-                        <button type="button" className="btn btn-ghost md:btn-sm" onClick={onReset}>
-                          Reset
-                        </button>
-                      </p>
-                      <p className="text-sm opacity-60 md:text-xs">
-                        Reset sends every book again. Series that grouping made go, removed series
-                        come back, and saved series stay.
-                      </p>
-                    </>
-                  ))}
-              </section>
-
-              <section className="mt-4 px-4 pb-1">
-                <p className={heading}>About</p>
-                <button
-                  type="button"
-                  className="btn w-full btn-ghost md:btn-sm"
-                  onClick={onLicences}
-                >
-                  Open source licences
-                </button>
-              </section>
+              <GeneralSettings
+                ai={ai}
+                settings={settings}
+                onSettingsChange={update}
+                isSummaryLines={linesInContents}
+                isAutoSummary={autoSummary}
+                isSeriesGrouping={seriesGrouping}
+                onToggle={saveToggles}
+                rebuild={rebuild}
+                consentFor={consentFor}
+                onConsentFor={setConsentFor}
+                consentNote={consentNote}
+                grouping={grouping}
+                onRetry={onRetry}
+                onReset={onReset}
+                onLicences={onLicences}
+                putAi={putAi}
+              />
             </div>
             <div className="flex h-full w-full shrink-0 flex-col" inert={tab !== "provider"}>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <section className="px-4 pt-1">
-                  <p className={heading}>Provider</p>
+                  <p className={settingsHeading}>Provider</p>
                   <ProviderPicker
                     value={provider}
                     onChange={(next) => {
@@ -479,7 +308,7 @@ export function SettingsSheet({
 
                 {provider === "compatible" && (
                   <section className="mt-4 px-4">
-                    <p className={heading}>Base URL</p>
+                    <p className={settingsHeading}>Base URL</p>
                     <input
                       type="url"
                       className="input w-full text-base md:text-sm"
@@ -501,7 +330,7 @@ export function SettingsSheet({
                 )}
 
                 <section className="mt-4 px-4">
-                  <p className={heading}>API key</p>
+                  <p className={settingsHeading}>API key</p>
                   <div className="flex gap-2">
                     {/* 16px text on phones: iOS zooms the page into any focused input smaller than that. */}
                     <input
@@ -546,104 +375,15 @@ export function SettingsSheet({
                   )}
                 </section>
 
-                <section className="mt-3 px-4">
-                  <p className={heading}>Model</p>
-                  {/* A provider's list can leave models out, as Z.ai's does its free ones, so the field also takes a typed id. */}
-                  <div className="relative">
-                    <label className="input w-full pr-1 text-base md:text-sm">
-                      <input
-                        type="text"
-                        role="combobox"
-                        aria-label="Model"
-                        aria-expanded={modelFilter !== null}
-                        aria-controls="provider-models"
-                        placeholder="Model"
-                        autoComplete="off"
-                        value={model}
-                        onChange={(event) => {
-                          setModel(event.target.value);
-                          setModelFilter(event.target.value);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "ArrowDown") setModelFilter("");
+                <ModelPicker
+                  model={model}
+                  models={models}
+                  filter={modelFilter}
+                  onModelChange={setModel}
+                  onFilterChange={setModelFilter}
+                />
 
-                          if (event.key === "Escape" && modelFilter !== null) {
-                            event.stopPropagation();
-                            setModelFilter(null);
-                          }
-                        }}
-                        onBlur={() => setModelFilter(null)}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-square btn-ghost btn-sm"
-                        aria-label="Show models"
-                        disabled={models.length === 0}
-                        // Keeps the focus in the field, so its blur does not close the list this opens.
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => setModelFilter(modelFilter === null ? "" : null)}
-                      >
-                        <ChevronDownIcon className="size-4" />
-                      </button>
-                    </label>
-                    {modelFilter !== null && models.length > 0 && (
-                      <ul
-                        id="provider-models"
-                        role="listbox"
-                        aria-label="Models"
-                        className="absolute inset-x-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-box border border-base-300 bg-base-100 p-1 shadow-lg"
-                      >
-                        {models
-                          .filter((entry) => entry.id.includes(modelFilter.trim()))
-                          .map((entry) => (
-                            <li
-                              key={entry.id}
-                              role="option"
-                              aria-selected={entry.id === model}
-                              className={`cursor-pointer rounded-field px-3 py-2 text-base md:py-1.5 md:text-sm ${entry.id === model ? "bg-base-200 font-medium" : "hover:bg-base-200"}`}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => {
-                                setModel(entry.id);
-                                setModelFilter(null);
-                              }}
-                            >
-                              {entry.id}
-                            </li>
-                          ))}
-                      </ul>
-                    )}
-                  </div>
-                </section>
-
-                {tally !== undefined && tally.input > 0 && (
-                  <section className="mt-4 px-4 pb-1">
-                    <p className={heading}>Input cache</p>
-                    <div className="flex items-center justify-between gap-3 text-base md:text-sm">
-                      <span>
-                        {formatPercent(tally.hit / tally.input)} from cache ·{" "}
-                        {compact.format(tally.input)} input ·{" "}
-                        <span className="opacity-70">
-                          {tally.requests} {tally.requests === 1 ? "request" : "requests"} since{" "}
-                          {new Date(tally.since).toLocaleDateString(undefined, {
-                            day: "numeric",
-                            month: "short",
-                          })}
-                        </span>
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-ghost md:btn-sm"
-                        onClick={() => usage.reset(usageKey)}
-                      >
-                        Reset
-                      </button>
-                    </div>
-                    <p className="mt-2 text-sm opacity-60 md:text-xs">
-                      The share of input tokens the provider read from its cache, as it reports
-                      them, for the provider and model above.
-                    </p>
-                  </section>
-                )}
+                <UsagePanel tally={tally} onReset={() => usage.reset(usageKey)} />
               </div>
 
               {consentPending ? (
