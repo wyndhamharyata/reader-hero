@@ -52,9 +52,6 @@ const skippedFolders = new Set([
 
 const skippedFiles = new Set(["src/domain/licences.ts"]);
 
-// A function that is one screen's wiring, or one pass over a document, keeps its place.
-const branchLimit = new Map([["src/lib/epub/parse.ts:(anonymous)", 72]]);
-
 const problems = [];
 
 const addProblem = (path, line, text) => problems.push(`${path}:${line} ${text}`);
@@ -163,7 +160,6 @@ const checkFile = (path) => {
     if (ts.isCaseClause(node) || ts.isDefaultClause(node)) checkStatements(node.statements);
 
     if (ts.isFunctionLike(node) && node.body && ts.isBlock(node.body)) {
-      const name = node.name?.getText(file) ?? "(anonymous)";
       const statements = node.body.statements;
       const last = statements.at(-1);
       const long =
@@ -180,10 +176,8 @@ const checkFile = (path) => {
       }
 
       const branches = countBranches(node.body);
-      const limit = branchLimit.get(`${path}:${name}`) ?? 15;
 
-      if (branches > limit)
-        addProblem(path, lineOf(node.getStart(file)), `${branches} branch points`);
+      if (branches > 15) addProblem(path, lineOf(node.getStart(file)), `${branches} branch points`);
     }
 
     ts.forEachChild(node, visit);

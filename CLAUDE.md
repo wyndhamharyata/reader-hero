@@ -271,15 +271,6 @@ column first`.
   above the function, under rule 3.
 - A type that two or more places use is a named `type` or `interface` in the file that owns it.
 
-## Accepted exceptions
-
-Each one names the rule it breaks and the reason. `scripts/check-structure.mjs` keeps the branch
-count of each at or below the number it has today, so none can grow.
-
-- The node walk inside `parseEpub` in `src/lib/epub/parse.ts` has 72 branch points, against rule 6.
-  It shares one block buffer, one mark list and one page state with every element case. A split
-  would pass that whole context through each call.
-
 ## What the check enforces
 
 `npm run lint` runs `scripts/check-words.mjs` and `scripts/check-structure.mjs` after ESLint.

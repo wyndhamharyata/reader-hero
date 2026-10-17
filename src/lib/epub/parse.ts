@@ -99,6 +99,475 @@ function readStyle(declarations: string): Style {
   return { bold, italic };
 }
 
+function hasDrm(
+  read: (path: string) => string | null,
+  parse: (path: string, type: DOMParserSupportedType) => Document | null,
+): boolean {
+  if (read("META-INF/sinf.xml") !== null) return true;
+
+  const encryption = parse("META-INF/encryption.xml", "application/xml");
+
+  for (const method of encryption?.getElementsByTagNameNS("*", "EncryptionMethod") ?? []) {
+    if (!fontObfuscation.has(method.getAttribute("Algorithm") ?? "")) return true;
+  }
+
+  return false;
+}
+
+function isFixedLayout(metadataTags: ReadonlyArray<Element>): boolean {
+  return metadataTags.some(
+    (meta) =>
+      meta.getAttribute("property") === "rendition:layout" &&
+      meta.textContent?.trim() === "pre-paginated",
+  );
+}
+
+function readItems(
+  opf: Document,
+  opfDir: string,
+): {
+  readonly items: Map<string, EpubItem>;
+  readonly types: Map<string, string>;
+} {
+  const items = new Map<string, EpubItem>();
+  const types = new Map<string, string>();
+
+  for (const item of opf.getElementsByTagNameNS("*", "item")) {
+    const path = resolve(opfDir, item.getAttribute("href") ?? "");
+    const type = item.getAttribute("media-type") ?? "";
+
+    types.set(path, type);
+    items.set(item.getAttribute("id") ?? "", {
+      path,
+      type,
+      properties: item.getAttribute("properties") ?? "",
+    });
+  }
+
+  return { items, types };
+}
+
+function readSpine(opf: Document, items: ReadonlyMap<string, EpubItem>): Array<string> {
+  const spine: Array<string> = [];
+
+  for (const reference of opf.getElementsByTagNameNS("*", "itemref")) {
+    const item = items.get(reference.getAttribute("idref") ?? "");
+
+    if (item !== undefined) spine.push(item.path);
+  }
+
+  return spine;
+}
+
+function readClassStyles(
+  items: ReadonlyMap<string, EpubItem>,
+  read: (path: string) => string | null,
+): Map<string, Style> {
+  const classStyles = new Map<string, Style>();
+
+  for (const item of items.values()) {
+    if (item.type !== "text/css") continue;
+
+    let css = read(item.path) ?? "";
+
+    for (let open = css.indexOf("/*"); open >= 0; open = css.indexOf("/*")) {
+      const close = css.indexOf("*/", open + 2);
+
+      css = css.slice(0, open) + (close < 0 ? "" : css.slice(close + 2));
+    }
+
+    for (const rule of css.split("}")) {
+      const open = rule.lastIndexOf("{");
+
+      if (open < 0) continue;
+
+      const style = readStyle(rule.slice(open + 1));
+
+      if (style.bold === undefined && style.italic === undefined) continue;
+
+      // The text after the last "{" drops an enclosing "@media … {".
+      const head = rule.slice(0, open);
+
+      for (const selector of head.slice(head.lastIndexOf("{") + 1).split(",")) {
+        const last = selector.trim().split(" ").at(-1) ?? "";
+        const dot = last.lastIndexOf(".");
+
+        if (dot < 0) continue;
+
+        const name =
+          last
+            .slice(dot + 1)
+            .split(":")[0]
+            ?.split("[")[0] ?? "";
+
+        if (name !== "") classStyles.set(name, { ...classStyles.get(name), ...style });
+      }
+    }
+  }
+
+  return classStyles;
+}
+
+interface EpubItem {
+  readonly path: string;
+  readonly type: string;
+  readonly properties: string;
+}
+
+function readContents(
+  items: ReadonlyMap<string, EpubItem>,
+  parse: (path: string, type: DOMParserSupportedType) => Document | null,
+): Array<{ title: string; target: string; depth: number }> {
+  const contents: Array<{ title: string; target: string; depth: number }> = [];
+  const navItem = [...items.values()].find((item) => item.properties.split(" ").includes("nav"));
+  const nav = navItem === undefined ? null : parse(navItem.path, "application/xhtml+xml");
+
+  if (navItem !== undefined && nav !== null) {
+    const navs = [...nav.getElementsByTagNameNS("*", "nav")];
+    const toc =
+      navs.find((element) =>
+        (element.getAttribute("epub:type") ?? "").split(" ").includes("toc"),
+      ) ?? navs[0];
+    const navDir = navItem.path.slice(0, navItem.path.lastIndexOf("/") + 1);
+    const visit = (list: Element, depth: number): void => {
+      for (const entry of list.children) {
+        if (entry.localName !== "li") continue;
+
+        for (const part of entry.children) {
+          const href = part.getAttribute("href");
+
+          if (part.localName === "a" && href !== null) {
+            const fragment = href.split("#")[1];
+            const file = resolve(navDir, href);
+
+            contents.push({
+              title: part.textContent?.trim() ?? "",
+              target: fragment === undefined ? file : `${file}#${fragment}`,
+              depth,
+            });
+          }
+
+          if (part.localName === "ol" || part.localName === "ul") visit(part, depth + 1);
+        }
+      }
+    };
+    const list = [...(toc?.children ?? [])].find((element) => element.localName === "ol");
+
+    if (list !== undefined) visit(list, 0);
+  }
+
+  const ncxItem = [...items.values()].find((item) => item.type === "application/x-dtbncx+xml");
+  const ncx =
+    contents.length > 0 || ncxItem === undefined ? null : parse(ncxItem.path, "application/xml");
+
+  if (ncxItem !== undefined && ncx !== null) {
+    const ncxDir = ncxItem.path.slice(0, ncxItem.path.lastIndexOf("/") + 1);
+    const visit = (parent: Element, depth: number): void => {
+      for (const point of parent.children) {
+        if (point.localName !== "navPoint") continue;
+
+        const source = point.getElementsByTagNameNS("*", "content")[0]?.getAttribute("src") ?? "";
+        const fragment = source.split("#")[1];
+        const file = resolve(ncxDir, source);
+
+        contents.push({
+          title: point.getElementsByTagNameNS("*", "text")[0]?.textContent?.trim() ?? "",
+          target: fragment === undefined ? file : `${file}#${fragment}`,
+          depth,
+        });
+        visit(point, depth + 1);
+      }
+    };
+    const map = ncx.getElementsByTagNameNS("*", "navMap")[0];
+
+    if (map !== undefined) visit(map, 0);
+  }
+
+  return contents;
+}
+
+function coverOf(
+  items: ReadonlyMap<string, EpubItem>,
+  images: ReadonlyArray<{ readonly id: string; readonly path: string; readonly type: string }>,
+  opf: Document,
+): { readonly id: string; readonly path: string; readonly type: string } | null {
+  const named = opf.querySelector("meta[name='cover']")?.getAttribute("content");
+  const coverItem =
+    [...items.values()].find((item) => item.properties.split(" ").includes("cover-image")) ??
+    items.get(named ?? "");
+
+  if (coverItem !== undefined && coverItem.type.startsWith("image/")) {
+    return { id: "cover", path: coverItem.path, type: coverItem.type };
+  }
+
+  return images[0] === undefined ? null : { ...images[0], id: "cover" };
+}
+
+function readMetadata(
+  opf: Document,
+  metadataTags: ReadonlyArray<Element>,
+): {
+  readonly title: string | undefined;
+  readonly author: string | undefined;
+  readonly subject: string | undefined;
+  readonly series: string | undefined;
+  readonly seriesNumber: number | undefined;
+} {
+  const metadata = (name: string): ReadonlyArray<string> =>
+    [...opf.getElementsByTagNameNS("*", name)]
+      .map((element) => element.textContent?.trim() ?? "")
+      .filter((value) => value !== "");
+  const collections = metadataTags.filter(
+    (meta) => meta.getAttribute("property") === "belongs-to-collection",
+  );
+  const collection =
+    collections.find((meta) => {
+      const id = meta.getAttribute("id");
+
+      return (
+        id !== null &&
+        metadataTags.some(
+          (refined) =>
+            refined.getAttribute("refines") === `#${id}` &&
+            refined.getAttribute("property") === "group-position",
+        )
+      );
+    }) ?? collections[0];
+  const epubSeries = collection?.textContent?.trim() || undefined;
+  const collectionId = collection?.getAttribute("id");
+  const groupPosition =
+    collectionId === null || collectionId === undefined
+      ? undefined
+      : metadataTags
+          .find(
+            (meta) =>
+              meta.getAttribute("refines") === `#${collectionId}` &&
+              meta.getAttribute("property") === "group-position",
+          )
+          ?.textContent?.trim();
+  const calibreSeries =
+    metadataTags
+      .find((meta) => meta.getAttribute("name") === "calibre:series")
+      ?.getAttribute("content")
+      ?.trim() || undefined;
+  const calibreSeriesNumber = metadataTags
+    .find((meta) => meta.getAttribute("name") === "calibre:series_index")
+    ?.getAttribute("content")
+    ?.trim();
+  const series = epubSeries ?? calibreSeries;
+  const seriesNumberText =
+    series === undefined ? undefined : (groupPosition ?? calibreSeriesNumber);
+  const parsedSeriesNumber =
+    seriesNumberText === undefined || seriesNumberText === ""
+      ? undefined
+      : Number(seriesNumberText);
+
+  return {
+    title: metadata("title")[0],
+    author: metadata("creator")[0],
+    subject: metadata("subject").join(", ") || undefined,
+    series,
+    seriesNumber: Number.isFinite(parsedSeriesNumber) ? parsedSeriesNumber : undefined,
+  };
+}
+
+type Mark = NonNullable<Block["marks"]>[number];
+
+interface ChapterState {
+  text: string;
+  marks: Array<Mark>;
+  level: number;
+  page: number;
+  readonly blocks: Array<Block>;
+  readonly anchors: Map<string, number>;
+  readonly imageIds: Map<string, string>;
+  readonly classStyles: ReadonlyMap<string, Style>;
+}
+
+function flushChapter(state: ChapterState): void {
+  const lead = state.text.length - state.text.trimStart().length;
+  const body = state.text.trim();
+
+  if (body !== "") {
+    const kept = state.marks
+      .map((mark) => ({
+        ...mark,
+        start: Math.max(0, mark.start - lead),
+        end: Math.min(body.length, mark.end - lead),
+      }))
+      .filter((mark) => mark.end > mark.start);
+
+    state.blocks.push(
+      new Block({
+        kind: state.level > 0 ? "heading" : "paragraph",
+        level: state.level,
+        text: body,
+        page: state.page,
+        marks: kept.length > 0 ? kept : undefined,
+      }),
+    );
+  }
+
+  state.text = "";
+  state.marks = [];
+}
+
+function walkChapter(node: Node, style: Style, path: string, state: ChapterState): void {
+  for (const child of node.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE || child.nodeType === Node.CDATA_SECTION_NODE) {
+      appendText(child, style, state);
+      continue;
+    }
+
+    if (child.nodeType !== Node.ELEMENT_NODE) continue;
+
+    appendElement(child as Element, style, path, state);
+  }
+}
+
+function appendText(node: Node, style: Style, state: ChapterState): void {
+  const from = state.text.length;
+
+  // Collapse the source's whitespace the way a browser would. No-break spaces stay.
+  for (const char of node.nodeValue ?? "") {
+    if (" \n\t\r\f".includes(char)) {
+      if (state.text !== "" && !state.text.endsWith(" ")) state.text += " ";
+    } else {
+      state.text += char;
+    }
+  }
+
+  if (state.text.length > from && style.bold === true) {
+    state.marks.push({ start: from, end: state.text.length, style: "bold" });
+  }
+
+  if (state.text.length > from && style.italic === true) {
+    state.marks.push({ start: from, end: state.text.length, style: "italic" });
+  }
+}
+
+function isHeadingName(name: string): boolean {
+  return name.length === 2 && name.startsWith("h") && "123456".includes(name[1] ?? "");
+}
+
+function isImageName(name: string): boolean {
+  return name === "img" || name === "image";
+}
+
+function isBlockName(name: string): boolean {
+  return isHeadingName(name) || isImageName(name) || blockNames.has(name);
+}
+
+function appendElement(element: Element, style: Style, path: string, state: ChapterState): void {
+  const name = element.localName.toLowerCase();
+
+  if (skipNames.has(name)) return;
+
+  if (name === "br") {
+    if (state.text !== "" && !state.text.endsWith(" ")) state.text += " ";
+    return;
+  }
+
+  const heading = isHeadingName(name);
+  const image = isImageName(name);
+
+  if (isBlockName(name)) flushChapter(state);
+
+  // A block element flushed first, so the next block pushed is the one this id names.
+  const id = element.getAttribute("id");
+
+  if (id !== null) state.anchors.set(`${path}#${id}`, state.blocks.length);
+
+  if (image) {
+    appendImage(element, path, state);
+    return;
+  }
+
+  const next = elementStyle(element, style, state.classStyles);
+
+  if (heading) state.level = Math.min(3, Number(name[1]));
+  walkChapter(element, next, path, state);
+  if (isBlockName(name)) flushChapter(state);
+  if (heading) state.level = 0;
+}
+
+function appendImage(element: Element, path: string, state: ChapterState): void {
+  const source =
+    element.getAttribute("src") ??
+    element.getAttribute("href") ??
+    element.getAttribute("xlink:href");
+
+  if (source === null) return;
+
+  const target = resolve(path.slice(0, path.lastIndexOf("/") + 1), source);
+  const imageId = state.imageIds.get(target) ?? `epub-${state.imageIds.size + 1}`;
+
+  state.imageIds.set(target, imageId);
+  state.blocks.push(new Block({ kind: "image", level: 0, text: "", page: state.page, imageId }));
+}
+
+function elementStyle(
+  element: Element,
+  style: Style,
+  classStyles: ReadonlyMap<string, Style>,
+): Style {
+  let bold = style.bold === true || element.localName === "b" || element.localName === "strong";
+  let italic = style.italic === true || italicNames.has(element.localName);
+
+  for (const className of (element.getAttribute("class") ?? "").split(" ")) {
+    const own = classStyles.get(className);
+
+    bold = own?.bold ?? bold;
+    italic = own?.italic ?? italic;
+  }
+
+  const inline = readStyle(element.getAttribute("style") ?? "");
+
+  return { bold: inline.bold ?? bold, italic: inline.italic ?? italic };
+}
+
+function buildToc(
+  contents: ReadonlyArray<{
+    readonly title: string;
+    readonly target: string;
+    readonly depth: number;
+  }>,
+  anchors: ReadonlyMap<string, number>,
+  blocks: Array<Block>,
+): Array<TocEntry> {
+  const toc: Array<TocEntry> = [];
+
+  for (const entry of contents) {
+    const index = anchors.get(entry.target) ?? anchors.get(entry.target.split("#")[0] ?? "");
+    const block = index === undefined ? undefined : blocks[index];
+
+    if (index === undefined || block === undefined || entry.title === "") continue;
+
+    // Books often style chapter titles as bold paragraphs. Spaces differ around a <br/>.
+    const title = entry.title.toLowerCase().replaceAll(" ", "");
+    const opening = block.text.toLowerCase().replaceAll(" ", "");
+
+    if (block.kind === "paragraph" && block.text.length <= 120 && opening.startsWith(title)) {
+      blocks[index] = new Block({
+        ...block,
+        kind: "heading",
+        level: Math.min(3, entry.depth + 2),
+      });
+    }
+
+    toc.push(
+      new TocEntry({
+        title: entry.title,
+        page: block.page,
+        blockIndex: index,
+        depth: entry.depth,
+      }),
+    );
+  }
+
+  return toc;
+}
+
 export function parseEpub(
   files: Readonly<Record<string, Uint8Array>>,
   onChapter: (done: number, total: number) => void,
@@ -125,15 +594,7 @@ export function parseEpub(
     };
     const corrupt = new EpubFailure({ reason: "corrupt" });
 
-    if (read("META-INF/sinf.xml") !== null) return yield* new EpubFailure({ reason: "drm" });
-
-    const encryption = parse("META-INF/encryption.xml", "application/xml");
-
-    for (const method of encryption?.getElementsByTagNameNS("*", "EncryptionMethod") ?? []) {
-      if (!fontObfuscation.has(method.getAttribute("Algorithm") ?? "")) {
-        return yield* new EpubFailure({ reason: "drm" });
-      }
-    }
+    if (hasDrm(read, parse)) return yield* new EpubFailure({ reason: "drm" });
 
     const container = parse("META-INF/container.xml", "application/xml");
     const opfPath = container
@@ -150,212 +611,43 @@ export function parseEpub(
 
     const metadataTags = [...opf.getElementsByTagNameNS("*", "meta")];
 
-    for (const meta of metadataTags) {
-      if (
-        meta.getAttribute("property") === "rendition:layout" &&
-        meta.textContent?.trim() === "pre-paginated"
-      ) {
-        return yield* new EpubFailure({ reason: "fixed-layout" });
-      }
+    if (isFixedLayout(metadataTags)) {
+      return yield* new EpubFailure({ reason: "fixed-layout" });
     }
 
-    const items = new Map<string, { path: string; type: string; properties: string }>();
-    const types = new Map<string, string>();
-
-    for (const item of opf.getElementsByTagNameNS("*", "item")) {
-      const path = resolve(opfDir, item.getAttribute("href") ?? "");
-      const type = item.getAttribute("media-type") ?? "";
-
-      types.set(path, type);
-      items.set(item.getAttribute("id") ?? "", {
-        path,
-        type,
-        properties: item.getAttribute("properties") ?? "",
-      });
-    }
-
-    const spine: string[] = [];
-
-    for (const reference of opf.getElementsByTagNameNS("*", "itemref")) {
-      const item = items.get(reference.getAttribute("idref") ?? "");
-
-      if (item !== undefined) spine.push(item.path);
-    }
+    const { items, types } = readItems(opf, opfDir);
+    const spine = readSpine(opf, items);
 
     if (spine.length === 0) return yield* corrupt;
 
-    const classStyles = new Map<string, Style>();
+    const classStyles = readClassStyles(items, read);
 
-    for (const item of items.values()) {
-      if (item.type !== "text/css") continue;
-
-      let css = read(item.path) ?? "";
-
-      for (let open = css.indexOf("/*"); open >= 0; open = css.indexOf("/*")) {
-        const close = css.indexOf("*/", open + 2);
-
-        css = css.slice(0, open) + (close < 0 ? "" : css.slice(close + 2));
-      }
-
-      for (const rule of css.split("}")) {
-        const open = rule.lastIndexOf("{");
-
-        if (open < 0) continue;
-
-        const style = readStyle(rule.slice(open + 1));
-
-        if (style.bold === undefined && style.italic === undefined) continue;
-
-        // The text after the last "{" drops an enclosing "@media … {".
-        const head = rule.slice(0, open);
-
-        for (const selector of head.slice(head.lastIndexOf("{") + 1).split(",")) {
-          const last = selector.trim().split(" ").at(-1) ?? "";
-          const dot = last.lastIndexOf(".");
-
-          if (dot < 0) continue;
-
-          const name =
-            last
-              .slice(dot + 1)
-              .split(":")[0]
-              ?.split("[")[0] ?? "";
-
-          if (name !== "") classStyles.set(name, { ...classStyles.get(name), ...style });
-        }
-      }
-    }
-
-    const blocks: Block[] = [];
+    const blocks: Array<Block> = [];
     const anchors = new Map<string, number>();
     const imageIds = new Map<string, string>();
-    let text = "";
-    let marks: Array<NonNullable<Block["marks"]>[number]> = [];
-    let level = 0;
-    let page = 0;
-
-    const flush = (): void => {
-      const lead = text.length - text.trimStart().length;
-      const body = text.trim();
-
-      if (body !== "") {
-        const kept = marks
-          .map((mark) => ({
-            ...mark,
-            start: Math.max(0, mark.start - lead),
-            end: Math.min(body.length, mark.end - lead),
-          }))
-          .filter((mark) => mark.end > mark.start);
-
-        blocks.push(
-          new Block({
-            kind: level > 0 ? "heading" : "paragraph",
-            level,
-            text: body,
-            page,
-            marks: kept.length > 0 ? kept : undefined,
-          }),
-        );
-      }
-
-      text = "";
-      marks = [];
-    };
-
-    const walk = (node: Node, style: Style, path: string): void => {
-      for (const child of node.childNodes) {
-        if (child.nodeType === Node.TEXT_NODE || child.nodeType === Node.CDATA_SECTION_NODE) {
-          const from = text.length;
-
-          // Collapse the source's whitespace the way a browser would. No-break spaces stay.
-          for (const char of child.nodeValue ?? "") {
-            if (" \n\t\r\f".includes(char)) {
-              if (text !== "" && !text.endsWith(" ")) text += " ";
-            } else {
-              text += char;
-            }
-          }
-
-          if (text.length > from && style.bold === true) {
-            marks.push({ start: from, end: text.length, style: "bold" });
-          }
-
-          if (text.length > from && style.italic === true) {
-            marks.push({ start: from, end: text.length, style: "italic" });
-          }
-
-          continue;
-        }
-        if (child.nodeType !== Node.ELEMENT_NODE) continue;
-
-        const element = child as Element;
-        const name = element.localName.toLowerCase();
-
-        if (skipNames.has(name)) continue;
-        if (name === "br") {
-          if (text !== "" && !text.endsWith(" ")) text += " ";
-          continue;
-        }
-
-        const heading =
-          name.length === 2 && name.startsWith("h") && "123456".includes(name[1] ?? "");
-        const image = name === "img" || name === "image";
-
-        if (heading || image || blockNames.has(name)) flush();
-
-        // A block element flushed first, so the next block pushed is the one this id names.
-        const id = element.getAttribute("id");
-
-        if (id !== null) anchors.set(`${path}#${id}`, blocks.length);
-
-        if (image) {
-          const source =
-            element.getAttribute("src") ??
-            element.getAttribute("href") ??
-            element.getAttribute("xlink:href");
-
-          if (source === null) continue;
-
-          const target = resolve(path.slice(0, path.lastIndexOf("/") + 1), source);
-          const imageId = imageIds.get(target) ?? `epub-${imageIds.size + 1}`;
-
-          imageIds.set(target, imageId);
-          blocks.push(new Block({ kind: "image", level: 0, text: "", page, imageId }));
-          continue;
-        }
-
-        let bold = style.bold === true || name === "b" || name === "strong";
-        let italic = style.italic === true || italicNames.has(name);
-
-        for (const className of (element.getAttribute("class") ?? "").split(" ")) {
-          const own = classStyles.get(className);
-
-          bold = own?.bold ?? bold;
-          italic = own?.italic ?? italic;
-        }
-
-        const inline = readStyle(element.getAttribute("style") ?? "");
-        const next = { bold: inline.bold ?? bold, italic: inline.italic ?? italic };
-
-        if (heading) level = Math.min(3, Number(name[1]));
-        walk(element, next, path);
-        if (heading || blockNames.has(name)) flush();
-        if (heading) level = 0;
-      }
+    const state: ChapterState = {
+      text: "",
+      marks: [],
+      level: 0,
+      page: 0,
+      blocks,
+      anchors,
+      imageIds,
+      classStyles,
     };
 
     yield* Stream.fromIterable(spine.entries()).pipe(
       Stream.tap(([index, path]) =>
         Effect.sync(() => {
-          page = index + 1;
-          anchors.set(path, blocks.length);
+          state.page = index + 1;
+          state.anchors.set(path, state.blocks.length);
 
           const chapter = parse(path, "application/xhtml+xml");
           const body = chapter?.getElementsByTagNameNS("*", "body")[0];
 
-          if (body !== undefined) walk(body, {}, path);
-          flush();
-          onChapter(page, spine.length);
+          if (body !== undefined) walkChapter(body, {}, path, state);
+          flushChapter(state);
+          onChapter(state.page, spine.length);
         }),
       ),
       // Lets the progress panel paint between chapters.
@@ -363,168 +655,21 @@ export function parseEpub(
       Stream.runDrain,
     );
 
-    const contents: Array<{ title: string; target: string; depth: number }> = [];
-    const navItem = [...items.values()].find((item) => item.properties.split(" ").includes("nav"));
-    const nav = navItem === undefined ? null : parse(navItem.path, "application/xhtml+xml");
+    const contents = readContents(items, parse);
 
-    if (navItem !== undefined && nav !== null) {
-      const navs = [...nav.getElementsByTagNameNS("*", "nav")];
-      const toc =
-        navs.find((element) =>
-          (element.getAttribute("epub:type") ?? "").split(" ").includes("toc"),
-        ) ?? navs[0];
-      const navDir = navItem.path.slice(0, navItem.path.lastIndexOf("/") + 1);
-      const visit = (list: Element, depth: number): void => {
-        for (const entry of list.children) {
-          if (entry.localName !== "li") continue;
-
-          for (const part of entry.children) {
-            const href = part.getAttribute("href");
-
-            if (part.localName === "a" && href !== null) {
-              const fragment = href.split("#")[1];
-              const file = resolve(navDir, href);
-
-              contents.push({
-                title: part.textContent?.trim() ?? "",
-                target: fragment === undefined ? file : `${file}#${fragment}`,
-                depth,
-              });
-            }
-
-            if (part.localName === "ol" || part.localName === "ul") visit(part, depth + 1);
-          }
-        }
-      };
-      const list = [...(toc?.children ?? [])].find((element) => element.localName === "ol");
-
-      if (list !== undefined) visit(list, 0);
-    }
-
-    const ncxItem = [...items.values()].find((item) => item.type === "application/x-dtbncx+xml");
-    const ncx =
-      contents.length > 0 || ncxItem === undefined ? null : parse(ncxItem.path, "application/xml");
-
-    if (ncxItem !== undefined && ncx !== null) {
-      const ncxDir = ncxItem.path.slice(0, ncxItem.path.lastIndexOf("/") + 1);
-      const visit = (parent: Element, depth: number): void => {
-        for (const point of parent.children) {
-          if (point.localName !== "navPoint") continue;
-
-          const source = point.getElementsByTagNameNS("*", "content")[0]?.getAttribute("src") ?? "";
-          const fragment = source.split("#")[1];
-          const file = resolve(ncxDir, source);
-
-          contents.push({
-            title: point.getElementsByTagNameNS("*", "text")[0]?.textContent?.trim() ?? "",
-            target: fragment === undefined ? file : `${file}#${fragment}`,
-            depth,
-          });
-          visit(point, depth + 1);
-        }
-      };
-      const map = ncx.getElementsByTagNameNS("*", "navMap")[0];
-
-      if (map !== undefined) visit(map, 0);
-    }
-
-    const toc: TocEntry[] = [];
-
-    for (const entry of contents) {
-      const index = anchors.get(entry.target) ?? anchors.get(entry.target.split("#")[0] ?? "");
-      const block = index === undefined ? undefined : blocks[index];
-
-      if (index === undefined || block === undefined || entry.title === "") continue;
-
-      // Books often style chapter titles as bold paragraphs. Spaces differ around a <br/>.
-      const title = entry.title.toLowerCase().replaceAll(" ", "");
-      const opening = block.text.toLowerCase().replaceAll(" ", "");
-
-      if (block.kind === "paragraph" && block.text.length <= 120 && opening.startsWith(title)) {
-        blocks[index] = new Block({
-          ...block,
-          kind: "heading",
-          level: Math.min(3, entry.depth + 2),
-        });
-      }
-
-      toc.push(
-        new TocEntry({
-          title: entry.title,
-          page: block.page,
-          blockIndex: index,
-          depth: entry.depth,
-        }),
-      );
-    }
+    const toc = buildToc(contents, anchors, blocks);
 
     const images = [...imageIds].map(([path, id]) => ({ id, path, type: types.get(path) ?? "" }));
-    const named = opf.querySelector("meta[name='cover']")?.getAttribute("content");
-    const coverItem =
-      [...items.values()].find((item) => item.properties.split(" ").includes("cover-image")) ??
-      items.get(named ?? "");
-    const cover =
-      coverItem !== undefined && coverItem.type.startsWith("image/")
-        ? { id: "cover", path: coverItem.path, type: coverItem.type }
-        : images[0] === undefined
-          ? null
-          : { ...images[0], id: "cover" };
-
-    const metadata = (name: string): ReadonlyArray<string> =>
-      [...opf.getElementsByTagNameNS("*", name)]
-        .map((element) => element.textContent?.trim() ?? "")
-        .filter((value) => value !== "");
-    const collections = metadataTags.filter(
-      (meta) => meta.getAttribute("property") === "belongs-to-collection",
-    );
-    const collection =
-      collections.find((meta) => {
-        const id = meta.getAttribute("id");
-        return (
-          id !== null &&
-          metadataTags.some(
-            (refined) =>
-              refined.getAttribute("refines") === `#${id}` &&
-              refined.getAttribute("property") === "group-position",
-          )
-        );
-      }) ?? collections[0];
-    const epubSeries = collection?.textContent?.trim() || undefined;
-    const collectionId = collection?.getAttribute("id");
-    const groupPosition =
-      collectionId === null || collectionId === undefined
-        ? undefined
-        : metadataTags
-            .find(
-              (meta) =>
-                meta.getAttribute("refines") === `#${collectionId}` &&
-                meta.getAttribute("property") === "group-position",
-            )
-            ?.textContent?.trim();
-    const calibreSeries =
-      metadataTags
-        .find((meta) => meta.getAttribute("name") === "calibre:series")
-        ?.getAttribute("content")
-        ?.trim() || undefined;
-    const calibreSeriesNumber = metadataTags
-      .find((meta) => meta.getAttribute("name") === "calibre:series_index")
-      ?.getAttribute("content")
-      ?.trim();
-    const series = epubSeries ?? calibreSeries;
-    const seriesNumberText =
-      series === undefined ? undefined : (groupPosition ?? calibreSeriesNumber);
-    const parsedSeriesNumber =
-      seriesNumberText === undefined || seriesNumberText === ""
-        ? undefined
-        : Number(seriesNumberText);
+    const cover = coverOf(items, images, opf);
+    const { title, author, subject, series, seriesNumber } = readMetadata(opf, metadataTags);
     const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
 
     return {
-      title: metadata("title")[0],
-      author: metadata("creator")[0],
-      subject: metadata("subject").join(", ") || undefined,
+      title,
+      author,
+      subject,
       series,
-      seriesNumber: Number.isFinite(parsedSeriesNumber) ? parsedSeriesNumber : undefined,
+      seriesNumber,
       images,
       cover,
       parsed: new ParsedBook({
