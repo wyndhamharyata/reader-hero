@@ -63,12 +63,6 @@ export const PdfPage = memo(function PdfPage({
     const fiber = forkApp(
       renderPdfPage(doc, size.page, canvas, renderScale).pipe(
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
-        Effect.andThen(
-          readPageLinks(doc, size.page).pipe(
-            Effect.catchTag("PdfFailure", () => Effect.succeed([])),
-            Effect.tap((found) => Effect.sync(() => setLinks(found))),
-          ),
-        ),
       ),
     );
 
@@ -78,6 +72,22 @@ export const PdfPage = memo(function PdfPage({
       canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
     };
   }, [doc, size.page, renderScale]);
+
+  useEffect(() => {
+    if (failed) {
+      setLinks([]);
+      return;
+    }
+
+    const fiber = forkApp(
+      readPageLinks(doc, size.page).pipe(
+        Effect.catchTag("PdfFailure", () => Effect.succeed([])),
+        Effect.tap((found) => Effect.sync(() => setLinks(found))),
+      ),
+    );
+
+    return () => stopFiber(fiber);
+  }, [doc, size.page, failed]);
 
   const detailScale = detail?.scale ?? 0;
   const { left = 0, top = 0, width = 0, height = 0 } = detail?.area ?? {};

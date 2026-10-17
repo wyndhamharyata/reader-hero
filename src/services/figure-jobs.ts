@@ -19,7 +19,7 @@ export class FigureJobs extends Context.Service<
     Effect.gen(function* () {
       const services = yield* Effect.context<BookStore | PdfClient | FigureSlots>();
       const owners = new Map<string, Set<object>>();
-      const fibers = new Map<string, Fiber.Fiber<void>>();
+      const fibers = new Map<string, { fiber?: Fiber.Fiber<void>; isStopped?: boolean }>();
 
       // A job that ended, done or failed, starts again on the next hold.
       const hold = (owner: object, bookId: string, startPage: number): Effect.Effect<void> =>
@@ -30,20 +30,24 @@ export class FigureJobs extends Context.Service<
           owners.set(bookId, holding);
           if (fibers.has(bookId)) return;
 
-          // Read in `ensuring`, which can run before forkDetach returns if the job ends at once.
-          const job: { fiber?: Fiber.Fiber<void> } = {};
+          // The slot is reserved before the fork, so a job that ends at once cannot leave a dead fiber.
+          const job: { fiber?: Fiber.Fiber<void>; isStopped?: boolean } = {};
 
-          job.fiber = yield* Effect.forkDetach(
+          fibers.set(bookId, job);
+
+          const fiber = yield* Effect.forkDetach(
             renderFigures(bookId, startPage).pipe(
               Effect.provideContext(services),
               Effect.ensuring(
                 Effect.sync(() => {
-                  if (fibers.get(bookId) === job.fiber) fibers.delete(bookId);
+                  if (fibers.get(bookId) === job) fibers.delete(bookId);
                 }),
               ),
             ),
           );
-          fibers.set(bookId, job.fiber);
+
+          job.fiber = fiber;
+          if (job.isStopped === true) yield* Fiber.interrupt(fiber);
         });
 
       // The job keeps a checkpoint, so the next hold resumes where this one stopped.
@@ -60,11 +64,16 @@ export class FigureJobs extends Context.Service<
         });
 
       const stopFiber = (bookId: string): Effect.Effect<void> => {
-        const fiber = fibers.get(bookId);
+        const job = fibers.get(bookId);
 
         fibers.delete(bookId);
-        
-return fiber === undefined ? Effect.void : Fiber.interrupt(fiber);
+        if (job === undefined) return Effect.void;
+        if (job.fiber === undefined) {
+          job.isStopped = true;
+          return Effect.void;
+        }
+
+        return Fiber.interrupt(job.fiber);
       };
 
       const stop = (bookId: string): Effect.Effect<void> =>

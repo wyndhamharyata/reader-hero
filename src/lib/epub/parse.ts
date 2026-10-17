@@ -633,7 +633,9 @@ function resolveBlockLinks(blocks: Array<Block>, anchors: ReadonlyMap<string, nu
       if (!isInternal) marks.push(mark);
       else {
         changed = true;
-        if (target !== undefined) marks.push({ ...mark, href: blockLink(target) });
+
+        if (target !== undefined && target < blocks.length)
+          marks.push({ ...mark, href: blockLink(target) });
       }
     }
 

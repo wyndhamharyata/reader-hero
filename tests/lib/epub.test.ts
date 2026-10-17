@@ -148,6 +148,16 @@ describe("parseEpub", () => {
     ]);
   });
 
+  it("given a link to an anchor after the last block, drops the link", () => {
+    const files = book({
+      "OEBPS/Text/chapter two.xhtml": page(`<p>Before <a href="#end">end</a>.</p><a id="end"></a>`),
+    });
+    const blocks = run(files).parsed.blocks;
+    const paragraph = blocks.find((block) => block.text === "Before end.");
+
+    expect(paragraph?.marks).toBeUndefined();
+  });
+
   it("given a nav document, links entries to blocks and promotes the bold title to a heading", () => {
     const parsed = run(book()).parsed;
 

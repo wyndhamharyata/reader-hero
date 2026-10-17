@@ -38,7 +38,7 @@ function Choice({
       <button
         type="button"
         role="option"
-        aria-isSelected={isSelected}
+        aria-selected={isSelected}
         className={`w-full cursor-pointer rounded-field px-3 py-2 text-left text-base md:py-1.5 md:text-sm ${isSelected ? "bg-base-200 font-medium" : "hover:bg-base-200"}`}
         onClick={() => onPick(id)}
       >

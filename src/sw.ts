@@ -75,8 +75,8 @@ async function handleShare(request: Request): Promise<Response> {
 
       await db.add("inbox", { name: file.name, blob: file, addedAt: Date.now() });
     }
-  } catch {
-    // Nothing to keep.
+  } catch (cause) {
+    console.error("handleShare: shared file was not stored", cause);
   }
 
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);

@@ -30,7 +30,7 @@ export function MarkedText({ text, marks = [] }: Props): ReactElement {
               key={start}
               href={link.href}
               className={`${bold} ${italic} text-primary underline underline-offset-2`}
-              data-block={block ?? undefined}
+              data-link-block={block ?? undefined}
               target={block === null ? "_blank" : undefined}
               rel={block === null ? "noreferrer" : undefined}
             >

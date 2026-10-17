@@ -1,10 +1,10 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
-
-const FONT_FALLBACK_MS = 1500;
 import { fontFamily, type Block, type ParsedBook, type ReaderSettings } from "@/domain/book";
 import { useTapFilter } from "@/lib/use-tap-filter";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
+
+const FONT_FALLBACK_MS = 1500;
 
 export interface JumpRequest {
   readonly index: number;
@@ -89,7 +89,7 @@ export const ReaderView = memo(function ReaderView({
 
     if (container === null || restoredRef.current || !fontReady) return;
 
-    const target = container.querySelector<HTMLElement>(`[data-block="${initialBlock}"]`);
+    const target = container.querySelector<HTMLElement>(`div[data-block="${initialBlock}"]`);
 
     if (target === null) return;
 
@@ -106,7 +106,7 @@ export const ReaderView = memo(function ReaderView({
     if (container === null || article === null || !fontReady) return;
 
     const measure = (): void => {
-      const nodes = Array.from(container.querySelectorAll<HTMLElement>("[data-block]"));
+      const nodes = Array.from(container.querySelectorAll<HTMLElement>("div[data-block]"));
       const base = container.getBoundingClientRect().top - container.scrollTop;
 
       blocksRef.current = {
@@ -194,19 +194,19 @@ export const ReaderView = memo(function ReaderView({
     if (container === null) return;
 
     container
-      .querySelector<HTMLElement>(`[data-block="${jump.index}"]`)
+      .querySelector<HTMLElement>(`div[data-block="${jump.index}"]`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [jump]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     const container = containerRef.current;
-    const link = target.closest<HTMLAnchorElement>("a[data-block]");
+    const link = target.closest<HTMLAnchorElement>("a[data-link-block]");
 
     if (link !== null && container !== null) {
       event.preventDefault();
 
-      const index = Number(link.dataset.block);
+      const index = Number(link.dataset.linkBlock);
 
       container
         .querySelector<HTMLElement>(`div[data-block="${index}"]`)

@@ -174,7 +174,7 @@ export function BookSheet({
                 onFinished(card.book.id, !isFinished, place);
               }}
             >
-              {isFinished ? "Mark as not isFinished" : "Mark as isFinished"}
+              {isFinished ? "Mark as not finished" : "Mark as finished"}
             </button>
           </div>
           <label className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">

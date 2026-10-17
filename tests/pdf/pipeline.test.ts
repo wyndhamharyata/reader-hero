@@ -79,6 +79,25 @@ describe("buildLines", () => {
     expect(line?.text).toBe("Visit example.com now");
     expect(line?.marks).toEqual([{ start: 6, end: 17, href: "https://example.com" }]);
   });
+
+  it("given a link box over part of one run, marks only the linked characters", () => {
+    const linked = {
+      ...page(1, [item("See https://example.com now", 0, 100, { width: 270 })]),
+      links: [
+        {
+          left: 40,
+          right: 230,
+          bottom: 95,
+          top: 110,
+          target: { url: "https://example.com" },
+        },
+      ],
+    };
+    const [line] = buildLines(linked);
+
+    expect(line?.text).toBe("See https://example.com now");
+    expect(line?.marks).toEqual([{ start: 4, end: 23, href: "https://example.com" }]);
+  });
 });
 
 const order = (lines: ReadonlyArray<TextLine>): string[] =>
