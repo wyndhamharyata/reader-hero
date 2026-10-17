@@ -211,6 +211,8 @@ code around it. Words such as `no longer`, `used to`, `previously`, `older build
 - Give a number a local name when a reader cannot tell what it is from its line. `Math.max(1, x)`
   needs no name. `setTimeout(fn, 150)` does, as `const settleMs = 150` beside the call.
 - Put parentheses around mixed operators when the order is not obvious.
+- A stored field keeps its stored key, so `fontSize` and `textWidth` stay as they are. Both are CSS
+  pixels.
 
 ## 6. Structure.
 
@@ -247,8 +249,8 @@ code around it. Words such as `no longer`, `used to`, `previously`, `older build
   is `linearToDb(x)`.
 - Code that two contexts both need goes in one shared place. Do not copy a worker helper into the
   app.
-- A function that runs past about 80 lines is two functions. Split by what the reader needs at
-  one time, not by line count.
+- A function does one job. When a reader must hold two jobs to follow it, split it. The branch
+  limit is the hard check, not the line count.
 - A function name's verb says what it does. A name that makes the reader look at the body is wrong.
 
 ## 8. Tests state the situation and the result.
