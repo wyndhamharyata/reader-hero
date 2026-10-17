@@ -1,5 +1,5 @@
 // A module of its own, so this code loads on the first request like pdf.js, not at launch.
-import { Effect, Stream } from "effect";
+import { Effect, Option, Schema, Stream } from "effect";
 import {
   relayedProviders,
   type AiProvider,
@@ -59,6 +59,12 @@ const networkFailure = (): AiFailure =>
     message: "No response from the provider",
   });
 
+const FailureBody = Schema.Struct({
+  error: Schema.optional(
+    Schema.Union([Schema.String, Schema.Struct({ message: Schema.optional(Schema.String) })]),
+  ),
+});
+
 const statusFailure = (status: number, body: string): AiFailure => {
   const reason =
     status === 401 || status === 403
@@ -66,16 +72,15 @@ const statusFailure = (status: number, body: string): AiFailure => {
       : status === 429
         ? "rate-limited"
         : "provider";
+  const parsed = Option.getOrUndefined(
+    Schema.decodeUnknownOption(FailureBody)(
+      Option.getOrUndefined(Option.liftThrowable(JSON.parse)(body)),
+    ),
+  );
   let message = body.slice(0, 300);
 
-  try {
-    const parsed = JSON.parse(body) as { error?: { message?: string } | string };
-
-    if (typeof parsed.error === "string") message = parsed.error;
-    else if (typeof parsed.error?.message === "string") message = parsed.error.message;
-  } catch {
-    // The body was not JSON. The raw text is the message.
-  }
+  if (typeof parsed?.error === "string") message = parsed.error;
+  else if (typeof parsed?.error?.message === "string") message = parsed.error.message;
 
   return new AiFailure({ reason, message: message === "" ? `HTTP ${status}` : message });
 };

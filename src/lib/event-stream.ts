@@ -6,6 +6,7 @@ export interface EventStreamState {
 
 export const emptyEventStream: EventStreamState = { buffer: "", data: [] };
 
+import { Option } from "effect";
 import type { AiUsage } from "@/domain/ai";
 
 export type Delta =
@@ -48,11 +49,7 @@ export function endEventStream(state: EventStreamState): ReadonlyArray<Delta> {
 }
 
 function parsePayload(payload: string): unknown {
-  try {
-    return JSON.parse(payload);
-  } catch {
-    return undefined;
-  }
+  return Option.getOrUndefined(Option.liftThrowable(JSON.parse)(payload));
 }
 
 function failureDelta(parsed: unknown): Delta | null {

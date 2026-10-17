@@ -1,11 +1,8 @@
 import { Effect } from "effect";
 import { PdfFailure } from "@/domain/errors";
 import { searchForm } from "@/lib/find-text";
-import {
-  PageRenderer,
-  type PageTextContent,
-  type RenderedDocument,
-} from "@/services/page-renderer";
+import { loadTextLayer, pdfFailure, sliced, viewportOf } from "@/lib/pdf/text-layer";
+import { PageRenderer, type RenderedDocument } from "@/services/page-renderer";
 
 export interface DrawnTextLayer {
   readonly update: (scale: number) => void;
@@ -103,45 +100,6 @@ const markMatches = (layer: HTMLElement, query: string): void => {
   paintMarks();
 };
 
-// pdf.js measures each run on the main thread. This many stays short on a slow phone.
-const ITEMS_PER_SLICE = 150;
-
-const pdfFailure = (cause: unknown): PdfFailure =>
-  new PdfFailure({ reason: "unknown", message: String(cause) });
-
-// The text layer reads only these from a viewport, so the worker's plain numbers stand in for one.
-const viewportOf = (text: PageTextContent, scale: number) => ({
-  scale,
-  rotation: text.rotation,
-  rawDims: {
-    pageWidth: text.pageWidth,
-    pageHeight: text.pageHeight,
-    pageX: text.pageX,
-    pageY: text.pageY,
-  },
-});
-
-// One slice per event-loop turn, so scrolls and taps run between slices.
-const sliced = (content: PageTextContent["content"]): ReadableStream => {
-  let at = 0;
-  return new ReadableStream(
-    {
-      async pull(controller) {
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
-        if (at >= content.items.length) {
-          controller.close();
-          return;
-        }
-
-        controller.enqueue({ ...content, items: content.items.slice(at, at + ITEMS_PER_SLICE) });
-        at += ITEMS_PER_SLICE;
-      },
-    },
-    { highWaterMark: 0 },
-  );
-};
-
 // Built off the page and added in one step, so the list lays out once.
 export function drawTextLayer(
   renderedDocument: RenderedDocument,
@@ -152,10 +110,7 @@ export function drawTextLayer(
   return Effect.gen(function* () {
     const renderer = yield* PageRenderer;
     const text = yield* renderer.text(renderedDocument, page);
-    const { TextLayer } = yield* Effect.tryPromise({
-      try: () => import("pdfjs-dist"),
-      catch: pdfFailure,
-    });
+    const TextLayer = yield* loadTextLayer();
 
     const div = document.createElement("div");
 
