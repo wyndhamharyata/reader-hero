@@ -55,6 +55,30 @@ describe("assembleBook with real pdf.js output", () => {
   });
 });
 
+describe("two columns with real pdf.js output", () => {
+  it("given columns on shared baselines, reads the left column before the right", async () => {
+    const rows = ["alpha", "bravo", "charlie", "delta", "echo"];
+    const data = makePdf(
+      rows.flatMap((word, row) => [
+        { text: `Left ${word} column text runs on`, size: 11, x: 54, y: 700 - row * 14 },
+        { text: `Right ${word} column text runs on`, size: 11, x: 324, y: 700 - row * 14 },
+      ]),
+    );
+
+    const book = await Effect.runPromise(
+      assembleBook(
+        (await readPages(data)).map((text) => ({ text, images: [] })),
+        [],
+      ),
+    );
+
+    const text = book.blocks.map((block) => block.text).join(" ");
+    expect(text.indexOf("Left echo")).toBeLessThan(text.indexOf("Right alpha"));
+    expect(text).toContain("Left alpha column text runs on Left bravo");
+    expect(text).toContain("Right alpha column text runs on Right bravo");
+  });
+});
+
 describe("collectImageBoxes with real pdf.js output", () => {
   it("given a PDF with an embedded image, records its placement", async () => {
     const data = makePdf([{ text: "figure", size: 12, x: 72, y: 700 }], {

@@ -33,7 +33,8 @@ function detectColumns(
     else if (line.x >= middle - CROSS_MARGIN) right += 1;
   }
 
-  if (crossing > 0 || left < MIN_COLUMN_LINES || right < MIN_COLUMN_LINES) {
+  // A title, an abstract or a footnote may cross the middle; most lines crossing it is one column.
+  if (crossing * 4 > left + right || left < MIN_COLUMN_LINES || right < MIN_COLUMN_LINES) {
     return { twoColumn: false, middle };
   }
   return { twoColumn: true, middle };
@@ -57,16 +58,25 @@ export function orderFlow(
       .map((entry) => entry.item);
   }
 
-  const left: typeof entries = [];
-  const right: typeof entries = [];
-  for (const entry of entries) {
+  // Down the page, each line that crosses the middle ends a band: its left column reads, then its right.
+  const ordered: typeof entries = [];
+  let left: typeof entries = [];
+  let right: typeof entries = [];
+  const endBand = () => {
+    ordered.push(...left, ...right);
+    left = [];
+    right = [];
+  };
+  for (const entry of [...entries].sort((a, b) => byVerticalPosition(a.position, b.position))) {
+    if (crossesCenter(entry.position, layout.middle)) {
+      endBand();
+      ordered.push(entry);
+      continue;
+    }
     const center = entry.position.x + entry.position.width / 2;
     if (center < layout.middle) left.push(entry);
     else right.push(entry);
   }
-
-  return [
-    ...left.sort((a, b) => byVerticalPosition(a.position, b.position)),
-    ...right.sort((a, b) => byVerticalPosition(a.position, b.position)),
-  ].map((entry) => entry.item);
+  endBand();
+  return ordered.map((entry) => entry.item);
 }

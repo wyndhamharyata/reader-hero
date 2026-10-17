@@ -63,6 +63,83 @@ describe("buildLines", () => {
 const order = (lines: ReadonlyArray<TextLine>): string[] =>
   orderFlow(lines, [], 400).map((item) => (item.type === "text" ? item.line.text : ""));
 
+// Two columns on a 400-wide page, a left and a right item on each shared baseline.
+const twoColumnItems = (rows: number, top = 700): RawTextItem[] =>
+  Array.from({ length: rows }, (_, row) => [
+    item(`L${row} left words`, 20, top - row * 14, { width: 160 }),
+    item(`R${row} right words`, 220, top - row * 14, { width: 160 }),
+  ]).flat();
+
+const read = (items: RawTextItem[]): string[] =>
+  orderFlow(buildLines(page(1, items)), [], 400).map((entry) =>
+    entry.type === "text" ? entry.line.text : "",
+  );
+
+describe("two columns from raw items", () => {
+  it("given columns that share baselines, splits each row at the gutter", () => {
+    expect(buildLines(page(1, twoColumnItems(3))).map((entry) => entry.text)).toEqual([
+      "L0 left words",
+      "R0 right words",
+      "L1 left words",
+      "R1 right words",
+      "L2 left words",
+      "R2 right words",
+    ]);
+  });
+
+  it("given columns that share baselines, reads the left column before the right", () => {
+    expect(read(twoColumnItems(4))).toEqual([
+      "L0 left words",
+      "L1 left words",
+      "L2 left words",
+      "L3 left words",
+      "R0 right words",
+      "R1 right words",
+      "R2 right words",
+      "R3 right words",
+    ]);
+  });
+
+  it("given a full-width title and footnote, reads them where they stand", () => {
+    const items = [
+      item("A title across the page", 20, 740, { width: 360 }),
+      ...twoColumnItems(4),
+      item("A footnote across the page", 20, 600, { width: 360 }),
+    ];
+    expect(read(items)).toEqual([
+      "A title across the page",
+      "L0 left words",
+      "L1 left words",
+      "L2 left words",
+      "L3 left words",
+      "R0 right words",
+      "R1 right words",
+      "R2 right words",
+      "R3 right words",
+      "A footnote across the page",
+    ]);
+  });
+
+  it("given one column with a wide justified space on one line, keeps that line whole", () => {
+    const rows = Array.from({ length: 6 }, (_, row) =>
+      row === 2
+        ? [
+            item("Words 2 start", 20, 672, { width: 150 }),
+            item("and end 2", 195, 672, { width: 180 }),
+          ]
+        : [item(`Words ${row} across the whole line`, 20, 700 - row * 14, { width: 360 })],
+    ).flat();
+    expect(read(rows)).toEqual([
+      "Words 0 across the whole line",
+      "Words 1 across the whole line",
+      "Words 2 start and end 2",
+      "Words 3 across the whole line",
+      "Words 4 across the whole line",
+      "Words 5 across the whole line",
+    ]);
+  });
+});
+
 describe("orderFlow", () => {
   it("given two clean columns, reads the left column before the right", () => {
     const lines = [

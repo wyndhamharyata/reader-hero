@@ -3,6 +3,11 @@ import type { TextLine } from "./types";
 
 const LINE_TOLERANCE = 0.45;
 const SPACE_FACTOR = 0.22;
+// A gap this many ems wide over the page's middle is a column gutter, wider than any word space.
+const GUTTER_FACTOR = 1;
+const GUTTER_MARGIN = 20;
+// Rows with a gutter needed, at least, and a third of the page's rows, for the page to be two columns.
+const MIN_GUTTER_ROWS = 3;
 
 function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
   const sorted = [...items].sort((a, b) => a.x - b.x);
@@ -22,6 +27,8 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
     previousEnd = item.x + item.width;
     maxSize = Math.max(maxSize, item.fontSize);
     if (fontFamily === "" && item.fontFamily !== "") fontFamily = item.fontFamily;
+    // A space item can run to the next column; the line ends where its text does.
+    if (item.str.trim() === "") continue;
     minX = Math.min(minX, item.x);
     maxX = Math.max(maxX, item.x + item.width);
   }
@@ -37,26 +44,56 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
   };
 }
 
+// Where a row splits at the column gutter: the index of the first item past it, or -1.
+function gutterAt(row: ReadonlyArray<RawTextItem>, middle: number): number {
+  let end = Number.NEGATIVE_INFINITY;
+  for (const [index, item] of row.entries()) {
+    // pdf.js fills a wide gap with a space item, which would hide the gutter.
+    if (item.str.trim() === "") continue;
+    const gap = item.x - end;
+    if (index > 0 && gap >= item.fontSize * GUTTER_FACTOR) {
+      if (end <= middle + GUTTER_MARGIN && item.x >= middle - GUTTER_MARGIN) return index;
+    }
+    end = Math.max(end, item.x + item.width);
+  }
+  return -1;
+}
+
 export function buildLines(page: PageText): ReadonlyArray<TextLine> {
   const items = [...page.items].sort((a, b) => b.y - a.y || a.x - b.x);
-  const lines: TextLine[] = [];
-  let bucket: RawTextItem[] = [];
+  const rows: RawTextItem[][] = [];
   let bucketY = Number.NaN;
-
-  const flush = () => {
-    if (bucket.length === 0) return;
-    const line = makeLine(page.page, bucket);
-    if (line.text.length > 0) lines.push(line);
-    bucket = [];
-  };
-
   for (const item of items) {
     const tolerance = Math.max(2, item.fontSize * LINE_TOLERANCE);
-    if (bucket.length > 0 && Math.abs(item.y - bucketY) > tolerance) flush();
-    if (bucket.length === 0) bucketY = item.y;
-    bucket.push(item);
+    const row = rows.at(-1);
+    if (row !== undefined && Math.abs(item.y - bucketY) <= tolerance) {
+      row.push(item);
+      continue;
+    }
+    rows.push([item]);
+    bucketY = item.y;
   }
-  flush();
 
+  // Two columns share baselines, so their rows split at the gutter; one wide space on one line splits nothing.
+  const middle = page.width / 2;
+  const sorted = rows.map((row) => [...row].sort((a, b) => a.x - b.x));
+  const splits = sorted.map((row) => gutterAt(row, middle));
+  const gutters = splits.filter((at) => at !== -1).length;
+  const twoColumn = gutters >= MIN_GUTTER_ROWS && gutters * 3 >= rows.length;
+
+  const lines: TextLine[] = [];
+  const push = (row: ReadonlyArray<RawTextItem>) => {
+    const line = makeLine(page.page, row);
+    if (line.text.length > 0) lines.push(line);
+  };
+  sorted.forEach((row, index) => {
+    const at = splits[index] ?? -1;
+    if (!twoColumn || at === -1) {
+      push(row);
+      return;
+    }
+    push(row.slice(0, at));
+    push(row.slice(at));
+  });
   return lines;
 }
