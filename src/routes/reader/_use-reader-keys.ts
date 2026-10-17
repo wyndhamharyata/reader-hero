@@ -11,7 +11,6 @@ function isTypingTarget(event: KeyboardEvent): boolean {
   );
 }
 
-// Moves are smooth so the eye can follow. The effect is off under a sheet or the tour, which take Escape.
 export function useReaderKeys({
   isEnabled,
   isSearchOpen,
@@ -26,6 +25,20 @@ export function useReaderKeys({
   readonly setSearchOpen: (isOpen: boolean) => void;
   readonly setTocOpen: (isOpen: boolean) => void;
   readonly navigate: NavigateFunction;
+  readonly fontSize: number;
+  readonly lineHeight: number;
+}): void {
+  useScrollKeys({ isEnabled, fontSize, lineHeight });
+  useShortcutKeys({ isEnabled, isSearchOpen, setSearchOpen, setTocOpen, navigate });
+}
+
+// Moves are smooth so the eye can follow. A stopped key ends its move.
+function useScrollKeys({
+  isEnabled,
+  fontSize,
+  lineHeight,
+}: {
+  readonly isEnabled: boolean;
   readonly fontSize: number;
   readonly lineHeight: number;
 }): void {
@@ -103,16 +116,8 @@ export function useReaderKeys({
         frame: requestAnimationFrame(run),
       };
     };
-    const closeOrLeave = (event: KeyboardEvent): void => {
-      // Escape closes the search first, as a browser's find does.
-      if (isSearchOpen) setSearchOpen(false);
-      else if (!event.repeat) slideTo(navigate, "/", "out");
-    };
     const handleKey = (event: KeyboardEvent): boolean => {
       switch (event.key) {
-        case "Escape":
-          closeOrLeave(event);
-          return true;
         case "ArrowDown":
         case "j":
           if (event.ctrlKey) return false;
@@ -134,11 +139,6 @@ export function useReaderKeys({
           if (!event.ctrlKey) return false;
 
           jump(-1, event.repeat);
-          return true;
-        case "s":
-          if (event.ctrlKey) return false;
-
-          setTocOpen(true);
           return true;
         default:
           return false;
@@ -164,5 +164,45 @@ export function useReaderKeys({
       document.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", stop);
     };
-  }, [isEnabled, isSearchOpen, setSearchOpen, setTocOpen, navigate, fontSize, lineHeight]);
+  }, [isEnabled, fontSize, lineHeight]);
+}
+
+function useShortcutKeys({
+  isEnabled,
+  isSearchOpen,
+  setSearchOpen,
+  setTocOpen,
+  navigate,
+}: {
+  readonly isEnabled: boolean;
+  readonly isSearchOpen: boolean;
+  readonly setSearchOpen: (isOpen: boolean) => void;
+  readonly setTocOpen: (isOpen: boolean) => void;
+  readonly navigate: NavigateFunction;
+}): void {
+  useEffect(() => {
+    if (!isEnabled) return;
+
+    const onKey = (event: KeyboardEvent): void => {
+      if (isTypingTarget(event) || event.metaKey || event.altKey) return;
+
+      // Escape closes the search first, as a browser's find does.
+      if (event.key === "Escape") {
+        if (isSearchOpen) setSearchOpen(false);
+        else if (!event.repeat) slideTo(navigate, "/", "out");
+
+        event.preventDefault();
+        return;
+      }
+
+      if (event.key === "s" && !event.ctrlKey) {
+        setTocOpen(true);
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener("keydown", onKey);
+
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isEnabled, isSearchOpen, setSearchOpen, setTocOpen, navigate]);
 }
