@@ -2,7 +2,7 @@ import { Effect } from "effect";
 import { Series } from "@/domain/book";
 import type { StorageFailure } from "@/domain/errors";
 import { shrinkPicture } from "@/lib/picture";
-import { buildShelf, seriesKey, type Shelf } from "@/lib/shelf";
+import { buildShelf, seriesKey, type Shelf, emptyFilters } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
 
 // Its books leave every other stored series and stay out of it, so a model run cannot pull one back.
@@ -61,7 +61,7 @@ function joinedBookIds(
       yield* store.list(),
       new Map(),
       "",
-      { status: null, length: null, author: null },
+      emptyFilters,
       "added",
       yield* store.listSeries(),
     );
@@ -151,14 +151,7 @@ export function hideSeries(
     const store = yield* BookStore;
     const stored = yield* store.listSeries();
     const members =
-      buildShelf(
-        yield* store.list(),
-        new Map(),
-        "",
-        { status: null, length: null, author: null },
-        "added",
-        stored,
-      )
+      buildShelf(yield* store.list(), new Map(), "", emptyFilters, "added", stored)
         .series.find((group) => group.id === id)
         ?.books.map((card) => card.book.id) ?? [];
     const removed = stored.find((series) => series.id === id)?.removed ?? [];
@@ -187,7 +180,7 @@ export function setBookSeries(
       yield* store.list(),
       new Map(),
       "",
-      { status: null, length: null, author: null },
+      emptyFilters,
       "added",
       yield* store.listSeries(),
     );
@@ -227,7 +220,7 @@ export function findBookSeries(
     const [books, stored] = yield* Effect.all([store.list(), store.listSeries()], {
       concurrency: "unbounded",
     });
-    const none = { status: null, length: null, author: null };
+    const none = emptyFilters;
     const group = buildShelf(books, new Map(), "", none, "added", stored).series.find(
       (entry) => entry.count >= 2 && entry.books.some((card) => card.book.id === bookId),
     );

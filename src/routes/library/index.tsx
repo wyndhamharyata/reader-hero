@@ -25,6 +25,7 @@ import {
   type FilterGroup,
   type Filters,
   type LibraryCard,
+  emptyFilters,
   type Shelf,
 } from "@/lib/shelf";
 import { BookStore } from "@/services/book-store";
@@ -308,8 +309,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     if (hidden || bookIds === "") return;
 
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
-    
-return () => stopFiber(fiber);
+
+    return () => stopFiber(fiber);
   }, [hidden, bookIds]);
 
   // A finished parse starts a run, but none starts during an import, so its books group together.
@@ -634,7 +635,7 @@ return () => stopFiber(fiber);
     };
   }, [hidden]);
 
-  const clearFilters = (): void => setFilters({ status: null, length: null, author: null });
+  const clearFilters = (): void => setFilters(emptyFilters);
   const clearAll = (): void => {
     setQuery("");
     clearFilters();

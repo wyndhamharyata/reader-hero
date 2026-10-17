@@ -3,7 +3,7 @@ import { hasConsent, Summary, type AiSettings, type BookKind } from "@/domain/ai
 import type { BookMeta, ParsedBook } from "@/domain/book";
 import { AiFailure, type StorageFailure } from "@/domain/errors";
 import { guessKind } from "@/lib/guess-kind";
-import { buildShelf, type LibraryCard, type Shelf } from "@/lib/shelf";
+import { buildShelf, type LibraryCard, type Shelf, emptyFilters } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
 import { BookStore } from "@/services/book-store";
 import { SummaryStore } from "@/services/summary-store";
@@ -941,7 +941,7 @@ export function rebuildPlan(): Effect.Effect<
       ],
       { concurrency: "unbounded" },
     );
-    const none = { status: null, length: null, author: null };
+    const none = emptyFilters;
     const shelf = buildShelf(books, new Map(reading), "", none, "added", stored);
     const series = shelf.series.filter((entry) => entry.count >= 2);
     const grouped = new Set(series.flatMap((entry) => entry.books.map((card) => card.book.id)));

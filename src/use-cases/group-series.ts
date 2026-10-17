@@ -2,7 +2,7 @@ import { Effect, Semaphore, Stream } from "effect";
 import { hasConsent, type AiSettings } from "@/domain/ai";
 import { Series, type BookMeta } from "@/domain/book";
 import { AiFailure, type StorageFailure } from "@/domain/errors";
-import { buildShelf, seriesKey } from "@/lib/shelf";
+import { buildShelf, seriesKey, emptyFilters } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
 import { BookStore } from "@/services/book-store";
 import { SettingsStore } from "@/services/settings-store";
@@ -215,7 +215,7 @@ export function groupSeries(
       const client = yield* AiClient;
       const store = yield* BookStore;
       const grouped = yield* SettingsStore;
-      const none = { status: null, length: null, author: null };
+      const none = emptyFilters;
 
       while (true) {
         const books = yield* store.list();

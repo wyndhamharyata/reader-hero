@@ -15,6 +15,8 @@ export const shelfRecords = new Map<
 export type FilterGroup = "status" | "length" | "author";
 export type Filters = Readonly<Record<FilterGroup, string | null>>;
 
+export const emptyFilters: Filters = { status: null, length: null, author: null };
+
 export interface LibraryCard {
   readonly book: BookMeta;
   // 100% once the book is finished, also for a book finished by the 98% rule or with no parsed text.
