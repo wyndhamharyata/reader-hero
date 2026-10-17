@@ -45,26 +45,37 @@ const worker = (): Worker => {
     renderer = new Worker(new URL("../workers/pdf-render.ts", import.meta.url), {
       type: "module",
     });
-    renderer.onmessage = (event: MessageEvent) => {
+    const current = renderer;
+    current.onmessage = (event: MessageEvent) => {
       const reply = event.data as Record<string, unknown>;
       const key = typeof reply.requestId === "number" ? reply.requestId : reply.id;
       if (typeof key !== "number") return;
-      pending.get(key)?.(reply);
+      const settle = pending.get(key);
       pending.delete(key);
+      // A page that left the list before its pixels came: nothing holds them, so they go back now, not at collection.
+      if (settle === undefined) {
+        if (reply.bitmap instanceof ImageBitmap) reply.bitmap.close();
+        return;
+      }
+      settle(reply);
     };
-    renderer.onerror = () => {
+    // A failed worker is dropped, so the next request starts a new one instead of waiting on this one forever.
+    current.onerror = () => {
       for (const settle of pending.values()) settle({ type: "error", message: "Worker failed" });
       pending.clear();
+      current.terminate();
+      if (renderer === current) renderer = null;
     };
   }
   return renderer;
 };
 
-// Posts one request and waits for its reply; an interrupted wait tells the worker to stop.
+// Posts one request and waits for its reply. An interrupted wait tells the worker to stop the render, or to close the
+// document it is still opening, so neither runs on, or stays, with no one to take it.
 const request = (
   body: Record<string, unknown>,
   transfer: Transferable[],
-  cancel: boolean,
+  onInterrupt: "cancel" | "close" | null,
 ): Effect.Effect<Record<string, unknown>, PdfFailure> =>
   Effect.callback((resume) => {
     const id = nextId;
@@ -78,7 +89,9 @@ const request = (
     });
     worker().postMessage({ ...body, requestId: id, id: body.id ?? id }, transfer);
     return Effect.sync(() => {
-      if (pending.delete(id) && cancel) worker().postMessage({ type: "cancel", requestId: id });
+      if (!pending.delete(id)) return;
+      if (onInterrupt === "cancel") worker().postMessage({ type: "cancel", requestId: id });
+      if (onInterrupt === "close") worker().postMessage({ type: "close", id });
     });
   });
 
@@ -108,30 +121,30 @@ export class PageRenderer extends Context.Service<
           worker().postMessage({ type: "warm" });
         }),
       open: (file) =>
-        Effect.map(request({ type: "open", file }, [], false), (reply) => ({
+        Effect.map(request({ type: "open", file }, [], "close"), (reply) => ({
           id: Number(reply.id),
           pageCount: Number(reply.pageCount),
           first: { page: 1, width: Number(reply.width), height: Number(reply.height) },
         })),
       pageSize: (doc, page) =>
-        Effect.map(request({ type: "size", id: doc.id, page }, [], false), (reply) => ({
+        Effect.map(request({ type: "size", id: doc.id, page }, [], null), (reply) => ({
           page,
           width: Number(reply.width),
           height: Number(reply.height),
         })),
       render: (doc, page, scale, crop) =>
         Effect.map(
-          request({ type: "render", id: doc.id, page, scale, crop }, [], true),
+          request({ type: "render", id: doc.id, page, scale, crop }, [], "cancel"),
           (reply) => reply.bitmap as ImageBitmap,
         ),
       links: (doc, page) =>
         Effect.map(
-          request({ type: "links", id: doc.id, page }, [], false),
+          request({ type: "links", id: doc.id, page }, [], null),
           (reply) => reply.links as ReadonlyArray<PageLink>,
         ),
       text: (doc, page) =>
         Effect.map(
-          request({ type: "text", id: doc.id, page }, [], false),
+          request({ type: "text", id: doc.id, page }, [], null),
           (reply) => reply.text as PageTextContent,
         ),
       close: (doc) =>

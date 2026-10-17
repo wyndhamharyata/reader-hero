@@ -12,13 +12,14 @@ import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
 import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
+import { pageRenderScale } from "@/lib/render-scale";
 import { usePinch, type PinchPoint } from "@/lib/use-pinch";
 import { useTapGuard } from "@/lib/use-tap-guard";
 import { openOriginalPages, readPageSizes, releaseOriginalPages } from "@/use-cases/open-book";
 import type { RenderedDocument } from "@/services/page-renderer";
 import type { PageArea } from "@/use-cases/render-page";
 import { PageSearch } from "./_PageSearch";
-import { PdfPage, RENDER_SCALE } from "./_PdfPage";
+import { PdfPage } from "./_PdfPage";
 
 // Long enough that a pause between flicks is not a rest.
 const TEXT_SETTLE_MS = 150;
@@ -71,6 +72,7 @@ export function OriginalView({
   const [width, setWidth] = useState(0);
   const [zoom, setZoom] = useState(1);
   const pageWidth = width * zoom;
+  const ratio = globalThis.devicePixelRatio || 1;
   const [details, setDetails] = useState(NO_DETAILS);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
@@ -194,9 +196,9 @@ export function OriginalView({
     return pages;
   }, [virtualizer]);
   // Read when scrolling rests, from the values of that moment, not of the render that set the timer.
-  const latest = useRef({ zoom, pageWidth, sizes });
+  const latest = useRef({ zoom, width, pageWidth, sizes });
   useEffect(() => {
-    latest.current = { zoom, pageWidth, sizes };
+    latest.current = { zoom, width, pageWidth, sizes };
   });
   // At a zoom past what the whole-page bitmaps hold, each page on screen gets one sharp area, as pdf.js's detail view.
   const placeDetails = useCallback(() => {
@@ -230,7 +232,7 @@ export function OriginalView({
       if (bottom <= top || right <= left) continue;
       let scale = cssPerPoint * ratio;
       // No sharper than the whole-page bitmap already is, so no area is worth drawing.
-      if (scale <= RENDER_SCALE * 1.15) continue;
+      if (scale <= pageRenderScale(size, latest.current.width, ratio) * 1.15) continue;
       let area = { left, top: top - item.start, width: right - left, height: bottom - top };
       for (const margin of DETAIL_MARGINS) {
         const x = Math.max(0, left - margin * view.width);
@@ -419,31 +421,34 @@ export function OriginalView({
             }
           >
             <div ref={listRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
-              {virtualizer.getVirtualItems().map((item) => {
-                const size = sizes[item.index];
-                return (
-                  size !== undefined && (
-                    <div
-                      key={item.key}
-                      ref={virtualizer.measureElement}
-                      data-index={item.index}
-                      className="absolute inset-x-0 top-0"
-                      style={{ transform: `translateY(${item.start}px)` }}
-                    >
-                      <PdfPage
-                        doc={doc}
-                        size={size}
-                        scale={pageWidth / size.width}
-                        text={textPages.has(size.page)}
-                        query={textPages.has(size.page) ? query : ""}
-                        detail={details.get(size.page) ?? null}
-                        onTextReady={onTextReady}
-                        onJump={jumpTo}
-                      />
-                    </div>
-                  )
-                );
-              })}
+              {/* Not before the column is measured, so no page draws at a scale it then draws again. */}
+              {width > 0 &&
+                virtualizer.getVirtualItems().map((item) => {
+                  const size = sizes[item.index];
+                  return (
+                    size !== undefined && (
+                      <div
+                        key={item.key}
+                        ref={virtualizer.measureElement}
+                        data-index={item.index}
+                        className="absolute inset-x-0 top-0"
+                        style={{ transform: `translateY(${item.start}px)` }}
+                      >
+                        <PdfPage
+                          doc={doc}
+                          size={size}
+                          scale={pageWidth / size.width}
+                          renderScale={pageRenderScale(size, width, ratio)}
+                          text={textPages.has(size.page)}
+                          query={textPages.has(size.page) ? query : ""}
+                          detail={details.get(size.page) ?? null}
+                          onTextReady={onTextReady}
+                          onJump={jumpTo}
+                        />
+                      </div>
+                    )
+                  );
+                })}
             </div>
           </div>
         </div>

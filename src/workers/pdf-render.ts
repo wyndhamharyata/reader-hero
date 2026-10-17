@@ -62,11 +62,19 @@ class NoFilterFactory {
 }
 
 const fonts = (self as { fonts?: FontFaceSet }).fonts;
-const documents = new Map<
-  number,
-  { task: PDFDocumentLoadingTask; document: PDFDocumentProxy; drawn: Set<number> }
->();
+type Opened = { task: PDFDocumentLoadingTask; document: PDFDocumentProxy; drawn: Set<number> };
+const documents = new Map<number, Opened>();
 const tasks = new Map<number, RenderTask>();
+// Renders between their request and their reply. A cancel can land while one still waits on its page, before
+// it has a task to cancel, so the render checks this set after each wait and stops there.
+const rendering = new Set<number>();
+const cancelled = new Set<number>();
+// Documents still opening, and those closed before they finished: such a one is destroyed once it opens.
+const opening = new Set<number>();
+const closedEarly = new Set<number>();
+
+// No canvas past this, whatever scale is asked: pdf.js's cap for one canvas on iOS and Android, under WebKit's limit.
+const MAX_CANVAS_PIXELS = 5_242_880;
 
 // pdf.js's own viewer keeps its last 10 pages: fewer re-parses a page on the way back, more holds memory.
 const KEEP_PAGES = 10;
@@ -153,19 +161,99 @@ const pdfWorker = (): PDFWorker => {
   return shared;
 };
 
+type OpenMessage = { type: "open"; id: number; file: Blob };
+type RenderMessage = {
+  type: "render";
+  requestId: number;
+  id: number;
+  page: number;
+  scale: number;
+  crop?: { x: number; y: number; width: number; height: number };
+};
+
+// A close that came while this opened finds it gone: the document is destroyed and nothing answers.
+const openDocument = async (message: OpenMessage): Promise<void> => {
+  const origin = self.location.origin;
+  // Read here, so the main thread never copies the whole file.
+  const bytes = await message.file.arrayBuffer();
+  await pdfWorker().promise;
+  if (closedEarly.has(message.id)) return;
+  const task = getDocument({
+    data: bytes,
+    useWorkerFetch: true,
+    wasmUrl: `${origin}/wasm/`,
+    iccUrl: `${origin}/icc/`,
+    isImageDecoderSupported: true,
+    // Safari 16.4+ paints text through the font engine, faster than glyph paths.
+    ...(fonts === undefined
+      ? { disableFontFace: true }
+      : { disableFontFace: false, ownerDocument: { fonts } as never }),
+    CanvasFactory: OffscreenCanvasFactory,
+    FilterFactory: NoFilterFactory,
+    worker: pdfWorker(),
+  });
+  const document = await task.promise;
+  if (closedEarly.has(message.id)) {
+    void task.destroy();
+    return;
+  }
+  documents.set(message.id, { task, document, drawn: new Set() });
+  const first = (await document.getPage(1)).getViewport({ scale: 1 });
+  postMessage({
+    type: "opened",
+    id: message.id,
+    pageCount: document.numPages,
+    width: first.width,
+    height: first.height,
+  });
+};
+
+// Stops at each wait once cancelled, so a page scrolled past in a fling never takes its turn from one on screen.
+const render = async (opened: Opened, message: RenderMessage): Promise<void> => {
+  const page = await opened.document.getPage(message.page);
+  if (cancelled.has(message.requestId)) return;
+  let viewport = page.getViewport({ scale: message.scale });
+  const { crop } = message;
+  if (crop === undefined && viewport.width * viewport.height > MAX_CANVAS_PIXELS) {
+    const fit = Math.sqrt(MAX_CANVAS_PIXELS / (viewport.width * viewport.height));
+    viewport = page.getViewport({ scale: message.scale * fit });
+  }
+  const canvas =
+    crop === undefined
+      ? new OffscreenCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
+      : new OffscreenCanvas(crop.width, crop.height);
+  // pdf.js types the canvas as a DOM element; it only needs a 2d context.
+  const task = page.render({
+    canvas: canvas as never,
+    viewport,
+    // A crop draws only its part of the page, moved to the canvas's corner, as pdf.js's detail view does.
+    ...(crop === undefined ? {} : { transform: [1, 0, 0, 1, -crop.x, -crop.y] }),
+  });
+  tasks.set(message.requestId, task);
+  let bitmap: ImageBitmap;
+  try {
+    await task.promise;
+    bitmap = canvas.transferToImageBitmap();
+  } finally {
+    tasks.delete(message.requestId);
+    // Its pixels are in the bitmap, or the render failed; either way the canvas gives its memory back now.
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+  if (cancelled.has(message.requestId)) {
+    bitmap.close();
+    return;
+  }
+  postMessage({ type: "rendered", requestId: message.requestId, bitmap }, [bitmap]);
+  await keepDrawn(opened, message.page);
+};
+
 onmessage = async (event: MessageEvent) => {
   const message = event.data as
     | { type: "warm" }
-    | { type: "open"; id: number; file: Blob }
+    | OpenMessage
     | { type: "size"; requestId: number; id: number; page: number }
-    | {
-        type: "render";
-        requestId: number;
-        id: number;
-        page: number;
-        scale: number;
-        crop?: { x: number; y: number; width: number; height: number };
-      }
+    | RenderMessage
     | { type: "links"; requestId: number; id: number; page: number }
     | { type: "text"; requestId: number; id: number; page: number }
     | { type: "cancel"; requestId: number }
@@ -177,47 +265,39 @@ onmessage = async (event: MessageEvent) => {
       return;
     }
     if (message.type === "open") {
-      const origin = self.location.origin;
-      // Read here, so the main thread never copies the whole file.
-      const bytes = await message.file.arrayBuffer();
-      await pdfWorker().promise;
-      const task = getDocument({
-        data: bytes,
-        useWorkerFetch: true,
-        wasmUrl: `${origin}/wasm/`,
-        iccUrl: `${origin}/icc/`,
-        isImageDecoderSupported: true,
-        // Safari 16.4+ paints text through the font engine, faster than glyph paths.
-        ...(fonts === undefined
-          ? { disableFontFace: true }
-          : { disableFontFace: false, ownerDocument: { fonts } as never }),
-        CanvasFactory: OffscreenCanvasFactory,
-        FilterFactory: NoFilterFactory,
-        worker: pdfWorker(),
-      });
-      const document = await task.promise;
-      documents.set(message.id, { task, document, drawn: new Set() });
-      const first = (await document.getPage(1)).getViewport({ scale: 1 });
-      postMessage({
-        type: "opened",
-        id: message.id,
-        pageCount: document.numPages,
-        width: first.width,
-        height: first.height,
-      });
+      opening.add(message.id);
+      try {
+        await openDocument(message);
+      } finally {
+        opening.delete(message.id);
+        closedEarly.delete(message.id);
+      }
       return;
     }
     if (message.type === "cancel") {
+      if (!rendering.has(message.requestId)) return;
+      cancelled.add(message.requestId);
       tasks.get(message.requestId)?.cancel();
       return;
     }
     if (message.type === "close") {
+      if (opening.has(message.id)) closedEarly.add(message.id);
       void documents.get(message.id)?.task.destroy();
       documents.delete(message.id);
       return;
     }
     const opened = documents.get(message.id);
     if (opened === undefined) throw new Error("Document is closed");
+    if (message.type === "render") {
+      rendering.add(message.requestId);
+      try {
+        await render(opened, message);
+      } finally {
+        rendering.delete(message.requestId);
+        cancelled.delete(message.requestId);
+      }
+      return;
+    }
     const page = await opened.document.getPage(message.page);
     if (message.type === "size") {
       const viewport = page.getViewport({ scale: 1 });
@@ -256,28 +336,6 @@ onmessage = async (event: MessageEvent) => {
       postMessage({ type: "text", requestId: message.requestId, text });
       return;
     }
-    const viewport = page.getViewport({ scale: message.scale });
-    const { crop } = message;
-    const canvas =
-      crop === undefined
-        ? new OffscreenCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
-        : new OffscreenCanvas(crop.width, crop.height);
-    // pdf.js types the canvas as a DOM element; it only needs a 2d context.
-    const task = page.render({
-      canvas: canvas as never,
-      viewport,
-      // A crop draws only its part of the page, moved to the canvas's corner, as pdf.js's detail view does.
-      ...(crop === undefined ? {} : { transform: [1, 0, 0, 1, -crop.x, -crop.y] }),
-    });
-    tasks.set(message.requestId, task);
-    try {
-      await task.promise;
-    } finally {
-      tasks.delete(message.requestId);
-    }
-    const bitmap = canvas.transferToImageBitmap();
-    postMessage({ type: "rendered", requestId: message.requestId, bitmap }, [bitmap]);
-    await keepDrawn(opened, message.page);
   } catch (cause) {
     const key =
       "requestId" in message ? message.requestId : message.type === "open" ? message.id : null;

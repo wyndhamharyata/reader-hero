@@ -11,14 +11,13 @@ import {
 import { drawTextLayer, type DrawnTextLayer } from "@/use-cases/text-layer";
 import type { PageLink, RenderedDocument } from "@/services/page-renderer";
 
-// Capped at 1.5x: a sharper page costs memory on a phone and reads the same.
-export const RENDER_SCALE = Math.min(1.5, globalThis.devicePixelRatio || 1);
-
 interface Props {
   doc: RenderedDocument;
   size: PageSize;
   // CSS pixels per PDF point at the width the page is shown.
   scale: number;
+  // Device pixels per PDF point of the whole-page bitmap, which a zoom leaves as it is.
+  renderScale: number;
   // Only pages on screen hold their text, so the list never carries many pages of text nodes.
   text: boolean;
   // The search to mark on this page's text; empty for none.
@@ -41,6 +40,7 @@ export const PdfPage = memo(function PdfPage({
   doc,
   size,
   scale,
+  renderScale,
   text,
   query,
   detail,
@@ -60,7 +60,7 @@ export const PdfPage = memo(function PdfPage({
     const canvas = canvasRef.current;
     if (canvas === null) return;
     const fiber = forkApp(
-      renderPdfPage(doc, size.page, canvas, RENDER_SCALE).pipe(
+      renderPdfPage(doc, size.page, canvas, renderScale).pipe(
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
         Effect.andThen(
           readPageLinks(doc, size.page).pipe(
@@ -75,7 +75,7 @@ export const PdfPage = memo(function PdfPage({
       // A page that leaves the list gives back its bitmap now: iOS caps the memory of all canvases.
       canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
     };
-  }, [doc, size.page]);
+  }, [doc, size.page, renderScale]);
 
   const detailScale = detail?.scale ?? 0;
   const { left = 0, top = 0, width = 0, height = 0 } = detail?.area ?? {};
@@ -155,8 +155,8 @@ export const PdfPage = memo(function PdfPage({
       {!failed && (
         <canvas
           ref={canvasRef}
-          width={Math.floor(size.width * RENDER_SCALE)}
-          height={Math.floor(size.height * RENDER_SCALE)}
+          width={Math.floor(size.width * renderScale)}
+          height={Math.floor(size.height * renderScale)}
           className="block h-auto w-full"
         />
       )}
