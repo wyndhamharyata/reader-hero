@@ -1,10 +1,15 @@
 import { SlideLink } from "@/components/SlideLink";
 import type { ReactElement } from "react";
-import type { BookNotFound, ParsedMissing, StorageFailure } from "@/domain/errors";
+import type {
+  BookNotFound,
+  ParsedMissing,
+  StorageFailure,
+  UnexpectedFailure,
+} from "@/domain/errors";
 import { describeError } from "@/lib/describe-error";
 
 interface Props {
-  error: BookNotFound | ParsedMissing | StorageFailure;
+  error: BookNotFound | ParsedMissing | StorageFailure | UnexpectedFailure;
   title: string;
   rebuilding: boolean;
   onRebuild: () => void;

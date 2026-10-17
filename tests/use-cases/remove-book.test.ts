@@ -56,7 +56,7 @@ describe("removeBook", () => {
         get: () => Effect.succeed(null),
         update: (_id, change) => Effect.succeed(change(null)),
         remove: (id) => Effect.sync(() => state.summariesRemoved.push(id)),
-        changes: () => Stream.empty,
+        watch: () => Stream.empty,
       }),
     );
     const layer = Layer.mergeAll(books, jobs, summaries);

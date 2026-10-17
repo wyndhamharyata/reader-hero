@@ -1,4 +1,4 @@
-import { Effect, Fiber, Stream } from "effect";
+import { Cause, Effect, Exit, Fiber, Stream } from "effect";
 import {
   useCallback,
   useEffect,
@@ -9,6 +9,7 @@ import {
 } from "react";
 import { Summary, type AiSettings, type UsageTally } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
+import { UnexpectedFailure } from "@/domain/errors";
 import { runtime, type AppServices } from "@/runtime";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
@@ -21,7 +22,7 @@ import { renderFigures } from "@/use-cases/render-figures";
 type AsyncState<A, E> =
   | { readonly status: "loading" }
   | { readonly status: "done"; readonly value: A }
-  | { readonly status: "error"; readonly error: E };
+  | { readonly status: "error"; readonly error: E | UnexpectedFailure };
 
 export type Job = Fiber.Fiber<unknown, unknown>;
 
@@ -29,8 +30,15 @@ export function runApp<A, E>(effect: Effect.Effect<A, E, AppServices>): Promise<
   return runtime.runPromise(effect);
 }
 
+// A failure no caller handled would vanish with its fiber, so it goes to the console.
 export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>): Job {
-  return runtime.runFork(effect);
+  const fiber = runtime.runFork(effect);
+  fiber.addObserver((exit) => {
+    if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
+      console.error("[app]", Cause.pretty(exit.cause));
+    }
+  });
+  return fiber;
 }
 
 export function stopFiber(fiber: Job): void {
@@ -161,6 +169,12 @@ export function useAppEffect<A, E>(
         onSuccess: (value) => setState({ status: "done", value }),
       }),
     );
+    // A defect, or a service that failed to start, ends the fiber past the match; the screen leaves loading anyway.
+    fiber.addObserver((exit) => {
+      if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause)) return;
+      const message = String(Cause.squash(exit.cause));
+      setState({ status: "error", error: new UnexpectedFailure({ message }) });
+    });
     return () => stopFiber(fiber);
   }, [...deps, nonce]);
 
@@ -304,14 +318,10 @@ export function useSummary(bookId: string): SummaryState & {
       Effect.gen(function* () {
         const store = yield* SummaryStore;
         const jobs = yield* SummaryJobs;
-        const stored = yield* store
-          .get(bookId)
-          .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
-        setSummary(stored);
         yield* Effect.all(
           [
             store
-              .changes(bookId)
+              .watch(bookId)
               .pipe(Stream.runForEach((next) => Effect.sync(() => setSummary(next)))),
             jobs.state(bookId).pipe(Stream.runForEach((next) => Effect.sync(() => setJob(next)))),
           ],

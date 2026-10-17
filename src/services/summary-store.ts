@@ -20,8 +20,8 @@ export class SummaryStore extends Context.Service<
       change: (current: Summary | null) => S,
     ): Effect.Effect<S, StorageFailure>;
     remove(bookId: string): Effect.Effect<void, StorageFailure>;
-    // Null means the summary was removed.
-    changes(bookId: string): Stream.Stream<Summary | null>;
+    // The stored summary, then each write; null means none, or removed.
+    watch(bookId: string): Stream.Stream<Summary | null>;
   }
 >()("reader-hero/SummaryStore") {
   static readonly layer = Layer.effect(
@@ -61,13 +61,25 @@ export class SummaryStore extends Context.Service<
           yield* PubSub.publish(bus, { bookId, summary: null });
         }).pipe(Semaphore.withPermit(lock));
 
-      const changes = (bookId: string) =>
-        Stream.fromPubSub(bus).pipe(
-          Stream.filter((change) => change.bookId === bookId),
-          Stream.map((change) => change.summary),
+      // Subscribed before the read, so a write between the two still arrives.
+      const watch = (bookId: string): Stream.Stream<Summary | null> =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const subscription = yield* PubSub.subscribe(bus);
+            const stored = yield* get(bookId).pipe(
+              Effect.catchTag("StorageFailure", () => Effect.succeed(null)),
+            );
+            return Stream.concat(
+              Stream.succeed(stored),
+              Stream.fromSubscription(subscription).pipe(
+                Stream.filter((change) => change.bookId === bookId),
+                Stream.map((change) => change.summary),
+              ),
+            );
+          }),
         );
 
-      return SummaryStore.of({ get, update, remove, changes });
+      return SummaryStore.of({ get, update, remove, watch });
     }),
   );
 }

@@ -69,14 +69,13 @@ export function SeriesSheet({
         Effect.forEach(
           volumes.map((volume) => volume.card.book.id),
           (id) =>
-            Stream.fromEffect(
-              store.get(id).pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null))),
-            ).pipe(
-              Stream.concat(store.changes(id)),
-              Stream.runForEach((next) =>
-                Effect.sync(() => setSummaries((current) => new Map(current).set(id, next))),
+            store
+              .watch(id)
+              .pipe(
+                Stream.runForEach((next) =>
+                  Effect.sync(() => setSummaries((current) => new Map(current).set(id, next))),
+                ),
               ),
-            ),
           { concurrency: "unbounded", discard: true },
         ),
       ),

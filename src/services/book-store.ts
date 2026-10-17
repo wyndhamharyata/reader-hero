@@ -71,6 +71,8 @@ export class BookStore extends Context.Service<
     removeImage(bookId: string, imageId: string): Effect.Effect<void, StorageFailure>;
     updates(): Stream.Stream<StoreUpdate>;
     getImage(bookId: string, imageId: string): Effect.Effect<ImageRecord | null, StorageFailure>;
+    // The stored image, then the image again after each write to it.
+    watchImage(bookId: string, imageId: string): Stream.Stream<ImageRecord | null>;
     listImages(
       bookId: string,
     ): Effect.Effect<
@@ -228,6 +230,30 @@ export class BookStore extends Context.Service<
         return yield* decodeImageRecord(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
+      // Subscribed before the read, so an image written between the two still arrives.
+      const watchImage = (bookId: string, imageId: string): Stream.Stream<ImageRecord | null> =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const subscription = yield* PubSub.subscribe(updateBus);
+            const read = getImage(bookId, imageId).pipe(
+              Effect.catchTag("StorageFailure", () => Effect.succeed(null)),
+            );
+            const stored = yield* read;
+            return Stream.concat(
+              Stream.succeed(stored),
+              Stream.fromSubscription(subscription).pipe(
+                Stream.filter(
+                  (update) =>
+                    update.kind === "image" &&
+                    update.bookId === bookId &&
+                    update.imageId === imageId,
+                ),
+                Stream.mapEffect(() => read),
+              ),
+            );
+          }),
+        );
+
       const listImages = Effect.fn("BookStore.listImages")(function* (bookId: string) {
         // One transaction, so the keys and the rows line up.
         const [keys, rows] = yield* withDb("listImages", async (db) => {
@@ -382,6 +408,7 @@ export class BookStore extends Context.Service<
         removeImage,
         updates,
         getImage,
+        watchImage,
         listImages,
         putProgress,
         getProgress,

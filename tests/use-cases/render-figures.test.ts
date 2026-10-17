@@ -108,6 +108,7 @@ function harness(figures: FigureState): Harness {
       removeImage: () => Effect.void,
       updates: () => Stream.empty,
       getImage: () => Effect.succeed(null),
+      watchImage: () => Stream.empty,
       listImages: () =>
         Effect.succeed(
           state.images.map((image) => ({ id: image.id, image: new ImageRecord(image) })),

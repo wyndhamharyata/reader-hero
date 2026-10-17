@@ -174,7 +174,7 @@ function harness(
           return next;
         }),
       remove: () => Effect.void,
-      changes: () => Stream.empty,
+      watch: () => Stream.empty,
     }),
   );
   return { calls, puts, layer: Layer.mergeAll(client, store) };
@@ -768,7 +768,7 @@ function seriesHarness(state: SeriesState) {
         Effect.sync(() => {
           state.summaries.delete(bookId);
         }),
-      changes: () => Stream.empty,
+      watch: () => Stream.empty,
     }),
   );
   const books = bookStore({

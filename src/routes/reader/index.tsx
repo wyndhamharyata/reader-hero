@@ -19,7 +19,7 @@ import { guessMode } from "@/lib/guess-mode";
 import { shelfRecords } from "@/lib/shelf";
 import { slideTo } from "@/lib/slide-to";
 import { readerTourSteps } from "@/lib/tour";
-import { releaseWakeLock, requestWakeLock } from "@/lib/wake-lock";
+import { holdWakeLock } from "@/lib/wake-lock";
 import { Tour } from "@/routes/library/_Tour";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
@@ -88,23 +88,13 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
   const [seriesOpen, setSeriesOpen] = useState(false);
 
-  const wakeRef = useRef<WakeLockSentinel | null>(null);
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
   const totalRef = useRef(1);
 
   useEffect(() => {
-    const program = requestWakeLock().pipe(
-      Effect.tap((sentinel) =>
-        Effect.sync(() => {
-          wakeRef.current = sentinel;
-        }),
-      ),
-    );
-    void runApp(program);
-    return () => {
-      releaseWakeLock(wakeRef.current);
-    };
+    const fiber = forkApp(holdWakeLock());
+    return () => stopFiber(fiber);
   }, []);
 
   useEffect(() => {

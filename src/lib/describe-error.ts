@@ -5,11 +5,19 @@ import type {
   ParsedMissing,
   PdfFailure,
   StorageFailure,
+  UnexpectedFailure,
   UnsupportedFile,
 } from "@/domain/errors";
 
 export function describeError(
-  error: BookNotFound | EpubFailure | ParsedMissing | PdfFailure | StorageFailure | UnsupportedFile,
+  error:
+    | BookNotFound
+    | EpubFailure
+    | ParsedMissing
+    | PdfFailure
+    | StorageFailure
+    | UnexpectedFailure
+    | UnsupportedFile,
   name: string,
 ): string {
   switch (error._tag) {
@@ -41,6 +49,8 @@ export function describeError(
       return `${name} is no longer in your library.`;
     case "ParsedMissing":
       return `${name} needs its reader view rebuilt.`;
+    case "UnexpectedFailure":
+      return `${name} could not be opened: ${error.message}`;
   }
 }
 
