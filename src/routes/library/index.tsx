@@ -41,6 +41,14 @@ import { FilterSheet } from "./_FilterSheet";
 import { ProgressPanel } from "./_ProgressPanel";
 import { InstallHint } from "./_InstallHint";
 import { LibraryRows } from "./_LibraryRows";
+import {
+  actionLabelFor,
+  booksToShow,
+  columnsFor,
+  hiddenClass,
+  loadedLibrary,
+  showsTour,
+} from "./_library-derived";
 import { useLibraryActions } from "./_use-library-actions";
 import { useHideOnScroll, useKeyboardFit, useSearchPanelHeight } from "./_use-library-viewport";
 import { LibraryStatus } from "./_LibraryStatus";
@@ -145,18 +153,16 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   useKeyboardFit(rootRef);
 
-  const books = state.status === "done" ? state.value.books : [];
-  const estimate = state.status === "done" ? state.value.estimate : null;
-  const reading = state.status === "done" ? state.value.reading : null;
-  const series = state.status === "done" ? state.value.series : [];
+  const { books, estimate, reading, series } = loadedLibrary(state);
   const steps = tourSteps({ hasBooks: books.length > 0, needsInstall: showInstallHint });
-  const touring =
-    !hidden &&
-    state.status !== "loading" &&
-    (settings.tour ?? 0) < TOUR_VERSION &&
-    steps.length > 0;
+  const isTouring = showsTour({
+    hidden,
+    status: state.status,
+    tour: settings.tour,
+    steps,
+  });
 
-  useFigureJobs(hidden ? [] : books);
+  useFigureJobs(booksToShow(hidden, books));
 
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
   const wasHidden = useRef(hidden);
@@ -261,7 +267,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     return () => stopFiber(fiber);
   }, [hidden, reload]);
 
-  const actionLabel = busy ? "Working…" : "Add book";
+  const actionLabel = actionLabelFor(busy);
   const isGrid = settings.libraryView === "grid";
   const shelf = useMemo(
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort, series),
@@ -312,7 +318,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     };
   }, []);
 
-  const columns = isGrid ? (wide.md ? 5 : wide.sm ? 3 : 2) : wide.md ? 2 : 1;
+  const columns = columnsFor(isGrid, wide);
   const rows = useMemo(
     () =>
       Array.from({ length: Math.ceil(items.length / columns) }, (_, row) =>
@@ -483,7 +489,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     <main
       ref={rootRef}
       // When the keyboard closes, the column grows back at about the keyboard's pace.
-      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hidden ? "invisible" : ""}`}
+      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hiddenClass(hidden)}`}
       inert={hidden}
       aria-hidden={hidden}
     >
@@ -628,7 +634,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         onClose={() => setFiltersOpen(false)}
       />
 
-      {touring && <Tour steps={steps} onDone={() => update({ tour: TOUR_VERSION })} />}
+      {isTouring && <Tour steps={steps} onDone={() => update({ tour: TOUR_VERSION })} />}
 
       <SettingsSheet
         isOpen={settingsOpen}
