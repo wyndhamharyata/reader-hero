@@ -21,13 +21,13 @@ import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { SummaryJobs } from "@/services/summary-jobs";
 import { saveBookPrefs } from "@/use-cases/book-prefs";
-import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
+import { watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
 import { pendingVolumes } from "@/use-cases/summary";
 import { ReaderNav } from "./_ReaderNav";
-import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
+import { ReaderStatus } from "./_ReaderStatus";
 import { ReaderSheets } from "./_ReaderSheets";
 import {
   describePageLabels,
@@ -38,6 +38,7 @@ import {
   useSummaryView,
 } from "./_use-reader-derived";
 import { useReaderKeys } from "./_use-reader-keys";
+import { useReaderRepair } from "./_use-reader-repair";
 import type { JumpRequest } from "./_ReaderView";
 
 const SAVE_DELAY_MS = 400;
@@ -78,13 +79,14 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     [bookId],
   );
 
+  const loadError = state.status === "error" ? state.error : null;
+  const { isRepairing, message, rebuild } = useReaderRepair({ bookId, loadError, reload });
+
   const [showChrome, setChrome] = useState(true);
   const [isTocOpen, setTocOpen] = useState(false);
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [isSearchOpen, setSearchOpen] = useState(false);
-  const [isRebuilding, setRebuilding] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const [reported, setReported] = useState<number | null>(null);
   // The summary follows the furthest block, so going back over earlier pages asks for nothing.
   const [furthest, setFurthest] = useState(0);
@@ -293,8 +295,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     if (patch.theme === undefined && patch.temperature === undefined) update(patch);
   };
 
-  const loadError = state.status === "error" ? state.error : null;
-
   // A launch into a book that is gone should not open it again.
   useEffect(() => {
     if (loadError?._tag !== "BookNotFound") return;
@@ -361,27 +361,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     };
   }, []);
 
-  const rebuild = () => {
-    setRebuilding(true);
-    setMessage(null);
-
-    const program = reparseBook(bookId, () => {}, setMessage).pipe(
-      Effect.ensuring(Effect.sync(() => setRebuilding(false))),
-      Effect.tap(() => Effect.sync(() => reload())),
-    );
-
-    void runApp(program);
-  };
-  // An out-of-date reader view rebuilds on open, once. A failure keeps the button.
-  const rebuiltOnce = useRef(false);
-
-  useEffect(() => {
-    if (loadError?._tag !== "ParsedMissing" || rebuiltOnce.current) return;
-
-    rebuiltOnce.current = true;
-    rebuild();
-  });
-
   const toggleMode = (): void => {
     setSearchOpen(false);
     // The other view mounts at the place being read, not at the last Contents entry.
@@ -406,21 +385,13 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   return (
     <div className="relative h-[var(--app-height)] bg-base-100">
       <div className={contentClass}>
-        {/* Only a slow open shows it: a usual one fills in within a few frames. */}
-        {state.status === "loading" && (
-          <div className="flex h-full items-center justify-center motion-safe:animate-[fade-in_240ms_ease-out_400ms_both]">
-            <span className="loading loading-spinner" />
-          </div>
-        )}
-
-        {loadError !== null && (
-          <LoadError
-            error={loadError}
-            title={title}
-            isRebuilding={isRebuilding}
-            onRebuild={rebuild}
-          />
-        )}
+        <ReaderStatus
+          status={state.status}
+          error={loadError}
+          isRepairing={isRepairing}
+          title={title}
+          onRebuild={rebuild}
+        />
 
         {data !== null && (
           <ReaderBody
