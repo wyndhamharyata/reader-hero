@@ -43,7 +43,7 @@ export function renderFigures(
 
       const handle = yield* pdf.load(data);
 
-      // A restarted job skips finished pages. An older build kept them in the parsed record.
+      // A restarted job skips pages that the checkpoint marks finished.
       const existing = yield* store
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
@@ -54,7 +54,7 @@ export function renderFigures(
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);
 
-        // The parse kept each page's text, so the job does not read it again. An older book reads it now.
+        // The parse kept each page's text, so the job does not read every page again. A book stored without that text reads it here.
         const kept = yield* store.getPages(bookId);
         const texts =
           kept ??

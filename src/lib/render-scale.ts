@@ -1,7 +1,7 @@
 // Enough for about 6 pages in the list on a phone, and a foldout stays under WebKit's canvas limit.
 const PAGE_PIXELS = 4_194_304;
 
-// Device pixels per PDF point for a page shown `width` CSS pixels wide, never softer than the old fixed 1.5.
+// Device pixels per PDF point for a page shown `width` CSS pixels wide, never softer than 1.5.
 export function pageRenderScale(
   size: { readonly width: number; readonly height: number },
   width: number,

@@ -61,18 +61,18 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   // Only the OpenAI-compatible provider has one. Its requests go through the relay.
   baseUrl: Schema.optional(Schema.String),
   consentedAt: Schema.optional(Schema.Int),
-  // The consent text that was allowed. Unset is the text from before Series grouping.
+  // The consent text that was allowed. Unset is the text without Series grouping.
   consentVersion: Schema.optional(Schema.Int),
-  // Records saved before these fields existed decode with their defaults.
+  // A stored record without these fields decodes with their defaults.
   linesInContents: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
   autoSummary: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
   seriesGrouping: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
 }) {}
 
-// The consent text's version. A reader who allowed an older text sees the note again.
+// The consent text's version. A reader who allowed another text sees the note again.
 export const CONSENT_VERSION = 5;
 
-// Every send checks this, so consent to an older note text asks again.
+// Every send checks this, so consent to another note text asks again.
 export const hasConsent = (settings: AiSettings | null): settings is AiSettings =>
   settings !== null &&
   settings.consentedAt !== undefined &&

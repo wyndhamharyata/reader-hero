@@ -50,7 +50,7 @@ const worker = (): Worker => {
       if (typeof key !== "number") return;
       const settle = pending.get(key);
       pending.delete(key);
-      // A page that left the list before its pixels came: they go back now, not at collection.
+      // A page that left the list before its pixels came: they go back at once, not at collection.
       if (settle === undefined) {
         if (reply.bitmap instanceof ImageBitmap) reply.bitmap.close();
         return;

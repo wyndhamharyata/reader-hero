@@ -157,7 +157,6 @@ export function describeSeries(
       text: streaming ?? (stored === undefined || past ? null : stored.text),
     };
   });
-  // The run's stage in the Summary's words, after the title of the volume it writes.
   const running = volumes.find((volume) => volume.card.book.id === run?.book);
   let status: string | null = run === null ? null : "Starting";
   if (run !== null && running !== undefined) {
@@ -623,7 +622,7 @@ export function seriesScope(
   );
 }
 
-// How many volumes have no paragraph or one from an older boundary, so an automatic run starts only for them.
+// How many volumes have no paragraph or one from a different boundary, so an automatic run starts only for them.
 export function pendingVolumes(
   series: Shelf["series"][number],
   // Counts only the volumes before this book, as on open, when the book's own paragraph waits for a chapter.
@@ -827,7 +826,7 @@ export function rebuildPlan(): Effect.Effect<
   });
 }
 
-// Edits and removals stay for the new list. The thread goes, as it asked about the old summaries.
+// Edits and removals stay for the new list. The thread goes, as it asked about the replaced summaries.
 export function rebuildBook(
   series: Shelf["series"][number] | null,
   card: LibraryCard,

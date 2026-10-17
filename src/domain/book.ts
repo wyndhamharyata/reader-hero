@@ -46,7 +46,7 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
-// It lives apart from ParsedBook, so each finished page saves cheaply. `through` is an older form.
+// It lives apart from ParsedBook, so each finished page saves cheaply. `through` marks every page up to it as finished.
 export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
   "reader-hero/domain/FigureCheckpoint",
 )({
@@ -83,14 +83,14 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   id: Schema.String,
   title: Schema.String,
   author: Schema.optional(Schema.String),
-  // Searchable metadata. Books imported before these fields existed do not have them.
+  // Searchable metadata. A book stored without them has none.
   subject: Schema.optional(Schema.String),
   keywords: Schema.optional(Schema.String),
   fileName: Schema.optional(Schema.String),
   // Older EPUB imports receive these fields when rebuilt.
   series: Schema.optional(Schema.String),
   seriesNumber: Schema.optional(Schema.Number),
-  // Books imported before EPUB support have no format and are PDFs.
+  // A book stored without a format is a PDF.
   format: Schema.optional(Schema.Literals(["pdf", "epub"])),
   addedAt: Schema.Int,
   fileSize: Schema.Int,
@@ -116,7 +116,7 @@ export class Series extends Schema.Class<Series>("reader-hero/domain/Series")({
   edited: Schema.optional(Schema.Boolean),
   removed: Schema.Array(Schema.String),
   hidden: Schema.optional(Schema.Boolean),
-  // An oklch hue, so a palette change in a later build still draws a stored colour.
+  // An oklch hue, so a stored colour follows a palette change.
   color: Schema.optional(Schema.Number),
   // A book's id, or "image" for the reader's own picture, stored as image "series:<id>/cover".
   cover: Schema.optional(Schema.String),
@@ -170,7 +170,7 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   font: ReaderFont,
   fontSize: Schema.Int,
   lineHeight: Schema.Number,
-  // Settings saved before these fields existed must still decode, or the user loses their theme.
+  // A setting stored without these fields must still decode, or the reader loses their theme.
   libraryView: LibraryView.pipe(Schema.withDecodingDefaultKey(Effect.succeed<LibraryView>("list"))),
   librarySort: LibrarySort.pipe(
     Schema.withDecodingDefaultKey(Effect.succeed<LibrarySort>("added")),
@@ -200,7 +200,7 @@ export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookP
   temperature: Schema.optional(Schema.Number),
 }) {}
 
-// The onboarding acts a reader has seen. A later version shows the tour again.
+// The onboarding acts a reader has seen. A new tour version shows it again.
 export const TOUR_VERSION = 1;
 
 export const DEFAULT_SETTINGS = new ReaderSettings({
@@ -265,7 +265,7 @@ export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/I
   blob: Schema.instanceOf(Blob),
   width: Schema.Number,
   height: Schema.Number,
-  // A resumed figure job rebuilds finished pages from it. Older images lack it.
+  // A resumed figure job rebuilds finished pages from it. An image stored without it rebuilds from its page.
   x: Schema.optional(Schema.Number),
   y: Schema.optional(Schema.Number),
 }) {}

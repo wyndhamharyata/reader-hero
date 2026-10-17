@@ -106,7 +106,7 @@ src/
   React components render state and handle interaction. They never import pdf.js or
   IndexedDB directly. Services are reached through the runtime hook in `src/lib/hooks.ts`.
 - **Schema at the boundary.** Stored records, shared files and service-worker messages are
-  decoded with `effect/Schema`. A record from an older build that fails to decode never breaks
+  decoded with `effect/Schema`. A stored record that fails to decode never breaks
   the app: a book record drops out of the list, a parsed book is rebuilt when it opens,
   settings fall back to their defaults, and summaries and series to none.
 - **One runtime.** `src/runtime.ts` builds one `ManagedRuntime` from the app's
@@ -172,20 +172,24 @@ words it can. A person checks the rest.
 
 ## 3. A comment says what a name cannot.
 
-The default is no comment. Write one line only when it holds one of these:
+Code explains itself. A comment is the exception, not the habit.
 
-- The reason the code does something a reader would not expect.
-- The source of a formula, with the source's own symbol.
-- The unit of a bare number, when a name cannot hold it.
+Most comments are not needed. Delete one unless it gives a reason the code cannot: why the code
+does something a reader would not expect, the source of a formula with the source's own symbol, or
+the unit of a bare number. If a line needs a comment to say what it does, rename the line or split
+it.
 
-Never write a banner, an ALL-CAPS label, step narration such as `// Step 1`, a label such as
-`// Main logic`, prose inside a JSDoc block, commented-out code, or a TODO with no named task.
-TypeScript types carry the contract, so a JSDoc block holds types only.
+A comment is one line and gives one reason. Never write a banner, an ALL-CAPS label, step
+narration such as `// Step 1`, a label such as `// Main logic`, prose inside a JSDoc block,
+commented-out code, or a TODO with no named task. TypeScript types carry the contract, so a JSDoc
+block holds types only.
 
-If a line needs a comment to say what it does, rename it or split it. A comment explains the code
-as it is now. It never sends the reader to a version or a past change.
+A comment stands alone. A reader who knows the code but not its history must understand it. Never
+refer to a past version, a change, the state of the codebase when the comment was written, or the
+code around it. Words such as `no longer`, `used to`, `previously`, `older build`, `this change`,
+`still`, `now` or `the line above` are not reasons.
 
-A comment is one line, never two. `npm run lint` checks it. A term a reader may not know, such as
+`npm run lint` checks the length and the words it can. A term a reader may not know, such as
 `linearize`, gets a link or a plain word on the same line.
 
 ## 4. A name is a full word.
@@ -203,7 +207,7 @@ A comment is one line, never two. `npm run lint` checks it. A term a reader may 
   `ratio`. A value with no unit keeps its plain name, such as `q` or `pageCount`.
 - A unit mismatch then looks wrong on sight: `widthPx = widthPt`.
 - Give a number a local name when a reader cannot tell what it is from its line. `Math.max(1, x)`
-  needs no name. `setTimeout(fn, 150)` does, as `const settleMs = 150` on the line above.
+  needs no name. `setTimeout(fn, 150)` does, as `const settleMs = 150` beside the call.
 - Put parentheses around mixed operators when the order is not obvious.
 
 ## 6. Structure.
@@ -213,9 +217,9 @@ A comment is one line, never two. `npm run lint` checks it. A term a reader may 
   user typed in. Code past that point trusts the value.
 - A blank line groups a block. One idea per block, about five statements.
 - Control flow is its own block. An `if`, a loop, a `switch` or a `try` of more than one line has a
-  blank line above and below it, unless it opens or closes its block. A one-line one needs none.
+  blank line before and after it, unless it opens or closes its block. A one-line one needs none.
 - Declare, then use. A run of declarations has a blank line between it and the statements around it.
-- A function of more than three lines keeps a blank line above its last return.
+- A function of more than three lines keeps a blank line before its last return.
 - Name a compound condition before you test it: `const canDraw = hasSize && isVisible`.
 - A ternary fits on one line. Never nest one.
 - Build a list with `if` and `push`. Never `[a && x, b && y].filter(Boolean)`.

@@ -71,7 +71,7 @@ export const PdfPage = memo(function PdfPage({
     );
     return () => {
       stopFiber(fiber);
-      // A page that drops out of the list gives back its bitmap now. iOS caps the memory of all canvases.
+      // A page that drops out of the list gives back its bitmap when it unmounts. iOS caps the memory of all canvases.
       canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
     };
   }, [doc, size.page, renderScale]);

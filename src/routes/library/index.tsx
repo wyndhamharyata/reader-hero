@@ -499,7 +499,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     overscan: 3,
     scrollMargin: listTop,
   });
-  // A row of another view or width has another height, so the measured ones no longer hold.
+  // A row of another view or width has another height, so the measured heights do not match.
   useLayoutEffect(() => {
     virtualizer.measure();
   }, [virtualizer, grid, columns]);

@@ -397,7 +397,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     forkApp(program.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
   }, [ai, seriesId, bookId, run, summaryError, seriesJob, summary, readingCover.target, finished]);
 
-  // A PDF may switch to the original view, so its page renderer loads its scripts now.
+  // A PDF may switch to the original view, so its page renderer loads its scripts at startup.
   useEffect(() => {
     if (data === null || epub) return;
     void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));

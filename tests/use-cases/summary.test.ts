@@ -1150,7 +1150,7 @@ describe("series summary", () => {
     expect(rows().action).toBe("Summarise 1 volume");
   });
 
-  it("given a record from an older build, decodes it with no paragraph", async () => {
+  it("given a record with no paragraph, decodes it", async () => {
     const { volume: _volume, ...older } = kept("b1", "V1", 1);
     const decoded = await Effect.runPromise(decodeSummary(JSON.parse(JSON.stringify(older))));
     expect(decoded.volume).toBeUndefined();

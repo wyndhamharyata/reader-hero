@@ -9,7 +9,6 @@ interface Swipe {
   dx: number;
 }
 
-// A sideways swipe drags the tab panels with the finger. The axis locks on the first move.
 export function useTabSwipe<T>(
   viewport: RefObject<HTMLElement | null>,
   track: RefObject<HTMLElement | null>,

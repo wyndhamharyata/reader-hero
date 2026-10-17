@@ -294,7 +294,6 @@ export interface SummaryState {
   readonly error: string | null;
 }
 
-// The book's summary and its job, live: the record follows every write, the run follows the job.
 export function useSummary(bookId: string): SummaryState & {
   readonly loaded: boolean;
   readonly start: (input: SummaryInput, settings: AiSettings) => void;

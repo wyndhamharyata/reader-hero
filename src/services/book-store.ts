@@ -104,7 +104,7 @@ export class BookStore extends Context.Service<
 
       const list = Effect.fn("BookStore.list")(function* () {
         const rows = yield* withDb("list", (db) => db.getAll("books"));
-        // A book record that no longer decodes drops out, so one bad row cannot empty the library.
+        // A book record that fails to decode drops out, so one bad row cannot empty the library.
         const books = yield* Effect.forEach(rows, (row) =>
           decodeBookMeta(row).pipe(
             Effect.catch((cause) =>
@@ -120,7 +120,7 @@ export class BookStore extends Context.Service<
 
       const listSeries = Effect.fn("BookStore.listSeries")(function* () {
         const rows = yield* withDb("listSeries", (db) => db.getAll("series"));
-        // A series record that no longer decodes drops out, so the library still opens.
+        // A series record that fails to decode drops out, so the library still opens.
         const series = yield* Effect.forEach(rows, (row) =>
           decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null))),
         );
@@ -387,7 +387,7 @@ export class BookStore extends Context.Service<
         );
       });
 
-      // A row that no longer decodes can never import, so it goes.
+      // A row that fails to decode can never import, so it goes.
       const inbox = Effect.fn("BookStore.inbox")(function* () {
         const rows = yield* withDb("inbox", (db) => db.getAll("inbox"));
         const entries = yield* Effect.forEach(rows, (row) =>

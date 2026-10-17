@@ -96,7 +96,7 @@ export class SettingsStore extends Context.Service<
         });
       });
 
-      // A record that no longer decodes counts as none sent, so grouping sends those books again.
+      // A record that fails to decode counts as none sent, so grouping sends those books again.
       const groupedBooks = Effect.fn("SettingsStore.groupedBooks")(function* () {
         const row = yield* Effect.tryPromise({
           try: () => withReaderDb((db) => db.get("settings", "grouped")),
@@ -131,7 +131,7 @@ export class SettingsStore extends Context.Service<
           }).pipe(
             Effect.flatMap((row) => decodeUsageTally(row)),
             Effect.map((tally) => [[key.slice(6), tally] as const]),
-            // A tally that no longer decodes starts again from nothing.
+            // A tally that fails to decode starts from nothing.
             Effect.catchTag("SchemaError", () => Effect.succeed([])),
           ),
       );

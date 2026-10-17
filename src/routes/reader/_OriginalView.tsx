@@ -391,7 +391,7 @@ export function OriginalView({
       held === undefined || held.size === 0 ? 0 : (container.scrollTop - held.start) / held.size;
     list.style.transform = "";
     virtualizer.measure();
-    // The new height goes in now, as the old one would cut the scroll below short.
+    // The new height goes in first, as the old one would cut the scroll below short.
     list.style.height = `${virtualizer.getTotalSize()}px`;
     if (width === 0 || sizes.length === 0) return;
     const pinched = anchor.current;

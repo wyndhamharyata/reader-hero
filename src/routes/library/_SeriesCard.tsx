@@ -18,7 +18,6 @@ export function SeriesCard({
   onActions: () => void;
   tray: TrayFlags | null;
 }): ReactElement {
-  // The reader's choice first, their own image or a book. Otherwise the book in progress, or the first.
   const front =
     series.cover === "image"
       ? `series:${series.id}`

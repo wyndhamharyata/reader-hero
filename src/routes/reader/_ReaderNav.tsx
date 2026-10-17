@@ -13,7 +13,6 @@ interface Props {
   onSearch?: () => void;
 }
 
-// A bottom bar on phones, within thumb reach, and a top bar from md up.
 export function ReaderNav({
   title,
   chrome,

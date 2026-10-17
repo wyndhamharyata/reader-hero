@@ -72,6 +72,17 @@ const bannedPhrases = [
   "read better",
   "reads better",
   "this is important",
+  "no longer",
+  "used to",
+  "older build",
+  "earlier build",
+  "older version",
+  "a later build",
+  "this change",
+  "these changes",
+  "the old fixed",
+  "line above",
+  "code above",
 ];
 
 // Only the words that read as generated text in a name. A noun such as "gap" is fine in code.
@@ -306,6 +317,8 @@ const files = [
 function checkStyles(path, source) {
   for (const match of source.matchAll(/\/\*[\s\S]*?\*\//g)) {
     const line = source.slice(0, match.index).split("\n").length;
+
+    if (match[0].includes("\n")) addProblem(path, line, "comment runs over one line");
 
     checkText(path, line, match[0], "comment");
   }

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { decodeBookMeta, decodeSeries } from "@/lib/codecs";
 
 describe("series metadata schemas", () => {
-  it("given a BookMeta record from an older build, decodes without EPUB series fields", async () => {
+  it("given a BookMeta record without EPUB series fields, decodes", async () => {
     const meta = await Effect.runPromise(
       decodeBookMeta({
         id: "b1",

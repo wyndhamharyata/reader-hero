@@ -77,7 +77,7 @@ export function renderPageDetail(
       ),
     };
     const bitmap = yield* renderer.render(rendered, size.page, scale, crop);
-    // Placed only now, so the last area stays sharp on screen until this one is ready.
+    // Placed only when ready, so the last area stays sharp on screen until this one arrives.
     canvas.style.left = `${(crop.x / fullWidth) * 100}%`;
     canvas.style.top = `${(crop.y / fullHeight) * 100}%`;
     canvas.style.width = `${(crop.width / fullWidth) * 100}%`;

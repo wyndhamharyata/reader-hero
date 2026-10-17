@@ -32,7 +32,6 @@ interface Props {
   cover: Coverage;
   // Null with no provider. The stored summary still reads but nothing runs.
   settings: AiSettings | null;
-  // The book's text settings: the summary is reading text and takes their size, font and leading.
   reading: ReaderSettings;
   state: SummaryState;
   onKind: (kind: BookKind) => void;
@@ -167,7 +166,7 @@ export function SummarySheet({
     );
   };
 
-  // A chapter with its own paragraph by now drops its "current position" entry.
+  // A chapter that already has its own paragraph drops its "current position" entry.
   const stored =
     summary?.current !== undefined &&
     summary.current.end <= input.index + 1 &&

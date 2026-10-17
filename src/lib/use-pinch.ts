@@ -34,7 +34,6 @@ const midpoint = (element: HTMLElement, [a, b]: [Touch, Touch]): PinchPoint =>
 const spread = ([a, b]: [Touch, Touch]): number =>
   Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
-// Two fingers, or a trackpad pinch, scale the element's content in place of the browser zooming the whole app.
 export function usePinch(element: HTMLElement | null, handlers: Handlers): void {
   const latest = useRef(handlers);
   useEffect(() => {

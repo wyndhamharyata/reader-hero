@@ -188,7 +188,7 @@ export const ReaderView = memo(function ReaderView({
     onToggleChrome();
   };
 
-  // Keys keep their identity when figures are inserted earlier in the book. Index keys made every later image reload.
+  // Keys keep their identity when figures are inserted earlier in the book, so images do not reload.
   const seen = new Map<string, number>();
   const nodes = parsed.blocks.map((block, index) => {
     const imageId = block.imageId;
