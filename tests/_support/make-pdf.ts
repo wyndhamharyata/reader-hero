@@ -17,7 +17,12 @@ type Part = string | Uint8Array;
 const escapeText = (text: string): string =>
   text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 
-export function makePdf(lines: ReadonlyArray<PdfLine>, image?: PdfImage): Uint8Array {
+// The page box is [0 0 612 792] unless one is given, as a cropped or offset page has.
+export function makePdf(
+  lines: ReadonlyArray<PdfLine>,
+  image?: PdfImage,
+  mediaBox: readonly [number, number, number, number] = [0, 0, 612, 792],
+): Uint8Array {
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -45,7 +50,7 @@ export function makePdf(lines: ReadonlyArray<PdfLine>, image?: PdfImage): Uint8A
     ["<< /Type /Catalog /Pages 2 0 R >>"],
     ["<< /Type /Pages /Kids [3 0 R] /Count 1 >>"],
     [
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >>${
+      `<< /Type /Page /Parent 2 0 R /MediaBox [${mediaBox.join(" ")}] /Resources << /Font << /F1 5 0 R >>${
         image === undefined ? "" : " /XObject << /Im0 6 0 R >>"
       } >> /Contents 4 0 R >>`,
     ],

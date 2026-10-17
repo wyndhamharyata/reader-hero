@@ -15,6 +15,8 @@ export interface PdfOps {
   readonly transform: number;
   readonly paintImageXObject: number;
   readonly paintInlineImageXObject: number;
+  readonly paintFormXObjectBegin: number;
+  readonly paintFormXObjectEnd: number;
 }
 
 export interface PdfMatrixUtil {
@@ -124,6 +126,19 @@ export function collectImageBoxes(
     }
     if (fn === ops.transform) {
       ctm = util.transform(ctm, toMatrix(args));
+      continue;
+    }
+    // A form draws under its own matrix and gives it back at its end, as pdf.js's canvas does.
+    if (fn === ops.paintFormXObjectBegin) {
+      stack.push(ctm);
+      const matrix = args[0];
+      if (Array.isArray(matrix) || ArrayBuffer.isView(matrix)) {
+        ctm = util.transform(ctm, toMatrix(Array.from(matrix as ArrayLike<unknown>)));
+      }
+      continue;
+    }
+    if (fn === ops.paintFormXObjectEnd) {
+      ctm = stack.pop() ?? IDENTITY;
       continue;
     }
     if (fn === ops.paintImageXObject) {

@@ -79,6 +79,20 @@ describe("two columns with real pdf.js output", () => {
   });
 });
 
+describe("toPageText with real pdf.js output", () => {
+  it("given a page box that starts above 0, places text in the page's own box", async () => {
+    // The box runs from y 100 to 892, so text drawn at 850 sits 750 up a 792-high page.
+    const data = makePdf(
+      [{ text: "Running head", size: 10, x: 72, y: 850 }],
+      undefined,
+      [0, 100, 612, 892],
+    );
+    const [page] = await readPages(data);
+    expect(page?.height).toBe(792);
+    expect(page?.items[0]?.y).toBeCloseTo(750);
+  });
+});
+
 describe("collectImageBoxes with real pdf.js output", () => {
   it("given a PDF with an embedded image, records its placement", async () => {
     const data = makePdf([{ text: "figure", size: 12, x: 72, y: 700 }], {

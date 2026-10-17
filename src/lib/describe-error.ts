@@ -44,7 +44,10 @@ export function describeError(
           return `${name} could not be read.`;
       }
     case "StorageFailure":
-      return `${name} could not be saved. Storage may be full.`;
+      // Only a full store is named as one; a closed connection or a bad record is not a reason to delete books.
+      return error.cause instanceof DOMException && error.cause.name === "QuotaExceededError"
+        ? `${name} could not be saved: this device's storage for Reader Hero is full.`
+        : `${name} could not be saved.`;
     case "BookNotFound":
       return `${name} is no longer in your library.`;
     case "ParsedMissing":

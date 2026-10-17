@@ -13,10 +13,13 @@ export function toPageText(
     const [, , c = 0, d = 0, e = 0, f = 0] = (item.transform as ReadonlyArray<unknown>).map(
       (value) => (typeof value === "number" ? value : 0),
     );
+    // Through the page's own box, so a rotated page or one whose box does not start at 0,0 reads like any other;
+    // y counts up from the bottom again, as the rest of the pipeline expects.
+    const [x = e, down = viewport.height - f] = viewport.convertToViewportPoint(e, f) as number[];
     items.push({
       str: item.str,
-      x: e,
-      y: f,
+      x,
+      y: viewport.height - down,
       width: item.width,
       height: item.height,
       fontSize: Math.hypot(c, d) || item.height,

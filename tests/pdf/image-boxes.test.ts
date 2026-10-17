@@ -45,4 +45,25 @@ describe("collectImageBoxes", () => {
 
     expect(boxes).toHaveLength(0);
   });
+
+  it("given an image inside a form, places it under the form's matrix and leaves it after", () => {
+    const boxes = collectImageBoxes(
+      opList(
+        [
+          OPS.paintFormXObjectBegin,
+          OPS.transform,
+          OPS.paintImageXObject,
+          OPS.paintFormXObjectEnd,
+          OPS.paintImageXObject,
+        ],
+        [[[1, 0, 0, 1, 100, 200], null], [50, 0, 0, 50, 0, 0], ["inside"], [], ["after"]],
+      ),
+      1,
+      OPS,
+      Util,
+    );
+    expect(boxes.map(({ x, y, width, height }) => ({ x, y, width, height }))).toEqual([
+      { x: 100, y: 200, width: 50, height: 50 },
+    ]);
+  });
 });

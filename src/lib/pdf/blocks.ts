@@ -46,7 +46,11 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
   const textLines = items.flatMap((item) => (item.type === "text" ? [item.line] : []));
   const bodySize = median(textLines.map((line) => line.fontSize));
   const bodyWidth = median(textLines.map((line) => line.width));
-  const leftEdge = textLines.length > 0 ? Math.min(...textLines.map((line) => line.x)) : 0;
+  // A loop, not a spread: a long book's lines pass WebKit's limit on arguments.
+  const leftEdge = textLines.reduce(
+    (edge, line) => Math.min(edge, line.x),
+    textLines.length > 0 ? Number.POSITIVE_INFINITY : 0,
+  );
 
   const blocks: RawBlock[] = [];
   let current: { kind: "paragraph"; level: number; text: string; page: number } | null = null;
