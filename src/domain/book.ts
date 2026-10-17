@@ -21,7 +21,9 @@ export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
       Schema.Struct({
         start: Schema.Int,
         end: Schema.Int,
-        style: Schema.Literals(["bold", "italic"]),
+        style: Schema.Literals(["bold", "italic", "link"]),
+        // An external URL, or `#block-<index>` for a place in the book.
+        href: Schema.optional(Schema.String),
       }),
     ),
   ),
@@ -34,7 +36,7 @@ export class TocEntry extends Schema.Class<TocEntry>("reader-hero/domain/TocEntr
   depth: Schema.Int,
 }) {}
 
-export const PARSED_VERSION = 2;
+export const PARSED_VERSION = 3;
 
 export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/ParsedBook")({
   version: Schema.Int,

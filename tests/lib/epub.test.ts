@@ -132,6 +132,22 @@ describe("parseEpub", () => {
     ]);
   });
 
+  it("given links, keeps their text ranges and resolves places in the book", () => {
+    const files = book({
+      "OEBPS/Text/one.xhtml": page(`<p>Start <a href="chapter%20two.xhtml#later">later</a>
+        <a href="https://example.com/x">site</a> <a href="#note">note</a>
+        <a href="javascript:alert(1)">bad</a>.</p><p id="note">A note.</p>`),
+    });
+    const blocks = run(files).parsed.blocks;
+
+    expect(blocks[0]?.text).toBe("Start later site note bad.");
+    expect(blocks[0]?.marks).toEqual([
+      { start: 6, end: 11, style: "link", href: "#block-4" },
+      { start: 12, end: 16, style: "link", href: "https://example.com/x" },
+      { start: 17, end: 21, style: "link", href: "#block-1" },
+    ]);
+  });
+
   it("given a nav document, links entries to blocks and promotes the bold title to a heading", () => {
     const parsed = run(book()).parsed;
 

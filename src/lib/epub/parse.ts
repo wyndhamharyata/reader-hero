@@ -17,7 +17,14 @@ export interface EpubBook {
   readonly cover: EpubBook["images"][number] | null;
 }
 
-type Style = { readonly isBold?: boolean; readonly isItalic?: boolean };
+type Style = {
+  readonly isBold?: boolean;
+  readonly isItalic?: boolean;
+  readonly href?: string;
+};
+
+const INTERNAL_LINK_PREFIX = "epub:";
+const BLOCK_LINK_PREFIX = "#block-";
 
 const blockNames = new Set([
   "address",
@@ -70,6 +77,42 @@ function resolve(dir: string, href: string): string {
   }
 
   return parts.join("/");
+}
+
+// A file and fragment, as the anchors map keys them.
+function resolveTarget(path: string, href: string): string {
+  const hash = href.indexOf("#");
+  const file = hash < 0 ? href : href.slice(0, hash);
+  const rawFragment = hash < 0 ? "" : href.slice(hash + 1);
+  const fragment = Option.getOrElse(
+    Option.liftThrowable(decodeURIComponent)(rawFragment),
+    () => rawFragment,
+  );
+  const base = file === "" ? path : resolve(path.slice(0, path.lastIndexOf("/") + 1), file);
+
+  return fragment === "" ? base : `${base}#${fragment}`;
+}
+
+function hasExternalScheme(href: string): boolean {
+  const lower = href.toLowerCase();
+
+  return (
+    lower.startsWith("http://") ||
+    lower.startsWith("https://") ||
+    lower.startsWith("mailto:") ||
+    lower.startsWith("tel:")
+  );
+}
+
+function readLink(path: string, value: string | null): string | undefined {
+  const href = value?.trim() ?? "";
+  const lower = href.toLowerCase();
+
+  if (href === "" || lower.startsWith("javascript:") || lower.startsWith("data:")) return undefined;
+  if (href.startsWith("//")) return `https:${href}`;
+  if (hasExternalScheme(href)) return href;
+
+  return `${INTERNAL_LINK_PREFIX}${resolveTarget(path, href)}`;
 }
 
 // Two consumers (stylesheet rules and style attributes) share this parser.
@@ -444,6 +487,10 @@ function appendText(node: Node, style: Style, state: ChapterState): void {
   if (state.text.length > from && style.isItalic === true) {
     state.marks.push({ start: from, end: state.text.length, style: "italic" });
   }
+
+  if (state.text.length > from && style.href !== undefined) {
+    state.marks.push({ start: from, end: state.text.length, style: "link", href: style.href });
+  }
 }
 
 function isHeadingName(name: string): boolean {
@@ -474,7 +521,7 @@ function appendElement(element: Element, style: Style, path: string, state: Chap
   if (isBlockName(name)) flushChapter(state);
 
   // A block element flushed first, so the next block pushed is the one this id names.
-  const id = element.getAttribute("id");
+  const id = element.getAttribute("id") ?? element.getAttribute("name");
 
   if (id !== null) state.anchors.set(`${path}#${id}`, state.blocks.length);
 
@@ -483,7 +530,7 @@ function appendElement(element: Element, style: Style, path: string, state: Chap
     return;
   }
 
-  const next = elementStyle(element, style, state.classStyles);
+  const next = elementStyle(element, style, state.classStyles, path);
 
   if (heading) state.level = Math.min(3, Number(name[1]));
   walkChapter(element, next, path, state);
@@ -510,9 +557,14 @@ function elementStyle(
   element: Element,
   style: Style,
   classStyles: ReadonlyMap<string, Style>,
+  path: string,
 ): Style {
   let isBold = style.isBold === true || element.localName === "b" || element.localName === "strong";
   let isItalic = style.isItalic === true || italicNames.has(element.localName);
+  const href =
+    element.localName === "a"
+      ? (readLink(path, element.getAttribute("href")) ?? style.href)
+      : style.href;
 
   for (const className of (element.getAttribute("class") ?? "").split(" ")) {
     const own = classStyles.get(className);
@@ -523,7 +575,7 @@ function elementStyle(
 
   const inline = readStyle(element.getAttribute("style") ?? "");
 
-  return { isBold: inline.isBold ?? isBold, isItalic: inline.isItalic ?? isItalic };
+  return { isBold: inline.isBold ?? isBold, isItalic: inline.isItalic ?? isItalic, href };
 }
 
 function buildToc(
@@ -566,6 +618,34 @@ function buildToc(
   }
 
   return toc;
+}
+
+function resolveBlockLinks(blocks: Array<Block>, anchors: ReadonlyMap<string, number>): void {
+  for (const [index, block] of blocks.entries()) {
+    if (block.marks === undefined) continue;
+
+    const marks: Array<Mark> = [];
+    let changed = false;
+
+    for (const mark of block.marks) {
+      const isInternal =
+        mark.style === "link" &&
+        mark.href !== undefined &&
+        mark.href.startsWith(INTERNAL_LINK_PREFIX);
+      const target = isInternal
+        ? anchors.get((mark.href ?? "").slice(INTERNAL_LINK_PREFIX.length))
+        : undefined;
+
+      if (!isInternal) marks.push(mark);
+      else {
+        changed = true;
+        if (target !== undefined) marks.push({ ...mark, href: `${BLOCK_LINK_PREFIX}${target}` });
+      }
+    }
+
+    if (changed)
+      blocks[index] = new Block({ ...block, marks: marks.length > 0 ? marks : undefined });
+  }
 }
 
 export function parseEpub(
@@ -654,6 +734,8 @@ export function parseEpub(
       Stream.tap(() => Effect.yieldNow),
       Stream.runDrain,
     );
+
+    resolveBlockLinks(blocks, anchors);
 
     const contents = readContents(items, parse);
 

@@ -199,11 +199,23 @@ export const ReaderView = memo(function ReaderView({
   }, [jump]);
 
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if ((event.target as HTMLElement).closest("a, button") !== null) return;
-    if (!tap.isTap(event)) return;
-
+    const target = event.target as HTMLElement;
     const container = containerRef.current;
+    const link = target.closest<HTMLAnchorElement>("a[data-block]");
 
+    if (link !== null && container !== null) {
+      event.preventDefault();
+
+      const index = Number(link.dataset.block);
+
+      container
+        .querySelector<HTMLElement>(`div[data-block="${index}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (target.closest("a, button") !== null) return;
+    if (!tap.isTap(event)) return;
     if (container === null) return;
 
     const rect = event.currentTarget.getBoundingClientRect();

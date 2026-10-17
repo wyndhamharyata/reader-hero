@@ -6,6 +6,16 @@ interface Props {
   marks: Block["marks"];
 }
 
+const BLOCK_LINK_PREFIX = "#block-";
+
+function linkedBlock(href: string): number | null {
+  if (!href.startsWith(BLOCK_LINK_PREFIX)) return null;
+
+  const index = Number(href.slice(BLOCK_LINK_PREFIX.length));
+
+  return Number.isInteger(index) ? index : null;
+}
+
 // Marks may overlap, so the text splits at every mark edge and each piece takes all marks over it.
 export function MarkedText({ text, marks = [] }: Props): ReactElement {
   const cuts = [
@@ -19,6 +29,24 @@ export function MarkedText({ text, marks = [] }: Props): ReactElement {
         const over = marks.filter((mark) => mark.start <= start && mark.end >= end);
         const bold = over.some((mark) => mark.style === "bold") ? "font-bold" : "";
         const italic = over.some((mark) => mark.style === "italic") ? "italic" : "";
+        const link = over.find((mark) => mark.style === "link" && mark.href !== undefined);
+
+        if (link?.href !== undefined) {
+          const block = linkedBlock(link.href);
+
+          return (
+            <a
+              key={start}
+              href={link.href}
+              className={`${bold} ${italic} text-primary underline underline-offset-2`}
+              data-block={block ?? undefined}
+              target={block === null ? "_blank" : undefined}
+              rel={block === null ? "noreferrer" : undefined}
+            >
+              {text.slice(start, end)}
+            </a>
+          );
+        }
 
         return (
           <span key={start} className={`${bold} ${italic}`}>
