@@ -7,7 +7,7 @@ import { FilterChip } from "./_FilterChip";
 import { sorts } from "./_SortMenu";
 
 interface Props {
-  open: boolean;
+  isOpen: boolean;
   shelf: Shelf;
   sort: LibrarySort;
   onSort: (sort: LibrarySort) => void;
@@ -24,7 +24,7 @@ const titles: Record<FilterGroup, string> = {
 
 // Phone only, because the sideways chip row hides most chips and has no room for the sort.
 export function FilterSheet({
-  open,
+  isOpen,
   shelf,
   sort,
   onSort,
@@ -34,9 +34,9 @@ export function FilterSheet({
 }: Props): ReactElement | null {
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
-  const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
+  const { dismiss } = useBottomSheet(isOpen, sheetRef, backdropRef, onClose);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
   const count = shelf.items.reduce(
     (total, item) => total + (item.kind === "series" ? item.count : 1),
@@ -89,7 +89,7 @@ export function FilterSheet({
                     key={option.value}
                     label={option.label}
                     count={option.count}
-                    active={option.active}
+                    isActive={option.isActive}
                     onClick={() => onToggle(group, option.value)}
                   />
                 ))}
@@ -103,7 +103,7 @@ export function FilterSheet({
             type="button"
             className="btn btn-ghost"
             onClick={onClear}
-            disabled={!shelf.filtered}
+            disabled={!shelf.isFiltered}
           >
             Clear all
           </button>

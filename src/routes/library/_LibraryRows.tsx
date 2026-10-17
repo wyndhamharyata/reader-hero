@@ -14,7 +14,7 @@ export function LibraryRows({
   virtualizer,
   rows,
   columns,
-  grid,
+  isGrid,
   listTop,
   trays,
   openSeries,
@@ -25,7 +25,7 @@ export function LibraryRows({
   readonly virtualizer: Virtualizer<HTMLDivElement, Element>;
   readonly rows: ReadonlyArray<ReadonlyArray<LibraryRowItem>>;
   readonly columns: number;
-  readonly grid: boolean;
+  readonly isGrid: boolean;
   readonly listTop: number;
   readonly trays: ReadonlyArray<{
     readonly start: number;
@@ -46,7 +46,7 @@ export function LibraryRows({
           data-index={row.index}
           {...(row.index === 0 ? { "data-tour": "book" } : {})}
           // Above the next row while a tile's menu is open, so the menu is not under it.
-          className={`absolute inset-x-0 top-0 grid gap-x-3 focus-within:z-10 ${grid ? "pb-5" : "pb-3"}`}
+          className={`absolute inset-x-0 top-0 grid gap-x-3 focus-within:z-10 ${isGrid ? "pb-5" : "pb-3"}`}
           style={{
             transform: `translateY(${row.start - listTop}px)`,
             gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
@@ -63,35 +63,35 @@ export function LibraryRows({
                     start: range.start,
                     end: range.end,
                     columns,
-                    rowGap: grid ? "1.25rem" : "0.75rem",
+                    rowGap: isGrid ? "1.25rem" : "0.75rem",
                     hue: range.hue,
                   };
 
             if (item.kind === "series") {
               const props = {
                 series: item,
-                expanded: openSeries.has(item.id),
+                isExpanded: openSeries.has(item.id),
                 onToggle: () => onToggleSeries(item.id),
                 onActions: () => onSeriesActions(item),
                 tray,
               };
 
-              return grid ? (
+              return isGrid ? (
                 <SeriesTile key={`series:${item.id}`} {...props} />
               ) : (
                 <SeriesCard key={`series:${item.id}`} {...props} />
               );
             }
 
-            const seriesMember = item.kind === "member";
+            const isSeriesMember = item.kind === "member";
             const props = {
               card: item.card,
               onActions: () => onBookActions(item.card),
-              seriesMember,
+              isSeriesMember,
               tray,
             };
 
-            return grid ? (
+            return isGrid ? (
               <BookTile key={`book:${item.card.book.id}`} {...props} />
             ) : (
               <BookCard key={`book:${item.card.book.id}`} {...props} />

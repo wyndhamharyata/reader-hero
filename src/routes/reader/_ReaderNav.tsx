@@ -4,7 +4,7 @@ import { SlideLink } from "@/components/SlideLink";
 
 interface Props {
   title: string;
-  chrome: boolean;
+  showChrome: boolean;
   percentLabel: string;
   position: number;
   total: number;
@@ -15,19 +15,19 @@ interface Props {
 
 export function ReaderNav({
   title,
-  chrome,
+  showChrome,
   percentLabel,
   position,
   total,
   onMenu,
   onSearch,
 }: Props): ReactElement {
-  const hidden = chrome ? "" : "translate-y-full md:-translate-y-full";
+  const isHidden = showChrome ? "" : "translate-y-full md:-translate-y-full";
 
   return (
     <nav
       data-tour="reader-nav"
-      className={`absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${hidden}`}
+      className={`absolute inset-x-0 bottom-0 z-30 flex flex-col-reverse gap-1 border-t border-base-300 bg-base-100 px-2 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] transition-transform md:top-0 md:bottom-auto md:flex-col md:border-t-0 md:border-b md:pt-[calc(var(--safe-top)+1.25rem)] md:pb-2 ${isHidden}`}
     >
       <div className="flex items-center gap-1">
         <SlideLink

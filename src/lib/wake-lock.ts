@@ -4,14 +4,14 @@ import { Effect } from "effect";
 export function holdWakeLock(): Effect.Effect<never> {
   return Effect.callback<never>(() => {
     let held: WakeLockSentinel | null = null;
-    let done = false;
+    let isDone = false;
     const take = (): void => {
-      if (done || document.visibilityState !== "visible" || !("wakeLock" in navigator)) return;
+      if (isDone || document.visibilityState !== "visible" || !("wakeLock" in navigator)) return;
 
       navigator.wakeLock.request("screen").then(
         (sentinel) => {
           // A lock granted after the reader closed goes back at once.
-          if (done) void sentinel.release().catch(() => undefined);
+          if (isDone) void sentinel.release().catch(() => undefined);
           else held = sentinel;
         },
         () => undefined,
@@ -22,7 +22,7 @@ export function holdWakeLock(): Effect.Effect<never> {
     document.addEventListener("visibilitychange", take);
 
     return Effect.sync(() => {
-      done = true;
+      isDone = true;
       document.removeEventListener("visibilitychange", take);
       void held?.release().catch(() => undefined);
     });

@@ -47,7 +47,7 @@ interface Props {
   jump: { readonly page: number; readonly nonce: number } | null;
   // Null for a scanned book, which has no text to search.
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }> | null;
-  searching: boolean;
+  isSearching: boolean;
   onCloseSearch: () => void;
   onPageChange: (page: number) => void;
   onToggleChrome: () => void;
@@ -60,7 +60,7 @@ export function OriginalView({
   showChrome,
   jump,
   blocks,
-  searching,
+  isSearching,
   onCloseSearch,
   onPageChange,
   onToggleChrome,
@@ -109,8 +109,8 @@ export function OriginalView({
                   const next = [...known];
 
                   for (const size of batch) next[size.page - 1] = size;
-                  
-return next;
+
+                  return next;
                 }),
               ),
             ),
@@ -169,7 +169,7 @@ return next;
     gap: 12,
     paddingStart: 8,
     // A page the search goes to starts below the search bar, not under it.
-    scrollPaddingStart: searching ? 64 : 0,
+    scrollPaddingStart: isSearching ? 64 : 0,
     // Two pages each side are drawn before they scroll in.
     overscan: 2,
     // The page at the middle of the screen is the one being read.
@@ -353,8 +353,8 @@ return next;
     if (doc === null) return;
 
     waitToSettle();
-    
-return () => clearTimeout(settle.current);
+
+    return () => clearTimeout(settle.current);
   }, [doc, waitToSettle]);
 
   // A pinch moves only the list's transform. The zoom changes once, when it ends.
@@ -566,7 +566,7 @@ return () => clearTimeout(settle.current);
         </div>
       )}
 
-      {doc !== null && searching && blocks !== null && (
+      {doc !== null && isSearching && blocks !== null && (
         <PageSearch
           doc={doc}
           blocks={blocks}
@@ -577,7 +577,7 @@ return () => clearTimeout(settle.current);
         />
       )}
 
-      {doc !== null && showChrome && !searching && (
+      {doc !== null && showChrome && !isSearching && (
         <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
           <span className={pageBadge}>
             Page {current} of {pageCount}

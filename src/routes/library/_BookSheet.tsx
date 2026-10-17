@@ -24,7 +24,7 @@ export function BookSheet({
   progress: ReadingProgress | null;
   groups: Shelf["series"];
   // `place` is the position at the sheet's opening, which Finished turned off goes back to.
-  onFinished: (id: string, finished: boolean, place: ReadingProgress | null) => void;
+  onFinished: (id: string, isFinished: boolean, place: ReadingProgress | null) => void;
   // Null takes the book out of its series.
   onSeries: (id: string, seriesId: string | null) => void;
   // A null id starts a new series with this book.
@@ -42,7 +42,7 @@ export function BookSheet({
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
-  const [finished, setFinished] = useState(card.status === "finished");
+  const [isFinished, setFinished] = useState(card.status === "finished");
   const [place] = useState(progress);
   // The sheet keeps the card it opened with, so Reset follows the choices made in it.
   const [custom, setCustom] = useState(card.book.customCover === true);
@@ -58,7 +58,7 @@ export function BookSheet({
   const seriesId =
     choice !== null && choice.groups === groups ? choice.seriesId : (current?.id ?? null);
   const group = current?.id === seriesId ? current : undefined;
-  const note = finished
+  const note = isFinished
     ? "Finished puts the saved position at the end. The Summary and the series summary cover the whole book."
     : "The Summary and the series summary stop at the furthest position.";
 
@@ -165,16 +165,16 @@ export function BookSheet({
         <div className="mt-2 divide-y divide-base-content/10 rounded-box bg-base-300">
           {/* A button, not a switch: it moves the saved position. The sheet stays open, so a second tap undoes it. */}
           <div className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
-            <span>{finished ? "Finished" : `${formatPercent(place?.percent ?? 0)} read`}</span>
+            <span>{isFinished ? "Finished" : `${formatPercent(place?.percent ?? 0)} read`}</span>
             <button
               type="button"
               className="btn md:btn-sm"
               onClick={() => {
-                setFinished(!finished);
-                onFinished(card.book.id, !finished, place);
+                setFinished(!isFinished);
+                onFinished(card.book.id, !isFinished, place);
               }}
             >
-              {finished ? "Mark as not finished" : "Mark as finished"}
+              {isFinished ? "Mark as not isFinished" : "Mark as isFinished"}
             </button>
           </div>
           <label className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">

@@ -7,13 +7,13 @@ import { TrayPart, type TrayFlags } from "./_TrayPart";
 
 export function SeriesCard({
   series,
-  expanded,
+  isExpanded,
   onToggle,
   onActions,
   tray,
 }: {
   series: Extract<Shelf["items"][number], { kind: "series" }>;
-  expanded: boolean;
+  isExpanded: boolean;
   onToggle: () => void;
   onActions: () => void;
   tray: TrayFlags | null;
@@ -38,15 +38,15 @@ export function SeriesCard({
           <button
             type="button"
             className="absolute inset-0 rounded-box"
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Fold" : "Expand"} ${series.name}`}
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? "Fold" : "Expand"} ${series.name}`}
             data-series-toggle={series.id}
             onClick={onToggle}
           />
           <div className="pointer-events-none relative h-24 w-16 shrink-0">
             {/* Dim while open, so the stack does not compete with the books after it. */}
             <div
-              className={`absolute inset-0 motion-safe:transition-[filter] ${expanded ? "brightness-50" : ""}`}
+              className={`absolute inset-0 motion-safe:transition-[filter] ${isExpanded ? "brightness-50" : ""}`}
             >
               {backs[1] !== undefined && (
                 <div className="absolute top-0 left-2 w-14 brightness-75">
@@ -67,7 +67,7 @@ export function SeriesCard({
             <span className="absolute right-0 bottom-0 z-30 badge gap-1 badge-neutral">
               {series.count}
               <ChevronDownIcon
-                className={`size-4 motion-safe:transition-transform ${expanded ? "rotate-180" : ""}`}
+                className={`size-4 motion-safe:transition-transform ${isExpanded ? "rotate-180" : ""}`}
               />
             </span>
           </div>

@@ -26,7 +26,7 @@ export function buildEpub(
       Effect.suspend(() => {
         // By the zip's own sizes, before anything inflates, so a zip bomb fails instead of filling memory.
         let total = 0;
-        let tooLarge = false;
+        let isTooLarge = false;
         const files = Effect.try({
           try: () =>
             unzipSync(zip, {
@@ -36,16 +36,18 @@ export function buildEpub(
                 total += file.originalSize;
 
                 if (file.originalSize > MAX_ENTRY_BYTES || total > MAX_INFLATED_BYTES)
-                  tooLarge = true;
+                  isTooLarge = true;
 
-                return !tooLarge;
+                return !isTooLarge;
               },
             }),
           catch: () => new EpubFailure({ reason: "corrupt" }),
         });
 
         return Effect.flatMap(files, (unzipped) =>
-          tooLarge ? Effect.fail(new EpubFailure({ reason: "corrupt" })) : Effect.succeed(unzipped),
+          isTooLarge
+            ? Effect.fail(new EpubFailure({ reason: "corrupt" }))
+            : Effect.succeed(unzipped),
         );
       });
 

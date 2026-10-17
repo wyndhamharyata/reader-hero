@@ -686,7 +686,7 @@ const card = (meta: BookMeta, status: LibraryCard["status"]): LibraryCard => ({
   percent: status === "finished" ? 1 : status === "reading" ? 0.5 : 0,
   status,
   badge: readingBadge[status],
-  clipStart: false,
+  isClippedAtStart: false,
 });
 
 // The stored Summary of one volume: `count` chapter summaries, each named after its book.

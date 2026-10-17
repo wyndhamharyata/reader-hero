@@ -147,7 +147,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const estimate = state.status === "done" ? state.value.estimate : null;
   const reading = state.status === "done" ? state.value.reading : null;
   const series = state.status === "done" ? state.value.series : [];
-  const steps = tourSteps({ books: books.length > 0, install: showInstallHint });
+  const steps = tourSteps({ hasBooks: books.length > 0, needsInstall: showInstallHint });
   const touring =
     !hidden &&
     state.status !== "loading" &&
@@ -318,7 +318,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   };
 
   const actionLabel = busy ? "Working…" : "Add book";
-  const grid = settings.libraryView === "grid";
+  const isGrid = settings.libraryView === "grid";
   const shelf = useMemo(
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort, series),
     [books, reading, query, filters, settings.librarySort, series],
@@ -368,7 +368,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     };
   }, []);
 
-  const columns = grid ? (wide.md ? 5 : wide.sm ? 3 : 2) : wide.md ? 2 : 1;
+  const columns = isGrid ? (wide.md ? 5 : wide.sm ? 3 : 2) : wide.md ? 2 : 1;
   const rows = useMemo(
     () =>
       Array.from({ length: Math.ceil(items.length / columns) }, (_, row) =>
@@ -419,7 +419,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     // A first guess only, as each row is measured once it renders.
-    estimateSize: () => (grid ? 320 : 132),
+    estimateSize: () => (isGrid ? 320 : 132),
     overscan: 3,
     scrollMargin: listTop,
   });
@@ -427,7 +427,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // A row of another view or width has another height, so the measured heights do not match.
   useLayoutEffect(() => {
     virtualizer.measure();
-  }, [virtualizer, grid, columns]);
+  }, [virtualizer, isGrid, columns]);
 
   // A new search or filter shows its results from the top.
   useLayoutEffect(() => {
@@ -591,8 +591,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
           <InstallHint show={showInstallHint} />
 
           <LibraryStatus
-            loading={state.status === "loading"}
-            failed={state.status === "error"}
+            isLoading={state.status === "loading"}
+            hasFailed={state.status === "error"}
             books={books}
           />
 
@@ -601,7 +601,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
               virtualizer={virtualizer}
               rows={rows}
               columns={columns}
-              grid={grid}
+              isGrid={isGrid}
               listTop={listTop}
               trays={trays}
               openSeries={openSeries}
@@ -658,7 +658,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
             onClick={() => setFiltersOpen(true)}
           >
             <FunnelIcon className="size-6" />
-            {shelf.filtered && (
+            {shelf.isFiltered && (
               <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
             )}
           </button>
@@ -675,7 +675,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       </div>
 
       <FilterSheet
-        open={filtersOpen}
+        isOpen={filtersOpen}
         shelf={shelf}
         sort={settings.librarySort}
         onSort={(sort) => update({ librarySort: sort })}
@@ -687,7 +687,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       {touring && <Tour steps={steps} onDone={() => update({ tour: TOUR_VERSION })} />}
 
       <SettingsSheet
-        open={settingsOpen}
+        isOpen={settingsOpen}
         grouping={grouping}
         onRetry={() => setGroupingFailed(null)}
         onReset={() => {

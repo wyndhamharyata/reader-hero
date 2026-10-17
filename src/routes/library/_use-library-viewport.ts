@@ -21,7 +21,7 @@ export function useSearchPanelHeight(reference: RefObject<HTMLDivElement | null>
 // A scroll down hides the phone search and chips to give the list room. The action row stays.
 export function useHideOnScroll(
   scrollRef: RefObject<HTMLDivElement | null>,
-  setVisible: (visible: boolean) => void,
+  setIsVisible: (isVisible: boolean) => void,
 ): void {
   useEffect(() => {
     const box = scrollRef.current;
@@ -39,7 +39,7 @@ export function useHideOnScroll(
       const current = readPosition();
 
       if (current.top <= 0) {
-        setVisible(true);
+        setIsVisible(true);
         previous = current;
         return;
       }
@@ -61,13 +61,13 @@ export function useHideOnScroll(
         const searchFocused = document.activeElement?.matches('input[type="search"]') ?? false;
 
         // Keep a focused search field available while its keyboard is open.
-        if (delta < 0 || !searchFocused) setVisible(delta < 0);
+        if (delta < 0 || !searchFocused) setIsVisible(delta < 0);
         previous = current;
       }
     };
     const onBreakpointChange = (): void => {
       previous = readPosition();
-      setVisible(true);
+      setIsVisible(true);
     };
 
     box.addEventListener("scroll", onScroll, { passive: true });
@@ -77,7 +77,7 @@ export function useHideOnScroll(
       box.removeEventListener("scroll", onScroll);
       mobile.removeEventListener("change", onBreakpointChange);
     };
-  }, [scrollRef, setVisible]);
+  }, [scrollRef, setIsVisible]);
 }
 
 // With the keyboard up the library takes only the visible area, so its bar stays above the keyboard.
@@ -89,22 +89,22 @@ export function useKeyboardFit(rootRef: RefObject<HTMLElement | null>): void {
     if (root === null || viewport === null) return;
 
     const html = document.documentElement;
-    let typing = false;
+    let isTyping = false;
     const fit = (): void => {
-      root.style.height = typing ? `${viewport.height}px` : "";
+      root.style.height = isTyping ? `${viewport.height}px` : "";
 
       // iOS scrolls the window. Its viewport offset lags behind and stays stale for a while after the close.
-      const shift = typing ? Math.max(window.scrollY, viewport.offsetTop) : window.scrollY;
+      const shift = isTyping ? Math.max(window.scrollY, viewport.offsetTop) : window.scrollY;
 
       root.style.top = shift > 0 ? `${shift}px` : "";
       // The page is no taller than what shows and does not scroll, so iOS has less to move.
-      html.style.height = typing ? `${viewport.height}px` : "";
-      html.style.overflow = typing ? "hidden" : "";
+      html.style.height = isTyping ? `${viewport.height}px` : "";
+      html.style.overflow = isTyping ? "hidden" : "";
 
       // The root's clientHeight stays the full screen with the keyboard up. InnerHeight shrinks with it.
       const covered = html.clientHeight - viewport.height;
 
-      if (typing && covered > 0) {
+      if (isTyping && covered > 0) {
         try {
           localStorage.setItem("keyboard-height", String(covered));
         } catch {
@@ -113,7 +113,7 @@ export function useKeyboardFit(rootRef: RefObject<HTMLElement | null>): void {
       }
     };
     const onFocus = (event: FocusEvent): void => {
-      typing = event.type === "focusin" && (event.target as Element).matches("input, textarea");
+      isTyping = event.type === "focusin" && (event.target as Element).matches("input, textarea");
 
       const known = (() => {
         try {
@@ -124,10 +124,10 @@ export function useKeyboardFit(rootRef: RefObject<HTMLElement | null>): void {
       })();
 
       // At once while it opens, so iOS sees the field's final place. The close slides with the keyboard.
-      root.style.transition = typing ? "none" : "";
+      root.style.transition = isTyping ? "none" : "";
 
       // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not move the page.
-      if (typing && known > 0 && html.clientHeight - viewport.height < 1) {
+      if (isTyping && known > 0 && html.clientHeight - viewport.height < 1) {
         root.style.height = `${html.clientHeight - known}px`;
         html.style.height = `${html.clientHeight - known}px`;
         html.style.overflow = "hidden";

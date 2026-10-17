@@ -26,7 +26,7 @@ export function PageSearch({
   const [value, setValue] = useState("");
   const [pages, setPages] = useState<ReadonlyArray<number> | null>(null);
   const [index, setIndex] = useState(0);
-  const [searching, setSearching] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const job = useRef<Job | null>(null);
 
   useEffect(
@@ -38,12 +38,12 @@ export function PageSearch({
 
   const search = (): void => {
     if (job.current !== null) stopFiber(job.current);
-    setSearching(true);
+    setIsSearching(true);
     job.current = forkApp(
       searchPages(doc, blocks, value).pipe(
         Effect.tap((found) =>
           Effect.sync(() => {
-            setSearching(false);
+            setIsSearching(false);
 
             // The first match at or after the page being read, as a reader's find goes forward from here.
             const ahead = found.findIndex((page) => page >= currentPage);
@@ -79,7 +79,7 @@ export function PageSearch({
     onClose();
   };
 
-  const count = searching
+  const count = isSearching
     ? "Searching…"
     : pages === null
       ? null

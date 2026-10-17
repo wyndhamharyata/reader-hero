@@ -7,13 +7,13 @@ import { TrayPart, type TrayFlags } from "./_TrayPart";
 
 export function SeriesTile({
   series,
-  expanded,
+  isExpanded,
   onToggle,
   onActions,
   tray,
 }: {
   series: Extract<Shelf["items"][number], { kind: "series" }>;
-  expanded: boolean;
+  isExpanded: boolean;
   onToggle: () => void;
   onActions: () => void;
   tray: TrayFlags | null;
@@ -37,15 +37,15 @@ export function SeriesTile({
         <button
           type="button"
           className="relative block w-full text-left"
-          aria-expanded={expanded}
-          aria-label={`${expanded ? "Fold" : "Expand"} ${series.name}`}
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? "Fold" : "Expand"} ${series.name}`}
           data-series-toggle={series.id}
           onClick={onToggle}
         >
           <div className="relative aspect-[2/3]">
             {/* Dim while open, so the stack does not compete with the books after it. */}
             <div
-              className={`absolute inset-0 motion-safe:transition-[filter] ${expanded ? "brightness-50" : ""}`}
+              className={`absolute inset-0 motion-safe:transition-[filter] ${isExpanded ? "brightness-50" : ""}`}
             >
               {backs[1] !== undefined && (
                 <div className="absolute top-0 right-0 w-[calc(100%-10px)] brightness-75">
@@ -66,7 +66,7 @@ export function SeriesTile({
             <span className="absolute right-2 bottom-2 z-20 badge gap-1 badge-neutral">
               {series.count}
               <ChevronDownIcon
-                className={`size-4 motion-safe:transition-transform ${expanded ? "rotate-180" : ""}`}
+                className={`size-4 motion-safe:transition-transform ${isExpanded ? "rotate-180" : ""}`}
               />
             </span>
           </div>
@@ -75,12 +75,17 @@ export function SeriesTile({
           <button
             type="button"
             className="min-w-0 flex-1 self-start text-left"
-            aria-expanded={expanded}
-            aria-label={`${expanded ? "Fold" : "Expand"} ${series.name}`}
+            aria-expanded={isExpanded}
+            aria-label={`${isExpanded ? "Fold" : "Expand"} ${series.name}`}
             data-series-toggle={series.id}
             onClick={onToggle}
           >
-            <BookTitle title={series.name} clipStart={false} size="text-sm" fit="line-clamp-2" />
+            <BookTitle
+              title={series.name}
+              isClippedAtStart={false}
+              size="text-sm"
+              fit="line-clamp-2"
+            />
             {author !== undefined && <p className="truncate text-xs opacity-70">{author}</p>}
             <p className="text-xs opacity-60">
               {series.count} {series.count === 1 ? "book" : "books"} · {series.finishedCount}{" "}

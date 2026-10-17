@@ -9,10 +9,10 @@ interface Props {
   position: number;
   onPosition: (blockIndex: number) => void;
   mode: ReaderMode;
-  chrome: boolean;
+  showChrome: boolean;
   settings: ReaderSettings;
   jump: JumpRequest | null;
-  searching: boolean;
+  isSearching: boolean;
   onCloseSearch: () => void;
   onToggleChrome: () => void;
 }
@@ -23,10 +23,10 @@ export function ReaderBody({
   position,
   onPosition,
   mode,
-  chrome,
+  showChrome,
   settings,
   jump,
-  searching,
+  isSearching,
   onCloseSearch,
   onToggleChrome,
 }: Props): ReactElement {
@@ -68,7 +68,7 @@ export function ReaderBody({
           jump={jump}
           onPosition={onPosition}
           onToggleChrome={onToggleChrome}
-          customCover={meta.customCover === true}
+          hasCustomCover={meta.customCover === true}
         />
       )}
 
@@ -77,10 +77,10 @@ export function ReaderBody({
           bookId={meta.id}
           pageCount={meta.pageCount}
           initialPage={currentPage}
-          showChrome={chrome}
+          showChrome={showChrome}
           jump={pageJump}
           blocks={scanned ? null : parsed.blocks}
-          searching={searching}
+          isSearching={isSearching}
           onCloseSearch={onCloseSearch}
           onPageChange={onOriginalPage}
           onToggleChrome={onToggleChrome}

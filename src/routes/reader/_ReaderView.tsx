@@ -20,7 +20,7 @@ interface Props {
   onPosition: (blockIndex: number) => void;
   onToggleChrome: () => void;
   // The reader's own picture: it opens the book, above the first block.
-  customCover: boolean;
+  hasCustomCover: boolean;
 }
 
 const headingClass: Record<number, string> = {
@@ -47,7 +47,7 @@ export const ReaderView = memo(function ReaderView({
   jump,
   onPosition,
   onToggleChrome,
-  customCover,
+  hasCustomCover,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tap = useTapFilter();
@@ -68,9 +68,9 @@ export const ReaderView = memo(function ReaderView({
       return;
     }
 
-    let active = true;
+    let isActive = true;
     const show = (): void => {
-      if (active) setFontReady(true);
+      if (isActive) setFontReady(true);
     };
     // A font that never loads must not hold the book back.
     const timer = window.setTimeout(show, FONT_FALLBACK_MS);
@@ -78,7 +78,7 @@ export const ReaderView = memo(function ReaderView({
     void document.fonts.load(fontSpec).then(show, show);
 
     return () => {
-      active = false;
+      isActive = false;
       window.clearTimeout(timer);
     };
   }, [fontSpec, fontReady]);
@@ -249,7 +249,7 @@ export const ReaderView = memo(function ReaderView({
   // Justified lines without hyphenation leave wide spaces between words.
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
   // The book's own first page is its cover picture in most EPUBs: the reader's picture takes that place.
-  const shown = customCover && parsed.blocks[0]?.kind === "image" ? nodes.slice(1) : nodes;
+  const shown = hasCustomCover && parsed.blocks[0]?.kind === "image" ? nodes.slice(1) : nodes;
 
   return (
     <div
@@ -275,7 +275,7 @@ export const ReaderView = memo(function ReaderView({
             } as CSSProperties
           }
         >
-          {customCover && (
+          {hasCustomCover && (
             <div className="mx-auto max-w-xs">
               <ReaderImage bookId={bookId} imageId="cover" />
             </div>

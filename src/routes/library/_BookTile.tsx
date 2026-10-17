@@ -10,12 +10,12 @@ import { TrayPart, type TrayFlags } from "./_TrayPart";
 export function BookTile({
   card,
   onActions,
-  seriesMember,
+  isSeriesMember,
   tray,
 }: {
   card: LibraryCard;
   onActions: () => void;
-  seriesMember: boolean;
+  isSeriesMember: boolean;
   tray: TrayFlags | null;
 }): ReactElement {
   const { book, badge } = card;
@@ -24,7 +24,7 @@ export function BookTile({
   return (
     <li
       className="relative isolate flex min-w-0 flex-col gap-2"
-      data-series-member={seriesMember ? card.seriesId : undefined}
+      data-series-member={isSeriesMember ? card.seriesId : undefined}
     >
       <TrayPart flags={tray} />
       {/* The tile fills its row, so every pencil in a row sits on the same line. */}
@@ -37,20 +37,20 @@ export function BookTile({
           <SlideLink to={href} direction="in" className="min-w-0 flex-1 self-start">
             <BookTitle
               title={book.title}
-              clipStart={card.clipStart}
+              isClippedAtStart={card.isClippedAtStart}
               size="text-sm"
               fit="line-clamp-2"
             />
             {book.author !== undefined && (
               <p className="truncate text-xs opacity-70">{book.author}</p>
             )}
-            {card.series !== undefined && !seriesMember && (
+            {card.series !== undefined && !isSeriesMember && (
               <p className="truncate text-xs opacity-60">
                 {card.series.name} · {card.series.place} of {card.series.count}
               </p>
             )}
             <p className="text-xs opacity-60">
-              {seriesMember && card.series !== undefined
+              {isSeriesMember && card.series !== undefined
                 ? `${card.series.place} of ${card.series.count} · ${formatPercent(card.percent)}`
                 : formatPercent(card.percent)}
             </p>

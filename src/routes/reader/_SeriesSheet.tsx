@@ -137,7 +137,7 @@ export function SeriesSheet({
           }
         >
           {cards.map((card, index) => {
-            const current = card.book.id === bookId;
+            const isCurrent = card.book.id === bookId;
             const row = rows[index];
             const paragraph = row?.text ?? null;
             // On desktop a later book's summary waits for a tap, so the books before it read first.
@@ -168,7 +168,7 @@ export function SeriesSheet({
               </>
             );
             // The series colour, so the book being read reads apart from a hovered row.
-            const rowStyle = rowStyleFor(current, series.color);
+            const rowStyle = rowStyleFor(isCurrent, series.color);
             const rowClass = `flex min-w-0 flex-1 flex-col gap-1 rounded-field px-2 py-2 text-left ${text}`;
 
             return (
@@ -177,7 +177,7 @@ export function SeriesSheet({
                   {paragraph === null || fixed ? (
                     <div
                       data-row
-                      aria-current={current ? "true" : undefined}
+                      aria-current={isCurrent ? "true" : undefined}
                       className={rowClass}
                       style={rowStyle}
                     >
@@ -188,7 +188,7 @@ export function SeriesSheet({
                       type="button"
                       className={`${rowClass} hover:bg-base-300`}
                       data-row
-                      aria-current={current ? "true" : undefined}
+                      aria-current={isCurrent ? "true" : undefined}
                       aria-expanded={open}
                       style={rowStyle}
                       onClick={(event) => {
@@ -208,7 +208,7 @@ export function SeriesSheet({
                       {line}
                     </button>
                   )}
-                  {!current && (
+                  {!isCurrent && (
                     <SlideLink
                       to={`/book/${card.book.id}`}
                       direction="in"

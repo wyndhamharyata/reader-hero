@@ -2,13 +2,13 @@ import type { ReactElement } from "react";
 
 interface Props {
   title: string;
-  clipStart: boolean;
+  isClippedAtStart: boolean;
   size: "text-lg" | "text-sm";
   fit: "truncate" | "line-clamp-2";
 }
 
-export function BookTitle({ title, clipStart, size, fit }: Props): ReactElement {
-  if (!clipStart) return <h2 className={`${size} font-semibold ${fit}`}>{title}</h2>;
+export function BookTitle({ title, isClippedAtStart, size, fit }: Props): ReactElement {
+  if (!isClippedAtStart) return <h2 className={`${size} font-semibold ${fit}`}>{title}</h2>;
 
   // A right-to-left box puts the ellipsis at the start. The <bdi> keeps "Vol. 7" in reading order.
   return (

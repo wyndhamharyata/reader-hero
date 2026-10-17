@@ -2,25 +2,25 @@ import type { ReactElement } from "react";
 import type { BookMeta } from "@/domain/book";
 
 interface Props {
-  loading: boolean;
-  failed: boolean;
+  isLoading: boolean;
+  hasFailed: boolean;
   books: ReadonlyArray<BookMeta>;
 }
 
-export function LibraryStatus({ loading, failed, books }: Props): ReactElement {
-  const empty = !loading && !failed && books.length === 0;
+export function LibraryStatus({ isLoading, hasFailed, books }: Props): ReactElement {
+  const isEmpty = !isLoading && !hasFailed && books.length === 0;
 
   return (
     <>
-      {loading && <p className="opacity-70">Loading library…</p>}
+      {isLoading && <p className="opacity-70">Loading library…</p>}
 
-      {failed && (
+      {hasFailed && (
         <div className="alert alert-error">
           <span>Your library could not be loaded.</span>
         </div>
       )}
 
-      {empty && (
+      {isEmpty && (
         <div className="rounded-box bg-base-200 p-8 text-center">
           <p className="text-lg font-medium">No books yet</p>
           <p className="mt-1 text-sm opacity-70">

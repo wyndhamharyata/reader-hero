@@ -47,12 +47,12 @@ import type { JumpRequest } from "./_ReaderView";
 const SAVE_DELAY_MS = 400;
 
 function readerKeysEnabled(
-  tocOpen: boolean,
-  sheetOpen: boolean,
-  seriesOpen: boolean,
+  isTocOpen: boolean,
+  isSheetOpen: boolean,
+  isSeriesOpen: boolean,
   tour: number | undefined,
 ): boolean {
-  return !tocOpen && !sheetOpen && !seriesOpen && (tour ?? 0) >= TOUR_VERSION;
+  return !isTocOpen && !isSheetOpen && !isSeriesOpen && (tour ?? 0) >= TOUR_VERSION;
 }
 
 export function ReaderRoute({ bookId }: { bookId: string }) {
@@ -82,11 +82,11 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     [bookId],
   );
 
-  const [chrome, setChrome] = useState(true);
-  const [tocOpen, setTocOpen] = useState(false);
+  const [showChrome, setChrome] = useState(true);
+  const [isTocOpen, setTocOpen] = useState(false);
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [isSearchOpen, setSearchOpen] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reported, setReported] = useState<number | null>(null);
@@ -106,7 +106,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     editName,
   } = useSummary(bookId);
   const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
-  const [seriesOpen, setSeriesOpen] = useState(false);
+  const [isSeriesOpen, setSeriesOpen] = useState(false);
 
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
@@ -186,8 +186,13 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   );
 
   useReaderKeys({
-    enabled: readerKeysEnabled(tocOpen, summarySheet !== null, seriesOpen, settings.readerTour),
-    searchOpen,
+    isEnabled: readerKeysEnabled(
+      isTocOpen,
+      summarySheet !== null,
+      isSeriesOpen,
+      settings.readerTour,
+    ),
+    isSearchOpen,
     setSearchOpen,
     setTocOpen,
     navigate,
@@ -479,7 +484,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   };
 
   const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const contentClass = chrome
+  const contentClass = showChrome
     ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"
     : "h-full pt-[var(--safe-top)]";
 
@@ -504,10 +509,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             position={position}
             onPosition={onPosition}
             mode={mode}
-            chrome={chrome}
+            showChrome={showChrome}
             settings={bookSettings}
             jump={jump}
-            searching={searchOpen && searchable}
+            isSearching={isSearchOpen && searchable}
             onCloseSearch={() => setSearchOpen(false)}
             onToggleChrome={toggleChrome}
           />
@@ -516,7 +521,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
       <ReaderNav
         title={title}
-        chrome={chrome}
+        showChrome={showChrome}
         percentLabel={percentLabel}
         position={shown}
         total={total}
@@ -537,12 +542,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       )}
 
       <MenuSheet
-        open={tocOpen}
+        isOpen={isTocOpen}
         toc={toc}
         modeLabel={modeLabel}
         settings={bookSettings}
         summary={summaryText.row}
-        summaryRunning={run !== null}
+        isSummaryRunning={run !== null}
         onSummary={() => setSummarySheet({ openAt: null })}
         onStopSummary={stop}
         series={
@@ -550,7 +555,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             ? null
             : `${series.name} · ${series.books.findIndex((card) => card.book.id === bookId) + 1} of ${series.count}`
         }
-        seriesRunning={seriesJob.run !== null}
+        isSeriesRunning={seriesJob.run !== null}
         onSeries={() => {
           // The badges follow the reading done since the book opened.
           reloadSeries();
@@ -608,7 +613,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         />
       )}
 
-      {seriesOpen && series !== null && (
+      {isSeriesOpen && series !== null && (
         <SeriesSheet
           series={series}
           bookId={bookId}

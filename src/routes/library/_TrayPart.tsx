@@ -15,26 +15,26 @@ export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement |
 
   const { index, start, end, columns } = flags;
   // The parts make one panel, so only outer sides have borders and outer corners round.
-  const first = index % columns === 0 || index === start;
-  const last = index % columns === columns - 1 || index === end;
-  const above = index - columns >= start;
-  const below = index + columns <= end;
+  const isFirst = index % columns === 0 || index === start;
+  const isLast = index % columns === columns - 1 || index === end;
+  const isAbove = index - columns >= start;
+  const isBelow = index + columns <= end;
   const colour = `oklch(var(--tray) ${flags.hue})`;
 
   return (
     <span
       aria-hidden="true"
       data-tray
-      className={trayClasses(first, last, above, below)}
+      className={trayClasses(isFirst, isLast, isAbove, isBelow)}
       style={{
-        bottom: trayBottom(below, flags.rowGap),
+        bottom: trayBottom(isBelow, flags.rowGap),
         borderColor: colour,
         // Mixed with the page, not alpha, so no darker line shows where two parts meet.
         backgroundColor: `color-mix(in oklab, ${colour} 40%, var(--color-base-100))`,
       }}
     >
       {/* Where the next book's part ends this row, the border goes on down the row gap to the row under. */}
-      {below && !last && index + 1 + columns > end && (
+      {isBelow && !isLast && index + 1 + columns > end && (
         <span
           className="absolute right-0 bottom-0 w-0.5"
           style={{ height: `calc(${flags.rowGap} - 0.75rem + 2px)`, backgroundColor: colour }}
@@ -44,22 +44,27 @@ export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement |
   );
 }
 
-function trayClasses(first: boolean, last: boolean, above: boolean, below: boolean): string {
+function trayClasses(
+  isFirst: boolean,
+  isLast: boolean,
+  isAbove: boolean,
+  isBelow: boolean,
+): string {
   return [
     "pointer-events-none absolute -inset-x-1.5 -top-1.5 z-0",
-    first ? "border-l-2" : "",
-    last ? "border-r-2" : "",
-    above ? "" : "border-t-2",
-    below ? "" : "border-b-2",
-    first && !above ? "rounded-tl-box" : "",
-    last && !above ? "rounded-tr-box" : "",
-    first && !below ? "rounded-bl-box" : "",
-    last && !below ? "rounded-br-box" : "",
+    isFirst ? "border-l-2" : "",
+    isLast ? "border-r-2" : "",
+    isAbove ? "" : "border-t-2",
+    isBelow ? "" : "border-b-2",
+    isFirst && !isAbove ? "rounded-tl-box" : "",
+    isLast && !isAbove ? "rounded-tr-box" : "",
+    isFirst && !isBelow ? "rounded-bl-box" : "",
+    isLast && !isBelow ? "rounded-br-box" : "",
   ]
     .filter((name) => name !== "")
     .join(" ");
 }
 
-function trayBottom(below: boolean, rowGap: string): string {
-  return below ? `calc(0.375rem - ${rowGap})` : "-0.375rem";
+function trayBottom(isBelow: boolean, rowGap: string): string {
+  return isBelow ? `calc(0.375rem - ${rowGap})` : "-0.375rem";
 }

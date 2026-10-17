@@ -33,40 +33,40 @@ describe("dockAt", () => {
 
 describe("tourSteps", () => {
   it("given no books and no install hint, opens and closes with an anchor-free step", () => {
-    const steps = tourSteps({ books: false, install: false });
+    const steps = tourSteps({ hasBooks: false, needsInstall: false });
 
     expect(steps[0]?.anchor).toBeNull();
     expect(steps.at(-1)?.anchor).toBeNull();
   });
 
   it("given no books and no install hint, omits the install and book steps", () => {
-    const steps = tourSteps({ books: false, install: false });
+    const steps = tourSteps({ hasBooks: false, needsInstall: false });
 
     expect(steps.map((step) => step.anchor)).toEqual([null, "import", null]);
   });
 
   it("given an install hint, includes the install step", () => {
-    const steps = tourSteps({ books: false, install: true });
+    const steps = tourSteps({ hasBooks: false, needsInstall: true });
 
     expect(steps.map((step) => step.anchor)).toEqual([null, "import", "install", null]);
   });
 
   it("given books, includes the book step", () => {
-    const steps = tourSteps({ books: true, install: false });
+    const steps = tourSteps({ hasBooks: true, needsInstall: false });
 
     expect(steps.map((step) => step.anchor)).toEqual([null, "import", "book", null]);
   });
 
   it("given books and an install hint, returns five steps in order", () => {
-    const steps = tourSteps({ books: true, install: true });
+    const steps = tourSteps({ hasBooks: true, needsInstall: true });
 
     expect(steps).toHaveLength(5);
     expect(steps.map((step) => step.anchor)).toEqual([null, "import", "install", "book", null]);
   });
 
   it("gives every step its own drawing, in order", () => {
-    const full = tourSteps({ books: true, install: true });
-    const bare = tourSteps({ books: false, install: false });
+    const full = tourSteps({ hasBooks: true, needsInstall: true });
+    const bare = tourSteps({ hasBooks: false, needsInstall: false });
 
     expect(full.map((step) => step.art)).toEqual(["hero", "shelf", "share", "book", "reader"]);
     expect(bare.map((step) => step.art)).toEqual(["hero", "shelf", "reader"]);

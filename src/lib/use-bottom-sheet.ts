@@ -32,7 +32,7 @@ function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => 
 }
 
 export function useBottomSheet(
-  open: boolean,
+  isOpen: boolean,
   sheetRef: RefObject<HTMLElement | null>,
   backdropRef: RefObject<HTMLElement | null>,
   onClose: () => void,
@@ -46,8 +46,8 @@ export function useBottomSheet(
   });
 
   useEffect(() => {
-    if (open) closing.current = false;
-  }, [open]);
+    if (isOpen) closing.current = false;
+  }, [isOpen]);
 
   const dismiss = useCallback(
     (then?: () => void): void => {
@@ -68,7 +68,7 @@ export function useBottomSheet(
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
 
     const token = Symbol("sheet");
 
@@ -87,13 +87,13 @@ export function useBottomSheet(
       openSheets.splice(openSheets.indexOf(token), 1);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, dismiss]);
+  }, [isOpen, dismiss]);
 
   // Native listeners, as React's touchmove is passive and cannot stop the scrolling list's own bounce.
   useEffect(() => {
     const sheet = sheetRef.current;
 
-    if (!open || sheet === null) return;
+    if (!isOpen || sheet === null) return;
 
     let startX = 0;
     let startY = 0;
@@ -123,15 +123,15 @@ export function useBottomSheet(
 
       if (mode === "idle") {
         // Any scrolled area under the finger scrolls back up first. The sheet drags only from the top.
-        let scrolled = false;
+        let hasScrolled = false;
 
         for (let node = event.target as Element | null; node !== null && node !== sheet;) {
-          scrolled ||= node.scrollTop > 0;
+          hasScrolled ||= node.scrollTop > 0;
           node = node.parentElement;
         }
 
         // A sideways swipe belongs to the content, such as the summary's tabs.
-        mode = dy > 0 && dy > Math.abs(dx) && !scrolled ? "drag" : "scroll";
+        mode = dy > 0 && dy > Math.abs(dx) && !hasScrolled ? "drag" : "scroll";
         if (mode === "scroll") return;
 
         sheet.style.transition = "none";
@@ -168,7 +168,7 @@ export function useBottomSheet(
       sheet.removeEventListener("touchend", onEnd);
       sheet.removeEventListener("touchcancel", onEnd);
     };
-  }, [open, sheetRef, backdropRef]);
+  }, [isOpen, sheetRef, backdropRef]);
 
   return { dismiss };
 }

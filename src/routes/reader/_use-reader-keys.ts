@@ -13,24 +13,24 @@ function isTypingTarget(event: KeyboardEvent): boolean {
 
 // Moves are smooth so the eye can follow. The effect is off under a sheet or the tour, which take Escape.
 export function useReaderKeys({
-  enabled,
-  searchOpen,
+  isEnabled,
+  isSearchOpen,
   setSearchOpen,
   setTocOpen,
   navigate,
   fontSize,
   lineHeight,
 }: {
-  readonly enabled: boolean;
-  readonly searchOpen: boolean;
-  readonly setSearchOpen: (open: boolean) => void;
-  readonly setTocOpen: (open: boolean) => void;
+  readonly isEnabled: boolean;
+  readonly isSearchOpen: boolean;
+  readonly setSearchOpen: (isOpen: boolean) => void;
+  readonly setTocOpen: (isOpen: boolean) => void;
   readonly navigate: NavigateFunction;
   readonly fontSize: number;
   readonly lineHeight: number;
 }): void {
   useEffect(() => {
-    if (!enabled) return;
+    if (!isEnabled) return;
 
     const line = fontSize * lineHeight;
     const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -67,7 +67,7 @@ export function useReaderKeys({
 
       held.frame = requestAnimationFrame(run);
     };
-    const jump = (direction: 1 | -1, instant: boolean): void => {
+    const jump = (direction: 1 | -1, isInstant: boolean): void => {
       const target = scroller();
 
       if (target === null) return;
@@ -84,7 +84,7 @@ export function useReaderKeys({
           next === undefined
             ? (direction * target.clientHeight) / 2
             : next.getBoundingClientRect().top - top,
-        behavior: instant ? "auto" : behavior,
+        behavior: isInstant ? "auto" : behavior,
       });
     };
     const scroll = (event: KeyboardEvent, direction: 1 | -1): void => {
@@ -105,7 +105,7 @@ export function useReaderKeys({
     };
     const closeOrLeave = (event: KeyboardEvent): void => {
       // Escape closes the search first, as a browser's find does.
-      if (searchOpen) setSearchOpen(false);
+      if (isSearchOpen) setSearchOpen(false);
       else if (!event.repeat) slideTo(navigate, "/", "out");
     };
     const handleKey = (event: KeyboardEvent): boolean => {
@@ -164,5 +164,5 @@ export function useReaderKeys({
       document.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", stop);
     };
-  }, [enabled, searchOpen, setSearchOpen, setTocOpen, navigate, fontSize, lineHeight]);
+  }, [isEnabled, isSearchOpen, setSearchOpen, setTocOpen, navigate, fontSize, lineHeight]);
 }

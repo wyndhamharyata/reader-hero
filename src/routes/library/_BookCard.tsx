@@ -10,12 +10,12 @@ import { TrayPart, type TrayFlags } from "./_TrayPart";
 export function BookCard({
   card,
   onActions,
-  seriesMember,
+  isSeriesMember,
   tray,
 }: {
   card: LibraryCard;
   onActions: () => void;
-  seriesMember: boolean;
+  isSeriesMember: boolean;
   tray: TrayFlags | null;
 }): ReactElement {
   const { book, badge } = card;
@@ -26,7 +26,7 @@ export function BookCard({
   return (
     <li
       className="relative isolate list-none"
-      data-series-member={seriesMember ? card.seriesId : undefined}
+      data-series-member={isSeriesMember ? card.seriesId : undefined}
     >
       <TrayPart flags={tray} />
       <div className="card relative z-10 h-full w-full bg-base-200">
@@ -40,16 +40,16 @@ export function BookCard({
               <SlideLink to={href} direction="in" className="min-w-0 flex-1">
                 <BookTitle
                   title={book.title}
-                  clipStart={card.clipStart}
+                  isClippedAtStart={card.isClippedAtStart}
                   size="text-lg"
                   fit="truncate"
                 />
-                {!seriesMember && book.author !== undefined && (
+                {!isSeriesMember && book.author !== undefined && (
                   <p className="truncate text-base opacity-70 md:text-sm">{book.author}</p>
                 )}
                 {card.series !== undefined && (
                   <p className="truncate text-base opacity-60 md:text-sm">
-                    {seriesMember
+                    {isSeriesMember
                       ? `${card.series.place} of ${card.series.count}`
                       : `${card.series.name} · ${card.series.place} of ${card.series.count}`}
                   </p>

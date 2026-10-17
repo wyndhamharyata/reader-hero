@@ -23,7 +23,7 @@ export interface LibraryCard {
   readonly percent: number;
   readonly status: keyof typeof readingBadge;
   readonly badge: { readonly label: string; readonly className: string };
-  readonly clipStart: boolean;
+  readonly isClippedAtStart: boolean;
   readonly seriesId?: string;
   readonly series?: {
     readonly id: string;
@@ -53,14 +53,14 @@ export interface Shelf {
   }>;
   readonly cards: ReadonlyMap<string, LibraryCard>;
   readonly matching: number;
-  readonly filtered: boolean;
+  readonly isFiltered: boolean;
   readonly chips: ReadonlyArray<{
     readonly group: FilterGroup;
     readonly chips: ReadonlyArray<{
       readonly value: string;
       readonly label: string;
       readonly count: number;
-      readonly active: boolean;
+      readonly isActive: boolean;
     }>;
   }>;
 }
@@ -330,7 +330,7 @@ export function buildShelf(
 
   const seriesForBook = new Map<
     string,
-    { id: string; name: string; place: number; count: number; clipStart: boolean }
+    { id: string; name: string; place: number; count: number; isClippedAtStart: boolean }
   >();
 
   for (const group of seriesGroups.values()) {
@@ -340,7 +340,7 @@ export function buildShelf(
         name: group.name,
         place: index + 1,
         count: group.bookIds.length,
-        clipStart: titleClip.has(id),
+        isClippedAtStart: titleClip.has(id),
       });
     });
   }
@@ -396,7 +396,7 @@ export function buildShelf(
       percent: status === "finished" ? 1 : percentOf(book),
       status,
       badge: ready ? readingBadge[status] : parseStateBadge[book.parseState],
-      clipStart: series?.clipStart ?? false,
+      isClippedAtStart: series?.isClippedAtStart ?? false,
       ...(series === undefined ? {} : { seriesId: series.id }),
       ...(series === undefined || series.count < 2
         ? {}
@@ -465,9 +465,9 @@ export function buildShelf(
       const card = cardsById.get(book.id);
       return card === undefined ? [] : [{ kind: "book" as const, card }];
     });
-  const filtered = filterGroups.some((group) => filters[group] !== null);
+  const isFiltered = filterGroups.some((group) => filters[group] !== null);
   const items =
-    query.trim() !== "" || filtered
+    query.trim() !== "" || isFiltered
       ? shown.flatMap((book) => {
           const card = cardsById.get(book.id);
           return card === undefined ? [] : [{ kind: "book" as const, card }];
@@ -531,9 +531,9 @@ export function buildShelf(
         label,
         count: searched.filter((book) => matches(book, group) && facet[group](book) === value)
           .length,
-        active: filters[group] === value,
+        isActive: filters[group] === value,
       }))
-      .filter((chip) => chip.count > 0 || chip.active),
+      .filter((chip) => chip.count > 0 || chip.isActive),
   }));
 
   return {
@@ -541,7 +541,7 @@ export function buildShelf(
     series: allSeries,
     cards: cardsById,
     matching: searched.length,
-    filtered,
+    isFiltered,
     chips,
   };
 }

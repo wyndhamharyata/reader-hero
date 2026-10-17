@@ -4,7 +4,7 @@ import { BookStore } from "@/services/book-store";
 import type { PdfClient } from "@/services/pdf-client";
 import { addBook } from "./import-book";
 
-let started = false;
+let hasStarted = false;
 
 export function importInboxOnce(): Effect.Effect<
   { readonly imported: number; readonly failure: string | null },
@@ -12,9 +12,9 @@ export function importInboxOnce(): Effect.Effect<
   BookStore | PdfClient
 > {
   return Effect.gen(function* () {
-    if (started) return { imported: 0, failure: null };
+    if (hasStarted) return { imported: 0, failure: null };
 
-    started = true;
+    hasStarted = true;
 
     const store = yield* BookStore;
     const entries = yield* store.inbox().pipe(Effect.catch(() => Effect.succeed([])));

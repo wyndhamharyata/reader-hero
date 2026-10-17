@@ -22,8 +22,8 @@ export function dockAt(spot: Box | null, viewportHeight: number): "top" | "botto
 }
 
 export function tourSteps(options: {
-  readonly books: boolean;
-  readonly install: boolean;
+  readonly hasBooks: boolean;
+  readonly needsInstall: boolean;
 }): ReadonlyArray<TourStep> {
   return [
     {
@@ -38,7 +38,7 @@ export function tourSteps(options: {
       body: "Tap here and pick a PDF or an EPUB. You can pick several at once.",
       art: "shelf",
     },
-    ...(options.install
+    ...(options.needsInstall
       ? [
           {
             anchor: "install",
@@ -48,7 +48,7 @@ export function tourSteps(options: {
           },
         ]
       : []),
-    ...(options.books
+    ...(options.hasBooks
       ? [
           {
             anchor: "book",

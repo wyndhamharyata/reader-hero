@@ -13,18 +13,18 @@ import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { TextSettings } from "./_TextSettings";
 
 interface Props {
-  open: boolean;
+  isOpen: boolean;
   toc: ReadonlyArray<TocEntry>;
   modeLabel: string;
   settings: ReaderSettings;
   // The Summary row's text, "None" or "4 chapters · 2 pending", and whether its job runs.
   summary: string;
-  summaryRunning: boolean;
+  isSummaryRunning: boolean;
   onSummary: () => void;
   onStopSummary: () => void;
   // The Series row's text, "The Tide Cycle · 3 of 4". Null hides the row, as for a book in no series.
   series: string | null;
-  seriesRunning: boolean;
+  isSeriesRunning: boolean;
   onSeries: () => void;
   onStopSeries: () => void;
   // One-line summaries by the block index of their contents entry. Empty when the toggle is off.
@@ -37,16 +37,16 @@ interface Props {
 }
 
 export function MenuSheet({
-  open,
+  isOpen,
   toc,
   modeLabel,
   settings,
   summary,
-  summaryRunning,
+  isSummaryRunning,
   onSummary,
   onStopSummary,
   series,
-  seriesRunning,
+  isSeriesRunning,
   onSeries,
   onStopSeries,
   lines,
@@ -60,9 +60,9 @@ export function MenuSheet({
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
-  const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
+  const { dismiss } = useBottomSheet(isOpen, sheetRef, backdropRef, onClose);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
   // The desktop sidebar stays open behind the summary. A phone's bottom sheet makes way for it.
   const keepOpen = (then: () => void): void => {
@@ -125,9 +125,9 @@ export function MenuSheet({
               <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
                 {summary}
               </span>
-              {!summaryRunning && <span className="opacity-60">›</span>}
+              {!isSummaryRunning && <span className="opacity-60">›</span>}
             </button>
-            {summaryRunning && (
+            {isSummaryRunning && (
               <button
                 type="button"
                 className="btn mr-2 btn-ghost md:btn-sm"
@@ -150,9 +150,9 @@ export function MenuSheet({
                 <span className="min-w-0 flex-1 truncate text-left text-sm font-normal opacity-60 md:text-xs">
                   {series}
                 </span>
-                {!seriesRunning && <span className="opacity-60">›</span>}
+                {!isSeriesRunning && <span className="opacity-60">›</span>}
               </button>
-              {seriesRunning && (
+              {isSeriesRunning && (
                 <button
                   type="button"
                   className="btn mr-2 btn-ghost md:btn-sm"

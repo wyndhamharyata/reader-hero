@@ -26,9 +26,9 @@ const MIN_LINE_HEIGHT = 0.6;
 const MAX_LINE_HEIGHT = 2.0;
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
-// The panel has a base-300 background, so unchosen buttons drop to base-100. The chosen one is neutral.
-const choice = (chosen: boolean): string =>
-  chosen ? "btn btn-neutral md:btn-sm" : "btn bg-base-100 md:btn-sm";
+// The panel has a base-300 background, so unchosen buttons drop to base-100. The isChosen one is neutral.
+const choice = (isChosen: boolean): string =>
+  isChosen ? "btn btn-neutral md:btn-sm" : "btn bg-base-100 md:btn-sm";
 
 export function TextSettings({ settings, onChange }: Props): ReactElement {
   const smaller = Math.max(MIN_FONT_SIZE, settings.fontSize - 1);
@@ -122,8 +122,8 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
         <p className={heading}>Alignment</p>
         <div className="flex gap-2">
           {alignments.map((alignment) => {
-            const chosen = settings.textAlign === alignment.value;
-            const alignClass = `${choice(chosen)} btn-square`;
+            const isChosen = settings.textAlign === alignment.value;
+            const alignClass = `${choice(isChosen)} btn-square`;
             return (
               <button
                 key={alignment.value}
@@ -131,7 +131,7 @@ export function TextSettings({ settings, onChange }: Props): ReactElement {
                 className={alignClass}
                 aria-label={alignment.label}
                 title={alignment.label}
-                aria-pressed={chosen}
+                aria-pressed={isChosen}
                 onClick={() => onChange({ textAlign: alignment.value })}
               >
                 <alignment.icon className="size-6 md:size-4" />

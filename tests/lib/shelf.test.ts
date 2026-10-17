@@ -53,7 +53,7 @@ describe("buildShelf", () => {
     if (group?.kind !== "series") return;
     expect(group.id).toBe("mushoku tensei: jobless reincarnation");
     expect(group.books.map((card) => card.book.id)).toEqual(["1", "2", "7", "10"]);
-    expect(group.books.every((card) => card.clipStart)).toBe(true);
+    expect(group.books.every((card) => card.isClippedAtStart)).toBe(true);
     expect(group.status).toBe("not-started");
     expect(shelf.chips.map((entry) => entry.group)).not.toContain("series");
   });
@@ -90,7 +90,7 @@ describe("buildShelf", () => {
         count: 4,
       });
     }
-    expect(shelf.filtered).toBe(true);
+    expect(shelf.isFiltered).toBe(true);
     const lengthChips = shelf.chips.find((group) => group.group === "length")?.chips ?? [];
     expect(lengthChips.map((chip) => [chip.value, chip.count])).toEqual([["medium", 1]]);
   });
@@ -241,7 +241,7 @@ describe("buildShelf", () => {
     const card = shelfCards(shelf).find((entry) => entry.book.id === "1");
 
     expect(card?.seriesId).toBe("reader order");
-    expect(card?.clipStart).toBe(false);
+    expect(card?.isClippedAtStart).toBe(false);
   });
 
   it("given a new EPUB volume, places it by number without reordering stored books", () => {
@@ -465,7 +465,7 @@ describe("buildShelf", () => {
     expect(group?.kind).toBe("series");
     if (group?.kind !== "series") return;
     expect(group.name).toBe("Jobless Reincarnation");
-    expect(group.books.map((card) => [card.book.id, card.clipStart])).toEqual([
+    expect(group.books.map((card) => [card.book.id, card.isClippedAtStart])).toEqual([
       ["10", true],
       ["1", true],
       ["2", true],

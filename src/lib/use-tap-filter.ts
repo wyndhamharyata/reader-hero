@@ -1,6 +1,6 @@
 import { useRef, type PointerEvent as ReactPointerEvent, type MouseEvent } from "react";
 
-const selected = (): boolean => {
+const hasSelection = (): boolean => {
   const selection = window.getSelection();
   return selection !== null && !selection.isCollapsed && selection.toString().trim() !== "";
 };
@@ -10,20 +10,22 @@ export function useTapFilter(): {
   readonly onPointerDown: (event: ReactPointerEvent) => void;
   readonly isTap: (event: MouseEvent) => boolean;
 } {
-  const down = useRef<{ x: number; y: number; selected: boolean } | null>(null);
+  const down = useRef<{ x: number; y: number; hasSelection: boolean } | null>(null);
 
   return {
     onPointerDown: (event) => {
-      down.current = { x: event.clientX, y: event.clientY, selected: selected() };
+      down.current = { x: event.clientX, y: event.clientY, hasSelection: hasSelection() };
     },
     isTap: (event) => {
       const start = down.current;
 
       down.current = null;
-      if (selected()) return false;
+      if (hasSelection()) return false;
       if (start === null) return true;
 
-      return !start.selected && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 10;
+      return (
+        !start.hasSelection && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 10
+      );
     },
   };
 }

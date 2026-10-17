@@ -331,7 +331,7 @@ export function groupSeries(
           ...books.filter((book) => sent.has(book.id)).map((book) => book.id),
           ...batch.map((book) => book.id),
         ];
-        let recorded = false;
+        let isRecorded = false;
 
         yield* client
           .complete(
@@ -343,8 +343,8 @@ export function groupSeries(
           .pipe(
             Stream.runForEach((delta) =>
               Effect.gen(function* () {
-                if (!recorded) {
-                  recorded = true;
+                if (!isRecorded) {
+                  isRecorded = true;
                   yield* grouped.putGroupedBooks(sentNow);
                 }
 

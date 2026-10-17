@@ -21,7 +21,7 @@ import { AiClient } from "@/services/ai-client";
 import { ProviderPicker } from "./_ProviderPicker";
 
 interface Props {
-  open: boolean;
+  isOpen: boolean;
   // The library's grouping run: books left while it runs, then the totals, or its error.
   grouping:
     | { readonly left: number }
@@ -60,7 +60,7 @@ type Test =
   | { readonly state: "failed"; readonly message: string };
 
 export function SettingsSheet({
-  open,
+  isOpen,
   grouping,
   onRetry,
   onReset,
@@ -74,7 +74,7 @@ export function SettingsSheet({
   const backdropRef = useRef<HTMLButtonElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
-  const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
+  const { dismiss } = useBottomSheet(isOpen, sheetRef, backdropRef, onClose);
 
   useTabSwipe(viewport, track, ["general", "provider"] as const, tab, setTab);
 
@@ -100,7 +100,7 @@ export function SettingsSheet({
 
   // Reset on open, so a cancelled edit stores nothing. A toggle's save keeps the Provider fields.
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
 
     setProvider(ai?.provider ?? "deepseek");
     setApiKey(ai?.apiKey ?? "");
@@ -112,14 +112,14 @@ export function SettingsSheet({
     setModels([]);
     setModelFilter(null);
     setTest({ state: "idle" });
-  }, [open, ai?.provider, ai?.apiKey, ai?.model, ai?.baseUrl]);
+  }, [isOpen, ai?.provider, ai?.apiKey, ai?.model, ai?.baseUrl]);
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
 
     setLinesInContents(ai?.linesInContents ?? true);
     setAutoSummary(ai?.autoSummary ?? false);
     setSeriesGrouping(ai?.seriesGrouping ?? false);
-  }, [open, ai]);
+  }, [isOpen, ai]);
 
   // The note ends below the fold on a phone, so Allow comes into view with it.
   useEffect(() => {
@@ -127,7 +127,7 @@ export function SettingsSheet({
       consentNote.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [consentFor]);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
   const draft = (consentedAt?: number, consentVersion?: number): AiSettings =>
     new AiSettings({

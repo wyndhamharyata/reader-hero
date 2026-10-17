@@ -93,14 +93,14 @@ export function renderFigures(
 
         // Zero, so the first page with figures publishes at once and the reader is not kept waiting.
         let publishedAt = 0;
-        let unpublished = false;
+        let isUnpublished = false;
         const assemble = () =>
           Effect.map(assembleBook([...pagesByPage.values()], outline), (book) => {
             let through = 0;
 
             while (done.has(through + 1)) through += 1;
-            
-return new ParsedBook({ ...book, figuresThrough: through });
+
+            return new ParsedBook({ ...book, figuresThrough: through });
           });
 
         // A resumed job shows the figures it already stored before it looks for more.
@@ -137,13 +137,13 @@ return new ParsedBook({ ...book, figuresThrough: through });
                 done.add(page);
                 // Its own small record, so each page saves cheaply: iOS interrupts this job often.
                 yield* store.putFigureCheckpoint(bookId, [...done]);
-                if (images.length > 0) unpublished = true;
+                if (images.length > 0) isUnpublished = true;
 
                 // An open reader reloads the book on each publish, so publish at most every 2s.
-                if (unpublished && Date.now() - publishedAt >= 2_000) {
+                if (isUnpublished && Date.now() - publishedAt >= 2_000) {
                   yield* store.putParsed(bookId, yield* assemble());
                   publishedAt = Date.now();
-                  unpublished = false;
+                  isUnpublished = false;
                 }
               }),
             { concurrency: IMAGE_CONCURRENCY },

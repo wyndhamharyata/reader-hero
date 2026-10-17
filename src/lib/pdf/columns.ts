@@ -10,18 +10,15 @@ const crossesCenter = (item: Positioned, middle: number): boolean =>
   item.x < middle - CROSS_MARGIN_PT && item.x + item.width > middle + CROSS_MARGIN_PT;
 
 interface ColumnLayout {
-  readonly twoColumn: boolean;
+  readonly hasTwoColumns: boolean;
   readonly middle: number;
 }
 
-function detectColumns(
-  lines: ReadonlyArray<Positioned>,
-  pageWidth: number,
-): ColumnLayout {
+function detectColumns(lines: ReadonlyArray<Positioned>, pageWidth: number): ColumnLayout {
   const middle = pageWidth / 2;
 
   if (lines.length < MIN_COLUMN_LINES * 2 || pageWidth <= 0) {
-    return { twoColumn: false, middle };
+    return { hasTwoColumns: false, middle };
   }
 
   let crossing = 0;
@@ -36,10 +33,10 @@ function detectColumns(
 
   // A title, an abstract or a footnote may cross the middle. Most lines crossing it is one column.
   if (crossing * 4 > left + right || left < MIN_COLUMN_LINES || right < MIN_COLUMN_LINES) {
-    return { twoColumn: false, middle };
+    return { hasTwoColumns: false, middle };
   }
 
-  return { twoColumn: true, middle };
+  return { hasTwoColumns: true, middle };
 }
 
 export function orderFlow(
@@ -50,11 +47,17 @@ export function orderFlow(
   const layout = detectColumns(textLines, pageWidth);
 
   const entries = [
-    ...textLines.map((line) => ({ position: line as Positioned, item: { type: "text" as const, line } })),
-    ...images.map((image) => ({ position: image as Positioned, item: { type: "image" as const, image } })),
+    ...textLines.map((line) => ({
+      position: line as Positioned,
+      item: { type: "text" as const, line },
+    })),
+    ...images.map((image) => ({
+      position: image as Positioned,
+      item: { type: "image" as const, image },
+    })),
   ];
 
-  if (!layout.twoColumn) {
+  if (!layout.hasTwoColumns) {
     return [...entries]
       .sort((a, b) => byVerticalPosition(a.position, b.position))
       .map((entry) => entry.item);

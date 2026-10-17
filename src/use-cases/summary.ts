@@ -107,9 +107,9 @@ export function describeSummary(
   const pending = Math.max(0, cover.target - count);
   const row =
     count === 0 ? "None" : `${amount(count)}${pending > 0 ? ` · ${pending} pending` : ""}`;
-  const stale = !currentFresh(summary, cover);
+  const isStale = !currentFresh(summary, cover);
 
-  return { row, action: summaryAction(summary, pending, stale, count, unit, amount) };
+  return { row, action: summaryAction(summary, pending, isStale, count, unit, amount) };
 }
 
 function runRow(
@@ -129,15 +129,15 @@ function runRow(
 function summaryAction(
   summary: Summary | null,
   pending: number,
-  stale: boolean,
+  isStale: boolean,
   count: number,
   unit: ReturnType<typeof units>,
   amount: (n: number) => string,
 ): string | null {
-  if (pending > 0 && stale) return `Summarise ${amount(pending)} and current position`;
+  if (pending > 0 && isStale) return `Summarise ${amount(pending)} and current position`;
   if (pending > 0) return `Summarise ${amount(pending)}`;
 
-  if (stale) {
+  if (isStale) {
     return summary?.current === undefined
       ? "Summarise current position"
       : "Update current position";
@@ -170,10 +170,10 @@ export function describeSeries(
   let unmade = 0;
 
   for (const volume of described) {
-    if (!volume.pending) continue;
+    if (!volume.isPending) continue;
 
     pending += 1;
-    if (volume.unmade) unmade += 1;
+    if (volume.isUnmade) unmade += 1;
   }
 
   const rows = described.map(({ scope, text }) => ({ scope, text }));
@@ -204,8 +204,8 @@ function describeVolume(
   },
   summaries: ReadonlyMap<string, Summary | null>,
   run: SummaryRun | null,
-): { scope: string | null; text: string | null; pending: boolean; unmade: boolean } {
-  if (volume.scope === null) return { scope: null, text: null, pending: false, unmade: false };
+): { scope: string | null; text: string | null; isPending: boolean; isUnmade: boolean } {
+  if (volume.scope === null) return { scope: null, text: null, isPending: false, isUnmade: false };
 
   const { card } = volume;
   const { input, cover } = volume.scope;
@@ -213,16 +213,16 @@ function describeVolume(
   const summary = summaries.get(card.book.id) ?? null;
   const stored = summary?.volume;
   const missing = cover.target - Math.min(summary?.chapters.length ?? 0, cover.target);
-  const fresh = volumeFresh(stored, cover);
+  const isFresh = volumeFresh(stored, cover);
   const past = pastBoundary(stored, cover);
   const streaming =
     run?.stage === "volume" && run.book === card.book.id && run.text !== "" ? run.text : null;
 
   return {
-    scope: pendingLabel(missing, unit, fresh),
+    scope: pendingLabel(missing, unit, isFresh),
     text: streaming ?? (stored === undefined || past ? null : stored.text),
-    pending: !fresh,
-    unmade: !fresh && (stored === undefined || past),
+    isPending: !isFresh,
+    isUnmade: !isFresh && (stored === undefined || past),
   };
 }
 
@@ -237,11 +237,11 @@ function pastBoundary(stored: Summary["volume"], cover: Coverage): boolean {
 function pendingLabel(
   missing: number,
   unit: ReturnType<typeof units>,
-  fresh: boolean,
+  isFresh: boolean,
 ): string | null {
   if (missing > 0) return `${missing} ${missing === 1 ? unit.one : unit.many} pending`;
 
-  return fresh ? null : "1 pending";
+  return isFresh ? null : "1 pending";
 }
 
 const bookLine = (meta: BookMeta): string =>
@@ -309,7 +309,7 @@ export function mergeNames(
     const namesSystem = story
       ? `You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. Order the list by importance to the protagonist: the protagonist first, then those closest to them, then the rest. A note is at most ${earlier.length === 0 ? 20 : 25} words and says who the character is to the story so far.${earlier.length === 0 ? "" : ' This book continues a series, and "Known from earlier books" says what the earlier books told of their characters. That list is background, not entries: the list holds only characters whom the chapter summaries of this book name. When one of them appears in this book, the note may keep the gist of the earlier books in a few words, only if it matters to this book so far.'} Write in the language of the summaries. Reply with JSON only, in this form: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the chapter where the entry first appears.`
       : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. Order the list by importance to the subject of the document, the central terms first. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this form: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the section where the term first appears.';
-    const fresh = record.chapters.slice(record.namesThrough, of);
+    const isFresh = record.chapters.slice(record.namesThrough, of);
     const visibleNames = record.names.filter(
       (entry) => !story || entry.edited === true || entry.chapter <= of,
     );
@@ -340,7 +340,7 @@ export function mergeNames(
       `New ${unit.many}:`,
       "",
       // A # of our own, since the book's numbering can clash with the order of the list.
-      ...fresh.flatMap((chapter, offset) => [
+      ...isFresh.flatMap((chapter, offset) => [
         `#${record.namesThrough + offset + 1} ${chapter.heading}`,
         chapter.paragraph,
         "",
