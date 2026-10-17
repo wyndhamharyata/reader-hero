@@ -2,12 +2,17 @@ import { Effect } from "effect";
 import { memo, useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import type { PageSize } from "@/domain/book";
 import { forkApp, stopFiber } from "@/lib/hooks";
-import { readPageLinks, renderPdfPage } from "@/use-cases/render-page";
+import {
+  readPageLinks,
+  renderPageDetail,
+  renderPdfPage,
+  type PageArea,
+} from "@/use-cases/render-page";
 import { drawTextLayer, type DrawnTextLayer } from "@/use-cases/text-layer";
 import type { PageLink, RenderedDocument } from "@/services/page-renderer";
 
 // Capped at 1.5x: a sharper page costs memory on a phone and reads the same.
-const RENDER_SCALE = Math.min(1.5, globalThis.devicePixelRatio || 1);
+export const RENDER_SCALE = Math.min(1.5, globalThis.devicePixelRatio || 1);
 
 interface Props {
   doc: RenderedDocument;
@@ -18,6 +23,8 @@ interface Props {
   text: boolean;
   // The search to mark on this page's text; empty for none.
   query: string;
+  // A zoomed page's sharp area and the scale it is drawn at; null while the whole-page bitmap is sharp enough.
+  detail: { readonly scale: number; readonly area: PageArea } | null;
   onTextReady: (page: number) => void;
   onJump: (page: number) => void;
 }
@@ -36,11 +43,13 @@ export const PdfPage = memo(function PdfPage({
   scale,
   text,
   query,
+  detail,
   onTextReady,
   onJump,
 }: Props): ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLCanvasElement>(null);
   const textLayer = useRef<DrawnTextLayer | null>(null);
   const scaleRef = useRef(scale);
   const queryRef = useRef(query);
@@ -67,6 +76,36 @@ export const PdfPage = memo(function PdfPage({
       canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
     };
   }, [doc, size.page]);
+
+  const detailScale = detail?.scale ?? 0;
+  const { left = 0, top = 0, width = 0, height = 0 } = detail?.area ?? {};
+  useEffect(() => {
+    const canvas = detailRef.current;
+    if (canvas === null) return;
+    if (detailScale === 0) {
+      // Only a canvas that held an area has a context to empty; making one here would cost each page that mounts.
+      if (!canvas.hidden) canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
+      canvas.hidden = true;
+      return;
+    }
+    const area = { left, top, width, height };
+    const fiber = forkApp(
+      renderPageDetail(doc, size, canvas, detailScale, area).pipe(
+        Effect.catchTag("PdfFailure", () => Effect.void),
+      ),
+    );
+    return () => stopFiber(fiber);
+  }, [doc, size, detailScale, left, top, width, height]);
+
+  // Its bitmap goes back when the page leaves the list, as the page's own does.
+  useEffect(() => {
+    const canvas = detailRef.current;
+    return () => {
+      if (canvas !== null && !canvas.hidden) {
+        canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const host = textRef.current;
@@ -121,6 +160,7 @@ export const PdfPage = memo(function PdfPage({
           className="block h-auto w-full"
         />
       )}
+      <canvas ref={detailRef} hidden className="absolute" />
       <div ref={textRef} className="absolute inset-0" />
       {/* A click on a link is not a tap on the page, so it never toggles the bars. */}
       {links.map((link, index) =>

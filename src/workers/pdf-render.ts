@@ -158,7 +158,14 @@ onmessage = async (event: MessageEvent) => {
     | { type: "warm" }
     | { type: "open"; id: number; file: Blob }
     | { type: "size"; requestId: number; id: number; page: number }
-    | { type: "render"; requestId: number; id: number; page: number; scale: number }
+    | {
+        type: "render";
+        requestId: number;
+        id: number;
+        page: number;
+        scale: number;
+        crop?: { x: number; y: number; width: number; height: number };
+      }
     | { type: "links"; requestId: number; id: number; page: number }
     | { type: "text"; requestId: number; id: number; page: number }
     | { type: "cancel"; requestId: number }
@@ -250,9 +257,18 @@ onmessage = async (event: MessageEvent) => {
       return;
     }
     const viewport = page.getViewport({ scale: message.scale });
-    const canvas = new OffscreenCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
+    const { crop } = message;
+    const canvas =
+      crop === undefined
+        ? new OffscreenCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
+        : new OffscreenCanvas(crop.width, crop.height);
     // pdf.js types the canvas as a DOM element; it only needs a 2d context.
-    const task = page.render({ canvas: canvas as never, viewport });
+    const task = page.render({
+      canvas: canvas as never,
+      viewport,
+      // A crop draws only its part of the page, moved to the canvas's corner, as pdf.js's detail view does.
+      ...(crop === undefined ? {} : { transform: [1, 0, 0, 1, -crop.x, -crop.y] }),
+    });
     tasks.set(message.requestId, task);
     try {
       await task.promise;

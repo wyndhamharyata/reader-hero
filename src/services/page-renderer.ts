@@ -9,6 +9,14 @@ export interface RenderedDocument {
   readonly first: PageSize;
 }
 
+// A part of the page in device pixels at the scale it is drawn at.
+export interface PageCrop {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 // A link's box is a share of the drawn page, so it fits any width the page is shown at.
 export interface PageLink {
   readonly left: number;
@@ -85,6 +93,7 @@ export class PageRenderer extends Context.Service<
       doc: RenderedDocument,
       page: number,
       scale: number,
+      crop?: PageCrop,
     ): Effect.Effect<ImageBitmap, PdfFailure>;
     links(doc: RenderedDocument, page: number): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure>;
     text(doc: RenderedDocument, page: number): Effect.Effect<PageTextContent, PdfFailure>;
@@ -110,9 +119,9 @@ export class PageRenderer extends Context.Service<
           width: Number(reply.width),
           height: Number(reply.height),
         })),
-      render: (doc, page, scale) =>
+      render: (doc, page, scale, crop) =>
         Effect.map(
-          request({ type: "render", id: doc.id, page, scale }, [], true),
+          request({ type: "render", id: doc.id, page, scale, crop }, [], true),
           (reply) => reply.bitmap as ImageBitmap,
         ),
       links: (doc, page) =>
