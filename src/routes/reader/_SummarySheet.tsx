@@ -282,7 +282,7 @@ export function SummarySheet({
                 const open = desktop || expanded.has(entry.key);
                 return (
                   <div
-                    key={index}
+                    key={entry.key}
                     ref={
                       entry.key === `${openAt}`
                         ? opened
@@ -360,8 +360,8 @@ export function SummarySheet({
                 <p className="px-4 opacity-70">No {namesLabel.toLowerCase()}</p>
               )}
               <ul className="flex flex-col">
-                {names.map((entry, index) => (
-                  <li key={index} className="px-2">
+                {names.map((entry) => (
+                  <li key={entry.name} className="px-2">
                     <button
                       type="button"
                       className="flex w-full items-center justify-between gap-3 rounded-field px-2 py-2 text-left hover:bg-base-300"

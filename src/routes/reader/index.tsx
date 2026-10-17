@@ -25,6 +25,7 @@ import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
 import { chapters } from "@/use-cases/ai-context";
+import { saveBookPrefs } from "@/use-cases/book-prefs";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
@@ -77,6 +78,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const { ai, putAi } = useAiSettings();
   const {
     summary,
+    loaded: summaryLoaded,
     run,
     error: summaryError,
     start,
@@ -156,9 +158,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       }),
     [settings, prefs],
   );
-  // Off while a sheet is open, as each sheet takes its own Escape; moves are smooth so the eye can follow.
+  // Off while a sheet or the tour is open, as each takes its own Escape; moves are smooth so the eye can follow.
   useEffect(() => {
     if (tocOpen || summarySheet !== null || seriesOpen) return;
+    if ((settings.readerTour ?? 0) < TOUR_VERSION) return;
     const line = bookSettings.fontSize * bookSettings.lineHeight;
     const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
@@ -226,7 +229,9 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       if (typing || event.metaKey || event.altKey) return;
       switch (event.key) {
         case "Escape":
-          slideTo(navigate, "/", "out");
+          // The search closes first, as a browser's find does, so Escape never leaves the book from it.
+          if (searchOpen) setSearchOpen(false);
+          else if (!event.repeat) slideTo(navigate, "/", "out");
           break;
         case "ArrowDown":
         case "j":
@@ -267,7 +272,16 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       document.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", stop);
     };
-  }, [tocOpen, summarySheet, seriesOpen, navigate, bookSettings.fontSize, bookSettings.lineHeight]);
+  }, [
+    tocOpen,
+    summarySheet,
+    seriesOpen,
+    searchOpen,
+    settings.readerTour,
+    navigate,
+    bookSettings.fontSize,
+    bookSettings.lineHeight,
+  ]);
 
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
@@ -281,6 +295,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
   const touring = (settings.readerTour ?? 0) < TOUR_VERSION;
+  // One list, so the tour does not measure its step again on every render of the reader.
+  const tourSteps = useMemo(readerTourSteps, []);
 
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
   const readingIndex = Math.max(position, furthest);
@@ -327,7 +343,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
   useEffect(() => {
-    if (!hasConsent(ai) || !ai.autoSummary || autoSummaryInput === null) {
+    // Not before the stored summary is read, which may already hold this chapter.
+    if (!hasConsent(ai) || !ai.autoSummary || !summaryLoaded || autoSummaryInput === null) {
       return;
     }
     // An error waits for a tap in the sheet, so a failing provider is not asked again and again.
@@ -338,7 +355,17 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     autoTarget.current = readingCover.target;
     if ((summary?.chapters.length ?? 0) >= readingCover.target) return;
     start(autoSummaryInput, ai);
-  }, [ai, autoSummaryInput, run, summaryError, seriesJob.run, summary, readingCover.target, start]);
+  }, [
+    ai,
+    autoSummaryInput,
+    summaryLoaded,
+    run,
+    summaryError,
+    seriesJob.run,
+    summary,
+    readingCover.target,
+    start,
+  ]);
 
   // After the book's own job catches up, once per finished chapter, on Finished, and on open for earlier volumes.
   const seriesTarget = useRef(-1);
@@ -400,10 +427,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const savePrefs = (changes: Partial<BookPrefs>): void => {
     const next = { ...prefChanges, ...changes };
     setPrefChanges(next);
-    const saved = new BookPrefs({ ...data?.prefs, ...next });
-    void runApp(
-      Effect.flatMap(BookStore, (store) => store.putPrefs(bookId, saved)).pipe(Effect.ignore),
-    );
+    // Every change of this visit goes, so a save that lands after another still holds both.
+    void runApp(saveBookPrefs(bookId, next).pipe(Effect.ignore));
   };
   // Saves to this book; a text choice also goes global for new books, but Settings owns the theme.
   const changeSettings = (patch: Partial<ReaderSettings>): void => {
@@ -544,7 +569,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       />
 
       {data !== null && touring && (
-        <Tour steps={readerTourSteps()} onDone={() => update({ readerTour: TOUR_VERSION })} />
+        <Tour steps={tourSteps} onDone={() => update({ readerTour: TOUR_VERSION })} />
       )}
 
       {message !== null && (

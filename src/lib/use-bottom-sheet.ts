@@ -33,13 +33,21 @@ export function useBottomSheet(
   onClose: () => void,
 ): { readonly dismiss: (then?: () => void) => void } {
   const closeRef = useRef(onClose);
+  // A second tap during the slide out would close twice, and run its action, such as a delete, twice.
+  const closing = useRef(false);
 
   useEffect(() => {
     closeRef.current = onClose;
   });
 
+  useEffect(() => {
+    if (open) closing.current = false;
+  }, [open]);
+
   const dismiss = useCallback(
     (then?: () => void): void => {
+      if (closing.current) return;
+      closing.current = true;
       const finish = (): void => {
         closeRef.current();
         then?.();

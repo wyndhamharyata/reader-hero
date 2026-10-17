@@ -296,6 +296,7 @@ export interface SummaryState {
 
 // The book's summary and its job, live: the record follows every write, the run follows the job.
 export function useSummary(bookId: string): SummaryState & {
+  readonly loaded: boolean;
   readonly start: (input: SummaryInput, settings: AiSettings) => void;
   readonly stop: () => void;
   readonly discard: () => void;
@@ -304,10 +305,13 @@ export function useSummary(bookId: string): SummaryState & {
   readonly editName: (name: string, next: { name: string; note: string } | null) => void;
 } {
   const [summary, setSummary] = useState<Summary | null>(null);
+  // False until the stored summary is read, so nothing takes "none yet" for "none".
+  const [loaded, setLoaded] = useState(false);
   const [job, setJob] = useState<JobState>({ run: null, error: null });
 
   useEffect(() => {
     setSummary(null);
+    setLoaded(false);
     setJob({ run: null, error: null });
     const fiber = forkApp(
       Effect.gen(function* () {
@@ -315,9 +319,14 @@ export function useSummary(bookId: string): SummaryState & {
         const jobs = yield* SummaryJobs;
         yield* Effect.all(
           [
-            store
-              .watch(bookId)
-              .pipe(Stream.runForEach((next) => Effect.sync(() => setSummary(next)))),
+            store.watch(bookId).pipe(
+              Stream.runForEach((next) =>
+                Effect.sync(() => {
+                  setSummary(next);
+                  setLoaded(true);
+                }),
+              ),
+            ),
             jobs.state(bookId).pipe(Stream.runForEach((next) => Effect.sync(() => setJob(next)))),
           ],
           { concurrency: "unbounded" },
@@ -400,5 +409,15 @@ export function useSummary(bookId: string): SummaryState & {
     [bookId],
   );
 
-  return { summary, run: job.run, error: job.error, start, stop, discard, addName, editName };
+  return {
+    summary,
+    loaded,
+    run: job.run,
+    error: job.error,
+    start,
+    stop,
+    discard,
+    addName,
+    editName,
+  };
 }

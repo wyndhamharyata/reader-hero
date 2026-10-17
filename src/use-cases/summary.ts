@@ -47,9 +47,24 @@ export function coverage(
   const target = list.filter((chapter) => chapter.end <= index).length;
   const chapter = list[target];
   if (chapter === undefined || chapter.start > index) return { target, current: null };
-  const text = spanText(parsed, chapter.start, index + 1);
-  if (text.split(" ").length < 100) return { target, current: null };
-  return { target, current: { chapter, end: index + 1, text } };
+  // The reader calls this on each block it reaches, so it counts words only up to 100 and joins the text when read.
+  let words = 0;
+  for (let at = chapter.start; at <= index && words < 100; at += 1) {
+    const block = parsed.blocks[at];
+    if (block === undefined || block.kind === "image") continue;
+    words += block.text.split(" ").length;
+  }
+  if (words < 100) return { target, current: null };
+  return {
+    target,
+    current: {
+      chapter,
+      end: index + 1,
+      get text() {
+        return spanText(parsed, chapter.start, index + 1);
+      },
+    },
+  };
 }
 
 const units = (kind: BookKind): { one: string; many: string; names: string } =>
