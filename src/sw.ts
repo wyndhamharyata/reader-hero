@@ -6,11 +6,24 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
 };
 
-const CACHE = "reader-hero-shell-v1";
 const INDEX = "/index.html";
 const SHARE_PATH = "/share-target";
 
-const precacheUrls = self.__WB_MANIFEST.map((entry) => entry.url);
+// Workbox fills this one reference at build time.
+const manifest = self.__WB_MANIFEST;
+const precacheUrls = manifest.map((entry) => entry.url);
+
+// One cache per build, named by its files' revisions, so activate drops the last build's and a waiting worker
+// never writes into the cache the live one serves.
+const CACHE = `reader-hero-shell-${hash(manifest.map((entry) => `${entry.url}@${entry.revision}`).join("\n"))}`;
+
+function hash(text: string): string {
+  let value = 0x811c9dc5;
+  for (let index = 0; index < text.length; index += 1) {
+    value = Math.imul(value ^ text.charCodeAt(index), 0x01000193);
+  }
+  return (value >>> 0).toString(36);
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -45,19 +58,24 @@ self.addEventListener("message", (event) => {
   }
 });
 
+// The library opens whatever happens; a share it could not store is lost, but never shows an error page.
 async function handleShare(request: Request): Promise<Response> {
-  const db = await openReaderDb();
-  const form = await request.formData();
-  const file = form.get("file");
-  if (file instanceof File) {
-    await db.add("inbox", { name: file.name, blob: file, addedAt: Date.now() });
+  try {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (file instanceof File) {
+      const db = await openReaderDb();
+      await db.add("inbox", { name: file.name, blob: file, addedAt: Date.now() });
+    }
+  } catch {
+    // Nothing to keep: the redirect below still opens the app.
   }
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
 // The shell comes only from the cache: a launch never waits, and it must match this build's assets.
 async function handleNavigate(request: Request): Promise<Response> {
-  const cached = await caches.match(INDEX);
+  const cached = await (await caches.open(CACHE)).match(INDEX);
   if (cached !== undefined) return cached;
   try {
     return await fetch(request);
@@ -67,12 +85,13 @@ async function handleNavigate(request: Request): Promise<Response> {
 }
 
 async function handleAsset(request: Request): Promise<Response> {
-  const cached = await caches.match(request);
+  const cache = await caches.open(CACHE);
+  const cached = await cache.match(request);
   if (cached !== undefined) return cached;
 
   const response = await fetch(request);
-  if (response.ok && response.type === "basic") {
-    const cache = await caches.open(CACHE);
+  // A partial answer to a range request cannot be stored.
+  if (response.status === 200 && response.type === "basic") {
     await cache.put(request, response.clone());
   }
   return response;

@@ -344,8 +344,19 @@ export class BookStore extends Context.Service<
 
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* withDb("remove", async (db) => {
+          // The summary goes in the same transaction, so a tab closed mid-removal keeps no summary of a gone book.
           const tx = db.transaction(
-            ["books", "files", "parsed", "progress", "images", "prefs", "figures", "pages"],
+            [
+              "books",
+              "files",
+              "parsed",
+              "progress",
+              "images",
+              "prefs",
+              "figures",
+              "pages",
+              "summaries",
+            ],
             "readwrite",
           );
           await tx.objectStore("books").delete(id);
@@ -356,6 +367,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("prefs").delete(id);
           await tx.objectStore("figures").delete(id);
           await tx.objectStore("pages").delete(id);
+          await tx.objectStore("summaries").delete(id);
           await tx.done;
         });
       });

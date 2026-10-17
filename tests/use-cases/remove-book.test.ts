@@ -2,6 +2,7 @@ import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import { Series } from "@/domain/book";
 import { FigureJobs } from "@/services/figure-jobs";
+import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 import { removeBook } from "@/use-cases/remove-book";
@@ -22,12 +23,14 @@ describe("removeBook", () => {
       stopped: Array<string>;
       figuresStopped: Array<string>;
       summariesRemoved: Array<string>;
+      grouped: ReadonlyArray<string>;
     } = {
       series: [stored],
       bookRemoved: false,
       stopped: [],
       figuresStopped: [],
       summariesRemoved: [],
+      grouped: ["b1", "b2"],
     };
     const books = bookStore({
       listSeries: () => Effect.succeed(state.series),
@@ -70,7 +73,25 @@ describe("removeBook", () => {
         stop: (id) => Effect.sync(() => state.figuresStopped.push(id)),
       }),
     );
-    const layer = Layer.mergeAll(books, jobs, summaries, figures);
+    const settings = Layer.succeed(
+      SettingsStore,
+      SettingsStore.of({
+        changes: () => Stream.empty,
+        update: () => Effect.die("not used"),
+        aiChanges: () => Stream.empty,
+        ai: () => Effect.die("not used"),
+        putAi: () => Effect.die("not used"),
+        groupedBooks: () => Effect.sync(() => state.grouped),
+        putGroupedBooks: (ids) =>
+          Effect.sync(() => {
+            state.grouped = ids;
+          }),
+        usageChanges: () => Stream.empty,
+        addUsage: () => Effect.die("not used"),
+        resetUsage: () => Effect.die("not used"),
+      }),
+    );
+    const layer = Layer.mergeAll(books, jobs, summaries, figures, settings);
 
     await Effect.runPromise(removeBook("b1").pipe(Effect.provide(layer)));
 
@@ -81,5 +102,6 @@ describe("removeBook", () => {
     expect(state.figuresStopped).toEqual(["b1"]);
     expect(state.bookRemoved).toBe(true);
     expect(state.summariesRemoved).toEqual(["b1"]);
+    expect(state.grouped).toEqual(["b2"]);
   });
 });

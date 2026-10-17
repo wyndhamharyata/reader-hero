@@ -42,11 +42,18 @@ export class ServiceWorkerClient extends Context.Service<
           }),
         );
       },
+      // The reload waits for the new worker to take over, or the old one would answer it.
       activate: (worker) =>
         Effect.sync(() => {
+          navigator.serviceWorker.addEventListener(
+            "controllerchange",
+            () => window.location.reload(),
+            {
+              once: true,
+            },
+          );
           const message: WorkerMessage = { type: "SKIP_WAITING" };
           worker.postMessage(message);
-          window.location.reload();
         }),
     }),
   );

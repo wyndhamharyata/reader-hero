@@ -3,12 +3,17 @@ import { Series } from "@/domain/book";
 import type { StorageFailure } from "@/domain/errors";
 import { BookStore } from "@/services/book-store";
 import { FigureJobs } from "@/services/figure-jobs";
+import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 
 export function removeBook(
   id: string,
-): Effect.Effect<void, StorageFailure, BookStore | FigureJobs | SummaryJobs | SummaryStore> {
+): Effect.Effect<
+  void,
+  StorageFailure,
+  BookStore | FigureJobs | SettingsStore | SummaryJobs | SummaryStore
+> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
     // The jobs stop first, so none sends more of the book or writes a summary or figure back.
@@ -32,6 +37,11 @@ export function removeBook(
       );
     }
     yield* store.remove(id);
+    // Its removal tells an open summary; the record itself went with the book.
     yield* (yield* SummaryStore).remove(id);
+    const settings = yield* SettingsStore;
+    const grouped = yield* settings.groupedBooks();
+    if (grouped.includes(id))
+      yield* settings.putGroupedBooks(grouped.filter((entry) => entry !== id));
   });
 }
