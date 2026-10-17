@@ -279,8 +279,6 @@ count of each at or below the number it has today, so none can grow.
 - The node walk inside `parseEpub` in `src/lib/epub/parse.ts` has 72 branch points, against rule 6.
   It shares one block buffer, one mark list and one page state with every element case. A split
   would pass that whole context through each call.
-- `buildShelf` in `src/lib/shelf.ts` has 64 branch points, against rule 6. It derives one shelf in
-  stages, and each stage reads the lead and series maps the one before it wrote.
 
 ## What the check enforces
 

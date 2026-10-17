@@ -53,10 +53,7 @@ const skippedFolders = new Set([
 const skippedFiles = new Set(["src/domain/licences.ts"]);
 
 // A function that is one screen's wiring, or one pass over a document, keeps its place.
-const branchLimit = new Map([
-  ["src/lib/epub/parse.ts:(anonymous)", 72],
-  ["src/lib/shelf.ts:buildShelf", 64],
-]);
+const branchLimit = new Map([["src/lib/epub/parse.ts:(anonymous)", 72]]);
 
 const problems = [];
 

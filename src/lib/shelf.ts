@@ -1,5 +1,11 @@
-import { FINISHED_PERCENT } from "@/domain/book";
-import type { BookMeta, BookPrefs, LibrarySort, ReadingProgress, Series } from "@/domain/book";
+import {
+  FINISHED_PERCENT,
+  type BookMeta,
+  type BookPrefs,
+  type LibrarySort,
+  type ReadingProgress,
+  type Series,
+} from "@/domain/book";
 import { parseStateBadge, readingBadge } from "@/lib/badges";
 
 // Each book as the library last read it, so a book that opens has its theme, title and place at once.
@@ -85,6 +91,41 @@ export function seriesKey(name: string): string {
     .join(" ");
 }
 
+interface SeriesGroup {
+  id: string;
+  name: string;
+  bookIds: Array<string>;
+  storedCount: number;
+  color?: number;
+  cover?: string;
+}
+
+interface ShelfState {
+  readonly books: ReadonlyArray<BookMeta>;
+  readonly reading: ReadonlyMap<string, ReadingProgress | null>;
+  readonly leads: ReadonlyMap<string, string>;
+  readonly marked: ReadonlySet<string>;
+  readonly titleNames: ReadonlyMap<string, string>;
+  readonly removedBySeries: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly booksById: ReadonlyMap<string, BookMeta>;
+  readonly seriesGroups: Map<string, SeriesGroup>;
+  readonly groupedBooks: Set<string>;
+  readonly storedNumberByBook: Map<string, number>;
+  readonly numberByBook: Map<string, number>;
+  readonly titleClip: Set<string>;
+  readonly seriesForBook: Map<
+    string,
+    {
+      readonly id: string;
+      readonly name: string;
+      readonly place: number;
+      readonly count: number;
+      readonly isClippedAtStart: boolean;
+    }
+  >;
+  readonly cardsById: Map<string, LibraryCard>;
+}
+
 export function buildShelf(
   books: ReadonlyArray<BookMeta>,
   reading: ReadonlyMap<string, ReadingProgress | null>,
@@ -97,86 +138,176 @@ export function buildShelf(
     .toLowerCase()
     .split(" ")
     .filter((word) => word !== "");
-  const searched = books.filter((book) => {
+  const searched = searchBooks(books, terms);
+  const { leads, marked, titleNames } = seriesLeads(books);
+  const state: ShelfState = {
+    books,
+    reading,
+    leads,
+    marked,
+    titleNames,
+    removedBySeries: removedSeriesMap(storedSeries),
+    booksById: new Map(books.map((book) => [book.id, book])),
+    seriesGroups: new Map(),
+    groupedBooks: new Set(),
+    storedNumberByBook: new Map(),
+    numberByBook: new Map(),
+    titleClip: new Set(),
+    seriesForBook: new Map(),
+    cardsById: new Map(),
+  };
+  const collate = { numeric: true, sensitivity: "base" } as const;
+  const titleCompare = (a: string, b: string): number => a.localeCompare(b, undefined, collate);
+
+  collectStoredGroups(state, storedSeries);
+  collectDerivedGroups(state);
+  addTitleClips(state);
+  orderGroups(state, titleCompare);
+  collectSeriesForBook(state);
+
+  const { cardsById, matches, facet, filterGroups, lastRead, shown } = libraryCards(
+    state,
+    searched,
+    filters,
+    sort,
+    titleCompare,
+  );
+  const { allSeries, items } = shelfItems({
+    state,
+    query,
+    filters,
+    filterGroups,
+    shown,
+    lastRead,
+    sort,
+    titleCompare,
+  });
+
+  return {
+    items,
+    series: allSeries,
+    cards: cardsById,
+    matching: searched.length,
+    isFiltered: filterGroups.some((group) => filters[group] !== null),
+    chips: filterChips({ books, searched, matches, facet, filters }),
+  };
+}
+
+function searchBooks(
+  books: ReadonlyArray<BookMeta>,
+  terms: ReadonlyArray<string>,
+): ReadonlyArray<BookMeta> {
+  return books.filter((book) => {
     const haystack = [book.title, book.author, book.subject, book.keywords, book.fileName]
       .join(" ")
       .toLowerCase();
 
     return terms.every((term) => haystack.includes(term));
   });
+}
 
+function seriesLeads(books: ReadonlyArray<BookMeta>): {
+  readonly leads: Map<string, string>;
+  readonly marked: Set<string>;
+  readonly titleNames: Map<string, string>;
+} {
   // A volume number ("Vol. 3", "#4") is strong, so its lead needs 2 books. A 3-word start needs 4.
+  const leads = new Map<string, string>();
   const marked = new Set<string>();
-  const leads = new Map(
-    books.map((book) => {
-      const words = book.title
-        .toLowerCase()
-        .split(" ")
-        .filter((word) => word !== "");
-      const last = words[words.length - 1] ?? "";
-      const number = last.startsWith("#") ? last.slice(1) : last;
-      const marker =
-        number === "" || !Number.isFinite(Number(number))
-          ? 0
-          : last.startsWith("#")
-            ? 1
-            : ["vol", "vol.", "volume", "v.", "book", "part", "no.", "#"].includes(
-                  words[words.length - 2] ?? "",
-                )
-              ? 2
-              : 0;
 
-      if (marker === 0 || words.length <= marker) return [book.id, words.slice(0, 3).join(" ")];
+  for (const book of books) {
+    const { lead, isMarked } = bookLead(book);
 
-      const lead = words.slice(0, -marker).join(" ");
+    leads.set(book.id, lead);
+    if (isMarked) marked.add(lead);
+  }
 
-      marked.add(lead);
+  const leadCounts = countLeads(leads);
+  const titleStarts = commonTitleStarts(books, leads, marked, leadCounts);
+  const titleNames = new Map([...titleStarts].map(([lead, start]) => [lead, titleNameOf(start)]));
 
-      return [book.id, lead];
-    }),
-  );
-  const leadCounts = new Map<string, number>();
+  return { leads, marked, titleNames };
+}
 
-  for (const lead of leads.values()) leadCounts.set(lead, (leadCounts.get(lead) ?? 0) + 1);
+function bookLead(book: BookMeta): { readonly lead: string; readonly isMarked: boolean } {
+  const words = book.title
+    .toLowerCase()
+    .split(" ")
+    .filter((word) => word !== "");
+  const last = words[words.length - 1] ?? "";
+  const number = last.startsWith("#") ? last.slice(1) : last;
+  const marker =
+    number === "" || !Number.isFinite(Number(number))
+      ? 0
+      : last.startsWith("#")
+        ? 1
+        : ["vol", "vol.", "volume", "v.", "book", "part", "no.", "#"].includes(
+              words[words.length - 2] ?? "",
+            )
+          ? 2
+          : 0;
 
-  const titleStarts = new Map<string, string>();
+  if (marker === 0 || words.length <= marker) {
+    return { lead: words.slice(0, 3).join(" "), isMarked: false };
+  }
+
+  return { lead: words.slice(0, -marker).join(" "), isMarked: true };
+}
+
+function countLeads(leads: ReadonlyMap<string, string>): Map<string, number> {
+  const counts = new Map<string, number>();
+
+  for (const lead of leads.values()) counts.set(lead, (counts.get(lead) ?? 0) + 1);
+
+  return counts;
+}
+
+function commonTitleStarts(
+  books: ReadonlyArray<BookMeta>,
+  leads: ReadonlyMap<string, string>,
+  marked: ReadonlySet<string>,
+  leadCounts: ReadonlyMap<string, number>,
+): Map<string, string> {
+  const starts = new Map<string, string>();
 
   for (const book of books) {
     const lead = leads.get(book.id) ?? "";
 
     if (lead === "" || (leadCounts.get(lead) ?? 0) < (marked.has(lead) ? 2 : 4)) continue;
 
-    const start = titleStarts.get(lead) ?? book.title;
+    const start = starts.get(lead) ?? book.title;
     let end = 0;
 
     while (end < start.length && start[end] === book.title[end]) end += 1;
-    titleStarts.set(lead, start.slice(0, end));
+    starts.set(lead, start.slice(0, end));
   }
 
-  const titleNames = new Map<string, string>();
+  return starts;
+}
 
-  for (const [lead, start] of titleStarts) {
-    const whole = start.endsWith(" ") ? start : start.slice(0, start.lastIndexOf(" ") + 1);
-    const kept = whole.split(" ").filter((word) => word !== "");
+function titleNameOf(start: string): string {
+  const whole = start.endsWith(" ") ? start : start.slice(0, start.lastIndexOf(" ") + 1);
+  const kept = whole.split(" ").filter((word) => word !== "");
 
-    while (
-      kept.length > 0 &&
-      ["vol", "vol.", "volume", "v.", "book", "part", "#", "-", "–", "—", ":"].includes(
-        (kept[kept.length - 1] ?? "").toLowerCase(),
-      )
-    ) {
-      kept.pop();
-    }
-
-    let name = kept.join(" ");
-
-    while (name.length > 0 && ":-–—,.(".includes(name[name.length - 1] ?? "")) {
-      name = name.slice(0, -1);
-    }
-
-    titleNames.set(lead, name || lead);
+  while (
+    kept.length > 0 &&
+    ["vol", "vol.", "volume", "v.", "book", "part", "#", "-", "–", "—", ":"].includes(
+      (kept[kept.length - 1] ?? "").toLowerCase(),
+    )
+  ) {
+    kept.pop();
   }
 
+  let name = kept.join(" ");
+
+  while (name.length > 0 && ":-–—,.(".includes(name[name.length - 1] ?? "")) {
+    name = name.slice(0, -1);
+  }
+
+  return name || start;
+}
+
+function removedSeriesMap(storedSeries: ReadonlyArray<Series>): Map<string, ReadonlySet<string>> {
   const removedBySeries = new Map<string, Set<string>>();
 
   for (const series of storedSeries) {
@@ -187,20 +318,10 @@ export function buildShelf(
     removedBySeries.set(id, removed);
   }
 
-  const booksById = new Map(books.map((book) => [book.id, book]));
-  const seriesGroups = new Map<
-    string,
-    {
-      id: string;
-      name: string;
-      bookIds: Array<string>;
-      storedCount: number;
-      color?: number;
-      cover?: string;
-    }
-  >();
-  const groupedBooks = new Set<string>();
-  const storedNumberByBook = new Map<string, number>();
+  return removedBySeries;
+}
+
+function collectStoredGroups(state: ShelfState, storedSeries: ReadonlyArray<Series>): void {
   const storedByPriority = [...storedSeries].sort(
     (a, b) => Number(b.edited === true) - Number(a.edited === true) || a.id.localeCompare(b.id),
   );
@@ -212,7 +333,7 @@ export function buildShelf(
 
     if (id === "") continue;
 
-    const group = seriesGroups.get(id) ?? {
+    const group = state.seriesGroups.get(id) ?? {
       id: series.id,
       name: series.name,
       bookIds: [],
@@ -223,34 +344,34 @@ export function buildShelf(
 
     for (const entry of series.books) {
       if (
-        !booksById.has(entry.id) ||
-        groupedBooks.has(entry.id) ||
-        removedBySeries.get(id)?.has(entry.id)
+        !state.booksById.has(entry.id) ||
+        state.groupedBooks.has(entry.id) ||
+        state.removedBySeries.get(id)?.has(entry.id)
       ) {
         continue;
       }
 
       group.bookIds.push(entry.id);
-      groupedBooks.add(entry.id);
+      state.groupedBooks.add(entry.id);
 
-      const number = entry.number ?? booksById.get(entry.id)?.seriesNumber;
+      const number = entry.number ?? state.booksById.get(entry.id)?.seriesNumber;
 
-      if (number !== undefined && Number.isFinite(number)) storedNumberByBook.set(entry.id, number);
+      if (number !== undefined && Number.isFinite(number))
+        state.storedNumberByBook.set(entry.id, number);
     }
 
     group.storedCount = group.bookIds.length;
-    seriesGroups.set(id, group);
+    state.seriesGroups.set(id, group);
   }
+}
 
-  const numberByBook = new Map<string, number>();
-  const titleClip = new Set<string>();
-
-  for (const book of books) {
-    if (groupedBooks.has(book.id)) continue;
+function collectDerivedGroups(state: ShelfState): void {
+  for (const book of state.books) {
+    if (state.groupedBooks.has(book.id)) continue;
 
     const epubName = book.series?.trim() || undefined;
-    const lead = leads.get(book.id) ?? "";
-    const titleName = titleNames.get(lead);
+    const lead = state.leads.get(book.id) ?? "";
+    const titleName = state.titleNames.get(lead);
     const candidates = [
       ...(epubName === undefined
         ? []
@@ -260,12 +381,12 @@ export function buildShelf(
         : [{ id: seriesKey(titleName), name: titleName, number: undefined }]),
     ];
     const candidate = candidates.find(
-      (entry) => entry.id !== "" && !removedBySeries.get(entry.id)?.has(book.id),
+      (entry) => entry.id !== "" && !state.removedBySeries.get(entry.id)?.has(book.id),
     );
 
     if (candidate === undefined) continue;
 
-    const group = seriesGroups.get(candidate.id) ?? {
+    const group = state.seriesGroups.get(candidate.id) ?? {
       id: candidate.id,
       name: candidate.name,
       bookIds: [],
@@ -273,34 +394,35 @@ export function buildShelf(
     };
 
     group.bookIds.push(book.id);
-    seriesGroups.set(candidate.id, group);
-    groupedBooks.add(book.id);
+    state.seriesGroups.set(candidate.id, group);
+    state.groupedBooks.add(book.id);
 
     if (candidate.number !== undefined && Number.isFinite(candidate.number)) {
-      numberByBook.set(book.id, candidate.number);
+      state.numberByBook.set(book.id, candidate.number);
     }
   }
+}
 
+function addTitleClips(state: ShelfState): void {
   // A title-start series keeps its clipped titles after the reader saves it as a record.
-  for (const [id, group] of seriesGroups) {
+  for (const [id, group] of state.seriesGroups) {
     for (const bookId of group.bookIds) {
-      const lead = leads.get(bookId) ?? "";
-      const titleName = titleNames.get(lead);
+      const lead = state.leads.get(bookId) ?? "";
+      const titleName = state.titleNames.get(lead);
 
-      if (titleName !== undefined && seriesKey(titleName) === id) titleClip.add(bookId);
+      if (titleName !== undefined && seriesKey(titleName) === id) state.titleClip.add(bookId);
     }
   }
+}
 
-  const collate = { numeric: true, sensitivity: "base" } as const;
-  const titleCompare = (a: string, b: string): number => a.localeCompare(b, undefined, collate);
-
-  for (const group of seriesGroups.values()) {
+function orderGroups(state: ShelfState, titleCompare: (a: string, b: string) => number): void {
+  for (const group of state.seriesGroups.values()) {
     const storedBooks = group.bookIds.slice(0, group.storedCount);
     const derivedBooks = group.bookIds.slice(group.storedCount);
 
     derivedBooks.sort((a, b) => {
-      const numberA = numberByBook.get(a);
-      const numberB = numberByBook.get(b);
+      const numberA = state.numberByBook.get(a);
+      const numberB = state.numberByBook.get(b);
 
       if (numberA !== undefined && numberB !== undefined && numberA !== numberB) {
         return numberA - numberB;
@@ -308,16 +430,16 @@ export function buildShelf(
       if (numberA !== undefined && numberB === undefined) return -1;
       if (numberA === undefined && numberB !== undefined) return 1;
 
-      return titleCompare(booksById.get(a)?.title ?? "", booksById.get(b)?.title ?? "");
+      return titleCompare(state.booksById.get(a)?.title ?? "", state.booksById.get(b)?.title ?? "");
     });
 
     for (const id of derivedBooks) {
-      const number = numberByBook.get(id);
+      const number = state.numberByBook.get(id);
       const place =
         number === undefined
           ? -1
           : storedBooks.findIndex((storedId) => {
-              const storedNumber = storedNumberByBook.get(storedId);
+              const storedNumber = state.storedNumberByBook.get(storedId);
               return storedNumber !== undefined && storedNumber > number;
             });
 
@@ -327,27 +449,39 @@ export function buildShelf(
 
     group.bookIds = storedBooks;
   }
+}
 
-  const seriesForBook = new Map<
-    string,
-    { id: string; name: string; place: number; count: number; isClippedAtStart: boolean }
-  >();
-
-  for (const group of seriesGroups.values()) {
+function collectSeriesForBook(state: ShelfState): void {
+  for (const group of state.seriesGroups.values()) {
     group.bookIds.forEach((id, index) => {
-      seriesForBook.set(id, {
+      state.seriesForBook.set(id, {
         id: group.id,
         name: group.name,
         place: index + 1,
         count: group.bookIds.length,
-        isClippedAtStart: titleClip.has(id),
+        isClippedAtStart: state.titleClip.has(id),
       });
     });
   }
+}
 
-  const percentOf = (book: BookMeta): number => reading.get(book.id)?.percent ?? 0;
+function libraryCards(
+  state: ShelfState,
+  searched: ReadonlyArray<BookMeta>,
+  filters: Filters,
+  sort: LibrarySort,
+  titleCompare: (a: string, b: string) => number,
+): {
+  readonly cardsById: Map<string, LibraryCard>;
+  readonly matches: (book: BookMeta, except?: FilterGroup) => boolean;
+  readonly facet: Record<FilterGroup, (book: BookMeta) => string>;
+  readonly filterGroups: ReadonlyArray<FilterGroup>;
+  readonly lastRead: (book: BookMeta) => number;
+  readonly shown: ReadonlyArray<BookMeta>;
+} {
+  const percentOf = (book: BookMeta): number => state.reading.get(book.id)?.percent ?? 0;
   const statusOf = (book: BookMeta): LibraryCard["status"] => {
-    const progress = reading.get(book.id);
+    const progress = state.reading.get(book.id);
     const percent = percentOf(book);
 
     if (progress?.finished === true) return "finished";
@@ -374,7 +508,7 @@ export function buildShelf(
         group === except || filters[group] === null || facet[group](book) === filters[group],
     );
 
-  const lastRead = (book: BookMeta): number => reading.get(book.id)?.updatedAt ?? 0;
+  const lastRead = (book: BookMeta): number => state.reading.get(book.id)?.updatedAt ?? 0;
   const shown = searched.filter((book) => matches(book));
 
   shown.sort((a, b) => {
@@ -384,14 +518,12 @@ export function buildShelf(
     return lastRead(b) - lastRead(a) || b.addedAt - a.addedAt;
   });
 
-  const cardsById = new Map<string, LibraryCard>();
-
-  for (const book of books) {
+  for (const book of state.books) {
     const status = statusOf(book);
     const ready = book.parseState === "ready";
-    const series = seriesForBook.get(book.id);
+    const series = state.seriesForBook.get(book.id);
 
-    cardsById.set(book.id, {
+    state.cardsById.set(book.id, {
       book,
       percent: status === "finished" ? 1 : percentOf(book),
       status,
@@ -411,9 +543,34 @@ export function buildShelf(
     });
   }
 
-  const grouped = [...seriesGroups.values()].flatMap((group) => {
+  return { cardsById: state.cardsById, matches, facet, filterGroups, lastRead, shown };
+}
+
+function shelfItems({
+  state,
+  query,
+  filters,
+  filterGroups,
+  shown,
+  lastRead,
+  sort,
+  titleCompare,
+}: {
+  readonly state: ShelfState;
+  readonly query: string;
+  readonly filters: Filters;
+  readonly filterGroups: ReadonlyArray<FilterGroup>;
+  readonly shown: ReadonlyArray<BookMeta>;
+  readonly lastRead: (book: BookMeta) => number;
+  readonly sort: LibrarySort;
+  readonly titleCompare: (a: string, b: string) => number;
+}): {
+  readonly allSeries: Shelf["series"];
+  readonly items: Shelf["items"];
+} {
+  const grouped = [...state.seriesGroups.values()].flatMap((group) => {
     const cards = group.bookIds.flatMap((id) => {
-      const card = cardsById.get(id);
+      const card = state.cardsById.get(id);
       return card === undefined ? [] : [card];
     });
 
@@ -459,17 +616,17 @@ export function buildShelf(
       250,
   }));
   const seriesItems = allSeries.filter((item) => item.count >= 2);
-  const singleItems = books
-    .filter((book) => (seriesForBook.get(book.id)?.count ?? 0) < 2)
+  const singleItems = state.books
+    .filter((book) => (state.seriesForBook.get(book.id)?.count ?? 0) < 2)
     .flatMap((book) => {
-      const card = cardsById.get(book.id);
+      const card = state.cardsById.get(book.id);
       return card === undefined ? [] : [{ kind: "book" as const, card }];
     });
   const isFiltered = filterGroups.some((group) => filters[group] !== null);
   const items =
     query.trim() !== "" || isFiltered
       ? shown.flatMap((book) => {
-          const card = cardsById.get(book.id);
+          const card = state.cardsById.get(book.id);
           return card === undefined ? [] : [{ kind: "book" as const, card }];
         })
       : [...seriesItems, ...singleItems];
@@ -493,6 +650,22 @@ export function buildShelf(
     return readB - readA || addedB - addedA || titleCompare(titleA, titleB);
   });
 
+  return { allSeries, items };
+}
+
+function filterChips({
+  books,
+  searched,
+  matches,
+  facet,
+  filters,
+}: {
+  readonly books: ReadonlyArray<BookMeta>;
+  readonly searched: ReadonlyArray<BookMeta>;
+  readonly matches: (book: BookMeta, except?: FilterGroup) => boolean;
+  readonly facet: Record<FilterGroup, (book: BookMeta) => string>;
+  readonly filters: Filters;
+}): Shelf["chips"] {
   const options: Array<{ group: FilterGroup; options: ReadonlyArray<readonly [string, string]> }> =
     [
       {
@@ -523,7 +696,7 @@ export function buildShelf(
     });
   }
 
-  const chips = options.map(({ group, options: groupOptions }) => ({
+  return options.map(({ group, options: groupOptions }) => ({
     group,
     chips: groupOptions
       .map(([value, label]) => ({
@@ -535,13 +708,4 @@ export function buildShelf(
       }))
       .filter((chip) => chip.count > 0 || chip.isActive),
   }));
-
-  return {
-    items,
-    series: allSeries,
-    cards: cardsById,
-    matching: searched.length,
-    isFiltered,
-    chips,
-  };
 }
