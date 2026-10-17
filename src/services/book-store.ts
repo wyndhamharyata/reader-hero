@@ -115,6 +115,7 @@ export class BookStore extends Context.Service<
             ),
           ),
         );
+
         return books.filter((book) => book !== null);
       });
 
@@ -124,12 +125,15 @@ export class BookStore extends Context.Service<
         const series = yield* Effect.forEach(rows, (row) =>
           decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null))),
         );
+
         return series.filter((entry) => entry !== null);
       });
 
       const getSeries = Effect.fn("BookStore.getSeries")(function* (id: string) {
         const row = yield* withDb("getSeries", (db) => db.get("series", id));
+
         if (row === undefined) return null;
+
         return yield* decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
@@ -145,7 +149,9 @@ export class BookStore extends Context.Service<
 
       const get = Effect.fn("BookStore.get")(function* (id: string) {
         const row = yield* withDb("get", (db) => db.get("books", id));
+
         if (row === undefined) return yield* new BookNotFound({ id });
+
         return yield* decodeBookMeta(row).pipe(
           Effect.mapError((cause) => new StorageFailure({ operation: "decodeBookMeta", cause })),
         );
@@ -163,6 +169,7 @@ export class BookStore extends Context.Service<
       ) {
         yield* withDb("putFile", async (db) => {
           const tx = db.transaction(["books", "files"], "readwrite");
+
           await tx.objectStore("books").put(meta);
           await tx.objectStore("files").put(blob, id);
           await tx.done;
@@ -171,7 +178,9 @@ export class BookStore extends Context.Service<
 
       const getFile = Effect.fn("BookStore.getFile")(function* (id: string) {
         const blob = yield* withDb("getFile", (db) => db.get("files", id));
+
         if (blob === undefined) return yield* new BookNotFound({ id });
+
         return blob;
       });
 
@@ -185,11 +194,15 @@ export class BookStore extends Context.Service<
 
       const getParsed = Effect.fn("BookStore.getParsed")(function* (id: string) {
         const row = yield* withDb("getParsed", (db) => db.get("parsed", id));
+
         if (row === undefined) return yield* new ParsedMissing({ id });
+
         const parsed = yield* decodeParsedBook(row).pipe(
           Effect.mapError(() => new ParsedMissing({ id })),
         );
+
         if (parsed.version !== PARSED_VERSION) return yield* new ParsedMissing({ id });
+
         return parsed;
       });
 
@@ -225,7 +238,9 @@ export class BookStore extends Context.Service<
 
       const getImage = Effect.fn("BookStore.getImage")(function* (bookId: string, imageId: string) {
         const row = yield* withDb("getImage", (db) => db.get("images", `${bookId}/${imageId}`));
+
         if (row === undefined) return null;
+
         return yield* decodeImageRecord(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
@@ -238,6 +253,7 @@ export class BookStore extends Context.Service<
               Effect.catchTag("StorageFailure", () => Effect.succeed(null)),
             );
             const stored = yield* read;
+
             return Stream.concat(
               Stream.succeed(stored),
               Stream.fromSubscription(subscription).pipe(
@@ -263,15 +279,18 @@ export class BookStore extends Context.Service<
           ]);
         });
         const images: Array<{ readonly id: string; readonly image: ImageRecord }> = [];
+
         for (const [index, row] of rows.entries()) {
           const key = keys[index];
           const image = yield* decodeImageRecord(row).pipe(
             Effect.catch(() => Effect.succeed(null)),
           );
+
           if (key !== undefined && image !== null) {
             images.push({ id: key.slice(bookId.length + 1), image });
           }
         }
+
         return images;
       });
 
@@ -285,13 +304,17 @@ export class BookStore extends Context.Service<
 
       const getProgress = Effect.fn("BookStore.getProgress")(function* (id: string) {
         const row = yield* withDb("getProgress", (db) => db.get("progress", id));
+
         if (row === undefined) return null;
+
         return yield* decodeReadingProgress(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
       const getPrefs = Effect.fn("BookStore.getPrefs")(function* (id: string) {
         const row = yield* withDb("getPrefs", (db) => db.get("prefs", id));
+
         if (row === undefined) return null;
+
         return yield* decodeBookPrefs(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
@@ -303,12 +326,16 @@ export class BookStore extends Context.Service<
         id: string,
       ) {
         const row = yield* withDb("getFigureCheckpoint", (db) => db.get("figures", id));
+
         if (row === undefined) return [];
+
         const checkpoint = yield* decodeFigureCheckpoint(row).pipe(
           Effect.catch(() => Effect.succeed(new FigureCheckpoint({}))),
         );
         const pages = [...(checkpoint.pages ?? [])];
+
         for (let page = 1; page <= (checkpoint.through ?? 0); page += 1) pages.push(page);
+
         return pages;
       });
 
@@ -330,7 +357,9 @@ export class BookStore extends Context.Service<
 
       const getPages = Effect.fn("BookStore.getPages")(function* (id: string) {
         const row = yield* withDb("getPages", (db) => db.get("pages", id));
+
         if (row === undefined) return null;
+
         return yield* decodeStoredPages(row).pipe(
           Effect.map((pages): ReadonlyArray<PageText> => pages),
           Effect.catch(() => Effect.succeed(null)),
@@ -358,6 +387,7 @@ export class BookStore extends Context.Service<
             ],
             "readwrite",
           );
+
           await tx.objectStore("books").delete(id);
           await tx.objectStore("files").delete(id);
           await tx.objectStore("parsed").delete(id);
@@ -397,6 +427,7 @@ export class BookStore extends Context.Service<
             ),
           ),
         );
+
         return entries.filter((entry) => entry !== null);
       });
 

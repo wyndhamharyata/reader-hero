@@ -107,8 +107,10 @@ export function OriginalView({
               Effect.sync(() =>
                 setSizes((known) => {
                   const next = [...known];
+
                   for (const size of batch) next[size.page - 1] = size;
-                  return next;
+                  
+return next;
                 }),
               ),
             ),
@@ -122,13 +124,16 @@ export function OriginalView({
       }),
     );
     const fiber = forkApp(program);
+
     return () => stopFiber(fiber);
   }, [bookId]);
 
   useEffect(() => {
     return () => {
       const opened = documentRef.current;
+
       if (opened === null) return;
+
       void forkApp(releaseOriginalPages(opened));
     };
   }, []);
@@ -136,11 +141,16 @@ export function OriginalView({
   // Read from the column, not worked out: max-w-3xl is 48rem, so its pixels follow the font size.
   useLayoutEffect(() => {
     const measure = measureRef.current;
+
     if (measure === null) return;
+
     // Before paint as well, so the first frame is already at the saved page.
     setWidth(measure.clientWidth);
+
     const observer = new ResizeObserver(() => setWidth(measure.clientWidth));
+
     observer.observe(measure);
+
     return () => observer.disconnect();
   }, [doc]);
 
@@ -166,7 +176,9 @@ export function OriginalView({
     onChange: (instance) => {
       const middle = (instance.scrollOffset ?? 0) + (instance.scrollRect?.height ?? 0) / 2;
       const page = (instance.getVirtualItemForOffset(middle)?.index ?? -1) + 1;
+
       if (page === 0 || page === shown.current) return;
+
       shown.current = page;
       setCurrent(page);
       onPageChange(page);
@@ -179,7 +191,9 @@ export function OriginalView({
   const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const showText = useCallback((pages: ReadonlySet<number>) => {
     const was = textPagesRef.current;
+
     if (pages.size === was.size && [...pages].every((page) => was.has(page))) return;
+
     textPagesRef.current = pages;
     for (const page of textReady.current) if (!pages.has(page)) textReady.current.delete(page);
     setTextPages(pages);
@@ -189,29 +203,37 @@ export function OriginalView({
   }, []);
   const pagesOnScreen = useCallback((): ReadonlySet<number> => {
     const container = containerRef.current;
+
     if (container === null) return NO_PAGES;
+
     const top = container.scrollTop;
     const bottom = top + container.clientHeight;
     const pages = new Set<number>();
+
     for (const item of virtualizer.getVirtualItems()) {
       if (item.end > top && item.start < bottom) pages.add(item.index + 1);
     }
+
     return pages;
   }, [virtualizer]);
   // Values when scrolling rests, not those of the render that set the timer.
   const latest = useRef({ zoom, width, pageWidth, sizes });
+
   useEffect(() => {
     latest.current = { zoom, width, pageWidth, sizes };
   });
+
   // One sharp area per page on screen, as pdf.js's detail view.
   const placeDetails = useCallback(() => {
     const container = containerRef.current;
     const list = listRef.current;
     const { zoom: zoomed, pageWidth: shownWidth, sizes: known } = latest.current;
+
     if (container === null || list === null || zoomed <= MIN_ZOOM) {
       setDetails(NO_DETAILS);
       return;
     }
+
     const ratio = globalThis.devicePixelRatio || 1;
     const listLeft =
       list.getBoundingClientRect().left -
@@ -225,24 +247,33 @@ export function OriginalView({
     };
     const next = new Map<number, Detail>();
     const visible = new Map<number, PageArea>();
+
     for (const item of virtualizer.getVirtualItems()) {
       const size = known[item.index];
+
       if (size === undefined || item.size === 0) continue;
+
       const cssPerPoint = shownWidth / size.width;
       const top = Math.max(view.top, item.start);
       const bottom = Math.min(view.top + view.height, item.end);
       const left = Math.max(0, view.left);
       const right = Math.min(shownWidth, view.left + view.width);
+
       if (bottom <= top || right <= left) continue;
+
       let scale = cssPerPoint * ratio;
+
       if (scale <= pageRenderScale(size, latest.current.width, ratio) * 1.15) continue;
+
       let area = { left, top: top - item.start, width: right - left, height: bottom - top };
+
       visible.set(size.page, {
         left: area.left / shownWidth,
         top: area.top / item.size,
         width: area.width / shownWidth,
         height: area.height / item.size,
       });
+
       for (const margin of DETAIL_MARGINS) {
         const x = Math.max(0, left - margin * view.width);
         const y = Math.max(0, top - item.start - margin * view.height);
@@ -252,12 +283,17 @@ export function OriginalView({
           width: Math.min(shownWidth, right + margin * view.width) - x,
           height: Math.min(item.size, bottom - item.start + margin * view.height) - y,
         };
+
         area = grown;
         if (grown.width * grown.height * ratio * ratio <= DETAIL_PIXELS) break;
       }
+
       const pixels = area.width * area.height * ratio * ratio;
+
       if (pixels > DETAIL_PIXELS) scale *= Math.sqrt(DETAIL_PIXELS / pixels);
+
       const share = (value: number, of: number) => Math.round((value / of) * 10_000) / 10_000;
+
       next.set(size.page, {
         scale: Math.round(scale * 1000) / 1000,
         area: {
@@ -268,9 +304,11 @@ export function OriginalView({
         },
       });
     }
+
     // An area drawn at this scale that still covers the screen stays, so a short pan draws nothing again.
     setDetails((previous) => {
       const kept = new Map<number, Detail>();
+
       for (const [page, detail] of next) {
         const old = previous.get(page);
         const shown = visible.get(page);
@@ -282,11 +320,14 @@ export function OriginalView({
           old.area.top <= shown.top &&
           old.area.left + old.area.width >= shown.left + shown.width &&
           old.area.top + old.area.height >= shown.top + shown.height;
+
         kept.set(page, covers ? old : detail);
       }
+
       const same =
         kept.size === previous.size &&
         [...kept].every(([page, detail]) => previous.get(page) === detail);
+
       return same ? previous : kept;
     });
   }, [virtualizer]);
@@ -300,14 +341,20 @@ export function OriginalView({
   // A scroll stops builds in progress. Finished layers stay.
   const onScroll = useCallback(() => {
     waitToSettle();
+
     const pages = textPagesRef.current;
+
     if (pages.size === textReady.current.size) return;
+
     showText(new Set([...pages].filter((page) => textReady.current.has(page))));
   }, [waitToSettle, showText]);
+
   useEffect(() => {
     if (doc === null) return;
+
     waitToSettle();
-    return () => clearTimeout(settle.current);
+    
+return () => clearTimeout(settle.current);
   }, [doc, waitToSettle]);
 
   // A pinch moves only the list's transform. The zoom changes once, when it ends.
@@ -321,35 +368,47 @@ export function OriginalView({
   const pinchOrigin = (start: PinchPoint) => {
     const container = containerRef.current;
     const list = listRef.current;
+
     if (container === null || list === null) return null;
+
     if (gesture.current === null) {
       const listBox = list.getBoundingClientRect();
       const box = container.getBoundingClientRect();
+
       gesture.current = {
         x: start.x + box.left - listBox.left,
         y: start.y + box.top - listBox.top,
       };
     }
+
     return { list, origin: gesture.current };
   };
+
   usePinch(scroller, {
     onPreview: (scale, start, now) => {
       const pinch = pinchOrigin(start);
+
       if (pinch === null) return;
+
       const shownScale = clampZoom(zoom * scale) / zoom;
+
       pinch.list.style.transformOrigin = `${pinch.origin.x}px ${pinch.origin.y}px`;
       pinch.list.style.transform = `translate(${now.x - start.x}px, ${now.y - start.y}px) scale(${shownScale})`;
     },
     onEnd: (scale, start, now) => {
       const pinch = pinchOrigin(start);
+
       gesture.current = null;
       if (pinch === null) return;
+
       const next = clampZoom(zoom * scale);
       const item = virtualizer.getVirtualItemForOffset(pinch.origin.y);
+
       if (Math.abs(next - zoom) < 0.01 || item === undefined || item.size === 0) {
         pinch.list.style.transform = "";
         return;
       }
+
       // The point under the fingers when they met stays under them where they let go.
       anchor.current = {
         index: item.index,
@@ -380,30 +439,40 @@ export function OriginalView({
 
   // New sizes or width change every page's height: first the view goes to the saved page, then the page being read stays.
   const startPage = useRef(initialPage);
+
   useLayoutEffect(() => {
     const container = containerRef.current;
     const list = listRef.current;
+
     if (container === null || list === null) return;
+
     const held = didScroll.current
       ? virtualizer.getVirtualItemForOffset(container.scrollTop)
       : undefined;
     const part =
       held === undefined || held.size === 0 ? 0 : (container.scrollTop - held.start) / held.size;
+
     list.style.transform = "";
     virtualizer.measure();
     // The new height goes in first, as the old one would cut the scroll below short.
     list.style.height = `${virtualizer.getTotalSize()}px`;
     if (width === 0 || sizes.length === 0) return;
+
     const pinched = anchor.current;
+
     anchor.current = null;
+
     if (pinched !== null) {
       const item = virtualizer.measurementsCache[pinched.index];
+
       if (item !== undefined)
         container.scrollTop = item.start + pinched.down * item.size - pinched.at.y;
+
       const listLeft =
         list.getBoundingClientRect().left -
         container.getBoundingClientRect().left +
         container.scrollLeft;
+
       container.scrollLeft = listLeft + pinched.across * pageWidth - pinched.at.x;
       waitToSettle();
       return;
@@ -413,9 +482,11 @@ export function OriginalView({
       virtualizer.scrollToIndex(startPage.current - 1, { align: "start" });
       return;
     }
+
     const moved = held === undefined ? undefined : virtualizer.measurementsCache[held.index];
     // Only a real move, as writing scrollTop on iOS stops a fling. Size batches arrive while one runs.
     const target = moved === undefined ? null : moved.start + part * moved.size;
+
     if (target !== null && Math.abs(target - container.scrollTop) >= 1)
       container.scrollTop = target;
   }, [virtualizer, sizes, width, pageWidth, waitToSettle]);

@@ -12,6 +12,7 @@ export function ServiceWorkerUpdate(): ReactElement | null {
     );
     // Without a registered worker the app still runs. It only misses update prompts.
     const fiber = forkApp(watch.pipe(Effect.catchTag("ServiceWorkerFailure", () => Effect.void)));
+
     return () => stopFiber(fiber);
   }, []);
 

@@ -12,22 +12,30 @@ const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
 export function ThemeControls({ settings, onChange }: Props): ReactElement {
   // A drag saves once, on release: a save renders the whole book again.
   const [draft, setDraft] = useState<number | null>(null);
+
   // Held until the saved value comes back, so the thumb does not jump back for a frame.
   if (draft !== null && draft === settings.temperature) setDraft(null);
+
   const temperature = draft ?? settings.temperature;
   const slider = useRef<HTMLInputElement>(null);
   const rest = useRef(0);
+
   useEffect(() => {
     const node = slider.current;
+
     if (node === null) return;
+
     // The native change comes once, on release or on a key press.
     const save = (): void => onChange({ temperature: Number(node.value) });
+
     node.addEventListener("change", save);
+
     return () => node.removeEventListener("change", save);
   }, [onChange]);
   // Once saved, the sheet takes the page's temperature again.
   useEffect(() => {
     const box = slider.current?.closest<HTMLElement>("[data-theme]");
+
     if (draft === null && box !== document.documentElement)
       box?.style.removeProperty("--temperature");
   }, [draft]);
@@ -78,6 +86,7 @@ export function ThemeControls({ settings, onChange }: Props): ReactElement {
             const value = Number(event.target.value);
             // Fine steps, with a catch around neutral so it is easy to find again.
             const next = Math.abs(value) < 0.05 ? 0 : value;
+
             setDraft(next);
             // The sheet follows the thumb. The page, which recolours every block of a book, once the finger rests.
             event.target

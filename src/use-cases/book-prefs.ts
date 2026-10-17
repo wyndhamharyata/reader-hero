@@ -11,6 +11,7 @@ export function saveBookPrefs(
   return Effect.gen(function* () {
     const store = yield* BookStore;
     const stored = yield* store.getPrefs(bookId);
+
     yield* store.putPrefs(bookId, new BookPrefs({ ...stored, ...changes }));
   });
 }

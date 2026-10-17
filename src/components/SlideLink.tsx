@@ -14,6 +14,7 @@ export function SlideLink({
   replace?: boolean;
 }): ReactElement {
   const navigate = useNavigate();
+
   return (
     <Link
       to={to}
@@ -29,6 +30,7 @@ export function SlideLink({
         ) {
           return;
         }
+
         event.preventDefault();
         slideTo(navigate, to, direction, replace);
       }}

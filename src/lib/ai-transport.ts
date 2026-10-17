@@ -42,7 +42,9 @@ function headers(settings: AiSettings): Record<string, string> {
     authorization: `Bearer ${settings.apiKey}`,
     "content-type": "application/json",
   };
+
   if (settings.provider !== "anthropic") return base;
+
   return {
     ...base,
     "x-api-key": settings.apiKey,
@@ -65,13 +67,16 @@ const statusFailure = (status: number, body: string): AiFailure => {
         ? "rate-limited"
         : "provider";
   let message = body.slice(0, 300);
+
   try {
     const parsed = JSON.parse(body) as { error?: { message?: string } | string };
+
     if (typeof parsed.error === "string") message = parsed.error;
     else if (typeof parsed.error?.message === "string") message = parsed.error.message;
   } catch {
     // The body was not JSON. The raw text is the message.
   }
+
   return new AiFailure({ reason, message: message === "" ? `HTTP ${status}` : message });
 };
 
@@ -89,9 +94,11 @@ const request = (
             ...init,
             headers: headers(settings),
           });
+
         // Its providers refuse browser requests, so they go through the app's own Worker.
         const base = baseOf(settings);
         const trimmed = base.endsWith("/") ? base.slice(0, -1) : base;
+
         return fetch("/relay", {
           ...init,
           headers: {
@@ -103,8 +110,11 @@ const request = (
       },
       catch: networkFailure,
     });
+
     if (response.ok) return response;
+
     const body = yield* Effect.promise(() => response.text().catch(() => ""));
+
     return yield* statusFailure(response.status, body);
   });
 
@@ -120,9 +130,12 @@ const joined = (content: string | ReadonlyArray<PromptPart>): string =>
 // Unmarked runs merged and empty parts dropped. Null with no mark, so the plain string goes.
 function marked(content: string | ReadonlyArray<PromptPart>): ReadonlyArray<PromptPart> | null {
   if (typeof content === "string" || !content.some((part) => part.cache === true)) return null;
+
   const out: Array<{ text: string; cache: boolean }> = [];
+
   for (const part of content) {
     const last = out[out.length - 1];
+
     if (last !== undefined && !last.cache) {
       last.text += part.text;
       last.cache = part.cache === true;
@@ -130,14 +143,18 @@ function marked(content: string | ReadonlyArray<PromptPart>): ReadonlyArray<Prom
       out.push({ text: part.text, cache: part.cache === true });
     }
   }
+
   return out.filter((part) => part.text !== "");
 }
 
 // GPT-5.6 and later bill a cache write at 1.25x, so there only the marked prefixes are kept.
 export function writeBilled(model: string): boolean {
   const match = /^(?:openai\/)?gpt-(\d+)(?:\.(\d+))?/.exec(model);
+
   if (match === null) return false;
+
   const major = Number(match[1]);
+
   return major > 5 || (major === 5 && Number(match[2] ?? 0) >= 6);
 }
 
@@ -147,41 +164,58 @@ export function requestOf(
   messages: ReadonlyArray<PromptMessage>,
   options: CompleteOptions = {},
 ): { readonly path: string; readonly body: Record<string, unknown> } {
+  if (settings.provider === "anthropic") return anthropicRequest(settings, system, messages);
+
+  return openAiRequest(settings, system, messages, options);
+}
+
+function anthropicRequest(
+  settings: AiSettings,
+  system: string | ReadonlyArray<PromptPart>,
+  messages: ReadonlyArray<PromptMessage>,
+): { readonly path: string; readonly body: Record<string, unknown> } {
+  const marks = [system, ...messages.map((message) => message.content)].reduce(
+    (sum, content) => sum + (marked(content)?.filter((part) => part.cache === true).length ?? 0),
+    0,
+  );
+  // Anthropic takes 4 breakpoints. The latest ones cover the longest prefixes.
+  let drop = Math.max(0, marks - 4);
+  const blocks = (content: string | ReadonlyArray<PromptPart>) => {
+    const parts = marked(content);
+
+    if (parts === null) return joined(content);
+
+    return parts.map((part) => ({
+      type: "text",
+      text: part.text,
+      ...(part.cache === true && drop-- <= 0 ? { cache_control: { type: "ephemeral" } } : {}),
+    }));
+  };
+
+  return {
+    path: "/messages",
+    body: {
+      model: settings.model,
+      // A limit on thinking and text together, so the answer has room.
+      max_tokens: 32000,
+      system: blocks(system),
+      messages: messages.map((message) => ({
+        role: message.role,
+        content: blocks(message.content),
+      })),
+      stream: true,
+    },
+  };
+}
+
+function openAiRequest(
+  settings: AiSettings,
+  system: string | ReadonlyArray<PromptPart>,
+  messages: ReadonlyArray<PromptMessage>,
+  options: CompleteOptions,
+): { readonly path: string; readonly body: Record<string, unknown> } {
   const purpose = options.purpose;
   const key = purpose === undefined ? undefined : `reader-hero:${purpose.book ?? purpose.stage}`;
-
-  if (settings.provider === "anthropic") {
-    const marks = [system, ...messages.map((message) => message.content)].reduce(
-      (sum, content) => sum + (marked(content)?.filter((part) => part.cache === true).length ?? 0),
-      0,
-    );
-    // Anthropic takes 4 breakpoints. The latest ones cover the longest prefixes.
-    let drop = Math.max(0, marks - 4);
-    const blocks = (content: string | ReadonlyArray<PromptPart>) => {
-      const parts = marked(content);
-      if (parts === null) return joined(content);
-      return parts.map((part) => ({
-        type: "text",
-        text: part.text,
-        ...(part.cache === true && drop-- <= 0 ? { cache_control: { type: "ephemeral" } } : {}),
-      }));
-    };
-    return {
-      path: "/messages",
-      body: {
-        model: settings.model,
-        // A limit on thinking and text together, so the answer has room.
-        max_tokens: 32000,
-        system: blocks(system),
-        messages: messages.map((message) => ({
-          role: message.role,
-          content: blocks(message.content),
-        })),
-        stream: true,
-      },
-    };
-  }
-
   const explicit =
     (settings.provider === "openai" || settings.provider === "openrouter") &&
     writeBilled(settings.model);
@@ -191,7 +225,9 @@ export function requestOf(
       settings.provider === "openrouter" || (settings.provider === "openai" && explicit)
         ? marked(value)
         : null;
+
     if (parts === null) return joined(value);
+
     return parts.map((part) => ({
       type: "text",
       text: part.text,
@@ -211,17 +247,35 @@ export function requestOf(
     stream: true,
     stream_options: { include_usage: true },
   };
+
+  addProviderOptions(body, settings, options, key, explicit);
+
+  return { path: "/chat/completions", body };
+}
+
+function addProviderOptions(
+  body: Record<string, unknown>,
+  settings: AiSettings,
+  options: CompleteOptions,
+  key: string | undefined,
+  explicit: boolean,
+): void {
   // Each service gets the setting we measured as best, so a reader never chooses an effort level.
   if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
-  if (settings.provider === "openrouter" && settings.reasoningOff === true)
+
+  if (settings.provider === "openrouter" && settings.reasoningOff === true) {
     body.reasoning = { enabled: false };
+  }
+
   // Measured on OpenCode Go at 9.2s to 1.2s on deepseek-v4.1-flash. Console is the same gateway.
   if (
     settings.provider === "opencode" ||
     settings.provider === "opencodeConsole" ||
     settings.provider === "compatible"
-  )
+  ) {
     body.reasoning_effort = "none";
+  }
+
   // JSON mode where it is documented. The other presets get JSON from the prompt alone.
   if (
     options.json === true &&
@@ -229,11 +283,11 @@ export function requestOf(
   ) {
     body.response_format = { type: "json_object" };
   }
+
   if (explicit) body.prompt_cache_options = { mode: "explicit" };
   // OpenAI routes by the key to a machine with the cache. OpenRouter keeps the session on one provider.
   if (key !== undefined && settings.provider === "openai") body.prompt_cache_key = key;
   if (key !== undefined && settings.provider === "openrouter") body.session_id = key;
-  return { path: "/chat/completions", body };
 }
 
 export function complete(
@@ -246,7 +300,9 @@ export function complete(
     Effect.gen(function* () {
       // Interrupting the stream aborts the request, the way a page render is cancelled today.
       const controller = new AbortController();
+
       yield* Effect.addFinalizer(() => Effect.sync(() => controller.abort()));
+
       const { path, body } = requestOf(settings, system, messages, options);
       const response = yield* request(
         settings,
@@ -261,9 +317,11 @@ export function complete(
           : `reader-hero:${options.purpose.book ?? options.purpose.stage}`,
       );
       const stream = response.body;
+
       if (stream === null) {
         return yield* new AiFailure({ reason: "malformed", message: "Provider returned no text" });
       }
+
       return Stream.fromReadableStream({
         evaluate: () => stream,
         onError: (cause) => new AiFailure({ reason: "provider", message: String(cause) }),
@@ -289,13 +347,16 @@ export function models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelI
       catch: () => new AiFailure({ reason: "malformed", message: "The models list was not JSON" }),
     });
     const rows = json.data ?? [];
+
     return rows.flatMap((row): Array<ModelInfo> => {
       if (typeof row.id !== "string") return [];
+
       // Gemini lists "models/gemini-…". Its chat endpoint takes the bare name.
       const id = row.id.startsWith("models/") ? row.id.slice(7) : row.id;
       // Only OpenRouter publishes whether a model may skip thinking.
       const reasoningOff =
         (row.reasoning as { mandatory?: boolean } | undefined)?.mandatory === false;
+
       return [{ id, ...(reasoningOff ? { reasoningOff: true } : {}) }];
     });
   });
@@ -304,6 +365,7 @@ export function models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelI
 // DeepSeek alone exposes a balance. The sheet shows it next to the key.
 export function balance(settings: AiSettings): Effect.Effect<string | null, AiFailure> {
   if (settings.provider !== "deepseek") return Effect.succeed(null);
+
   return Effect.gen(function* () {
     const response = yield* request(settings, "/user/balance", { method: "GET" });
     const json = yield* Effect.tryPromise({
@@ -314,7 +376,9 @@ export function balance(settings: AiSettings): Effect.Effect<string | null, AiFa
       catch: () => new AiFailure({ reason: "malformed", message: "The balance was not JSON" }),
     });
     const info = json.balance_infos?.[0];
+
     if (info?.total_balance === undefined) return null;
+
     return `${info.currency ?? ""} ${info.total_balance}`.trim();
   });
 }

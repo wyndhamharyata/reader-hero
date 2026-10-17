@@ -11,15 +11,18 @@ export function useTapFilter(): {
   readonly isTap: (event: MouseEvent) => boolean;
 } {
   const down = useRef<{ x: number; y: number; selected: boolean } | null>(null);
+
   return {
     onPointerDown: (event) => {
       down.current = { x: event.clientX, y: event.clientY, selected: selected() };
     },
     isTap: (event) => {
       const start = down.current;
+
       down.current = null;
       if (selected()) return false;
       if (start === null) return true;
+
       return !start.selected && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 10;
     },
   };

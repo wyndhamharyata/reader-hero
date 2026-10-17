@@ -59,6 +59,7 @@ export function describeError(
 
 export function describeAiFailure(error: AiFailure | StorageFailure): string {
   if (error._tag === "StorageFailure") return "Could not save summary";
+
   switch (error.reason) {
     case "offline":
       return "Offline";

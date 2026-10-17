@@ -36,12 +36,14 @@ const spread = ([a, b]: [Touch, Touch]): number =>
 
 export function usePinch(element: HTMLElement | null, handlers: Handlers): void {
   const latest = useRef(handlers);
+
   useEffect(() => {
     latest.current = handlers;
   });
 
   useEffect(() => {
     if (element === null) return;
+
     let touch: {
       ids: readonly [number, number];
       from: number;
@@ -60,20 +62,27 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     const onTouchStart = (event: TouchEvent) => {
       // A gesture under way keeps its own start, whatever finger touches next.
       if (touch !== null || event.touches.length !== 2) return;
+
       const [a, b] = event.touches;
+
       if (a === undefined || b === undefined) return;
+
       const fingers: [Touch, Touch] = [a, b];
       const start = midpoint(element, fingers);
       const ids = [a.identifier, b.identifier] as const;
+
       touch = { ids, from: spread(fingers), start, scale: 1, now: start };
       if (moving !== null) return;
+
       moving = new AbortController();
       // Not passive, so the two-finger move pans nothing while it scales.
       element.addEventListener("touchmove", onTouchMove, { passive: false, signal: moving.signal });
     };
     const onTouchMove = (event: TouchEvent) => {
       const fingers = touch === null ? null : pair(event.touches, touch.ids);
+
       if (touch === null || fingers === null || touch.from === 0) return;
+
       event.preventDefault();
       touch.scale = spread(fingers) / touch.from;
       touch.now = midpoint(element, fingers);
@@ -81,14 +90,18 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     };
     const finish = () => {
       const ended = touch;
+
       touch = null;
       moving?.abort();
       moving = null;
+
       return ended;
     };
     const onTouchEnd = (event: TouchEvent) => {
       if (touch === null || pair(event.touches, touch.ids) !== null) return;
+
       const ended = finish();
+
       if (ended !== null) latest.current.onEnd(ended.scale, ended.start, ended.now);
     };
     const onTouchCancel = () => {
@@ -96,12 +109,17 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     };
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return;
+
       event.preventDefault();
+
       const point = local(element, event.clientX, event.clientY);
+
       wheel ??= { start: point, scale: 1, timer: undefined };
       clearTimeout(wheel.timer);
       wheel.scale = latest.current.clamp(wheel.scale * Math.exp(-event.deltaY / 100));
+
       const current = wheel;
+
       latest.current.onPreview(current.scale, current.start, current.start);
       current.timer = setTimeout(() => {
         wheel = null;
@@ -112,6 +130,7 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     const stop = (event: Event) => event.preventDefault();
 
     const options = { passive: false } as const;
+
     // Not passive, as in pdf.js, so the move listener added on the second finger can stop the pan.
     element.addEventListener("touchstart", onTouchStart, options);
     element.addEventListener("touchend", onTouchEnd);
@@ -119,6 +138,7 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     element.addEventListener("wheel", onWheel, options);
     element.addEventListener("gesturestart", stop, options);
     element.addEventListener("gesturechange", stop, options);
+
     return () => {
       if (wheel !== null) clearTimeout(wheel.timer);
       moving?.abort();

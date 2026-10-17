@@ -28,6 +28,7 @@ export function PageSearch({
   const [index, setIndex] = useState(0);
   const [searching, setSearching] = useState(false);
   const job = useRef<Job | null>(null);
+
   useEffect(
     () => () => {
       if (job.current !== null) stopFiber(job.current);
@@ -43,13 +44,17 @@ export function PageSearch({
         Effect.tap((found) =>
           Effect.sync(() => {
             setSearching(false);
+
             // The first match at or after the page being read, as a reader's find goes forward from here.
             const ahead = found.findIndex((page) => page >= currentPage);
             const start = ahead === -1 ? 0 : ahead;
+
             setPages(found);
             setIndex(start);
             onQuery(value);
+
             const page = found[start];
+
             if (page !== undefined) onGo(page);
           }),
         ),
@@ -59,9 +64,13 @@ export function PageSearch({
 
   const step = (by: 1 | -1): void => {
     if (pages === null || pages.length === 0) return;
+
     const next = (index + by + pages.length) % pages.length;
+
     setIndex(next);
+
     const page = pages[next];
+
     if (page !== undefined) onGo(page);
   };
 
@@ -84,6 +93,7 @@ export function PageSearch({
       className="absolute inset-x-2 top-2 z-30 flex items-center gap-1 rounded-box bg-base-100 p-1 shadow-lg md:mx-auto md:max-w-xl"
       onSubmit={(event) => {
         event.preventDefault();
+
         // Enter again on the same words goes on to the next match, as a browser's find does.
         if (pages === null) search();
         else step(1);

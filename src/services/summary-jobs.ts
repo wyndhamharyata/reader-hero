@@ -64,9 +64,13 @@ export class SummaryJobs extends Context.Service<
       const stateRef = (key: string): Effect.Effect<SubscriptionRef.SubscriptionRef<JobState>> =>
         Effect.gen(function* () {
           const found = states.get(key);
+
           if (found !== undefined) return found;
+
           const made = yield* SubscriptionRef.make<JobState>({ run: null, error: null });
+
           states.set(key, made);
+
           return made;
         });
 
@@ -76,10 +80,13 @@ export class SummaryJobs extends Context.Service<
       const start = (input: SummaryInput, settings: AiSettings): Effect.Effect<void> =>
         Effect.suspend(() => {
           const bookId = input.meta.id;
+
           if (rebuilding || fibers.has(bookId) || held.has(bookId) || starting.has(bookId)) {
             return Effect.void;
           }
+
           starting.add(bookId);
+
           return launch(input, settings).pipe(
             Effect.ensuring(Effect.sync(() => starting.delete(bookId))),
           );
@@ -91,10 +98,12 @@ export class SummaryJobs extends Context.Service<
       ) {
         const bookId = input.meta.id;
         const state = yield* stateRef(bookId);
+
         yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
+
         // On a store failure, the book's own Summary runs without the earlier names.
         const job = findBookSeries(bookId).pipe(
           Effect.flatMap((series) => earlierNames(series, input, settings)),
@@ -111,6 +120,7 @@ export class SummaryJobs extends Context.Service<
           Effect.onInterrupt(() => SubscriptionRef.set(state, { run: null, error: null })),
           Effect.ensuring(Effect.sync(() => fibers.delete(bookId))),
         );
+
         fibers.set(bookId, yield* Effect.forkDetach(job));
       });
 
@@ -120,19 +130,25 @@ export class SummaryJobs extends Context.Service<
         settings: AiSettings,
       ) {
         const key = `series:${series.id}`;
+
         if (rebuilding || fibers.has(key)) return;
+
         const state = yield* stateRef(key);
         const volumes = series.books.map((card) => card.book.id);
+
         // Held first, then awaited, so a volume's own job ends before this run writes its record.
         for (const id of volumes) held.set(id, key);
+
         const running = volumes.flatMap((id) => {
           const fiber = fibers.get(id);
           return fiber === undefined ? [] : [fiber];
         });
+
         yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
+
         // The volume being written shows the run in its own Summary too, where Stop also ends it.
         let shown: string | undefined;
         const report = (run: SummaryRun): Effect.Effect<void> =>
@@ -140,8 +156,10 @@ export class SummaryJobs extends Context.Service<
             if (shown !== undefined && shown !== run.book) {
               yield* SubscriptionRef.set(yield* stateRef(shown), { run: null, error: null });
             }
+
             shown = run.book;
             yield* SubscriptionRef.set(state, { run, error: null });
+
             if (run.book !== undefined) {
               yield* SubscriptionRef.set(yield* stateRef(run.book), { run, error: null });
             }
@@ -157,12 +175,14 @@ export class SummaryJobs extends Context.Service<
             Effect.gen(function* () {
               fibers.delete(key);
               for (const id of volumes) if (held.get(id) === key) held.delete(id);
+
               if (shown !== undefined) {
                 yield* SubscriptionRef.set(yield* stateRef(shown), { run: null, error: null });
               }
             }),
           ),
         );
+
         fibers.set(key, yield* Effect.forkDetach(job));
       });
 
@@ -170,8 +190,10 @@ export class SummaryJobs extends Context.Service<
       const startRebuild = (settings: AiSettings): Effect.Effect<void> =>
         Effect.suspend(() => {
           if (rebuilding) return Effect.void;
+
           rebuilding = true;
-          return launchRebuild(settings).pipe(
+          
+return launchRebuild(settings).pipe(
             Effect.onExit(() =>
               Effect.sync(() => {
                 if (!fibers.has("rebuild")) rebuilding = false;
@@ -182,29 +204,39 @@ export class SummaryJobs extends Context.Service<
 
       const launchRebuild = Effect.fn("SummaryJobs.startRebuild")(function* (settings: AiSettings) {
         const key = "rebuild";
+
         yield* Fiber.interruptAll([...fibers.values()]);
+
         const state = yield* stateRef(key);
+
         yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
+
         const mine: Array<string> = [];
         let shown: string | undefined;
         const job = Effect.gen(function* () {
           const plan = yield* rebuildPlan();
+
           for (const { card } of plan) {
             held.set(card.book.id, key);
             mine.push(card.book.id);
           }
+
           // `chapter` and `of` count books here, for the Settings row.
           for (const [index, { series, card }] of plan.entries()) {
             const book = card.book.id;
+
             // The book's own Summary shows the run too, where Stop also ends it.
             if (shown !== undefined) {
               yield* SubscriptionRef.set(yield* stateRef(shown), { run: null, error: null });
             }
+
             shown = book;
+
             const own = yield* stateRef(book);
+
             yield* SubscriptionRef.set(state, {
               run: { stage: "chapter", chapter: index + 1, of: plan.length, text: "", book },
               error: null,
@@ -224,12 +256,14 @@ export class SummaryJobs extends Context.Service<
               fibers.delete(key);
               rebuilding = false;
               for (const id of mine) if (held.get(id) === key) held.delete(id);
+
               if (shown !== undefined) {
                 yield* SubscriptionRef.set(yield* stateRef(shown), { run: null, error: null });
               }
             }),
           ),
         );
+
         fibers.set(key, yield* Effect.forkDetach(job));
       });
 

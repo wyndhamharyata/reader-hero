@@ -47,12 +47,15 @@ export class AiClient extends Context.Service<
         usage: AiUsage,
       ): Effect.Effect<void> => {
         if (usage.input === undefined) return Effect.void;
+
         const hit = usage.hit ?? 0;
         const write = usage.write ?? 0;
         const purpose = options?.purpose;
+
         console.info(
           `[ai] ${purpose?.stage ?? "request"}${purpose?.book === undefined ? "" : ` ${purpose.book}`} · ${settings.provider}/${settings.model} · input ${usage.input}, hit ${hit}, write ${write}, miss ${usage.input - hit - write}, output ${usage.output ?? 0}`,
         );
+
         return store
           .addUsage(`${settings.provider}/${settings.model}`, usage)
           .pipe(Effect.catchTag("StorageFailure", () => Effect.void));
@@ -84,6 +87,7 @@ export class AiClient extends Context.Service<
                 Stream.tap((delta) =>
                   Effect.sync(() => {
                     if (delta.type !== "usage") return;
+
                     for (const [field, value] of Object.entries(delta.usage)) {
                       if (value !== undefined) usage = { ...usage, [field]: value };
                     }

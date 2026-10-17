@@ -12,6 +12,7 @@ export function App() {
   // iOS relaunches an installed app at "/", so the launch reopens the screen that was last shown.
   useEffect(() => {
     if (!isInstalled) return;
+
     try {
       localStorage.setItem("last-screen", pathname);
     } catch {

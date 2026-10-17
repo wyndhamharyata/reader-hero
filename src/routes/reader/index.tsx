@@ -12,7 +12,13 @@ import {
   useSummary,
 } from "@/lib/hooks";
 import { AiSettings, CONSENT_VERSION, hasConsent } from "@/domain/ai";
-import { BookPrefs, ReaderSettings, TOUR_VERSION, type ReaderMode } from "@/domain/book";
+import {
+  BookPrefs,
+  ReaderSettings,
+  TOUR_VERSION,
+  type ReaderMode,
+  FINISHED_PERCENT,
+} from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
@@ -40,6 +46,15 @@ import type { JumpRequest } from "./_ReaderView";
 
 const SAVE_DELAY_MS = 400;
 
+function isTypingTarget(event: KeyboardEvent): boolean {
+  const target = event.target as HTMLElement | null;
+
+  return (
+    target !== null &&
+    (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName))
+  );
+}
+
 export function ReaderRoute({ bookId }: { bookId: string }) {
   const navigate = useNavigate();
   const { settings, update } = useSettings();
@@ -61,6 +76,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         ],
         { concurrency: "unbounded" },
       );
+
       return { meta, parsed, progress, prefs };
     }),
     [bookId],
@@ -112,6 +128,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const { state: seriesState, reload: reloadSeries } = useAppEffect(
     Effect.gen(function* () {
       if (!loaded) return null;
+
       return yield* findBookSeries(bookId);
     }),
     [bookId, loaded],
@@ -120,8 +137,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const seriesId = series?.id ?? null;
   // The series summary's run, kept here so the menu shows Stop while the sheet is closed.
   const [seriesJob, setSeriesJob] = useState<JobState>({ run: null, error: null });
+
   useEffect(() => {
     if (seriesId === null) return;
+
     const fiber = forkApp(
       Effect.flatMap(SummaryJobs, (jobs) =>
         jobs
@@ -129,13 +148,18 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           .pipe(Stream.runForEach((next) => Effect.sync(() => setSeriesJob(next)))),
       ),
     );
+
     return () => stopFiber(fiber);
   }, [seriesId]);
+
   // The saved place until a view reports one, so the original view opens at the saved page.
   const position = reported ?? data?.progress?.blockIndex ?? 0;
+
   useEffect(() => {
     const stored = data?.progress;
+
     if (stored === undefined || stored === null) return;
+
     furthestRef.current = Math.max(furthestRef.current, stored.furthest ?? stored.blockIndex);
     setFurthest(furthestRef.current);
   }, [data]);
@@ -160,10 +184,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       }),
     [settings, prefs],
   );
+
   // Off under a sheet or the tour, which take their own Escape. Moves are smooth so the eye can follow.
   useEffect(() => {
     if (tocOpen || summarySheet !== null || seriesOpen) return;
     if ((settings.readerTour ?? 0) < TOUR_VERSION) return;
+
     const line = bookSettings.fontSize * bookSettings.lineHeight;
     const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
@@ -183,25 +209,34 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     // A clock of its own, not key repeat, which starts late and moves in steps.
     const run = (now: number): void => {
       if (held === null) return;
+
       const seconds = (now - held.last) / 1000;
       const heldFor = (now - held.since) / 1000;
+
       held.last = now;
+
       const target = scroller();
+
       if (heldFor > 0.12 && target !== null) {
         const speed = Math.min(36, 12 + (heldFor - 0.12) * 12) * line;
+
         target.scrollBy({ top: held.direction * speed * seconds });
       }
+
       held.frame = requestAnimationFrame(run);
     };
     const jump = (direction: 1 | -1, instant: boolean): void => {
       const target = scroller();
+
       if (target === null) return;
+
       const top = target.getBoundingClientRect().top + 16;
       const items = Array.from(target.querySelectorAll<HTMLElement>("[data-block], [data-page]"));
       const next =
         direction === 1
           ? items.find((item) => item.getBoundingClientRect().top > top + 2)
           : items.reverse().find((item) => item.getBoundingClientRect().top < top - 2);
+
       target.scrollBy({
         top:
           next === undefined
@@ -212,9 +247,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     };
     const scroll = (event: KeyboardEvent, direction: 1 | -1): void => {
       if (event.repeat) return;
+
       scroller()?.scrollBy({ top: direction * 2 * line, behavior });
       if (held !== null) return;
+
       const now = performance.now();
+
       held = {
         key: event.key,
         direction,
@@ -223,51 +261,61 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         frame: requestAnimationFrame(run),
       };
     };
-    const onKey = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement | null;
-      const typing =
-        target !== null &&
-        (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
-      if (typing || event.metaKey || event.altKey) return;
+    const closeOrLeave = (event: KeyboardEvent): void => {
+      // Escape closes the search first, as a browser's find does.
+      if (searchOpen) setSearchOpen(false);
+      else if (!event.repeat) slideTo(navigate, "/", "out");
+    };
+    const handleKey = (event: KeyboardEvent): boolean => {
       switch (event.key) {
         case "Escape":
-          // Escape closes the search first, as a browser's find does.
-          if (searchOpen) setSearchOpen(false);
-          else if (!event.repeat) slideTo(navigate, "/", "out");
-          break;
+          closeOrLeave(event);
+          return true;
         case "ArrowDown":
         case "j":
-          if (event.ctrlKey) return;
+          if (event.ctrlKey) return false;
+
           scroll(event, 1);
-          break;
+          return true;
         case "ArrowUp":
         case "k":
-          if (event.ctrlKey) return;
+          if (event.ctrlKey) return false;
+
           scroll(event, -1);
-          break;
+          return true;
         case "d":
-          if (!event.ctrlKey) return;
+          if (!event.ctrlKey) return false;
+
           jump(1, event.repeat);
-          break;
+          return true;
         case "u":
-          if (!event.ctrlKey) return;
+          if (!event.ctrlKey) return false;
+
           jump(-1, event.repeat);
-          break;
+          return true;
         case "s":
-          if (event.ctrlKey) return;
+          if (event.ctrlKey) return false;
+
           setTocOpen(true);
-          break;
+          return true;
         default:
-          return;
+          return false;
       }
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (isTypingTarget(event) || event.metaKey || event.altKey) return;
+      if (!handleKey(event)) return;
+
       event.preventDefault();
     };
     const onKeyUp = (event: KeyboardEvent): void => {
       if (held !== null && event.key === held.key) stop();
     };
+
     document.addEventListener("keydown", onKey);
     document.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", stop);
+
     return () => {
       stop();
       document.removeEventListener("keydown", onKey);
@@ -301,7 +349,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
   const readingIndex = Math.max(position, furthest);
-  const finished = data?.progress?.finished ?? (data?.progress?.percent ?? 0) >= 0.98;
+  const finished = data?.progress?.finished ?? (data?.progress?.percent ?? 0) >= FINISHED_PERCENT;
   const summaryIndex = data !== null && finished ? data.parsed.blocks.length : readingIndex;
   const cover = useMemo(
     () =>
@@ -329,20 +377,26 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const summaryText = describeSummary(summary, cover, run, kind);
   const lines = useMemo(() => {
     const map = new Map<number, string>();
+
     if (ai === null || !ai.linesInContents || summary === null) return map;
+
     chapterList.forEach((chapter, index) => {
       if (index >= cover.target) return;
+
       const stored = summary.chapters[index];
+
       // A re-parse can change the chapters. A line shows only under the heading it was made for.
       if (stored !== undefined && stored.heading === chapter.heading) {
         map.set(chapter.start, stored.line);
       }
     });
+
     return map;
   }, [ai, summary, chapterList, cover.target]);
 
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
+
   useEffect(() => {
     // Not before the stored summary is read, which may already hold this chapter.
     if (!hasConsent(ai) || !ai.autoSummary || !summaryLoaded || autoSummaryInput === null) {
@@ -353,8 +407,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       return;
     }
     if (readingCover.target <= autoTarget.current) return;
+
     autoTarget.current = readingCover.target;
     if ((summary?.chapters.length ?? 0) >= readingCover.target) return;
+
     start(autoSummaryInput, ai);
   }, [
     ai,
@@ -370,6 +426,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   // After the book's own job catches up, once per finished chapter, on Finished, and on open for earlier volumes.
   const seriesTarget = useRef(-1);
+
   useEffect(() => {
     if (!hasConsent(ai) || !ai.autoSummary || seriesId === null) {
       return;
@@ -383,25 +440,35 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       return;
     }
     if (!navigator.onLine || (summary?.chapters.length ?? 0) < readingCover.target) return;
+
     const target = finished ? Number.POSITIVE_INFINITY : readingCover.target;
+
     if (target <= seriesTarget.current) return;
+
     const opening = seriesTarget.current === -1;
+
     seriesTarget.current = target;
+
     // Read again, so the statuses include this visit's reading and a first open counts as started.
     const program = Effect.gen(function* () {
       const series = yield* findBookSeries(bookId);
+
       if (series === null) return;
       if ((yield* pendingVolumes(series, opening ? bookId : undefined)) === 0) return;
+
       yield* (yield* SummaryJobs).startSeries(series, bookId, ai);
     });
+
     forkApp(program.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
   }, [ai, seriesId, bookId, run, summaryError, seriesJob, summary, readingCover.target, finished]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts at startup.
   useEffect(() => {
     if (data === null || epub) return;
+
     void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
   }, [data, epub]);
+
   const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
   // Figures only show in the reader view, so the job pauses while the original pages show.
   const showsPages = mode === "original" || data?.meta.parseState === "scanned";
@@ -411,13 +478,16 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   );
   // The figure job starts at the page being read, so its figures land first.
   const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
+
   useFigureJobs(pendingBooks, startPage);
 
   // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
   useLayoutEffect(() => {
     const root = document.documentElement;
+
     root.dataset.theme = bookSettings.theme;
     root.style.setProperty("--temperature", String(bookSettings.temperature));
+
     // The library stays mounted under the book, so it takes the global theme back from here.
     return () => {
       root.dataset.theme = settings.theme;
@@ -427,6 +497,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   const savePrefs = (changes: Partial<BookPrefs>): void => {
     const next = { ...prefChanges, ...changes };
+
     setPrefChanges(next);
     // The whole visit's changes, so saves that land out of order lose none.
     void runApp(saveBookPrefs(bookId, next).pipe(Effect.ignore));
@@ -436,25 +507,30 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     const changes = Schema.decodeUnknownOption(BookPrefs)(
       Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
     );
+
     if (Option.isSome(changes)) savePrefs(changes.value);
     if (patch.theme === undefined && patch.temperature === undefined) update(patch);
   };
 
   const loadError = state.status === "error" ? state.error : null;
+
   // A launch into a book that is gone should not open it again.
   useEffect(() => {
     if (loadError?._tag !== "BookNotFound") return;
+
     try {
       localStorage.removeItem("last-screen");
     } catch {
       // Without storage the launch opens the library.
     }
   }, [loadError]);
+
   const title = data?.meta.title ?? glance?.meta.title ?? "Reader";
   const toc = data?.parsed.toc ?? [];
   const total = data === null ? 1 : Math.max(1, data.parsed.blocks.length - 1);
   const shown = data === null ? (glance?.progress?.percent ?? 0) : position;
   const percentLabel = formatPercent(shown / total);
+
   useEffect(() => {
     totalRef.current = total;
   }, [total]);
@@ -463,16 +539,20 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const onPosition = useCallback(
     (blockIndex: number) => {
       setReported(blockIndex);
+
       if (blockIndex > furthestRef.current) {
         furthestRef.current = blockIndex;
         setFurthest(blockIndex);
       }
+
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+
       const save = (): void => {
         pendingSave.current = null;
         saveTimer.current = null;
         void runApp(saveReadingProgress(bookId, blockIndex, totalRef.current, furthestRef.current));
       };
+
       pendingSave.current = save;
       saveTimer.current = window.setTimeout(save, SAVE_DELAY_MS);
     },
@@ -488,8 +568,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     const onVisibility = (): void => {
       if (document.visibilityState === "hidden") flush();
     };
+
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", flush);
+
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", flush);
@@ -500,16 +582,20 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const rebuild = () => {
     setRebuilding(true);
     setMessage(null);
+
     const program = reparseBook(bookId, () => {}, setMessage).pipe(
       Effect.ensuring(Effect.sync(() => setRebuilding(false))),
       Effect.tap(() => Effect.sync(() => reload())),
     );
+
     void runApp(program);
   };
   // An out-of-date reader view rebuilds on open, once. A failure keeps the button.
   const rebuiltOnce = useRef(false);
+
   useEffect(() => {
     if (loadError?._tag !== "ParsedMissing" || rebuiltOnce.current) return;
+
     rebuiltOnce.current = true;
     rebuild();
   });
@@ -615,6 +701,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         onSelect={selectToc}
         onLine={(blockIndex) => {
           const index = chapterList.findIndex((chapter) => chapter.start === blockIndex);
+
           setSummarySheet({ openAt: index === -1 ? null : index });
         }}
         onToggleMode={epub ? undefined : toggleMode}
@@ -634,6 +721,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           openAt={summarySheet.openAt}
           onStart={(allowed) => {
             const settings = allowed ?? ai;
+
             if (settings !== null) start(summaryInput, settings);
           }}
           onStop={stop}
@@ -642,12 +730,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           onEditName={editName}
           onConsent={() => {
             if (ai === null) return null;
+
             const allowed = new AiSettings({
               ...ai,
               consentedAt: Date.now(),
               consentVersion: CONSENT_VERSION,
             });
+
             putAi(allowed);
+
             return allowed;
           }}
           onClose={() => setSummarySheet(null)}
@@ -672,6 +763,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           }}
           onConsent={() => {
             if (ai === null) return;
+
             putAi(
               new AiSettings({ ...ai, consentedAt: Date.now(), consentVersion: CONSENT_VERSION }),
             );

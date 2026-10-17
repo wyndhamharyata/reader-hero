@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, useState, type ReactElement } from "react";
 import { CheckIcon, MagnifyingGlassIcon } from "@/components/icons";
 import type { Shelf } from "@/lib/shelf";
@@ -58,13 +59,7 @@ export function AddToSeries({
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
       <aside
         ref={sheetRef}
         role="dialog"
@@ -111,6 +106,7 @@ export function AddToSeries({
                           `${other.name} · ${other.books.findIndex((entry) => entry.book.id === card.book.id) + 1} of ${other.count}`,
                         ]),
                   ].join(" · ");
+
                   return (
                     <li key={card.book.id} className="px-2">
                       <button

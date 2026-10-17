@@ -9,6 +9,7 @@ export function pageRenderScale(
 ): number {
   const wanted = Math.max(Math.min(1.5, ratio), (width / size.width) * ratio);
   const cap = Math.sqrt(PAGE_PIXELS / (size.width * size.height));
+
   // Steps of 0.05, so a resize of a few pixels draws no page again.
   return Math.floor(Math.min(wanted, cap) * 20) / 20;
 }

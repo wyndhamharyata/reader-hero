@@ -1,6 +1,6 @@
 import { Effect, Semaphore, Stream } from "effect";
 import { hasConsent, type AiSettings } from "@/domain/ai";
-import { Series } from "@/domain/book";
+import { Series, type BookMeta } from "@/domain/book";
 import { AiFailure, type StorageFailure } from "@/domain/errors";
 import { buildShelf, seriesKey } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
@@ -10,6 +10,194 @@ import { spanText } from "@/use-cases/ai-context";
 
 // Module-wide, so a run that is stopping and the run after it never have two requests open.
 const oneRequest = Semaphore.makeUnsafe(1);
+
+interface GroupContext {
+  readonly fresh: ReadonlyArray<Series>;
+  readonly shelf: ReturnType<typeof buildShelf>;
+  readonly changed: Map<string, Series>;
+  readonly books: ReadonlyArray<BookMeta>;
+  readonly pinned: ReadonlySet<string>;
+}
+
+function applyEntry(
+  entry: {
+    name: string;
+    sure: Array<{ id: string; number?: number }>;
+    unsure: Array<{ id: string; number?: number }>;
+  },
+  context: GroupContext,
+): void {
+  const id = seriesKey(entry.name);
+  const matches = [...context.changed.values(), ...context.fresh].filter(
+    (series) => series.id === id || seriesKey(series.name) === id,
+  );
+  const record = matches[0];
+  const members =
+    context.shelf.series
+      .find((group) => seriesKey(group.id) === seriesKey(record?.id ?? id))
+      ?.books.map((card) => card.book.id) ?? [];
+  const sure = allowedBooks(entry.sure, context.pinned, members, record);
+  const unsure = allowedBooks(entry.unsure, context.pinned, members, record);
+  const possible = record?.possible ?? [];
+
+  if (record?.edited === true) {
+    applyToEdited(record, sure, unsure, possible, context.changed);
+    return;
+  }
+
+  if (members.length + sure.length < 2 && !sure.some((book) => book.number !== undefined)) return;
+
+  const order = orderedBooks(record, sure, context.books);
+  const kept = possible.filter((other) => !sure.some((book) => book.id === other.id));
+  const offered = unsure.filter((book) => !kept.some((other) => other.id === book.id));
+
+  if (sure.length === 0 && offered.length === 0) return;
+
+  const next = new Series({
+    ...(record ?? { id, name: entry.name, removed: [] }),
+    books: order,
+    possible: [...kept, ...offered],
+    // A removed series that a new book starts again shows again.
+    ...(record?.hidden === true ? { hidden: false } : {}),
+  });
+
+  context.changed.set(next.id, next);
+}
+
+function allowedBooks(
+  list: Array<{ id: string; number?: number }>,
+  pinned: ReadonlySet<string>,
+  members: ReadonlyArray<string>,
+  record: Series | undefined,
+): Array<{ id: string; number?: number }> {
+  return list.filter(
+    (book) =>
+      !pinned.has(book.id) &&
+      !members.includes(book.id) &&
+      !(record?.removed.includes(book.id) ?? false),
+  );
+}
+
+function applyToEdited(
+  record: Series,
+  sure: Array<{ id: string; number?: number }>,
+  unsure: Array<{ id: string; number?: number }>,
+  possible: Series["possible"],
+  changed: Map<string, Series>,
+): void {
+  // A saved series keeps its name and order. The model can only offer a book.
+  const offered = [...sure, ...unsure].filter(
+    (book) => !possible.some((other) => other.id === book.id),
+  );
+
+  if (offered.length === 0) return;
+
+  changed.set(record.id, new Series({ ...record, possible: [...possible, ...offered] }));
+}
+
+function orderedBooks(
+  record: Series | undefined,
+  sure: Array<{ id: string; number?: number }>,
+  books: ReadonlyArray<BookMeta>,
+): Series["books"] {
+  const order = [...(record?.books ?? [])];
+
+  // 1000 is above every kept number, so an unnumbered book sorts last.
+  for (const book of [...sure].sort((a, b) => (a.number ?? 1000) - (b.number ?? 1000))) {
+    const number = book.number;
+    const at =
+      number === undefined
+        ? -1
+        : order.findIndex(
+            (other) =>
+              (other.number ??
+                books.find((candidate) => candidate.id === other.id)?.seriesNumber ??
+                -Infinity) > number,
+          );
+
+    if (at === -1) order.push(book);
+    else order.splice(at, 0, book);
+  }
+
+  return order;
+}
+
+function seriesEntry(
+  row: Record<string, unknown> | null | undefined,
+  cards: ReadonlyMap<string, BookMeta>,
+  claimed: Set<string>,
+): Array<{
+  name: string;
+  sure: Array<{ id: string; number?: number }>;
+  unsure: Array<{ id: string; number?: number }>;
+}> {
+  const name = cleanName(row?.name);
+
+  if (name === "") return [];
+
+  return [
+    {
+      name,
+      sure: listedBooks(row?.books, cards, claimed),
+      unsure: listedBooks(row?.possible, cards, claimed),
+    },
+  ];
+}
+
+// Plain text, with a tag cut out and a line break turned into a space, so no markup is stored.
+function cleanName(value: unknown): string {
+  if (typeof value !== "string") return "";
+
+  let plain = "";
+  let tag = false;
+
+  for (const char of value) {
+    if (char === "<") tag = true;
+    else if (char === ">") tag = false;
+    else if (!tag) plain += char < " " ? " " : char;
+  }
+
+  return Array.from(
+    plain
+      .split(" ")
+      .filter((word) => word !== "")
+      .join(" "),
+  )
+    .slice(0, 80)
+    .join("")
+    .trim();
+}
+
+function listedBooks(
+  list: unknown,
+  cards: ReadonlyMap<string, BookMeta>,
+  claimed: Set<string>,
+): Array<{ id: string; number?: number }> {
+  if (!Array.isArray(list)) return [];
+
+  return (list as Array<unknown>).flatMap((item) => {
+    const entry =
+      typeof item === "string"
+        ? { key: item }
+        : (item as { key?: unknown; number?: unknown } | null);
+    const book = typeof entry?.key === "string" ? cards.get(entry.key.trim()) : undefined;
+
+    if (book === undefined || claimed.has(book.id)) return [];
+
+    claimed.add(book.id);
+
+    const number =
+      typeof entry?.number === "number" || typeof entry?.number === "string"
+        ? Number(entry.number)
+        : Number.NaN;
+
+    return [
+      Number.isFinite(number) && number > 0 && number < 1000
+        ? { id: book.id, number }
+        : { id: book.id },
+    ];
+  });
+}
 
 // Null when grouping may not send. The totals when it may, once no book is left to send.
 export function groupSeries(
@@ -23,6 +211,7 @@ export function groupSeries(
   return oneRequest.withPermits(1)(
     Effect.gen(function* () {
       if (!hasConsent(settings) || !settings.seriesGrouping) return null;
+
       const client = yield* AiClient;
       const store = yield* BookStore;
       const grouped = yield* SettingsStore;
@@ -41,6 +230,7 @@ export function groupSeries(
               book.parseState !== "pending",
           )
           .sort((a, b) => (a.author ?? "").localeCompare(b.author ?? "") || a.addedAt - b.addedAt);
+
         if (pending.length === 0) {
           return {
             books: books.filter((book) => sent.has(book.id) || Boolean(book.series?.trim())).length,
@@ -54,7 +244,9 @@ export function groupSeries(
             ).series.filter((group) => group.count >= 2).length,
           };
         }
+
         onLeft(pending.length);
+
         // The cut goes before an author whose books would go on in the next request.
         const cut =
           pending.length > 30
@@ -140,6 +332,7 @@ export function groupSeries(
           ...batch.map((book) => book.id),
         ];
         let recorded = false;
+
         yield* client
           .complete(
             settings,
@@ -154,25 +347,30 @@ export function groupSeries(
                   recorded = true;
                   yield* grouped.putGroupedBooks(sentNow);
                 }
+
                 if (delta.type === "text") reply += delta.text;
               }),
             ),
           );
+
         if (reply.trim() === "") {
           return yield* new AiFailure({
             reason: "malformed",
             message: "Provider returned no text",
           });
         }
+
         // A model can wrap the JSON in prose, so the outermost braces are cut out.
         const start = reply.indexOf("{");
         const end = reply.lastIndexOf("}");
         let json: { series?: unknown } | null = null;
+
         try {
           if (start !== -1 && end > start) json = JSON.parse(reply.slice(start, end + 1));
         } catch {
           json = null;
         }
+
         if (!Array.isArray(json?.series)) {
           return yield* new AiFailure({
             reason: "malformed",
@@ -182,48 +380,9 @@ export function groupSeries(
 
         // A book in two series stays in the first. In one series, books come before possible.
         const claimed = new Set<string>();
-        const entries = (json.series as Array<Record<string, unknown> | null>).flatMap((row) => {
-          if (typeof row?.name !== "string") return [];
-          // Plain text, with a tag cut out and a line break turned into a space, so no markup is stored.
-          let plain = "";
-          let tag = false;
-          for (const char of row.name) {
-            if (char === "<") tag = true;
-            else if (char === ">") tag = false;
-            else if (!tag) plain += char < " " ? " " : char;
-          }
-          const name = Array.from(
-            plain
-              .split(" ")
-              .filter((word) => word !== "")
-              .join(" "),
-          )
-            .slice(0, 80)
-            .join("")
-            .trim();
-          if (name === "") return [];
-          const [sure, unsure] = [row.books, row.possible].map((list) =>
-            (Array.isArray(list) ? (list as Array<unknown>) : []).flatMap((item) => {
-              const entry =
-                typeof item === "string"
-                  ? { key: item }
-                  : (item as { key?: unknown; number?: unknown } | null);
-              const book = typeof entry?.key === "string" ? cards.get(entry.key.trim()) : undefined;
-              if (book === undefined || claimed.has(book.id)) return [];
-              claimed.add(book.id);
-              const number =
-                typeof entry?.number === "number" || typeof entry?.number === "string"
-                  ? Number(entry.number)
-                  : Number.NaN;
-              return [
-                Number.isFinite(number) && number > 0 && number < 1000
-                  ? { id: book.id, number }
-                  : { id: book.id },
-              ];
-            }),
-          );
-          return [{ name, sure: sure ?? [], unsure: unsure ?? [] }];
-        });
+        const entries = (json.series as Array<Record<string, unknown> | null>).flatMap((row) =>
+          seriesEntry(row, cards, claimed),
+        );
 
         // Read again, so an edit saved during the request wins. The whole write goes in, or none of it.
         yield* Effect.uninterruptible(
@@ -236,76 +395,11 @@ export function groupSeries(
                 .flatMap((series) => series.books.map((entry) => entry.id)),
             );
             const changed = new Map<string, Series>();
+
             for (const entry of entries) {
-              const id = seriesKey(entry.name);
-              const matches = [...changed.values(), ...fresh].filter(
-                (series) => series.id === id || seriesKey(series.name) === id,
-              );
-              const record = matches[0];
-              const members =
-                shelf.series
-                  .find((group) => seriesKey(group.id) === seriesKey(record?.id ?? id))
-                  ?.books.map((card) => card.book.id) ?? [];
-              const [sure, unsure] = [entry.sure, entry.unsure].map((list) =>
-                list.filter(
-                  (book) =>
-                    !pinned.has(book.id) &&
-                    !members.includes(book.id) &&
-                    !(record?.removed.includes(book.id) ?? false),
-                ),
-              );
-              if (sure === undefined || unsure === undefined) continue;
-              const possible = record?.possible ?? [];
-              if (record?.edited === true) {
-                // A saved series keeps its name and order. The model can only offer a book.
-                const offered = [...sure, ...unsure].filter(
-                  (book) => !possible.some((other) => other.id === book.id),
-                );
-                if (offered.length === 0) continue;
-                changed.set(
-                  record.id,
-                  new Series({ ...record, possible: [...possible, ...offered] }),
-                );
-                continue;
-              }
-              if (
-                members.length + sure.length < 2 &&
-                !sure.some((book) => book.number !== undefined)
-              ) {
-                continue;
-              }
-              const order = [...(record?.books ?? [])];
-              // 1000 is above every kept number, so an unnumbered book sorts last.
-              for (const book of [...sure].sort(
-                (a, b) => (a.number ?? 1000) - (b.number ?? 1000),
-              )) {
-                const number = book.number;
-                const at =
-                  number === undefined
-                    ? -1
-                    : order.findIndex(
-                        (other) =>
-                          (other.number ??
-                            books.find((candidate) => candidate.id === other.id)?.seriesNumber ??
-                            -Infinity) > number,
-                      );
-                if (at === -1) order.push(book);
-                else order.splice(at, 0, book);
-              }
-              const kept = possible.filter((other) => !sure.some((book) => book.id === other.id));
-              const offered = unsure.filter((book) => !kept.some((other) => other.id === book.id));
-              if (sure.length === 0 && offered.length === 0) continue;
-              changed.set(
-                record?.id ?? id,
-                new Series({
-                  ...(record ?? { id, name: entry.name, removed: [] }),
-                  books: order,
-                  possible: [...kept, ...offered],
-                  // A removed series that a new book starts again shows again.
-                  ...(record?.hidden === true ? { hidden: false } : {}),
-                }),
-              );
+              applyEntry(entry, { fresh, shelf, changed, books, pinned });
             }
+
             for (const series of changed.values()) yield* store.putSeries(series);
             yield* grouped.putGroupedBooks(sentNow);
           }),
@@ -320,12 +414,14 @@ export function resetGrouping(): Effect.Effect<void, StorageFailure, BookStore |
   return oneRequest.withPermits(1)(
     Effect.gen(function* () {
       const store = yield* BookStore;
+
       for (const series of yield* store.listSeries()) {
         if (series.edited !== true) yield* store.removeSeries(series.id);
         else if (series.hidden === true || series.possible.length > 0) {
           yield* store.putSeries(new Series({ ...series, possible: [], hidden: false }));
         }
       }
+
       yield* (yield* SettingsStore).putGroupedBooks([]);
     }),
   );

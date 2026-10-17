@@ -47,6 +47,7 @@ export function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
     connection = null;
     throw cause;
   });
+
   return connection;
 }
 
@@ -60,23 +61,29 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
     upgrade(next) {
       if (!next.objectStoreNames.contains("books"))
         next.createObjectStore("books", { keyPath: "id" });
+
       if (!next.objectStoreNames.contains("files")) next.createObjectStore("files");
       if (!next.objectStoreNames.contains("parsed")) next.createObjectStore("parsed");
       if (!next.objectStoreNames.contains("progress")) next.createObjectStore("progress");
       if (!next.objectStoreNames.contains("settings")) next.createObjectStore("settings");
+
       if (!next.objectStoreNames.contains("inbox")) {
         next.createObjectStore("inbox", { keyPath: "id", autoIncrement: true });
       }
+
       if (!next.objectStoreNames.contains("images")) next.createObjectStore("images");
       if (!next.objectStoreNames.contains("prefs")) next.createObjectStore("prefs");
       if (!next.objectStoreNames.contains("figures")) next.createObjectStore("figures");
       if (!next.objectStoreNames.contains("pages")) next.createObjectStore("pages");
       if (!next.objectStoreNames.contains("summaries")) next.createObjectStore("summaries");
+
       if (!next.objectStoreNames.contains("series")) {
         next.createObjectStore("series", { keyPath: "id" });
       }
+
       // Version 6 and 7 stored recaps here. The summary holds the chapter being read instead.
       const raw = next as unknown as IDBDatabase;
+
       if (raw.objectStoreNames.contains("artifacts")) raw.deleteObjectStore("artifacts");
     },
     // A newer version opening elsewhere waits for this connection. Let go so its upgrade can run.
@@ -89,5 +96,6 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
       connection = null;
     },
   });
+
   return db;
 }

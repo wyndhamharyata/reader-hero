@@ -32,6 +32,7 @@ const headingClass: Record<number, string> = {
 function blockClass(block: Block): string {
   if (block.kind === "heading") return headingClass[block.level] ?? headingClass[3] ?? "";
   if (block.kind === "image") return "my-2";
+
   return "mt-4";
 }
 
@@ -60,18 +61,22 @@ export const ReaderView = memo(function ReaderView({
   // The text waits for its font, as WebKit has no scroll anchoring to hold the position in a reflow.
   const fontSpec = `1em "${fontFamily[settings.font]}"`;
   const [fontReady, setFontReady] = useState(() => document.fonts.check(fontSpec));
+
   useEffect(() => {
     if (fontReady || document.fonts.check(fontSpec)) {
       setFontReady(true);
       return;
     }
+
     let active = true;
     const show = (): void => {
       if (active) setFontReady(true);
     };
     // A font that never loads must not hold the book back.
     const timer = window.setTimeout(show, FONT_FALLBACK_MS);
+
     void document.fonts.load(fontSpec).then(show, show);
+
     return () => {
       active = false;
       window.clearTimeout(timer);
@@ -81,9 +86,13 @@ export const ReaderView = memo(function ReaderView({
   // Before paint, so no frame shows the top. Only the first open, as figures arriving later must not move it.
   useLayoutEffect(() => {
     const container = containerRef.current;
+
     if (container === null || restoredRef.current || !fontReady) return;
+
     const target = container.querySelector<HTMLElement>(`[data-block="${initialBlock}"]`);
+
     if (target === null) return;
+
     restoredRef.current = true;
     container.scrollTop +=
       target.getBoundingClientRect().top - container.getBoundingClientRect().top;
@@ -93,11 +102,13 @@ export const ReaderView = memo(function ReaderView({
   useEffect(() => {
     const container = containerRef.current;
     const article = articleRef.current;
+
     if (container === null || article === null || !fontReady) return;
 
     const measure = (): void => {
       const nodes = Array.from(container.querySelectorAll<HTMLElement>("[data-block]"));
       const base = container.getBoundingClientRect().top - container.scrollTop;
+
       blocksRef.current = {
         nodes,
         tops: nodes.map((node) => node.getBoundingClientRect().top - base),
@@ -109,8 +120,10 @@ export const ReaderView = memo(function ReaderView({
       let low = 0;
       let high = tops.length - 1;
       let found = 0;
+
       while (low <= high) {
         const mid = (low + high) >> 1;
+
         if ((tops[mid] ?? 0) <= y) {
           found = mid;
           low = mid + 1;
@@ -118,22 +131,28 @@ export const ReaderView = memo(function ReaderView({
           high = mid - 1;
         }
       }
+
       return found;
     };
     const onScroll = (): void => {
       const { nodes, tops } = blocksRef.current;
+
       if (nodes.length === 0) return;
+
       const top = container.scrollTop;
       const topIndex = indexAt(top + 8);
       const node = nodes[topIndex];
       const nodeTop = tops[topIndex];
+
       if (node !== undefined && nodeTop !== undefined) {
         anchorRef.current = { element: node, offset: nodeTop - top };
       }
+
       // The top block brings a resume to the same screen. The last block marks the book finished.
       const atEnd = top + container.clientHeight >= container.scrollHeight - 2;
       // The block's own index, as a custom cover keeps block 0 out of the nodes.
       const index = Number(nodes[atEnd ? nodes.length - 1 : topIndex]?.dataset.block ?? 0);
+
       if (index !== positionRef.current) {
         positionRef.current = index;
         onPosition(index);
@@ -142,19 +161,25 @@ export const ReaderView = memo(function ReaderView({
     // Safari has no CSS scroll anchoring: hold the top block in place when content above it resizes.
     const restore = (): void => {
       const anchor = anchorRef.current;
+
       if (anchor !== null && anchor.element.isConnected) {
         const top =
           anchor.element.getBoundingClientRect().top - container.getBoundingClientRect().top;
+
         container.scrollTop += top - anchor.offset;
       }
+
       measure();
     };
 
     measure();
     onScroll();
     container.addEventListener("scroll", onScroll, { passive: true });
+
     const observer = new ResizeObserver(restore);
+
     observer.observe(article);
+
     return () => {
       container.removeEventListener("scroll", onScroll);
       observer.disconnect();
@@ -163,8 +188,11 @@ export const ReaderView = memo(function ReaderView({
 
   useEffect(() => {
     if (jump === null) return;
+
     const container = containerRef.current;
+
     if (container === null) return;
+
     container
       .querySelector<HTMLElement>(`[data-block="${jump.index}"]`)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -173,10 +201,14 @@ export const ReaderView = memo(function ReaderView({
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest("a, button") !== null) return;
     if (!tap.isTap(event)) return;
+
     const container = containerRef.current;
+
     if (container === null) return;
+
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = (event.clientX - rect.left) / rect.width;
+
     if (ratio < 0.3) {
       container.scrollBy({ top: -container.clientHeight * VIEWPORT_FRACTION, behavior: "smooth" });
       return;
@@ -185,6 +217,7 @@ export const ReaderView = memo(function ReaderView({
       container.scrollBy({ top: container.clientHeight * VIEWPORT_FRACTION, behavior: "smooth" });
       return;
     }
+
     onToggleChrome();
   };
 
@@ -197,11 +230,14 @@ export const ReaderView = memo(function ReaderView({
         ? `image:${imageId}`
         : `${block.kind}:${block.page}:${block.text.slice(0, 48)}`;
     const count = seen.get(base) ?? 0;
+
     seen.set(base, count + 1);
+
     const image =
       block.kind === "image" && imageId !== undefined ? (
         <ReaderImage bookId={bookId} imageId={imageId} ratio={block.ratio} />
       ) : null;
+
     return {
       index,
       key: `${base}#${count}`,

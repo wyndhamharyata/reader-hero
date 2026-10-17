@@ -29,7 +29,9 @@ function buildToc(outline: ReadonlyArray<OutlineItem>, blocks: ReadonlyArray<Blo
 
   for (const item of outline) {
     const index = blocks.findIndex((block) => block.page >= item.page);
+
     if (index < 0 || seen.has(index)) continue;
+
     seen.add(index);
     entries.push(
       new TocEntry({ title: item.title, page: item.page, blockIndex: index, depth: item.depth }),
@@ -46,6 +48,7 @@ export function assembleBook(
 ): Effect.Effect<ParsedBook> {
   return Effect.gen(function* () {
     const pageLines: PageLines[] = [];
+
     for (const [index, page] of pages.entries()) {
       pageLines.push({
         page: page.text.page,
@@ -54,13 +57,17 @@ export function assembleBook(
       });
       if (index % 32 === 31) yield* Effect.yieldNow;
     }
+
     const cleaned = dropBoilerplate(pageLines);
+
     yield* Effect.yieldNow;
 
     const flow: FlowItem[] = [];
+
     pages.forEach((page, index) => {
       const lines = cleaned[index]?.lines ?? [];
       const images = page.images.filter((image) => !isSmallBandImage(image, page.text.height));
+
       flow.push(...orderFlow(lines, images, page.text.width));
     });
     yield* Effect.yieldNow;

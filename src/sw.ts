@@ -18,9 +18,11 @@ const CACHE = `reader-hero-shell-${hash(manifest.map((entry) => `${entry.url}@${
 
 function hash(text: string): string {
   let value = 0x811c9dc5;
+
   for (let index = 0; index < text.length; index += 1) {
     value = Math.imul(value ^ text.charCodeAt(index), 0x01000193);
   }
+
   return (value >>> 0).toString(36);
 }
 
@@ -28,14 +30,18 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const cache = await caches.open(CACHE);
+
       await cache.addAll(
         precacheUrls
           .filter((url) => url !== "index.html")
           .map((url) => new Request(url, { cache: "reload" })),
       );
+
       // Safari refuses a navigation answered by a redirect. Cloudflare 307s /index.html to /.
       const shell = await fetch(new Request("/", { cache: "reload" }));
+
       if (!shell.ok) throw new Error(`Shell fetch failed: ${shell.status}`);
+
       await cache.put(INDEX, shell);
     })(),
   );
@@ -45,6 +51,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const keys = await caches.keys();
+
       await Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)));
       await self.clients.claim();
     })(),
@@ -62,20 +69,25 @@ async function handleShare(request: Request): Promise<Response> {
   try {
     const form = await request.formData();
     const file = form.get("file");
+
     if (file instanceof File) {
       const db = await openReaderDb();
+
       await db.add("inbox", { name: file.name, blob: file, addedAt: Date.now() });
     }
   } catch {
     // Nothing to keep.
   }
+
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
 // The shell comes only from the cache, so a launch never waits. It must match this build's assets.
 async function handleNavigate(request: Request): Promise<Response> {
   const cached = await (await caches.open(CACHE)).match(INDEX);
+
   if (cached !== undefined) return cached;
+
   try {
     return await fetch(request);
   } catch {
@@ -86,13 +98,16 @@ async function handleNavigate(request: Request): Promise<Response> {
 async function handleAsset(request: Request): Promise<Response> {
   const cache = await caches.open(CACHE);
   const cached = await cache.match(request);
+
   if (cached !== undefined) return cached;
 
   const response = await fetch(request);
+
   // A partial answer to a range request cannot be stored.
   if (response.status === 200 && response.type === "basic") {
     await cache.put(request, response.clone());
   }
+
   return response;
 }
 

@@ -7,9 +7,11 @@ export function holdLowestRow(list: HTMLElement, tapped: Element): void {
   const anchor = [...list.querySelectorAll("[data-row]")].findLast(
     (row) => row.getBoundingClientRect().top < bottom,
   );
+
   cancelAnimationFrame(frame);
   // The lowest row itself opens downward, so its paragraph shows under it.
   if (anchor === undefined || anchor === tapped) return;
+
   const top = anchor.getBoundingClientRect().top;
   const start = performance.now();
   // Each frame of the 200ms animation, before the paint, so the row never jumps.
@@ -21,5 +23,6 @@ export function holdLowestRow(list: HTMLElement, tapped: Element): void {
     );
     if (performance.now() - start < 300) frame = requestAnimationFrame(step);
   };
+
   frame = requestAnimationFrame(step);
 }

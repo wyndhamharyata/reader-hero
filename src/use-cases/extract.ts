@@ -58,10 +58,12 @@ export function assembleExtract(
   return Effect.gen(function* () {
     const pdf = yield* PdfClient;
     const total = pdf.pageCount(handle);
+
     // Most pages unreadable is a broken file, which must not pass for a scanned book.
     if (pages.filter((page) => page.failed === true).length * 2 > total) {
       return yield* new PdfFailure({ reason: "corrupt", message: "Most pages could not be read" });
     }
+
     const outline = yield* pdf.readOutline(handle);
     const texts = pages.map((page) => page.text);
     const charCount = texts.reduce((sum, text) => sum + countChars(text), 0);
@@ -70,6 +72,7 @@ export function assembleExtract(
       texts.map((text) => ({ text, images: [] })),
       outline,
     );
+
     return { parsed, scanned };
   }).pipe(Effect.ensuring(PdfClient.use((pdf) => pdf.release(handle))));
 }

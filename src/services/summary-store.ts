@@ -34,7 +34,9 @@ export class SummaryStore extends Context.Service<
         const row = yield* attempt("getSummary", () =>
           withReaderDb((db) => db.get("summaries", bookId)),
         );
+
         if (row === undefined) return null;
+
         return yield* decodeSummary(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
@@ -45,11 +47,14 @@ export class SummaryStore extends Context.Service<
       ): Effect.Effect<S, StorageFailure> =>
         Effect.gen(function* () {
           const next = change(yield* get(bookId));
+
           if (next === null) return next;
+
           yield* attempt("putSummary", () =>
             withReaderDb((db) => db.put("summaries", next, bookId)),
           );
           yield* PubSub.publish(bus, { bookId, summary: next });
+
           return next;
         }).pipe(Semaphore.withPermit(lock));
 
@@ -69,6 +74,7 @@ export class SummaryStore extends Context.Service<
             const stored = yield* get(bookId).pipe(
               Effect.catchTag("StorageFailure", () => Effect.succeed(null)),
             );
+
             return Stream.concat(
               Stream.succeed(stored),
               Stream.fromSubscription(subscription).pipe(

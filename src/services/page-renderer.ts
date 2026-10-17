@@ -43,18 +43,25 @@ const worker = (): Worker => {
     renderer = new Worker(new URL("../workers/pdf-render.ts", import.meta.url), {
       type: "module",
     });
+
     const current = renderer;
+
     current.onmessage = (event: MessageEvent) => {
       const reply = event.data as Record<string, unknown>;
       const key = typeof reply.requestId === "number" ? reply.requestId : reply.id;
+
       if (typeof key !== "number") return;
+
       const settle = pending.get(key);
+
       pending.delete(key);
+
       // A page that left the list before its pixels came: they go back at once, not at collection.
       if (settle === undefined) {
         if (reply.bitmap instanceof ImageBitmap) reply.bitmap.close();
         return;
       }
+
       settle(reply);
     };
     // Dropped, so the next request starts a new worker instead of waiting forever.
@@ -65,6 +72,7 @@ const worker = (): Worker => {
       if (renderer === current) renderer = null;
     };
   }
+
   return renderer;
 };
 
@@ -76,6 +84,7 @@ const request = (
 ): Effect.Effect<Record<string, unknown>, PdfFailure> =>
   Effect.callback((resume) => {
     const id = nextId;
+
     nextId += 1;
     pending.set(id, (reply) => {
       if (reply.type === "error") {
@@ -85,6 +94,7 @@ const request = (
       }
     });
     worker().postMessage({ ...body, requestId: id, id: body.id ?? id }, transfer);
+
     return Effect.sync(() => {
       if (!pending.delete(id)) return;
       if (onInterrupt === "cancel") worker().postMessage({ type: "cancel", requestId: id });

@@ -57,7 +57,9 @@ export const PdfPage = memo(function PdfPage({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+
     if (canvas === null) return;
+
     const fiber = forkApp(
       renderPdfPage(doc, size.page, canvas, renderScale).pipe(
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
@@ -69,6 +71,7 @@ export const PdfPage = memo(function PdfPage({
         ),
       ),
     );
+
     return () => {
       stopFiber(fiber);
       // A page that drops out of the list gives back its bitmap when it unmounts. iOS caps the memory of all canvases.
@@ -78,8 +81,10 @@ export const PdfPage = memo(function PdfPage({
 
   const detailScale = detail?.scale ?? 0;
   const { left = 0, top = 0, width = 0, height = 0 } = detail?.area ?? {};
+
   useEffect(() => {
     const canvas = detailRef.current;
+
     if (canvas === null) return;
     if (detailScale === 0) {
       // Only a canvas that held an area has a context. Making one would cost every mount.
@@ -87,12 +92,14 @@ export const PdfPage = memo(function PdfPage({
       canvas.hidden = true;
       return;
     }
+
     const area = { left, top, width, height };
     const fiber = forkApp(
       renderPageDetail(doc, size, canvas, detailScale, area).pipe(
         Effect.catchTag("PdfFailure", () => Effect.void),
       ),
     );
+
     return () => stopFiber(fiber);
   }, [doc, size, detailScale, left, top, width, height]);
 
@@ -107,7 +114,9 @@ export const PdfPage = memo(function PdfPage({
 
   useEffect(() => {
     const host = textRef.current;
+
     if (!text || host === null) return;
+
     const drawnAt = scaleRef.current;
     const fiber = forkApp(
       drawTextLayer(doc, size.page, host, drawnAt).pipe(
@@ -123,6 +132,7 @@ export const PdfPage = memo(function PdfPage({
         Effect.catchTag("PdfFailure", () => Effect.void),
       ),
     );
+
     return () => {
       stopFiber(fiber);
       textLayer.current?.remove();

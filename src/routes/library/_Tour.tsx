@@ -20,26 +20,34 @@ export function Tour({ steps, onDone }: Props): ReactElement | null {
   useLayoutEffect(() => {
     const measure = () => {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
+
       const key = step?.anchor ?? null;
+
       if (key === null) {
         setSpot(null);
         return;
       }
+
       // Two controls can carry a key, the one for a phone and the one for a wider window.
       const found = [...document.querySelectorAll<HTMLElement>(`[data-tour="${key}"]`)].find(
         (element) => element.getBoundingClientRect().width > 0,
       );
+
       if (found === undefined) {
         setSpot(null);
         return;
       }
+
       const rect = found.getBoundingClientRect();
+
       setSpot({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
     };
+
     measure();
     window.addEventListener("resize", measure);
     // Capture, so the library's own scroll box reports as well as the window.
     window.addEventListener("scroll", measure, true);
+
     return () => {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
@@ -52,7 +60,9 @@ export function Tour({ steps, onDone }: Props): ReactElement | null {
       if (event.key === "ArrowRight") setIndex((at) => Math.min(at + 1, steps.length - 1));
       if (event.key === "ArrowLeft") setIndex((at) => Math.max(at - 1, 0));
     };
+
     window.addEventListener("keydown", onKey);
+
     return () => window.removeEventListener("keydown", onKey);
   }, [onDone, steps.length]);
 

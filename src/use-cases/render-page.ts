@@ -14,21 +14,27 @@ export function renderPdfPage(
   return Effect.gen(function* () {
     const renderer = yield* PageRenderer;
     const bitmap = yield* renderer.render(rendered, page, scale);
+
     // The canvas was sized ahead. A size change here would relayout every page, so only a mismatch sets it.
     if (canvas.width !== bitmap.width) canvas.width = bitmap.width;
     if (canvas.height !== bitmap.height) canvas.height = bitmap.height;
     // The mark lets tests and the benchmark see when a page is on screen.
     canvas.dataset.painted = "1";
+
     const adopter = canvas.getContext("bitmaprenderer");
+
     if (adopter !== null) {
       adopter.transferFromImageBitmap(bitmap);
       return;
     }
+
     const context = canvas.getContext("2d");
+
     if (context === null) {
       bitmap.close();
       return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
     }
+
     context.drawImage(bitmap, 0, 0);
     bitmap.close();
   });
@@ -77,6 +83,7 @@ export function renderPageDetail(
       ),
     };
     const bitmap = yield* renderer.render(rendered, size.page, scale, crop);
+
     // Placed only when ready, so the last area stays sharp on screen until this one arrives.
     canvas.style.left = `${(crop.x / fullWidth) * 100}%`;
     canvas.style.top = `${(crop.y / fullHeight) * 100}%`;
@@ -85,11 +92,14 @@ export function renderPageDetail(
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
     canvas.hidden = false;
+
     const adopter = canvas.getContext("bitmaprenderer");
+
     if (adopter === null) {
       bitmap.close();
       return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no bitmap renderer" });
     }
+
     adopter.transferFromImageBitmap(bitmap);
   });
 }
@@ -102,8 +112,11 @@ export function searchPages(
 ): Effect.Effect<ReadonlyArray<number>, never, PageRenderer> {
   return Effect.gen(function* () {
     const candidates = findPages(blocks, query);
+
     if (candidates.length === 0) return [];
+
     const renderer = yield* PageRenderer;
+
     return yield* renderer
       .find(rendered, candidates, query)
       .pipe(Effect.orElseSucceed(() => candidates));

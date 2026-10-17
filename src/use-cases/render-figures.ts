@@ -28,6 +28,7 @@ export function renderFigures(
       const pdf = yield* PdfClient;
 
       const meta = yield* store.get(bookId);
+
       if (!meta.figuresPending) return;
       // Figures are encoded in a worker with OffscreenCanvas. A browser without it reads the text only.
       if (typeof OffscreenCanvas === "undefined") {
@@ -48,7 +49,9 @@ export function renderFigures(
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
       const done = new Set(yield* store.getFigureCheckpoint(bookId));
+
       for (let page = 1; page <= (existing?.figuresThrough ?? 0); page += 1) done.add(page);
+
       const stored = done.size === 0 ? [] : yield* store.listImages(bookId);
 
       const parsed = yield* Effect.gen(function* () {
@@ -73,13 +76,18 @@ export function renderFigures(
           number,
           { text: (typeof texts)[number]; images: ReadonlyArray<ImagePlacement> }
         >();
+
         for (const text of texts) pagesByPage.set(text.page, { text, images: [] });
+
         for (const { id, image } of stored) {
           const page = Number(id.split("-")[0]);
           const entry = pagesByPage.get(page);
+
           if (!done.has(page) || entry === undefined) continue;
           if (image.x === undefined || image.y === undefined) continue;
+
           const restored = placement({ ...image, id, page, x: image.x, y: image.y });
+
           pagesByPage.set(page, { text: entry.text, images: [...entry.images, restored] });
         }
 
@@ -89,8 +97,10 @@ export function renderFigures(
         const assemble = () =>
           Effect.map(assembleBook([...pagesByPage.values()], outline), (book) => {
             let through = 0;
+
             while (done.has(through + 1)) through += 1;
-            return new ParsedBook({ ...book, figuresThrough: through });
+            
+return new ParsedBook({ ...book, figuresThrough: through });
           });
 
         // A resumed job shows the figures it already stored before it looks for more.
@@ -98,6 +108,7 @@ export function renderFigures(
 
         // Pages nearest the reader first, so the figures about to be read land before the rest.
         const order: number[] = [];
+
         for (let step = 0; order.length < total; step += 1) {
           if (startPage + step <= total) order.push(startPage + step);
           if (startPage - 1 - step >= 1) order.push(startPage - 1 - step);
@@ -112,17 +123,22 @@ export function renderFigures(
                 const images = yield* pdf
                   .readImages(handle, page)
                   .pipe(Effect.orElseSucceed((): ReadonlyArray<PageImage> => []));
+
                 for (const image of images) {
                   yield* store.putImage(bookId, image);
                 }
+
                 const entry = pagesByPage.get(page);
+
                 if (entry !== undefined) {
                   pagesByPage.set(page, { text: entry.text, images: images.map(placement) });
                 }
+
                 done.add(page);
                 // Its own small record, so each page saves cheaply: iOS interrupts this job often.
                 yield* store.putFigureCheckpoint(bookId, [...done]);
                 if (images.length > 0) unpublished = true;
+
                 // An open reader reloads the book on each publish, so publish at most every 2s.
                 if (unpublished && Date.now() - publishedAt >= 2_000) {
                   yield* store.putParsed(bookId, yield* assemble());
@@ -140,9 +156,11 @@ export function renderFigures(
 
       yield* store.putParsed(bookId, parsed);
       yield* store.deletePages(bookId);
+
       const imageCount = parsed.blocks.filter((block) => block.kind === "image").length;
       const latest = yield* store.get(bookId);
       const figures = imageCount > 0 ? "ready" : "none";
+
       yield* store.putMeta(new BookMeta({ ...latest, figures }));
     });
 

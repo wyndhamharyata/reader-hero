@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, type ReactElement } from "react";
 import type { LibrarySort } from "@/domain/book";
 import type { FilterGroup, Shelf } from "@/lib/shelf";
@@ -46,12 +47,10 @@ export function FilterSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close sort and filter"
-        onClick={() => dismiss()}
+      <SheetBackdrop
+        reference={backdropRef}
+        label="Close sort and filter"
+        onClose={() => dismiss()}
       />
       <aside
         ref={sheetRef}

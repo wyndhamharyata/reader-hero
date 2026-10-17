@@ -18,6 +18,7 @@ export function saveAiSettings(
 ): Effect.Effect<void, StorageFailure, SettingsStore | SummaryJobs> {
   return Effect.gen(function* () {
     const store = yield* SettingsStore;
+
     if (endsRuns(yield* store.ai(), next)) yield* (yield* SummaryJobs).stopAll();
     yield* store.putAi(next);
   });

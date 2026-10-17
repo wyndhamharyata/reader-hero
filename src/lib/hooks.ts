@@ -33,11 +33,13 @@ export function runApp<A, E>(effect: Effect.Effect<A, E, AppServices>): Promise<
 // An unhandled failure would vanish with its fiber.
 export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>): Job {
   const fiber = runtime.runFork(effect);
+
   fiber.addObserver((exit) => {
     if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) {
       console.error("[app]", Cause.pretty(exit.cause));
     }
   });
+
   return fiber;
 }
 
@@ -64,11 +66,14 @@ export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): vo
   useEffect(() => {
     // A book that drops out of the list pauses. Its job keeps a checkpoint, so the next start resumes it.
     const wanted = new Set(books.filter((book) => book.figuresPending).map((book) => book.id));
+
     for (const bookId of held.current) {
       if (wanted.has(bookId)) continue;
+
       held.current.delete(bookId);
       forkApp(Effect.flatMap(FigureJobs, (jobs) => jobs.release(owner, bookId)));
     }
+
     for (const bookId of wanted) {
       held.current.add(bookId);
       forkApp(Effect.flatMap(FigureJobs, (jobs) => jobs.hold(owner, bookId, startPage)));
@@ -80,6 +85,7 @@ export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): vo
       for (const bookId of held.current) {
         forkApp(Effect.flatMap(FigureJobs, (jobs) => jobs.release(owner, bookId)));
       }
+
       held.current.clear();
     },
     [owner],
@@ -102,13 +108,17 @@ export function useBookImage(
     const update = (next: { readonly url: string; readonly ratio: number | null } | null): void =>
       setImage(next);
     let shared = bookImages.get(key);
+
     if (shared === undefined) {
       shared = { url: null, ratio: null, users: new Set(), job: null };
       bookImages.set(key, shared);
     }
+
     const entry = shared;
+
     entry.users.add(update);
     if (entry.url !== null) setImage({ url: entry.url, ratio: entry.ratio });
+
     if (entry.job === null) {
       entry.job = forkApp(
         watchBookImage(bookId, imageId, (record) => {
@@ -120,17 +130,21 @@ export function useBookImage(
             for (const user of entry.users) user(null);
             return;
           }
+
           if (entry.url !== null) URL.revokeObjectURL(entry.url);
           entry.url = URL.createObjectURL(record.blob);
           entry.ratio = record.height === 0 ? null : record.width / record.height;
+
           for (const user of entry.users) {
             user({ url: entry.url, ratio: entry.ratio });
           }
         }),
       );
     }
+
     return () => {
       if (bookImages.get(key) !== entry) return;
+
       entry.users.delete(update);
       // A tile that moves to another row mounts again in the same commit and takes the URL over.
       queueMicrotask(() => {
@@ -157,6 +171,7 @@ export function useAppEffect<A, E>(
     // A reload keeps the current value on screen until the new one arrives. Only new deps show loading.
     if (lastNonce.current === nonce) setState({ status: "loading" });
     lastNonce.current = nonce;
+
     // Interrupting the fiber stops a load that new deps replaced, so it cannot overwrite the newer one.
     const fiber = forkApp(
       Effect.match(effect, {
@@ -164,16 +179,21 @@ export function useAppEffect<A, E>(
         onSuccess: (value) => setState({ status: "done", value }),
       }),
     );
+
     // A defect or a failed service skips the match. The screen stops loading anyway.
     fiber.addObserver((exit) => {
       if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause)) return;
+
       const message = String(Cause.squash(exit.cause));
+
       setState({ status: "error", error: new UnexpectedFailure({ message }) });
     });
+
     return () => stopFiber(fiber);
   }, [...deps, nonce]);
 
   const reload = useCallback(() => setNonce((value) => value + 1), []);
+
   return { state, reload };
 }
 
@@ -190,6 +210,7 @@ export function useSettings(): {
     const fiber = runtime.runFork(
       Effect.gen(function* () {
         const store = yield* SettingsStore;
+
         yield* Stream.runForEach(store.changes(), (next) =>
           Effect.sync(() => {
             lastSettings = next;
@@ -198,6 +219,7 @@ export function useSettings(): {
         );
       }),
     );
+
     return () => {
       runtime.runFork(Fiber.interrupt(fiber));
     };
@@ -211,6 +233,7 @@ export function useSettings(): {
 
   const update = useCallback((patch: Partial<ReaderSettings>) => {
     const save = Effect.flatMap(SettingsStore, (store) => store.update(patch));
+
     // The store applies the change before saving, so a failed write only loses it on restart.
     forkApp(save.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
   }, []);
@@ -229,9 +252,11 @@ export function useAiSettings(): {
     const fiber = runtime.runFork(
       Effect.gen(function* () {
         const store = yield* SettingsStore;
+
         yield* Stream.runForEach(store.aiChanges(), (next) => Effect.sync(() => setAi(next)));
       }),
     );
+
     return () => {
       runtime.runFork(Fiber.interrupt(fiber));
     };
@@ -250,18 +275,23 @@ export function useUsage(): {
   readonly reset: (key: string) => void;
 } {
   const [tallies, setTallies] = useState<ReadonlyMap<string, UsageTally>>(new Map());
+
   useEffect(() => {
     const fiber = forkApp(
       Effect.flatMap(SettingsStore, (store) =>
         Stream.runForEach(store.usageChanges(), (next) => Effect.sync(() => setTallies(next))),
       ),
     );
+
     return () => stopFiber(fiber);
   }, []);
+
   const reset = useCallback((key: string) => {
     const program = Effect.flatMap(SettingsStore, (store) => store.resetUsage(key));
+
     forkApp(program.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
   }, []);
+
   return { tallies, reset };
 }
 
@@ -271,20 +301,24 @@ export function useJob(key: string): JobState & {
   readonly stop: () => void;
 } {
   const [job, setJob] = useState<JobState>({ run: null, error: null });
+
   useEffect(() => {
     const fiber = forkApp(
       Effect.flatMap(SummaryJobs, (jobs) =>
         jobs.state(key).pipe(Stream.runForEach((next) => Effect.sync(() => setJob(next)))),
       ),
     );
+
     return () => stopFiber(fiber);
   }, [key]);
+
   const startRebuild = useCallback((settings: AiSettings) => {
     forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.startRebuild(settings)));
   }, []);
   const stop = useCallback(() => {
     forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(key)));
   }, [key]);
+
   return { ...job, startRebuild, stop };
 }
 
@@ -312,10 +346,12 @@ export function useSummary(bookId: string): SummaryState & {
     setSummary(null);
     setLoaded(false);
     setJob({ run: null, error: null });
+
     const fiber = forkApp(
       Effect.gen(function* () {
         const store = yield* SummaryStore;
         const jobs = yield* SummaryJobs;
+
         yield* Effect.all(
           [
             store.watch(bookId).pipe(
@@ -332,6 +368,7 @@ export function useSummary(bookId: string): SummaryState & {
         );
       }),
     );
+
     return () => stopFiber(fiber);
   }, [bookId]);
 
@@ -353,11 +390,14 @@ export function useSummary(bookId: string): SummaryState & {
   const addName = useCallback(
     (entry: { name: string; note: string; chapter: number }) => {
       const key = entry.name.toLowerCase();
+
       forkApp(
         Effect.flatMap(SummaryStore, (store) =>
           store.update(bookId, (current) => {
             if (current === null) return null;
+
             const removed = current.removed.filter((name) => name.trim().toLowerCase() !== key);
+
             // With no note the next merge writes one. With a note the entry is the reader's now.
             if (entry.note === "") {
               return new Summary({
@@ -366,6 +406,7 @@ export function useSummary(bookId: string): SummaryState & {
                 required: [...current.required, entry.name],
               });
             }
+
             return new Summary({
               ...current,
               removed,
@@ -395,6 +436,7 @@ export function useSummary(bookId: string): SummaryState & {
                 removed: [...current.removed, name],
               });
             }
+
             return new Summary({
               ...current,
               names: current.names.map((entry) =>

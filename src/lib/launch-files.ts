@@ -9,7 +9,9 @@ export function onLaunchFiles(receive: (files: ReadonlyArray<File>) => void): vo
       launchQueue?: { setConsumer(consumer: (launchParams: LaunchParams) => void): void };
     }
   ).launchQueue;
+
   if (queue === undefined) return;
+
   queue.setConsumer((launchParams) => {
     void Promise.all(launchParams.files.map((handle) => handle.getFile()))
       .then(receive)

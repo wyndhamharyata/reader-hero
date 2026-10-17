@@ -19,6 +19,7 @@ if (container === null) throw new Error("Root element is missing");
 if (isInstalled && window.location.pathname === "/") {
   try {
     const screen = localStorage.getItem("last-screen");
+
     if (screen !== null && screen.startsWith("/book/")) {
       window.history.replaceState(null, "", screen);
     }

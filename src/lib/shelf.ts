@@ -1,3 +1,4 @@
+import { FINISHED_PERCENT } from "@/domain/book";
 import type { BookMeta, BookPrefs, LibrarySort, ReadingProgress, Series } from "@/domain/book";
 import { parseStateBadge, readingBadge } from "@/lib/badges";
 
@@ -98,6 +99,7 @@ export function buildShelf(
     const haystack = [book.title, book.author, book.subject, book.keywords, book.fileName]
       .join(" ")
       .toLowerCase();
+
     return terms.every((term) => haystack.includes(term));
   });
 
@@ -121,28 +123,40 @@ export function buildShelf(
                 )
               ? 2
               : 0;
+
       if (marker === 0 || words.length <= marker) return [book.id, words.slice(0, 3).join(" ")];
+
       const lead = words.slice(0, -marker).join(" ");
+
       marked.add(lead);
+
       return [book.id, lead];
     }),
   );
   const leadCounts = new Map<string, number>();
+
   for (const lead of leads.values()) leadCounts.set(lead, (leadCounts.get(lead) ?? 0) + 1);
 
   const titleStarts = new Map<string, string>();
+
   for (const book of books) {
     const lead = leads.get(book.id) ?? "";
+
     if (lead === "" || (leadCounts.get(lead) ?? 0) < (marked.has(lead) ? 2 : 4)) continue;
+
     const start = titleStarts.get(lead) ?? book.title;
     let end = 0;
+
     while (end < start.length && start[end] === book.title[end]) end += 1;
     titleStarts.set(lead, start.slice(0, end));
   }
+
   const titleNames = new Map<string, string>();
+
   for (const [lead, start] of titleStarts) {
     const whole = start.endsWith(" ") ? start : start.slice(0, start.lastIndexOf(" ") + 1);
     const kept = whole.split(" ").filter((word) => word !== "");
+
     while (
       kept.length > 0 &&
       ["vol", "vol.", "volume", "v.", "book", "part", "#", "-", "–", "—", ":"].includes(
@@ -151,17 +165,22 @@ export function buildShelf(
     ) {
       kept.pop();
     }
+
     let name = kept.join(" ");
+
     while (name.length > 0 && ":-–—,.(".includes(name[name.length - 1] ?? "")) {
       name = name.slice(0, -1);
     }
+
     titleNames.set(lead, name || lead);
   }
 
   const removedBySeries = new Map<string, Set<string>>();
+
   for (const series of storedSeries) {
     const id = seriesKey(series.id);
     const removed = removedBySeries.get(id) ?? new Set<string>();
+
     for (const bookId of series.removed) removed.add(bookId);
     removedBySeries.set(id, removed);
   }
@@ -183,10 +202,14 @@ export function buildShelf(
   const storedByPriority = [...storedSeries].sort(
     (a, b) => Number(b.edited === true) - Number(a.edited === true) || a.id.localeCompare(b.id),
   );
+
   for (const series of storedByPriority) {
     if (series.hidden === true) continue;
+
     const id = seriesKey(series.id);
+
     if (id === "") continue;
+
     const group = seriesGroups.get(id) ?? {
       id: series.id,
       name: series.name,
@@ -195,6 +218,7 @@ export function buildShelf(
       color: series.color,
       cover: series.cover,
     };
+
     for (const entry of series.books) {
       if (
         !booksById.has(entry.id) ||
@@ -203,19 +227,25 @@ export function buildShelf(
       ) {
         continue;
       }
+
       group.bookIds.push(entry.id);
       groupedBooks.add(entry.id);
+
       const number = entry.number ?? booksById.get(entry.id)?.seriesNumber;
+
       if (number !== undefined && Number.isFinite(number)) storedNumberByBook.set(entry.id, number);
     }
+
     group.storedCount = group.bookIds.length;
     seriesGroups.set(id, group);
   }
 
   const numberByBook = new Map<string, number>();
   const titleClip = new Set<string>();
+
   for (const book of books) {
     if (groupedBooks.has(book.id)) continue;
+
     const epubName = book.series?.trim() || undefined;
     const lead = leads.get(book.id) ?? "";
     const titleName = titleNames.get(lead);
@@ -230,44 +260,55 @@ export function buildShelf(
     const candidate = candidates.find(
       (entry) => entry.id !== "" && !removedBySeries.get(entry.id)?.has(book.id),
     );
+
     if (candidate === undefined) continue;
+
     const group = seriesGroups.get(candidate.id) ?? {
       id: candidate.id,
       name: candidate.name,
       bookIds: [],
       storedCount: 0,
     };
+
     group.bookIds.push(book.id);
     seriesGroups.set(candidate.id, group);
     groupedBooks.add(book.id);
+
     if (candidate.number !== undefined && Number.isFinite(candidate.number)) {
       numberByBook.set(book.id, candidate.number);
     }
   }
+
   // A title-start series keeps its clipped titles after the reader saves it as a record.
   for (const [id, group] of seriesGroups) {
     for (const bookId of group.bookIds) {
       const lead = leads.get(bookId) ?? "";
       const titleName = titleNames.get(lead);
+
       if (titleName !== undefined && seriesKey(titleName) === id) titleClip.add(bookId);
     }
   }
 
   const collate = { numeric: true, sensitivity: "base" } as const;
   const titleCompare = (a: string, b: string): number => a.localeCompare(b, undefined, collate);
+
   for (const group of seriesGroups.values()) {
     const storedBooks = group.bookIds.slice(0, group.storedCount);
     const derivedBooks = group.bookIds.slice(group.storedCount);
+
     derivedBooks.sort((a, b) => {
       const numberA = numberByBook.get(a);
       const numberB = numberByBook.get(b);
+
       if (numberA !== undefined && numberB !== undefined && numberA !== numberB) {
         return numberA - numberB;
       }
       if (numberA !== undefined && numberB === undefined) return -1;
       if (numberA === undefined && numberB !== undefined) return 1;
+
       return titleCompare(booksById.get(a)?.title ?? "", booksById.get(b)?.title ?? "");
     });
+
     for (const id of derivedBooks) {
       const number = numberByBook.get(id);
       const place =
@@ -277,9 +318,11 @@ export function buildShelf(
               const storedNumber = storedNumberByBook.get(storedId);
               return storedNumber !== undefined && storedNumber > number;
             });
+
       if (place === -1) storedBooks.push(id);
       else storedBooks.splice(place, 0, id);
     }
+
     group.bookIds = storedBooks;
   }
 
@@ -287,6 +330,7 @@ export function buildShelf(
     string,
     { id: string; name: string; place: number; count: number; clipStart: boolean }
   >();
+
   for (const group of seriesGroups.values()) {
     group.bookIds.forEach((id, index) => {
       seriesForBook.set(id, {
@@ -303,9 +347,11 @@ export function buildShelf(
   const statusOf = (book: BookMeta): LibraryCard["status"] => {
     const progress = reading.get(book.id);
     const percent = percentOf(book);
+
     if (progress?.finished === true) return "finished";
-    if (progress?.finished !== false && percent >= 0.98) return "finished";
+    if (progress?.finished !== false && percent >= FINISHED_PERCENT) return "finished";
     if (percent > 0) return "reading";
+
     return "not-started";
   };
   const facet: Record<FilterGroup, (book: BookMeta) => string> = {
@@ -313,6 +359,7 @@ export function buildShelf(
     length: (book) => {
       if (book.pageCount < 150) return "short";
       if (book.pageCount <= 400) return "medium";
+
       return "long";
     },
     author: (book) => book.author ?? "",
@@ -327,17 +374,21 @@ export function buildShelf(
 
   const lastRead = (book: BookMeta): number => reading.get(book.id)?.updatedAt ?? 0;
   const shown = searched.filter((book) => matches(book));
+
   shown.sort((a, b) => {
     if (sort === "added") return b.addedAt - a.addedAt;
     if (sort === "title") return titleCompare(a.title, b.title);
+
     return lastRead(b) - lastRead(a) || b.addedAt - a.addedAt;
   });
 
   const cardsById = new Map<string, LibraryCard>();
+
   for (const book of books) {
     const status = statusOf(book);
     const ready = book.parseState === "ready";
     const series = seriesForBook.get(book.id);
+
     cardsById.set(book.id, {
       book,
       percent: status === "finished" ? 1 : percentOf(book),
@@ -363,7 +414,9 @@ export function buildShelf(
       const card = cardsById.get(id);
       return card === undefined ? [] : [card];
     });
+
     if (cards.length === 0) return [];
+
     const inProgress =
       cards
         .filter((card) => card.status === "reading")
@@ -371,6 +424,7 @@ export function buildShelf(
     const finishedCount = cards.filter((card) => card.status === "finished").length;
     const status: LibraryCard["status"] =
       inProgress !== null ? "reading" : finishedCount === cards.length ? "finished" : "not-started";
+
     return [
       {
         kind: "series" as const,
@@ -417,17 +471,23 @@ export function buildShelf(
           return card === undefined ? [] : [{ kind: "book" as const, card }];
         })
       : [...seriesItems, ...singleItems];
+
   items.sort((a, b) => {
     const titleA = a.kind === "series" ? a.name : a.card.book.title;
     const titleB = b.kind === "series" ? b.name : b.card.book.title;
+
     if (sort === "title") return titleCompare(titleA, titleB);
+
     const cardsA = a.kind === "series" ? a.books : [a.card];
     const cardsB = b.kind === "series" ? b.books : [b.card];
     const addedA = Math.max(...cardsA.map((card) => card.book.addedAt));
     const addedB = Math.max(...cardsB.map((card) => card.book.addedAt));
+
     if (sort === "added") return addedB - addedA || titleCompare(titleA, titleB);
+
     const readA = Math.max(...cardsA.map((card) => lastRead(card.book)));
     const readB = Math.max(...cardsB.map((card) => lastRead(card.book)));
+
     return readB - readA || addedB - addedA || titleCompare(titleA, titleB);
   });
 
@@ -442,6 +502,7 @@ export function buildShelf(
         ],
       },
     ];
+
   options.push({
     group: "length",
     options: [
@@ -450,7 +511,9 @@ export function buildShelf(
       ["long", "Over 400 pages"],
     ],
   });
+
   const authors = [...new Set(books.map((book) => book.author ?? ""))].sort();
+
   if (authors.length > 1) {
     options.push({
       group: "author",

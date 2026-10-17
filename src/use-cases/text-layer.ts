@@ -26,6 +26,7 @@ const searchMap = (layer: HTMLElement) => {
   const from: Array<{ node: Text; offset: number }> = [];
   let last: { node: Text; offset: number } | null = null;
   const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+
   for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
     // A line end is a <br>. It reads as a space, at the end of the text before it.
     if (node instanceof HTMLBRElement) {
@@ -33,20 +34,27 @@ const searchMap = (layer: HTMLElement) => {
         text += " ";
         from.push(last);
       }
+
       continue;
     }
     if (!(node instanceof Text)) continue;
+
     const value = node.data;
+
     for (let offset = 0; offset < value.length; offset += 1) {
       const folded = searchForm(value.charAt(offset));
+
       if (folded === " " && text.endsWith(" ")) continue;
+
       for (const char of folded) {
         text += char;
         from.push({ node, offset });
       }
+
       last = { node, offset: offset + 1 };
     }
   }
+
   return { text, from };
 };
 
@@ -54,31 +62,43 @@ const searchMap = (layer: HTMLElement) => {
 const marked = new Map<HTMLElement, Range[]>();
 const paintMarks = (): void => {
   const registry = highlights();
+
   if (registry === null) return;
+
   const ranges = [...marked.values()].flat();
+
   if (ranges.length === 0) registry.delete(SEARCH_HIGHLIGHT);
   else registry.set(SEARCH_HIGHLIGHT, new Highlight(...ranges));
 };
 
 const markMatches = (layer: HTMLElement, query: string): void => {
   if (highlights() === null) return;
+
   marked.delete(layer);
+
   const wanted = searchForm(query).trim();
+
   if (wanted === "") {
     paintMarks();
     return;
   }
+
   const { text, from } = searchMap(layer);
   const ranges: Range[] = [];
+
   for (let at = text.indexOf(wanted); at !== -1; at = text.indexOf(wanted, at + wanted.length)) {
     const start = from[at];
     const end = from[at + wanted.length - 1];
+
     if (start === undefined || end === undefined) continue;
+
     const range = document.createRange();
+
     range.setStart(start.node, start.offset);
     range.setEnd(end.node, Math.min(end.offset + 1, end.node.length));
     ranges.push(range);
   }
+
   if (ranges.length > 0) marked.set(layer, ranges);
   paintMarks();
 };
@@ -108,10 +128,12 @@ const sliced = (content: PageTextContent["content"]): ReadableStream => {
     {
       async pull(controller) {
         await new Promise((resolve) => setTimeout(resolve, 0));
+
         if (at >= content.items.length) {
           controller.close();
           return;
         }
+
         controller.enqueue({ ...content, items: content.items.slice(at, at + ITEMS_PER_SLICE) });
         at += ITEMS_PER_SLICE;
       },
@@ -136,29 +158,36 @@ export function drawTextLayer(
     });
 
     const div = document.createElement("div");
+
     div.className = "textLayer";
     // The page's own box before rotation. The rotation rule turns it to fit the drawn page.
     div.style.width = `calc(var(--total-scale-factor) * ${text.pageWidth}px)`;
     div.style.height = `calc(var(--total-scale-factor) * ${text.pageHeight}px)`;
+
     const layer = new TextLayer({
       textContentSource: sliced(text.content),
       container: div,
       // The typings ask for a PageViewport. The layer reads only the fields above.
       viewport: viewportOf(text, scale) as never,
     });
+
     yield* Effect.callback<void, PdfFailure>((resume) => {
       layer.render().then(
         () => resume(Effect.void),
         (cause: unknown) => resume(Effect.fail(pdfFailure(cause))),
       );
+
       return Effect.sync(() => layer.cancel());
     });
 
     // As in pdf.js's viewer: while dragging, this covers the spaces so the selection does not jump.
     const end = document.createElement("div");
+
     end.className = "endOfContent";
     div.append(end);
+
     const listening = new AbortController();
+
     div.addEventListener("pointerdown", () => div.classList.add("selecting"), {
       signal: listening.signal,
     });

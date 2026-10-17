@@ -12,6 +12,7 @@ export interface TrayFlags {
 
 export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement | null {
   if (flags === null) return null;
+
   const { index, start, end, columns } = flags;
   // The parts make one panel, so only outer sides have borders and outer corners round.
   const first = index % columns === 0 || index === start;
@@ -24,9 +25,9 @@ export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement |
     <span
       aria-hidden="true"
       data-tray
-      className={`pointer-events-none absolute -inset-x-1.5 -top-1.5 z-0 ${first ? "border-l-2" : ""} ${last ? "border-r-2" : ""} ${above ? "" : "border-t-2"} ${below ? "" : "border-b-2"} ${first && !above ? "rounded-tl-box" : ""} ${last && !above ? "rounded-tr-box" : ""} ${first && !below ? "rounded-bl-box" : ""} ${last && !below ? "rounded-br-box" : ""}`}
+      className={trayClasses(first, last, above, below)}
       style={{
-        bottom: below ? `calc(0.375rem - ${flags.rowGap})` : "-0.375rem",
+        bottom: trayBottom(below, flags.rowGap),
         borderColor: colour,
         // Mixed with the page, not alpha, so no darker line shows where two parts meet.
         backgroundColor: `color-mix(in oklab, ${colour} 40%, var(--color-base-100))`,
@@ -41,4 +42,24 @@ export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement |
       )}
     </span>
   );
+}
+
+function trayClasses(first: boolean, last: boolean, above: boolean, below: boolean): string {
+  return [
+    "pointer-events-none absolute -inset-x-1.5 -top-1.5 z-0",
+    first ? "border-l-2" : "",
+    last ? "border-r-2" : "",
+    above ? "" : "border-t-2",
+    below ? "" : "border-b-2",
+    first && !above ? "rounded-tl-box" : "",
+    last && !above ? "rounded-tr-box" : "",
+    first && !below ? "rounded-bl-box" : "",
+    last && !below ? "rounded-br-box" : "",
+  ]
+    .filter((name) => name !== "")
+    .join(" ");
+}
+
+function trayBottom(below: boolean, rowGap: string): string {
+  return below ? `calc(0.375rem - ${rowGap})` : "-0.375rem";
 }

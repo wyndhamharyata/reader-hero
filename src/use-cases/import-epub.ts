@@ -32,14 +32,18 @@ export function buildEpub(
             unzipSync(zip, {
               filter: (file) => {
                 if (!keep(file.name)) return false;
+
                 total += file.originalSize;
+
                 if (file.originalSize > MAX_ENTRY_BYTES || total > MAX_INFLATED_BYTES)
                   tooLarge = true;
+
                 return !tooLarge;
               },
             }),
           catch: () => new EpubFailure({ reason: "corrupt" }),
         });
+
         return Effect.flatMap(files, (unzipped) =>
           tooLarge ? Effect.fail(new EpubFailure({ reason: "corrupt" })) : Effect.succeed(unzipped),
         );
@@ -55,11 +59,14 @@ export function buildEpub(
     const decode = (blob: Blob): Effect.Effect<Option.Option<ImageBitmap>> =>
       Effect.tryPromise(() => createImageBitmap(blob)).pipe(Effect.option);
     const ratios = new Map<string, number>();
+
     yield* Stream.fromIterable(book.images.entries()).pipe(
       Stream.mapEffect(([index, image]) =>
         Effect.gen(function* () {
           const bytes = (yield* unzip((name) => name === image.path))[image.path];
+
           if (bytes === undefined) return;
+
           const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: image.type });
           // An SVG has no bitmap. The reader then sizes it from the file itself.
           const bitmap = yield* decode(blob);
@@ -67,6 +74,7 @@ export function buildEpub(
             onNone: () => ({ width: 0, height: 0 }),
             onSome: (value) => ({ width: value.width, height: value.height }),
           });
+
           Option.map(bitmap, (value) => value.close());
           if (size.height > 0) ratios.set(image.id, size.width / size.height);
           yield* store.putImage(bookId, { id: image.id, blob, ...size });
@@ -80,6 +88,7 @@ export function buildEpub(
     const cover = book.cover;
     const coverBytes =
       cover === null ? undefined : (yield* unzip((name) => name === cover.path))[cover.path];
+
     if (cover !== null && coverBytes !== undefined) {
       const shrunk = yield* shrinkPicture(
         new Blob([coverBytes as Uint8Array<ArrayBuffer>], { type: cover.type }),
@@ -89,6 +98,7 @@ export function buildEpub(
         Effect.map((meta) => meta.customCover === true),
         Effect.orElseSucceed(() => false),
       );
+
       if (shrunk !== null) {
         yield* store.putImage(bookId, { id: custom ? "cover-default" : "cover", ...shrunk });
       }
@@ -99,6 +109,7 @@ export function buildEpub(
       const ratio = block.imageId === undefined ? undefined : ratios.get(block.imageId);
       return ratio === undefined ? block : new Block({ ...block, ratio });
     });
+
     return { ...book, parsed: new ParsedBook({ ...book.parsed, blocks }) };
   });
 }
@@ -134,10 +145,14 @@ export function addEpub(
         charCount: book.parsed.charCount,
         figures: book.images.length > 0 ? "ready" : "none",
       });
+
       yield* store.putFile(id, file, meta);
       yield* store.putParsed(id, book.parsed);
+
       const ready = new BookMeta({ ...meta, parseState: "ready" });
+
       yield* store.putMeta(ready);
+
       return ready;
     }).pipe(
       // Images land before the book row, so a failure must clear them too.

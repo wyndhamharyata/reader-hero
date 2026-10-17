@@ -34,15 +34,18 @@ export function ReaderBody({
   const showOriginal = mode === "original" || scanned;
   // Taken at mount, as the live place would render every block again on each block reached.
   const [initialBlock, setInitialBlock] = useState(position);
+
   useEffect(() => {
     if (showOriginal) setInitialBlock(position);
   }, [showOriginal, position]);
+
   const currentPage = parsed.blocks[position]?.page ?? 1;
 
   // Stable, or every page change rebuilds the original view's observer over every page.
   const onOriginalPage = useCallback(
     (page: number) => {
       const index = parsed.blocks.findIndex((block) => block.page >= page);
+
       if (index >= 0) onPosition(index);
     },
     [parsed, onPosition],

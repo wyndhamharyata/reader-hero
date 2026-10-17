@@ -12,6 +12,7 @@ export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElemen
   const name = providerLabels[provider];
   // A custom URL has no name of its own, so the note points at the field that holds it.
   const target = provider === "compatible" ? "the provider at your base URL" : name;
+
   return (
     // The note takes the sheet's width and never sets it, so its text cannot widen a reader sheet.
     <div className="mt-3 flex min-h-0 flex-col gap-3 [contain:inline-size]">

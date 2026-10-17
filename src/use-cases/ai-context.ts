@@ -31,6 +31,7 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
   });
   const spans = kept.length === 0 ? [{ title: "", at: 0 }] : kept;
   const result: Array<Chapter> = [];
+
   spans.forEach((span) => {
     const end =
       (kept.length === 0 ? undefined : entries.find((entry) => entry.at > span.at)?.at) ??
@@ -38,9 +39,12 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
     const total = words(spanText(parsed, span.at, end));
     const name = (at: number): string => {
       const page = parsed.blocks[at]?.page ?? 1;
+
       if (span.title === "") return `Page ${page}`;
+
       return at === span.at ? span.title : `${span.title} · page ${page}`;
     };
+
     if (total <= 10_000) {
       result.push({
         heading: name(span.at),
@@ -50,11 +54,14 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
       });
       return;
     }
+
     let start = span.at;
     let count = 0;
+
     for (let at = span.at; at < end; at += 1) {
       count += words(parsed.blocks[at]?.text ?? "");
       if (count < 8_000 && at < end - 1) continue;
+
       result.push({
         heading: name(start),
         page: parsed.blocks[start]?.page ?? 1,
@@ -65,5 +72,6 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
       count = 0;
     }
   });
+
   return result;
 }

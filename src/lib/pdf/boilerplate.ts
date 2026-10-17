@@ -11,14 +11,18 @@ function bandOf(line: TextLine, height: number): "top" | "bottom" | null {
   if (height <= 0) return null;
   if (line.y > height * (1 - BAND)) return "top";
   if (line.y < height * BAND) return "bottom";
+
   return null;
 }
 
 export function isSmallBandImage(image: ImagePlacement, height: number): boolean {
   if (height <= 0) return false;
+
   const center = image.y + image.height / 2;
   const inBand = center > height * (1 - BAND) || center < height * BAND;
+
   if (!inBand) return false;
+
   return image.height < height * 0.15;
 }
 
@@ -28,8 +32,11 @@ export function dropBoilerplate(pages: ReadonlyArray<PageLines>): ReadonlyArray<
   for (const page of pages) {
     for (const line of page.lines) {
       const band = bandOf(line, page.height);
+
       if (band === null) continue;
+
       const key = `${band}|${normalize(line.text)}`;
+
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
   }
@@ -41,8 +48,10 @@ export function dropBoilerplate(pages: ReadonlyArray<PageLines>): ReadonlyArray<
     height: page.height,
     lines: page.lines.filter((line) => {
       const band = bandOf(line, page.height);
+
       if (band === null) return true;
       if (PAGE_NUMBER.test(line.text.trim())) return false;
+
       return (counts.get(`${band}|${normalize(line.text)}`) ?? 0) < threshold;
     }),
   }));

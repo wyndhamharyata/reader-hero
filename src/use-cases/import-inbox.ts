@@ -13,6 +13,7 @@ export function importInboxOnce(): Effect.Effect<
 > {
   return Effect.gen(function* () {
     if (started) return { imported: 0, failure: null };
+
     started = true;
 
     const store = yield* BookStore;
@@ -20,6 +21,7 @@ export function importInboxOnce(): Effect.Effect<
 
     let imported = 0;
     let failure: string | null = null;
+
     for (const entry of entries) {
       const file = new File([entry.blob], entry.name, { type: entry.blob.type });
       const outcome = yield* addBook(file, () => {}).pipe(
@@ -32,7 +34,9 @@ export function importInboxOnce(): Effect.Effect<
           }),
         ),
       );
+
       if (outcome === "added") imported += 1;
+
       if (outcome !== "kept") {
         yield* store.removeInbox(entry.id).pipe(Effect.catch(() => Effect.void));
       }

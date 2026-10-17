@@ -17,6 +17,7 @@ export interface Box {
 // The card keeps clear of the spotlight: under it when the target is high, over it when the target is low.
 export function dockAt(spot: Box | null, viewportHeight: number): "top" | "bottom" | "center" {
   if (spot === null) return "center";
+
   return spot.top + spot.height / 2 < viewportHeight / 2 ? "bottom" : "top";
 }
 

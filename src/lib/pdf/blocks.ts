@@ -15,15 +15,19 @@ const endsHyphen = (text: string): boolean => {
 
 function headingLevel(line: TextLine, bodySize: number): number {
   if (bodySize <= 0) return 0;
+
   const ratio = line.fontSize / bodySize;
+
   for (const entry of HEADING_LEVELS) {
     if (ratio >= entry.ratio) return entry.level;
   }
+
   return 0;
 }
 
 function joinText(text: string, next: string): string {
   if (endsHyphen(text) && /^[a-z]/.test(next)) return `${text.slice(0, -1)}${next}`;
+
   return `${text} ${next}`;
 }
 
@@ -37,6 +41,7 @@ function startsNewParagraph(
   if (previous.y - line.y > previous.fontSize * 1.7) return true;
   if (previous.width < bodyWidth * 0.62) return true;
   if (line.x > leftEdge + bodySize * 0.8 && endsSentence(previous.text)) return true;
+
   return false;
 }
 
@@ -78,6 +83,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
 
     const line = item.line;
     const level = headingLevel(line, bodySize);
+
     if (level > 0) {
       flush();
       blocks.push({ kind: "heading", level, text: line.text, page: line.page });
@@ -92,6 +98,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
     }
 
     const prior = previous;
+
     if (prior === null) {
       previous = line;
       continue;
@@ -108,9 +115,11 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
     } else {
       current.text = joinText(current.text, line.text);
     }
+
     previous = line;
   }
 
   flush();
+
   return blocks;
 }

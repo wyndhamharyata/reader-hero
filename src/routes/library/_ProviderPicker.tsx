@@ -55,6 +55,7 @@ export function ProviderPicker({ value, onChange }: Props): ReactElement {
     onChange(id);
     setOpen(false);
   };
+
   return (
     <div
       className="relative"

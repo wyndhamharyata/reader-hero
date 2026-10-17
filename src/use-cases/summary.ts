@@ -44,17 +44,25 @@ export function coverage(
   index: number,
 ): Coverage {
   if (kind === "reference") return { target: list.length, current: null };
+
   const target = list.filter((chapter) => chapter.end <= index).length;
   const chapter = list[target];
+
   if (chapter === undefined || chapter.start > index) return { target, current: null };
+
   // Called on every block reached, so it counts to 100 words only and joins the text when read.
   let words = 0;
+
   for (let at = chapter.start; at <= index && words < 100; at += 1) {
     const block = parsed.blocks[at];
+
     if (block === undefined || block.kind === "image") continue;
+
     words += block.text.split(" ").length;
   }
+
   if (words < 100) return { target, current: null };
+
   return {
     target,
     current: {
@@ -91,26 +99,55 @@ export function describeSummary(
   const unit = units(kind);
   // Counts, never chapter numbers: a book's own numbering can start at a prologue or skip.
   const amount = (n: number): string => `${n} ${n === 1 ? unit.one : unit.many}`;
-  if (run?.stage === "names") return { row: `Updating ${unit.names}`, action: null };
-  if (run?.stage === "current") return { row: "Current position", action: null };
-  if (run?.stage === "volume") return { row: "Series summary", action: null };
-  if (run?.chapter === 0) return { row: "Starting", action: null };
-  if (run !== null) return { row: `${amount(run.of - run.chapter + 1)} left`, action: null };
+  const running = runRow(run, amount, unit);
+
+  if (running !== null) return { row: running, action: null };
+
   const count = Math.min(summary?.chapters.length ?? 0, cover.target);
   const pending = Math.max(0, cover.target - count);
   const row =
     count === 0 ? "None" : `${amount(count)}${pending > 0 ? ` · ${pending} pending` : ""}`;
   const stale = !currentFresh(summary, cover);
-  let action: string | null = null;
-  if (pending > 0 && stale) action = `Summarise ${amount(pending)} and current position`;
-  else if (pending > 0) action = `Summarise ${amount(pending)}`;
-  else if (stale) {
-    action =
-      summary?.current === undefined ? "Summarise current position" : "Update current position";
-  } else if (summary !== null && (summary.namesThrough < count || summary.required.length > 0)) {
-    action = `Update ${unit.names}`;
+
+  return { row, action: summaryAction(summary, pending, stale, count, unit, amount) };
+}
+
+function runRow(
+  run: SummaryRun | null,
+  amount: (n: number) => string,
+  unit: ReturnType<typeof units>,
+): string | null {
+  if (run?.stage === "names") return `Updating ${unit.names}`;
+  if (run?.stage === "current") return "Current position";
+  if (run?.stage === "volume") return "Series summary";
+  if (run?.chapter === 0) return "Starting";
+  if (run !== null) return `${amount(run.of - run.chapter + 1)} left`;
+
+  return null;
+}
+
+function summaryAction(
+  summary: Summary | null,
+  pending: number,
+  stale: boolean,
+  count: number,
+  unit: ReturnType<typeof units>,
+  amount: (n: number) => string,
+): string | null {
+  if (pending > 0 && stale) return `Summarise ${amount(pending)} and current position`;
+  if (pending > 0) return `Summarise ${amount(pending)}`;
+
+  if (stale) {
+    return summary?.current === undefined
+      ? "Summarise current position"
+      : "Update current position";
   }
-  return { row, action };
+
+  if (summary !== null && (summary.namesThrough < count || summary.required.length > 0)) {
+    return `Update ${unit.names}`;
+  }
+
+  return null;
 }
 
 // One scope line and paragraph per book of the series. The action is null when every paragraph is current.
@@ -127,43 +164,29 @@ export function describeSeries(
   readonly action: string | null;
   readonly status: string | null;
 } {
+  const described = volumes.map((volume) => describeVolume(volume, summaries, run));
   let pending = 0;
   // Update only when every pending volume shows a paragraph already, as for the current position.
   let unmade = 0;
-  const rows = volumes.map(({ card, scope }) => {
-    if (scope === null) return { scope: null, text: null };
-    const { input, cover } = scope;
-    const unit = units(input.kind);
-    const summary = summaries.get(card.book.id) ?? null;
-    const stored = summary?.volume;
-    const missing = cover.target - Math.min(summary?.chapters.length ?? 0, cover.target);
-    const fresh = volumeFresh(stored, cover);
-    // A paragraph past the boundary, as after Finished is turned off, would tell what was not read.
-    const past =
-      stored !== undefined &&
-      (stored.chapters > cover.target ||
-        (stored.chapters === cover.target && (stored.current ?? 0) > (cover.current?.end ?? 0)));
-    if (!fresh) pending += 1;
-    if (!fresh && (stored === undefined || past)) unmade += 1;
-    const streaming =
-      run?.stage === "volume" && run.book === card.book.id && run.text !== "" ? run.text : null;
-    return {
-      scope:
-        missing > 0
-          ? `${missing} ${missing === 1 ? unit.one : unit.many} pending`
-          : fresh
-            ? null
-            : "1 pending",
-      text: streaming ?? (stored === undefined || past ? null : stored.text),
-    };
-  });
+
+  for (const volume of described) {
+    if (!volume.pending) continue;
+
+    pending += 1;
+    if (volume.unmade) unmade += 1;
+  }
+
+  const rows = described.map(({ scope, text }) => ({ scope, text }));
   const running = volumes.find((volume) => volume.card.book.id === run?.book);
   let status: string | null = run === null ? null : "Starting";
+
   if (run !== null && running !== undefined) {
     const kind = running.scope?.input.kind ?? "story";
     const { row } = describeSummary(null, { target: 0, current: null }, run, kind);
+
     status = `${running.card.book.title} · ${row}`;
   }
+
   return {
     rows,
     action:
@@ -174,6 +197,53 @@ export function describeSeries(
   };
 }
 
+function describeVolume(
+  volume: {
+    readonly card: LibraryCard;
+    readonly scope: { readonly input: SummaryInput; readonly cover: Coverage } | null;
+  },
+  summaries: ReadonlyMap<string, Summary | null>,
+  run: SummaryRun | null,
+): { scope: string | null; text: string | null; pending: boolean; unmade: boolean } {
+  if (volume.scope === null) return { scope: null, text: null, pending: false, unmade: false };
+
+  const { card } = volume;
+  const { input, cover } = volume.scope;
+  const unit = units(input.kind);
+  const summary = summaries.get(card.book.id) ?? null;
+  const stored = summary?.volume;
+  const missing = cover.target - Math.min(summary?.chapters.length ?? 0, cover.target);
+  const fresh = volumeFresh(stored, cover);
+  const past = pastBoundary(stored, cover);
+  const streaming =
+    run?.stage === "volume" && run.book === card.book.id && run.text !== "" ? run.text : null;
+
+  return {
+    scope: pendingLabel(missing, unit, fresh),
+    text: streaming ?? (stored === undefined || past ? null : stored.text),
+    pending: !fresh,
+    unmade: !fresh && (stored === undefined || past),
+  };
+}
+
+// A paragraph past the boundary, as after Finished is turned off, would tell what was not read.
+function pastBoundary(stored: Summary["volume"], cover: Coverage): boolean {
+  if (stored === undefined) return false;
+  if (stored.chapters > cover.target) return true;
+
+  return stored.chapters === cover.target && (stored.current ?? 0) > (cover.current?.end ?? 0);
+}
+
+function pendingLabel(
+  missing: number,
+  unit: ReturnType<typeof units>,
+  fresh: boolean,
+): string | null {
+  if (missing > 0) return `${missing} ${missing === 1 ? unit.one : unit.many} pending`;
+
+  return fresh ? null : "1 pending";
+}
+
 const bookLine = (meta: BookMeta): string =>
   `Book: ${meta.title}${meta.author === undefined ? "" : ` by ${meta.author}`}.`;
 
@@ -181,7 +251,9 @@ const bookLine = (meta: BookMeta): string =>
 const parseReply = (text: string): { line: string; paragraph: string } => {
   const trimmed = text.trim();
   const cut = trimmed.indexOf("\n\n");
+
   if (cut === -1) return { line: trimmed.split("\n")[0] ?? "", paragraph: trimmed };
+
   return {
     line: trimmed.slice(0, cut).split("\n").join(" ").trim(),
     paragraph: trimmed.slice(cut + 2).trim(),
@@ -195,13 +267,19 @@ const parseNames = (
 ): Array<{ name: string; note: string; chapter: number }> | null => {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
+
   if (start === -1 || end <= start) return null;
+
   try {
     const json = JSON.parse(text.slice(start, end + 1)) as { names?: unknown };
+
     if (!Array.isArray(json.names)) return null;
+
     return (json.names as Array<Record<string, unknown>>).flatMap((row) => {
       if (typeof row?.name !== "string" || row.name.trim() === "") return [];
+
       const chapter = Math.round(Number(row.first)) || max;
+
       return [
         {
           name: row.name.trim(),
@@ -270,6 +348,7 @@ export function mergeNames(
       "Return the merged list.",
     ].join("\n");
     let text = "";
+
     yield* client
       .complete(settings, namesSystem, [{ role: "user", content: user }], {
         json: true,
@@ -282,17 +361,22 @@ export function mergeNames(
           }),
         ),
       );
+
     if (text.trim() === "") {
       return yield* new AiFailure({ reason: "malformed", message: "Provider returned no text" });
     }
+
     const names = parseNames(text, Math.max(1, of));
+
     if (names === null) {
       return yield* new AiFailure({
         reason: "malformed",
         message: `The ${unit.names} list was not JSON`,
       });
     }
+
     const sent = record.required;
+
     // The reader's edits and removals win over the model's list, those made during the request too.
     return yield* store.update(input.meta.id, (current) => {
       const base = current ?? record;
@@ -313,14 +397,18 @@ export function mergeNames(
               .split(" ")
               .some((word) => word.length > 2 && !word.endsWith(".") && told.includes(word))),
       );
+
       for (const entry of base.names) {
         if (entry.edited !== true && (!story || entry.chapter <= of)) continue;
+
         const at = merged.findIndex(
           (candidate) => candidate.name.trim().toLowerCase() === entry.name.trim().toLowerCase(),
         );
+
         if (at === -1) merged.push(entry);
         else merged[at] = entry;
       }
+
       return new Summary({
         ...base,
         updatedAt: Date.now(),
@@ -371,15 +459,19 @@ export function summariseNext(
       Effect.gen(function* () {
         let text = "";
         const purpose = { stage, book: input.meta.id };
+
         yield* client
           .complete(settings, system, [{ role: "user", content: user }], { purpose })
           .pipe(
             Stream.runForEach((delta) => {
               if (delta.type !== "text") return Effect.void;
+
               text += delta.text;
+
               return report === null ? Effect.void : report(text);
             }),
           );
+
         // A blocked or cut-off reply must not be stored as a finished chapter.
         if (text.trim() === "") {
           return yield* new AiFailure({
@@ -387,6 +479,7 @@ export function summariseNext(
             message: "Provider returned no text",
           });
         }
+
         return text;
       });
 
@@ -396,7 +489,9 @@ export function summariseNext(
 
     for (let index = record.chapters.length; index < of; index += 1) {
       const chapter = list[index];
+
       if (chapter === undefined) break;
+
       const previous = record.chapters[index - 1]?.paragraph;
       // The text before the previous summary, which a rebuild writes again. A cache matches only up to a change.
       const user = [
@@ -409,7 +504,9 @@ export function summariseNext(
         ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         `Summarise this ${unit.one}.`,
       ].join("\n");
+
       yield* onProgress({ stage: "chapter", chapter: index + 1, of, text: "" });
+
       const text = yield* stream(
         system,
         user,
@@ -417,6 +514,7 @@ export function summariseNext(
         "chapter",
       );
       const { line, paragraph } = parseReply(text);
+
       record = yield* store.update(input.meta.id, (current) => {
         const base = current ?? record;
         return new Summary({
@@ -449,7 +547,9 @@ export function summariseNext(
         ...(previous === undefined ? [] : [`Previous ${unit.one}'s summary:`, previous, ""]),
         `Summarise this part of the ${unit.one}.`,
       ].join("\n");
+
       yield* onProgress({ stage: "current", chapter: number, of, text: "" });
+
       const text = yield* stream(
         "You summarise the part of a chapter a reader has read so far. Use only the text given and the previous summary. Do not name anyone who does not appear in them. Write in the language of the text. Reply with one paragraph of at most 120 words in the present tense. No headings, no labels, no markdown.",
         user,
@@ -461,6 +561,7 @@ export function summariseNext(
         end: cover.current.end,
         text: text.trim(),
       };
+
       record = yield* store.update(
         input.meta.id,
         (stored) => new Summary({ ...(stored ?? record), updatedAt: Date.now(), current }),
@@ -512,6 +613,7 @@ export function summaryFollowUp(
       ...names.map((entry) => `${entry.name}: ${entry.note}`),
     ].join("\n");
     let text = "";
+
     yield* client
       .complete(
         settings,
@@ -531,14 +633,17 @@ export function summaryFollowUp(
         Stream.runForEach((delta) =>
           Effect.sync(() => {
             if (delta.type !== "text") return;
+
             text += delta.text;
             onText(text);
           }),
         ),
       );
+
     if (text.trim() === "") {
       return yield* new AiFailure({ reason: "malformed", message: "Provider returned no text" });
     }
+
     // A summary discarded while the answer streamed stays discarded.
     return yield* store.update(summary.bookId, (current) =>
       current === null
@@ -563,6 +668,7 @@ export function volumeScope(
 ): Effect.Effect<VolumeScope, StorageFailure, BookStore> {
   return Effect.gen(function* () {
     if (card.status === "not-started") return null;
+
     const store = yield* BookStore;
     const id = card.book.id;
     const [parsed, progress, prefs] = yield* Effect.all(
@@ -578,7 +684,9 @@ export function volumeScope(
       ],
       { concurrency: "unbounded" },
     );
+
     if (parsed === null) return null;
+
     const kind = prefs?.kind ?? guessKind(card.book, parsed);
     // The boundary of the book's own Summary: its end when Finished, else its furthest position.
     const index =
@@ -586,7 +694,9 @@ export function volumeScope(
         ? parsed.blocks.length
         : Math.max(progress?.blockIndex ?? 0, progress?.furthest ?? 0);
     const cover = coverage(chapters(parsed), parsed, kind, index);
+
     if (cover.target === 0 && cover.current === null) return null;
+
     return { input: { meta: card.book, parsed, kind, index }, cover };
   });
 }
@@ -605,6 +715,7 @@ export function seriesScope(
   BookStore
 > {
   const at = series.books.findIndex((card) => card.book.id === bookId);
+
   return Effect.forEach(
     series.books,
     (card, place) =>
@@ -632,13 +743,16 @@ export function pendingVolumes(
     const store = yield* SummaryStore;
     const at = series.books.findIndex((card) => card.book.id === before);
     let pending = 0;
+
     for (const card of before === undefined
       ? series.books
       : series.books.slice(0, Math.max(0, at))) {
       const scope = yield* volumeScope(card);
+
       if (scope === null) continue;
       if (!volumeFresh((yield* store.get(card.book.id))?.volume, scope.cover)) pending += 1;
     }
+
     return pending;
   });
 }
@@ -658,14 +772,18 @@ export function earlierNames(
     if (series === null || input.kind !== "story" || !hasConsent(settings)) {
       return [];
     }
+
     const store = yield* SummaryStore;
     const at = series.books.findIndex((card) => card.book.id === input.meta.id);
     const seen = new Set<string>();
     const entries: Array<{ name: string; note: string }> = [];
+
     for (const card of series.books.slice(0, Math.max(0, at)).reverse()) {
       const summary = yield* store.get(card.book.id);
+
       for (const entry of summary?.names ?? []) {
         const key = entry.name.trim().toLowerCase();
+
         // Only what the reader's own list of that book shows: the merged chapters, or an edit.
         if (
           seen.has(key) ||
@@ -673,10 +791,12 @@ export function earlierNames(
         ) {
           continue;
         }
+
         seen.add(key);
         entries.push({ name: entry.name, note: entry.note });
       }
     }
+
     return entries.slice(0, 60);
   });
 }
@@ -695,12 +815,15 @@ export function summariseSeries(
     const store = yield* SummaryStore;
     // The paragraph of the volume before, so names and threads go on from book to book.
     let previous: Array<string> = [];
+
     for (const [place, { scope }] of (yield* seriesScope(series, bookId)).entries()) {
       if (scope === null) continue;
+
       const { input, cover } = scope;
       const book = input.meta.id;
       const stored = (yield* store.get(book))?.volume;
       let paragraph = stored?.text ?? "";
+
       if (!volumeFresh(stored, cover)) {
         const record = yield* summariseNext(
           input,
@@ -726,6 +849,7 @@ export function summariseSeries(
         ]
           .join("\n")
           .trim();
+
         yield* onProgress({
           stage: "volume",
           chapter: cover.target,
@@ -733,7 +857,9 @@ export function summariseSeries(
           text: "",
           book,
         });
+
         let text = "";
+
         yield* client
           .complete(
             settings,
@@ -744,7 +870,9 @@ export function summariseSeries(
           .pipe(
             Stream.runForEach((delta) => {
               if (delta.type !== "text") return Effect.void;
+
               text += delta.text;
+
               return onProgress({
                 stage: "volume",
                 chapter: cover.target,
@@ -754,13 +882,16 @@ export function summariseSeries(
               });
             }),
           );
+
         if (text.trim() === "") {
           return yield* new AiFailure({
             reason: "malformed",
             message: "Provider returned no text",
           });
         }
+
         paragraph = text.trim();
+
         // A summary discarded during the request stays discarded.
         const saved = yield* store.update(book, (latest) =>
           latest === null
@@ -776,8 +907,10 @@ export function summariseSeries(
                 },
               }),
         );
+
         if (saved === null) return;
       }
+
       previous = [`Book ${place + 1}, ${input.meta.title}: ${paragraph}`];
       if (book === through) return;
     }
@@ -819,6 +952,7 @@ export function rebuildPlan(): Effect.Effect<
         ? []
         : [{ series: null, card }];
     });
+
     return [
       ...series.flatMap((entry) => entry.books.map((card) => ({ series: entry, card }))),
       ...alone,
@@ -835,11 +969,15 @@ export function rebuildBook(
 ): Effect.Effect<void, AiFailure | StorageFailure, AiClient | BookStore | SummaryStore> {
   return Effect.gen(function* () {
     const scope = yield* volumeScope(card);
+
     if (scope === null) return;
+
     const id = card.book.id;
     const reset = yield* (yield* SummaryStore).update(id, (stored) => {
       if (stored === null) return null;
+
       const { current: _current, volume: _volume, ...kept } = stored;
+
       return new Summary({
         ...kept,
         model: settings.model,
@@ -850,8 +988,11 @@ export function rebuildBook(
         thread: [],
       });
     });
+
     if (reset === null && series === null) return;
+
     const earlier = yield* earlierNames(series, scope.input, settings);
+
     yield* summariseNext({ ...scope.input, earlier }, settings, onProgress);
     if (series !== null) yield* summariseSeries(series, id, settings, onProgress, id);
   });

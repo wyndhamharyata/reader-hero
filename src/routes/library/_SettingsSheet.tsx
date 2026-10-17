@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ChevronDownIcon } from "@/components/icons";
@@ -74,7 +75,9 @@ export function SettingsSheet({
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const { dismiss } = useBottomSheet(open, sheetRef, backdropRef, onClose);
+
   useTabSwipe(viewport, track, ["general", "provider"] as const, tab, setTab);
+
   const [provider, setProvider] = useState<AiProvider>("deepseek");
   const [baseUrl, setBaseUrl] = useState("");
   // The provider to go back to on Cancel.
@@ -98,6 +101,7 @@ export function SettingsSheet({
   // Reset on open, so a cancelled edit stores nothing. A toggle's save keeps the Provider fields.
   useEffect(() => {
     if (!open) return;
+
     setProvider(ai?.provider ?? "deepseek");
     setApiKey(ai?.apiKey ?? "");
     setModel(ai?.model ?? "");
@@ -111,6 +115,7 @@ export function SettingsSheet({
   }, [open, ai?.provider, ai?.apiKey, ai?.model, ai?.baseUrl]);
   useEffect(() => {
     if (!open) return;
+
     setLinesInContents(ai?.linesInContents ?? true);
     setAutoSummary(ai?.autoSummary ?? false);
     setSeriesGrouping(ai?.seriesGrouping ?? false);
@@ -144,22 +149,27 @@ export function SettingsSheet({
 
   const testKey = (): void => {
     setTest({ state: "testing" });
+
     const program = Effect.gen(function* () {
       const client = yield* AiClient;
       const settings = draft();
       const list = yield* client.models(settings);
       const balance = yield* client.balance(settings).pipe(Effect.orElseSucceed(() => null));
+
       return { list, balance };
     });
+
     void runApp(
       program.pipe(
         Effect.match({
           onSuccess: ({ list, balance }) => {
             setModels(list);
+
             // A filled field is kept as typed, so a model the provider's list omits stays through the test.
             if (list.length > 0 && model.trim() === "") {
               setModel(list[0]?.id ?? "");
             }
+
             setTest({ state: "valid", balance });
           },
           onFailure: (error) =>
@@ -178,7 +188,9 @@ export function SettingsSheet({
     consentedAt?: number,
   ): void => {
     if (ai === null) return;
+
     const next = { linesInContents, autoSummary, seriesGrouping, ...patch };
+
     setLinesInContents(next.linesInContents);
     setAutoSummary(next.autoSummary);
     setSeriesGrouping(next.seriesGrouping);
@@ -195,11 +207,13 @@ export function SettingsSheet({
     // Consent is per provider, so a new provider asks again on the first action.
     const same =
       provider === ai?.provider && (provider !== "compatible" || baseUrl.trim() === ai.baseUrl);
+
     // Series grouping sends with no tap, so the note for the current text shows before it goes on.
     if (seriesGrouping && !(same && hasConsent(ai))) {
       setConsentPending(true);
       return;
     }
+
     putAi(draft(same ? ai?.consentedAt : undefined, same ? ai?.consentVersion : undefined));
     dismiss();
   };
@@ -218,13 +232,7 @@ export function SettingsSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close settings"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close settings" onClose={() => dismiss()} />
       <aside
         ref={sheetRef}
         role="dialog"
@@ -313,6 +321,7 @@ export function SettingsSheet({
                           setConsentFor("rebuild");
                           return;
                         }
+
                         rebuild.startRebuild(ai);
                       }}
                     >
@@ -341,11 +350,13 @@ export function SettingsSheet({
                       onCancel={() => setConsentFor(null)}
                       onAllow={() => {
                         setConsentFor(null);
+
                         const next = new AiSettings({
                           ...ai,
                           consentedAt: Date.now(),
                           consentVersion: CONSENT_VERSION,
                         });
+
                         putAi(next);
                         rebuild.startRebuild(next);
                       }}
@@ -374,11 +385,13 @@ export function SettingsSheet({
                     disabled={ai === null}
                     onChange={(event) => {
                       const on = event.target.checked;
+
                       // Grouping sends with no tap, so the note for the current text shows before it goes on.
                       if (on && !hasConsent(ai)) {
                         setConsentFor("grouping");
                         return;
                       }
+
                       saveToggles({ seriesGrouping: on });
                     }}
                   />
@@ -452,6 +465,7 @@ export function SettingsSheet({
                     onChange={(next) => {
                       if (relayedProviders.has(next) && !relayedProviders.has(provider))
                         setRelayNotice(provider);
+
                       setProvider(next);
                       // Another provider's model id means nothing here, so Test fills the field afresh.
                       setModel(next === ai?.provider ? ai.model : "");
@@ -552,6 +566,7 @@ export function SettingsSheet({
                         }}
                         onKeyDown={(event) => {
                           if (event.key === "ArrowDown") setModelFilter("");
+
                           if (event.key === "Escape" && modelFilter !== null) {
                             event.stopPropagation();
                             setModelFilter(null);

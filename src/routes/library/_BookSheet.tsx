@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, useState, type ReactElement } from "react";
 import { PencilIcon } from "@/components/icons";
 import { formatPercent, formatSize } from "@/lib/format";
@@ -63,13 +64,7 @@ export function BookSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
       <aside
         ref={sheetRef}
         role="dialog"
@@ -122,8 +117,10 @@ export function BookSheet({
               className="hidden"
               onChange={(event) => {
                 const picture = event.target.files?.[0];
+
                 event.target.value = "";
                 if (picture === undefined) return;
+
                 setCustom(true);
                 onCover(card.book.id, picture);
               }}
@@ -193,11 +190,14 @@ export function BookSheet({
                 value={seriesId === null ? "none" : `id:${seriesId}`}
                 onChange={(event) => {
                   const value = event.target.value;
+
                   if (value === "new") {
                     dismiss(() => onEditSeries({ id: null, name: "", books: [card] }));
                     return;
                   }
+
                   const next = value === "none" ? null : value.slice(3);
+
                   setChoice({ seriesId: next, groups });
                   onSeries(card.book.id, next);
                 }}

@@ -18,14 +18,21 @@ export function findPages(
   query: string,
 ): number[] {
   const wanted = searchForm(query).trim();
+
   if (wanted === "") return [];
+
   const pages = new Set<number>();
+
   for (const [index, block] of blocks.entries()) {
     if (!searchForm(block.text).includes(wanted)) continue;
+
     pages.add(block.page);
+
     // A block holds only the page it starts on. One that runs on to the next page may match there.
     const next = blocks[index + 1]?.page ?? block.page;
+
     if (next > block.page) pages.add(block.page + 1);
   }
+
   return [...pages].sort((a, b) => a - b);
 }

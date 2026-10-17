@@ -122,6 +122,8 @@ export class Series extends Schema.Class<Series>("reader-hero/domain/Series")({
   cover: Schema.optional(Schema.String),
 }) {}
 
+export const FINISHED_PERCENT = 0.98;
+
 export class ReadingProgress extends Schema.Class<ReadingProgress>(
   "reader-hero/domain/ReadingProgress",
 )({
@@ -130,7 +132,7 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
   updatedAt: Schema.Int,
   // The furthest block the reader reached. The summary follows it, so re-reading moves nothing.
   furthest: Schema.optional(Schema.Int),
-  // Unset means the 98% rule decides.
+  // Unset means FINISHED_PERCENT decides.
   finished: Schema.optional(Schema.Boolean),
 }) {}
 

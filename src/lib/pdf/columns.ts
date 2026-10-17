@@ -19,6 +19,7 @@ function detectColumns(
   pageWidth: number,
 ): ColumnLayout {
   const middle = pageWidth / 2;
+
   if (lines.length < MIN_COLUMN_LINES * 2 || pageWidth <= 0) {
     return { twoColumn: false, middle };
   }
@@ -37,6 +38,7 @@ function detectColumns(
   if (crossing * 4 > left + right || left < MIN_COLUMN_LINES || right < MIN_COLUMN_LINES) {
     return { twoColumn: false, middle };
   }
+
   return { twoColumn: true, middle };
 }
 
@@ -67,16 +69,21 @@ export function orderFlow(
     left = [];
     right = [];
   };
+
   for (const entry of [...entries].sort((a, b) => byVerticalPosition(a.position, b.position))) {
     if (crossesCenter(entry.position, layout.middle)) {
       endBand();
       ordered.push(entry);
       continue;
     }
+
     const center = entry.position.x + entry.position.width / 2;
+
     if (center < layout.middle) left.push(entry);
     else right.push(entry);
   }
+
   endBand();
+
   return ordered.map((entry) => entry.item);
 }

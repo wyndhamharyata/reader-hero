@@ -24,8 +24,10 @@ let pdfLib: Promise<PdfLib> | null = null;
 const pdfFailure = (cause: unknown): PdfFailure => {
   const name = cause instanceof Error ? cause.name : "";
   const message = cause instanceof Error ? cause.message : String(cause);
+
   if (name === "PasswordException") return new PdfFailure({ reason: "password", message });
   if (name === "InvalidPDFException") return new PdfFailure({ reason: "corrupt", message });
+
   return new PdfFailure({ reason: "unknown", message });
 };
 
@@ -100,6 +102,7 @@ const encodeInWorker = (
       });
       encoder.onmessage = (event: MessageEvent) => {
         const reply = event.data as { id: number; blob: Blob | null };
+
         encodes.get(reply.id)?.(reply.blob);
         encodes.delete(reply.id);
       };
@@ -108,10 +111,13 @@ const encodeInWorker = (
         encodes.clear();
       };
     }
+
     const id = nextEncode;
+
     nextEncode += 1;
     encodes.set(id, (blob) => resume(Effect.succeed(blob)));
     encoder.postMessage({ id, ...request }, transfer);
+
     return Effect.sync(() => encodes.delete(id));
   });
 
@@ -122,10 +128,13 @@ const encodeImage = (
 ): Effect.Effect<Blob | null, PdfFailure> =>
   Effect.gen(function* () {
     const decoded = Schema.decodeUnknownOption(PdfImagePayload)(source);
+
     if (decoded._tag === "None") return null;
+
     const image = decoded.value;
     const width = image.width;
     const height = image.height;
+
     if (width <= 0 || height <= 0) return null;
 
     // pdf.js keeps the original for later paints, so a copy goes to the worker. A transfer would detach it.
@@ -136,11 +145,17 @@ const encodeImage = (
       });
       return yield* encodeInWorker({ width, height, maxDim, source: copy }, [copy]);
     }
+
     const data = image.data;
+
     if (!(data instanceof Uint8ClampedArray || data instanceof Uint8Array)) return null;
+
     const alpha = image.kind === lib.ImageKind.RGBA_32BPP;
+
     if (!alpha && image.kind !== lib.ImageKind.RGB_24BPP) return null;
+
     const bytes = Uint8ClampedArray.from(data);
+
     return yield* encodeInWorker({ width, height, maxDim, source: { bytes, alpha } }, [
       bytes.buffer,
     ]);
@@ -161,14 +176,19 @@ const cropImage = (
     const bottom = Math.min(viewport.height, Math.ceil(Math.max(Number(a[1]), Number(b[1]))));
     const width = right - left;
     const height = bottom - top;
+
     if (width < 4 || height < 4) return null;
 
     const out = document.createElement("canvas");
     const scale = Math.min(1, maxDim / Math.max(width, height));
+
     out.width = Math.max(1, Math.round(width * scale));
     out.height = Math.max(1, Math.round(height * scale));
+
     const context = out.getContext("2d");
+
     if (context === null) return null;
+
     context.drawImage(source, left, top, width, height, 0, 0, out.width, out.height);
 
     return yield* toJpegBlob(out);
@@ -184,6 +204,7 @@ const readBoxes = (
       try: () => pageProxy.getOperatorList(),
       catch: pdfFailure,
     });
+
     return collectImageBoxes(
       { fnArray: opList.fnArray, argsArray: opList.argsArray },
       page,
@@ -214,6 +235,7 @@ const awaitObject = (
   Effect.timeoutOption(
     Effect.callback<unknown>((resume) => {
       const finish = (data: unknown) => resume(Effect.succeed(data));
+
       primary.get(name, finish);
       secondary.get(name, finish);
     }),
@@ -226,8 +248,11 @@ const lookupImage = (pageProxy: PDFPageProxy, name: string): Effect.Effect<unkno
     const secondary = name.startsWith("g_") ? pageProxy.objs : pageProxy.commonObjs;
 
     const first = yield* peekObject(primary, name);
+
     if (first !== undefined) return first;
+
     const second = yield* peekObject(secondary, name);
+
     if (second !== undefined) return second;
 
     return yield* awaitObject(primary, secondary, name);
@@ -240,6 +265,7 @@ const paintSource = (
   Effect.gen(function* () {
     if (paint.inline !== undefined) return paint.inline;
     if (paint.name === undefined) return undefined;
+
     return yield* lookupImage(pageProxy, paint.name);
   });
 
@@ -257,28 +283,35 @@ const rasterizeCrop = (
     );
     const viewport = pageProxy.getViewport({ scale: renderScale });
     const canvas = document.createElement("canvas");
+
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
+
     const context = canvas.getContext("2d");
+
     if (context === null) return [];
 
     yield* Effect.tryPromise({
       try: () => pageProxy.render({ canvas, canvasContext: context, viewport }).promise,
       catch: pdfFailure,
     });
+
     const crops = yield* Effect.forEach(
       undecoded,
       (paint) =>
         Effect.map(cropImage(canvas, viewport, paint, maxDim), (blob) => ({ paint, blob })),
       { concurrency: CROP_CONCURRENCY },
     );
+
     canvas.width = 0;
     canvas.height = 0;
 
     const cropped: PageImage[] = [];
+
     for (const crop of crops) {
       if (crop.blob !== null) cropped.push({ ...crop.paint, blob: crop.blob });
     }
+
     return cropped;
   });
 
@@ -327,6 +360,7 @@ export class PdfClient extends Context.Service<
         const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }).pipe(
           Effect.onInterrupt(() => Effect.sync(() => void task.destroy().catch(() => undefined))),
         );
+
         return { proxy, task, numPages: proxy.numPages };
       }),
 
@@ -339,6 +373,7 @@ export class PdfClient extends Context.Service<
           try: () => pageProxy.getTextContent(),
           catch: pdfFailure,
         });
+
         return toPageText(page, content, pageProxy.getViewport({ scale: 1 }));
       }),
 
@@ -350,6 +385,7 @@ export class PdfClient extends Context.Service<
         });
 
         const paints = yield* readBoxes(lib, pageProxy, page);
+
         if (paints.length === 0) {
           yield* cleanupPage(pageProxy);
           return [];
@@ -363,7 +399,9 @@ export class PdfClient extends Context.Service<
             (paint) =>
               Effect.gen(function* () {
                 const source = yield* paintSource(pageProxy, paint);
+
                 if (source === undefined) return undefined;
+
                 return yield* encodeImage(lib, source, maxDim);
               }).pipe(Effect.map((blob) => ({ paint, blob }))),
             { concurrency: PAINT_CONCURRENCY },
@@ -373,20 +411,24 @@ export class PdfClient extends Context.Service<
 
         const images: PageImage[] = [];
         const undecoded: ImagePaint[] = [];
+
         for (const item of encoded) {
           if (item.blob === undefined || item.blob === null) {
             undecoded.push(item.paint);
             continue;
           }
+
           images.push({ ...item.paint, blob: item.blob });
         }
 
         if (undecoded.length > 0) {
           const cropped = yield* rasterizeCrop(pageProxy, undecoded, maxDim);
+
           images.push(...cropped);
         }
 
         yield* cleanupPage(pageProxy);
+
         return images;
       }),
 
@@ -403,25 +445,34 @@ export class PdfClient extends Context.Service<
           scale: width / pageProxy.getViewport({ scale: 1 }).width,
         });
         const canvas = document.createElement("canvas");
+
         canvas.width = Math.round(viewport.width);
         canvas.height = Math.round(viewport.height);
+
         const context = canvas.getContext("2d");
+
         if (context === null) {
           return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no 2d context" });
         }
+
         yield* Effect.tryPromise({
           try: (signal) => {
             const task = pageProxy.render({ canvas, canvasContext: context, viewport });
+
             signal.addEventListener("abort", () => task.cancel());
-            return task.promise;
+            
+return task.promise;
           },
           catch: pdfFailure,
         });
+
         const blob = yield* toJpegBlob(canvas);
         const size = { width: canvas.width, height: canvas.height };
+
         canvas.width = 0;
         canvas.height = 0;
         yield* cleanupPage(pageProxy);
+
         return blob === null ? null : { blob, ...size };
       }),
       pageSize: Effect.fn("PdfClient.pageSize")(function* (handle: PdfHandle, page: number) {
@@ -430,6 +481,7 @@ export class PdfClient extends Context.Service<
           catch: pdfFailure,
         });
         const viewport = pageProxy.getViewport({ scale: 1 });
+
         return { page, width: viewport.width, height: viewport.height };
       }),
 
@@ -438,11 +490,13 @@ export class PdfClient extends Context.Service<
           try: () => handle.proxy.getOutline(),
           catch: pdfFailure,
         });
+
         if (raw === null) return [];
 
         const resolvePage = (dest: unknown): Effect.Effect<number | null, PdfFailure> =>
           Effect.gen(function* () {
             if (dest === null || dest === undefined) return null;
+
             const resolved =
               typeof dest === "string"
                 ? yield* Effect.tryPromise({
@@ -450,11 +504,14 @@ export class PdfClient extends Context.Service<
                     catch: pdfFailure,
                   })
                 : dest;
+
             if (!Array.isArray(resolved) || resolved.length === 0) return null;
+
             const index = yield* Effect.tryPromise({
               try: () => handle.proxy.getPageIndex(resolved[0]),
               catch: pdfFailure,
             });
+
             return index + 1;
           });
 
@@ -464,12 +521,17 @@ export class PdfClient extends Context.Service<
         ): Effect.Effect<OutlineItem[], PdfFailure> =>
           Effect.gen(function* () {
             const result: OutlineItem[] = [];
+
             for (const node of nodes) {
               const page = yield* resolvePage(node.dest);
+
               if (page !== null) result.push({ title: node.title, page, depth });
+
               const children = node.items as OutlineNode[];
+
               if (children.length > 0) result.push(...(yield* walk(children, depth + 1)));
             }
+
             return result;
           });
 
@@ -485,6 +547,7 @@ export class PdfClient extends Context.Service<
           Effect.timeoutOption("2 seconds"),
           Effect.orElseSucceed(() => Option.some(undefined)),
         );
+
         if (Option.isNone(destroyed)) {
           sharedWorker?.destroy();
           sharedWorker = null;

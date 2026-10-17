@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { Bars2Icon, CheckIcon, PlusIcon, TrashIcon, XMarkIcon } from "@/components/icons";
 import type { Series } from "@/domain/book";
@@ -45,12 +46,14 @@ export function SeriesSheet({
   const [cover, setCover] = useState(stored?.cover);
   const [picture, setPicture] = useState<{ file: File; url: string } | null>(null);
   const pictureUrl = useRef<string | null>(null);
+
   useEffect(
     () => () => {
       if (pictureUrl.current !== null) URL.revokeObjectURL(pictureUrl.current);
     },
     [],
   );
+
   const [order, setOrder] = useState(() => series.books.map((card) => card.book.id));
   const [drag, setDrag] = useState<{
     id: string;
@@ -68,6 +71,7 @@ export function SeriesSheet({
   // A row moved by a key goes out of the DOM and comes back, so its handle takes the focus again.
   useLayoutEffect(() => {
     if (refocus.current === null) return;
+
     handles.current.get(refocus.current)?.focus();
     refocus.current = null;
   }, [order]);
@@ -80,30 +84,15 @@ export function SeriesSheet({
   const author = [...rows, ...series.books].find((card) => card.book.author !== undefined)?.book
     .author;
   // The picture the library shows: the reader's choice, else the book in progress, else the first.
-  const front =
-    cover === "image"
-      ? `series:${series.id}`
-      : (cover ?? (rows.find((card) => card.status === "reading") ?? rows[0])?.book.id);
-  const possible = (stored?.possible ?? []).flatMap(({ id, number }) => {
-    const card = cards.get(id);
-    if (card === undefined || ids.includes(id)) return [];
-    // The number only places the book: before the first book with a higher one, else at the end.
-    const before =
-      number === undefined
-        ? -1
-        : rows.findIndex(
-            (row) =>
-              (stored?.books.find((entry) => entry.id === row.book.id)?.number ??
-                row.book.seriesNumber ??
-                -Infinity) > number,
-          );
-    return [{ card, index: before === -1 ? rows.length : before }];
-  });
+  const front = frontCover(series.id, cover, rows);
+  const possible = possibleRows(stored, rows, ids, cards);
 
   const move = (from: number, to: number): void => {
     const next = [...ids];
     const [id] = next.splice(from, 1);
+
     if (id === undefined) return;
+
     next.splice(to, 0, id);
     setOrder(next);
     setAnnouncement(`${cards.get(id)?.book.title ?? ""}, ${to + 1} of ${next.length}`);
@@ -111,13 +100,7 @@ export function SeriesSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
       <aside
         ref={sheetRef}
         role="dialog"
@@ -216,6 +199,7 @@ export function SeriesSheet({
                 : value === "image"
                   ? "Own image"
                   : (cards.get(value)?.book.title ?? "");
+
             return (
               <label key={value ?? ""} className="w-12 shrink-0 cursor-pointer" title={label}>
                 <input
@@ -258,6 +242,7 @@ export function SeriesSheet({
               aria-label="Choose image"
               onChange={(event) => {
                 const file = event.target.files?.[0];
+
                 event.target.value = "";
                 if (file === undefined) return;
                 if (pictureUrl.current !== null) URL.revokeObjectURL(pictureUrl.current);
@@ -282,6 +267,7 @@ export function SeriesSheet({
                     : drag.to <= index && index < drag.from
                       ? drag.height
                       : 0;
+
               return (
                 <li
                   key={card.book.id}
@@ -302,7 +288,9 @@ export function SeriesSheet({
                       type="button"
                       ref={(element) => {
                         if (element === null) return;
+
                         handles.current.set(card.book.id, element);
+
                         return () => {
                           handles.current.delete(card.book.id);
                         };
@@ -314,6 +302,7 @@ export function SeriesSheet({
                       title="Move"
                       onPointerDown={(event) => {
                         if (!event.isPrimary || event.button !== 0) return;
+
                         event.currentTarget.setPointerCapture(event.pointerId);
                         setDrag({
                           id: card.book.id,
@@ -326,6 +315,7 @@ export function SeriesSheet({
                       }}
                       onPointerMove={(event) => {
                         if (drag?.id !== card.book.id) return;
+
                         const dy = Math.max(
                           -drag.from * drag.height,
                           Math.min(
@@ -333,6 +323,7 @@ export function SeriesSheet({
                             event.clientY - drag.startY,
                           ),
                         );
+
                         setDrag({ ...drag, dy, to: drag.from + Math.round(dy / drag.height) });
                       }}
                       onPointerUp={() => {
@@ -343,9 +334,13 @@ export function SeriesSheet({
                       onPointerCancel={() => setDrag(null)}
                       onKeyDown={(event) => {
                         if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+
                         event.preventDefault();
+
                         const to = index + (event.key === "ArrowUp" ? -1 : 1);
+
                         if (to < 0 || to >= rows.length) return;
+
                         refocus.current = card.book.id;
                         move(index, to);
                       }}
@@ -436,6 +431,7 @@ export function SeriesSheet({
               title="Remove series"
               onClick={() => {
                 const id = series.id;
+
                 if (id !== null) dismiss(() => onRemove(id, series.name));
               }}
             >
@@ -492,4 +488,40 @@ export function SeriesSheet({
       )}
     </div>
   );
+}
+
+function frontCover(
+  seriesId: string | null,
+  cover: string | undefined,
+  rows: ReadonlyArray<LibraryCard>,
+): string | undefined {
+  if (cover === "image") return `series:${seriesId}`;
+
+  return cover ?? (rows.find((card) => card.status === "reading") ?? rows[0])?.book.id;
+}
+
+function possibleRows(
+  stored: Series | undefined,
+  rows: ReadonlyArray<LibraryCard>,
+  ids: ReadonlyArray<string>,
+  cards: Shelf["cards"],
+): Array<{ card: LibraryCard; index: number }> {
+  return (stored?.possible ?? []).flatMap(({ id, number }) => {
+    const card = cards.get(id);
+
+    if (card === undefined || ids.includes(id)) return [];
+
+    // The number only places the book: before the first book with a higher one, else at the end.
+    const before =
+      number === undefined
+        ? -1
+        : rows.findIndex(
+            (row) =>
+              (stored?.books.find((entry) => entry.id === row.book.id)?.number ??
+                row.book.seriesNumber ??
+                -Infinity) > number,
+          );
+
+    return [{ card, index: before === -1 ? rows.length : before }];
+  });
 }

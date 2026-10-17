@@ -19,6 +19,7 @@ export function MarkedText({ text, marks = [] }: Props): ReactElement {
         const over = marks.filter((mark) => mark.start <= start && mark.end >= end);
         const bold = over.some((mark) => mark.style === "bold") ? "font-bold" : "";
         const italic = over.some((mark) => mark.style === "italic") ? "italic" : "";
+
         return (
           <span key={start} className={`${bold} ${italic}`}>
             {text.slice(start, end)}

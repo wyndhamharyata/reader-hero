@@ -13,6 +13,7 @@ export function TourArt({ name, className }: Props): ReactElement | null {
   if (name === "share") return <Share className={className} />;
   if (name === "book") return <Book className={className} />;
   if (name === "contents") return <Contents className={className} />;
+
   return <ReaderPhone className={className} />;
 }
 

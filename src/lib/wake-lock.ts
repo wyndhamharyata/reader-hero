@@ -7,6 +7,7 @@ export function holdWakeLock(): Effect.Effect<never> {
     let done = false;
     const take = (): void => {
       if (done || document.visibilityState !== "visible" || !("wakeLock" in navigator)) return;
+
       navigator.wakeLock.request("screen").then(
         (sentinel) => {
           // A lock granted after the reader closed goes back at once.
@@ -16,8 +17,10 @@ export function holdWakeLock(): Effect.Effect<never> {
         () => undefined,
       );
     };
+
     take();
     document.addEventListener("visibilitychange", take);
+
     return Effect.sync(() => {
       done = true;
       document.removeEventListener("visibilitychange", take);

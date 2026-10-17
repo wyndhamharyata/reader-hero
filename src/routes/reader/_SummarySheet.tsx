@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import {
@@ -94,7 +95,9 @@ export function SummarySheet({
   const body = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
+
   useTabSwipe(viewport, track, ["chapters", "names"] as const, tab, setTab);
+
   const opened = useRef<HTMLDivElement>(null);
   const latest = useRef<HTMLDivElement>(null);
   const job = useRef<Job | null>(null);
@@ -112,15 +115,19 @@ export function SummarySheet({
 
   useEffect(() => {
     if (openAt === null) return;
+
     setTab("chapters");
     setExpanded((keys) => new Set(keys).add(`${openAt}`));
   }, [openAt]);
   useEffect(() => {
     if (tab !== "chapters") return;
+
     const target = openAt !== null && opened.current !== null ? opened.current : latest.current;
     // Not scrollIntoView, which also scrolls the page under the sliding sheet. The screen jumped.
     const list = body.current;
+
     if (list === null || target === null) return;
+
     list.scrollTop = target.offsetTop - list.offsetTop - 8;
   }, [tab, openAt, run?.stage, run?.chapter]);
 
@@ -137,18 +144,21 @@ export function SummarySheet({
       setConsentPending("start");
       return;
     }
+
     onStart();
   };
 
   // A question sends summaries and names, so it needs consent as a run does.
   const ask = (allowed: AiSettings | null = settings): void => {
     const asked = question.trim();
+
     if (allowed === null || summary === null || asked === "" || run !== null) return;
     if (pending !== null) return;
     if (!hasConsent(allowed)) {
       setConsentPending("ask");
       return;
     }
+
     setQuestion("");
     setPending("");
     setAskError(null);
@@ -195,13 +205,7 @@ export function SummarySheet({
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={close}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={close} />
       <aside
         ref={sheetRef}
         role="dialog"
@@ -300,10 +304,13 @@ export function SummarySheet({
                         onClick={(event) => {
                           if (body.current !== null)
                             holdLowestRow(body.current, event.currentTarget);
+
                           setExpanded((keys) => {
                             const next = new Set(keys);
+
                             if (open) next.delete(entry.key);
                             else next.add(entry.key);
+
                             return next;
                           });
                         }}
@@ -407,9 +414,13 @@ export function SummarySheet({
             onCancel={() => setConsentPending(null)}
             onAllow={() => {
               const then = consentPending;
+
               setConsentPending(null);
+
               const allowed = onConsent();
+
               if (allowed === null) return;
+
               if (then === "ask") ask(allowed);
               else onStart(allowed);
             }}

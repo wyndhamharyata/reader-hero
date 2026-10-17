@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, useState, type ReactElement } from "react";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 
@@ -21,13 +22,7 @@ export function NameSheet({ entry, story, onSave, onRemove, onClose }: Props): R
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
       <form
         ref={sheetRef}
         role="dialog"
@@ -36,6 +31,7 @@ export function NameSheet({ entry, story, onSave, onRemove, onClose }: Props): R
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim() === "") return;
+
           onSave({ name: name.trim(), note: note.trim() });
           dismiss();
         }}

@@ -42,6 +42,7 @@ function readInfo(handle: PdfHandle): Effect.Effect<{
     );
     const text = (key: string): string | undefined =>
       Option.getOrUndefined(decodeText(info[key]))?.trim() || undefined;
+
     return {
       title: text("Title"),
       author: text("Author"),
@@ -74,6 +75,7 @@ export function addBook(
     });
 
     const handle = yield* pdf.load(data);
+
     return yield* Effect.gen(function* () {
       const info = yield* readInfo(handle);
       const id = newId();
@@ -93,6 +95,7 @@ export function addBook(
       });
 
       yield* store.putFile(id, file, meta);
+
       // From here the book is in the library. A failure or cancel must not leave it "Building reader".
       const parse = Effect.gen(function* () {
         const pages = yield* extractPages(handle).pipe(
@@ -102,7 +105,9 @@ export function addBook(
           Stream.runCollect,
         );
         const result = yield* assembleExtract(handle, pages);
+
         yield* store.putParsed(id, result.parsed);
+
         // The figure job reuses this text instead of reading every page again.
         if (!result.scanned) {
           yield* store.putPages(
@@ -117,7 +122,9 @@ export function addBook(
           charCount: result.parsed.charCount,
           figures: result.scanned ? "none" : "pending",
         });
+
         yield* store.putMeta(ready);
+
         return ready;
       }).pipe(
         Effect.onExit((exit) =>

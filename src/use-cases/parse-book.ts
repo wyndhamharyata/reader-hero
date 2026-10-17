@@ -27,8 +27,10 @@ function parseBook(
     });
 
     const stored = yield* store.get(id);
+
     if (stored.format === "epub") {
       const book = yield* buildEpub(id, data, onProgress);
+
       yield* store.putParsed(id, book.parsed);
       yield* store.putMeta(
         new BookMeta({
@@ -54,6 +56,7 @@ function parseBook(
             ),
             Stream.runCollect,
           );
+
           return { pages, result: yield* assembleExtract(handle, pages) };
         }),
       (handle) => pdf.release(handle),
@@ -74,6 +77,7 @@ function parseBook(
       charCount: result.parsed.charCount,
       figures: result.scanned ? "none" : "pending",
     });
+
     yield* store.putMeta(next);
 
     return result.parsed;
@@ -87,6 +91,7 @@ export function reparseBook(
 ): Effect.Effect<void, never, BookStore | PdfClient> {
   const report = (error: BookNotFound | PdfFailure | EpubFailure | StorageFailure) =>
     Effect.sync(() => onMessage(describeError(error, "This book")));
+
   return parseBook(id, onProgress).pipe(
     Effect.catchTags({
       BookNotFound: report,
@@ -103,6 +108,7 @@ export function watchParsedBook(
 ): Effect.Effect<void, never, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
+
     yield* store.updates().pipe(
       Stream.filter((update) => update.kind === "parsed" && update.bookId === bookId),
       Stream.runForEach(() => Effect.sync(onParsed)),

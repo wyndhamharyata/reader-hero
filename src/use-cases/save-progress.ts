@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { ReadingProgress } from "@/domain/book";
+import { ReadingProgress, FINISHED_PERCENT } from "@/domain/book";
 import type { StorageFailure } from "@/domain/errors";
 import { BookStore } from "@/services/book-store";
 
@@ -19,10 +19,13 @@ export function saveReadingProgress(
       updatedAt: Date.now(),
       furthest: Math.max(furthest, blockIndex),
       finished:
-        previous?.finished === false && previous.percent < 0.98 && percent >= 0.98
+        previous?.finished === false &&
+        previous.percent < FINISHED_PERCENT &&
+        percent >= FINISHED_PERCENT
           ? undefined
           : previous?.finished,
     });
+
     yield* store.putProgress(bookId, progress);
   }).pipe(Effect.catchTag("StorageFailure", () => Effect.void));
 }
@@ -35,6 +38,7 @@ export function setBookFinished(
 ): Effect.Effect<void, StorageFailure, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
+
     if (!finished) {
       yield* store.putProgress(
         bookId,
@@ -48,6 +52,7 @@ export function setBookFinished(
       );
       return;
     }
+
     const previous = yield* store.getProgress(bookId);
     // A book with no parsed text has no end yet, so it keeps its position.
     const last = yield* store.getParsed(bookId).pipe(
@@ -57,6 +62,7 @@ export function setBookFinished(
         ParsedMissing: () => Effect.succeed(-1),
       }),
     );
+
     yield* store.putProgress(
       bookId,
       new ReadingProgress({

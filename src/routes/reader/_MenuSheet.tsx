@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, useState, type ReactElement } from "react";
 import {
   AdjustmentsIcon,
@@ -73,13 +74,7 @@ export function MenuSheet({
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:flex-row">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
       <aside
         ref={sheetRef}
         data-theme={settings.theme}

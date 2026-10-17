@@ -62,10 +62,13 @@ export function importBooks(
       const stalled = Effect.gen(function* () {
         while (true) {
           yield* Effect.sleep("5 seconds");
+
           const now = Date.now();
+
           // Timers stop while the app is in the background. That time is not a stall.
           if (now - lastTick > 15_000) lastProgress = now;
           lastTick = now;
+
           if (now - lastProgress > 60_000) {
             return yield* new PdfFailure({
               reason: "stalled",
@@ -112,6 +115,7 @@ export function importBooks(
       ),
     );
     yield* store.requestPersistent();
+
     return ids.filter((id) => id !== null);
   });
 }

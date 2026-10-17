@@ -18,6 +18,7 @@ export function slideTo(
       flushSync(() => void navigate(to, { replace: replace || direction === "out" }));
       return;
     }
+
     // The step arrives in a later popstate. The router has its new route once the listeners before this one ran.
     return new Promise((resolve) => {
       window.addEventListener(
@@ -32,6 +33,7 @@ export function slideTo(
       void navigate(-1);
     });
   };
+
   if (
     window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
     !("startViewTransition" in document)
@@ -39,7 +41,9 @@ export function slideTo(
     void go();
     return;
   }
+
   const root = document.documentElement;
+
   root.dataset.slide = direction;
   void document.startViewTransition(go).finished.finally(() => delete root.dataset.slide);
 }

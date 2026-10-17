@@ -79,11 +79,14 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
             const prefs = yield* store
               .getPrefs(book.id)
               .pipe(Effect.catchTag("StorageFailure", () => Effect.succeed(null)));
+
             shelfRecords.set(book.id, { meta: book, progress, prefs });
+
             return [book.id, progress] as const;
           }),
         { concurrency: "unbounded" },
       );
+
       return { books, estimate, reading: new Map(reading), series };
     }),
     [],
@@ -111,13 +114,19 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const [mobileSearchAndFiltersVisible, setMobileSearchAndFiltersVisible] = useState(true);
   const searchPanel = useRef<HTMLDivElement>(null);
   const [searchPanelHeight, setSearchPanelHeight] = useState(0);
+
   useLayoutEffect(() => {
     const panel = searchPanel.current;
+
     if (panel === null) return;
+
     const observer = new ResizeObserver(() => setSearchPanelHeight(panel.offsetHeight));
+
     observer.observe(panel);
+
     return () => observer.disconnect();
   }, []);
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [licencesOpen, setLicencesOpen] = useState(false);
@@ -147,6 +156,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // A scroll down hides the phone search and chips to give the list room. The action row stays.
   useEffect(() => {
     const box = scrollRef.current;
+
     if (box === null) return;
 
     const mobile = window.matchMedia("(width < 48rem)");
@@ -177,8 +187,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       }
 
       const delta = current.top - previous.top;
+
       if (Math.abs(delta) >= 24) {
         const searchFocused = document.activeElement?.matches('input[type="search"]') ?? false;
+
         // Keep a focused search field available while its keyboard is open.
         if (delta < 0 || !searchFocused) setMobileSearchAndFiltersVisible(delta < 0);
         previous = current;
@@ -191,6 +203,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
     box.addEventListener("scroll", onScroll, { passive: true });
     mobile.addEventListener("change", onBreakpointChange);
+
     return () => {
       box.removeEventListener("scroll", onScroll);
       mobile.removeEventListener("change", onBreakpointChange);
@@ -201,19 +214,25 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   useEffect(() => {
     const root = rootRef.current;
     const viewport = window.visualViewport;
+
     if (root === null || viewport === null) return;
+
     const html = document.documentElement;
     let typing = false;
     const fit = (): void => {
       root.style.height = typing ? `${viewport.height}px` : "";
+
       // iOS scrolls the window. Its viewport offset lags behind and stays stale for a while after the close.
       const shift = typing ? Math.max(window.scrollY, viewport.offsetTop) : window.scrollY;
+
       root.style.top = shift > 0 ? `${shift}px` : "";
       // The page is no taller than what shows and does not scroll, so iOS has less to move.
       html.style.height = typing ? `${viewport.height}px` : "";
       html.style.overflow = typing ? "hidden" : "";
+
       // The root's clientHeight stays the full screen with the keyboard up. InnerHeight shrinks with it.
       const covered = html.clientHeight - viewport.height;
+
       if (typing && covered > 0) {
         try {
           localStorage.setItem("keyboard-height", String(covered));
@@ -224,6 +243,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     };
     const onFocus = (event: FocusEvent): void => {
       typing = event.type === "focusin" && (event.target as Element).matches("input, textarea");
+
       const known = (() => {
         try {
           return Number(localStorage.getItem("keyboard-height") ?? 0);
@@ -231,8 +251,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
           return 0;
         }
       })();
+
       // At once while it opens, so iOS sees the field's final place. The close slides with the keyboard.
       root.style.transition = typing ? "none" : "";
+
       // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not move the page.
       if (typing && known > 0 && html.clientHeight - viewport.height < 1) {
         root.style.height = `${html.clientHeight - known}px`;
@@ -242,11 +264,13 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         fit();
       }
     };
+
     root.addEventListener("focusin", onFocus);
     root.addEventListener("focusout", onFocus);
     viewport.addEventListener("resize", fit);
     viewport.addEventListener("scroll", fit);
     window.addEventListener("scroll", fit);
+
     return () => {
       root.removeEventListener("focusin", onFocus);
       root.removeEventListener("focusout", onFocus);
@@ -266,21 +290,26 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     state.status !== "loading" &&
     (settings.tour ?? 0) < TOUR_VERSION &&
     steps.length > 0;
+
   useFigureJobs(hidden ? [] : books);
 
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
   const wasHidden = useRef(hidden);
+
   useEffect(() => {
     if (wasHidden.current && !hidden) reload();
     wasHidden.current = hidden;
   }, [hidden, reload]);
+
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
   const bookIds = books.map((book) => book.id).join(" ");
 
   useEffect(() => {
     if (hidden || bookIds === "") return;
+
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
-    return () => stopFiber(fiber);
+    
+return () => stopFiber(fiber);
   }, [hidden, bookIds]);
 
   // A finished parse starts a run, but none starts during an import, so its books group together.
@@ -288,9 +317,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     .filter((book) => book.parseState !== "parsing" && book.parseState !== "pending")
     .map((book) => book.id)
     .join(" ");
+
   useEffect(() => {
     if (hidden || busy || groupable === "" || !navigator.onLine) return;
     if (groupingFailed?.ai === ai && groupingFailed.books === groupable) return;
+
     const fiber = forkApp(
       groupSeries(ai, (left) => setGrouping({ left })).pipe(
         Effect.match({
@@ -308,6 +339,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         Effect.onInterrupt(() => Effect.sync(() => setGrouping(null))),
       ),
     );
+
     return () => stopFiber(fiber);
   }, [hidden, busy, groupable, ai, groupingFailed, groupingRound]);
 
@@ -319,11 +351,14 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // The page renderer loads its scripts after launch settles, so the original view has no wait.
   const hasPdf = books.some((book) => book.format !== "epub");
   const figuresBusy = books.some((book) => book.figuresPending);
+
   useEffect(() => {
     if (hidden || !hasPdf || figuresBusy) return;
+
     const timer = window.setTimeout(() => {
       void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
     }, 2000);
+
     return () => window.clearTimeout(timer);
   }, [hidden, hasPdf, figuresBusy]);
 
@@ -336,6 +371,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         }),
       ),
     );
+
     void runApp(program);
   }, [reload]);
 
@@ -343,6 +379,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     const fiber = forkApp(
       Effect.gen(function* () {
         const store = yield* BookStore;
+
         yield* store.updates().pipe(
           // A save as the book closes can land after the reread above. While hidden, it waits for it.
           Stream.filter(
@@ -355,6 +392,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         );
       }),
     );
+
     return () => stopFiber(fiber);
   }, [hidden, reload]);
 
@@ -363,9 +401,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     then?: (ids: ReadonlyArray<string>) => void,
   ): void => {
     if (files.length === 0) return;
+
     setBusy(true);
     setImporting(true);
     setMessage(null);
+
     // Runs on cancel too, so a cancelled file is removed without a meta update.
     const settle = Effect.sync(() => {
       setBusy(false);
@@ -374,6 +414,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       importJob.current = null;
       reload();
     });
+
     importJob.current = forkApp(
       importBooks(files, setProgress, setMessage).pipe(
         Effect.tap((ids) => Effect.sync(() => then?.(ids))),
@@ -393,12 +434,14 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         Effect.sync(() => setMessage(describeError(error, "This book"))),
       ),
     );
+
     void runApp(program);
   };
 
   const reparse = (id: string): void => {
     setBusy(true);
     setMessage(null);
+
     const settle = Effect.sync(() => {
       setBusy(false);
       setProgress(null);
@@ -407,6 +450,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       Effect.ensuring(settle),
       Effect.tap(() => Effect.sync(() => reload())),
     );
+
     void runApp(program);
   };
 
@@ -421,9 +465,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       Shelf["items"][number] | { readonly kind: "member"; readonly card: LibraryCard }
     > = [];
     const trays: Array<{ start: number; end: number; hue: number }> = [];
+
     for (const item of shelf.items) {
       items.push(item);
       if (item.kind !== "series" || !openSeries.has(item.id)) continue;
+
       trays.push({
         start: items.length - 1,
         end: items.length - 1 + item.books.length,
@@ -431,6 +477,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       });
       for (const card of item.books) items.push({ kind: "member", card });
     }
+
     return { items, trays };
   }, [shelf, openSeries]);
   const cards = useMemo(
@@ -443,17 +490,21 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     sm: window.matchMedia("(width >= 40rem)").matches,
     md: window.matchMedia("(width >= 48rem)").matches,
   }));
+
   useEffect(() => {
     const sm = window.matchMedia("(width >= 40rem)");
     const md = window.matchMedia("(width >= 48rem)");
     const follow = (): void => setWide({ sm: sm.matches, md: md.matches });
+
     sm.addEventListener("change", follow);
     md.addEventListener("change", follow);
+
     return () => {
       sm.removeEventListener("change", follow);
       md.removeEventListener("change", follow);
     };
   }, []);
+
   const columns = grid ? (wide.md ? 5 : wide.sm ? 3 : 2) : wide.md ? 2 : 1;
   const rows = useMemo(
     () =>
@@ -467,16 +518,21 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   useLayoutEffect(() => {
     const list = listRef.current;
     const opened = justOpened.current;
+
     justOpened.current = null;
     if (opened === null || list === null) return;
+
     const root = [...list.querySelectorAll<HTMLElement>("[data-series-root]")].find(
       (element) => element.dataset.seriesRoot === opened,
     );
     const members = [...list.querySelectorAll<HTMLElement>("[data-series-member]")].filter(
       (element) => element.dataset.seriesMember === opened,
     );
+
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
     const tray = root?.querySelector<HTMLElement>("[data-tray]");
+
     for (const element of tray === null || tray === undefined ? members : [tray, ...members]) {
       element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "ease-out" });
     }
@@ -484,13 +540,18 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   // The header and notices scroll above the rows, so the rows start this far into the scroll box.
   const [listTop, setListTop] = useState(0);
+
   useLayoutEffect(() => {
     const list = listRef.current;
     const box = scrollRef.current;
+
     if (list === null || box === null) return;
+
     const top = list.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+
     if (top !== listTop) setListTop(top);
   });
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
@@ -499,6 +560,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     overscan: 3,
     scrollMargin: listTop,
   });
+
   // A row of another view or width has another height, so the measured heights do not match.
   useLayoutEffect(() => {
     virtualizer.measure();
@@ -516,6 +578,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // A file the app was opened with imports like a choice from the picker, then opens. One it holds opens at once.
   const [launched, setLaunched] = useState<string | null>(null);
   const launch = useRef({ importFiles, hidden });
+
   useEffect(() => {
     launch.current = { importFiles, hidden };
   });
@@ -530,20 +593,27 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // Opened once the shelf shows, so the step back to it cannot land after the book and undo it.
   useEffect(() => {
     if (launched === null || hidden) return;
+
     setLaunched(null);
     slideTo(navigate, `/book/${launched}`, "in");
   }, [launched, hidden, navigate]);
+
   const opened = useRef<string | null>(null);
+
   useEffect(() => {
     if (hidden) opened.current = pathname;
   }, [hidden, pathname]);
   useLayoutEffect(() => {
     const box = scrollRef.current;
     const index = cards.findIndex((card) => `/book/${card.book.id}` === opened.current);
+
     if (hidden || box === null || index === -1) return;
+
     const card = box.querySelector(`a[href="${opened.current}"]`)?.getBoundingClientRect();
     const view = box.getBoundingClientRect();
+
     if (card !== undefined && card.bottom > view.top && card.top < view.bottom) return;
+
     // The first row goes up with the header above it.
     if (index < columns) box.scrollTo({ top: 0 });
     else virtualizer.scrollToIndex(Math.floor(index / columns), { align: "start" });
@@ -551,10 +621,13 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // Until the reader moves the shelf themselves.
   useEffect(() => {
     if (hidden) return;
+
     const release = (): void => {
       opened.current = null;
     };
+
     for (const type of ["pointerdown", "wheel", "keydown"]) window.addEventListener(type, release);
+
     return () => {
       for (const type of ["pointerdown", "wheel", "keydown"])
         window.removeEventListener(type, release);
@@ -679,17 +752,20 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
                           rowGap: grid ? "1.25rem" : "0.75rem",
                           hue: range.hue,
                         };
+
                   if (item.kind === "series") {
                     const props = {
                       series: item,
                       expanded: openSeries.has(item.id),
                       onToggle: () => {
                         const next = new Set(openSeries);
+
                         if (next.delete(item.id)) justOpened.current = null;
                         else {
                           next.add(item.id);
                           justOpened.current = item.id;
                         }
+
                         setOpenSeries(next);
                       },
                       onActions: () => setSeriesEdit(item),
@@ -701,7 +777,9 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
                       <SeriesCard key={`series:${item.id}`} {...props} />
                     );
                   }
+
                   const seriesMember = item.kind === "member";
+
                   return grid ? (
                     <BookTile
                       key={`book:${item.card.book.id}`}

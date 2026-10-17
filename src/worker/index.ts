@@ -15,7 +15,9 @@ app.on(["GET", "POST"], "/relay", (c) => relay(c.req.raw));
 
 app.all("*", (c) => {
   const method = c.req.method;
+
   if (method !== "GET" && method !== "HEAD") return c.text("Not found", 404);
+
   return c.env.ASSETS.fetch(c.req.raw);
 });
 

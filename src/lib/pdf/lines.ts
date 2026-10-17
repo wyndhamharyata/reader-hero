@@ -21,14 +21,17 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
   for (const item of sorted) {
     if (previousEnd !== null) {
       const gap = item.x - previousEnd;
+
       if (gap > item.fontSize * SPACE_FACTOR && !text.endsWith(" ")) text += " ";
     }
+
     text += item.str;
     previousEnd = item.x + item.width;
     maxSize = Math.max(maxSize, item.fontSize);
     if (fontFamily === "" && item.fontFamily !== "") fontFamily = item.fontFamily;
     // A space item can run to the next column. The line ends where its text does.
     if (item.str.trim() === "") continue;
+
     minX = Math.min(minX, item.x);
     maxX = Math.max(maxX, item.x + item.width);
   }
@@ -46,15 +49,20 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
 
 function gutterAt(row: ReadonlyArray<RawTextItem>, middle: number): number {
   let end = Number.NEGATIVE_INFINITY;
+
   for (const [index, item] of row.entries()) {
     // pdf.js inserts a space item across a wide space, which would hide the gutter.
     if (item.str.trim() === "") continue;
+
     const gap = item.x - end;
+
     if (index > 0 && gap >= item.fontSize * GUTTER_FACTOR) {
       if (end <= middle + GUTTER_MARGIN_PT && item.x >= middle - GUTTER_MARGIN_PT) return index;
     }
+
     end = Math.max(end, item.x + item.width);
   }
+
   return -1;
 }
 
@@ -62,13 +70,16 @@ export function buildLines(page: PageText): ReadonlyArray<TextLine> {
   const items = [...page.items].sort((a, b) => b.y - a.y || a.x - b.x);
   const rows: RawTextItem[][] = [];
   let bucketY = Number.NaN;
+
   for (const item of items) {
     const tolerance = Math.max(2, item.fontSize * LINE_TOLERANCE);
     const row = rows.at(-1);
+
     if (row !== undefined && Math.abs(item.y - bucketY) <= tolerance) {
       row.push(item);
       continue;
     }
+
     rows.push([item]);
     bucketY = item.y;
   }
@@ -83,16 +94,21 @@ export function buildLines(page: PageText): ReadonlyArray<TextLine> {
   const lines: TextLine[] = [];
   const push = (row: ReadonlyArray<RawTextItem>) => {
     const line = makeLine(page.page, row);
+
     if (line.text.length > 0) lines.push(line);
   };
+
   sorted.forEach((row, index) => {
     const at = splits[index] ?? -1;
+
     if (!twoColumn || at === -1) {
       push(row);
       return;
     }
+
     push(row.slice(0, at));
     push(row.slice(at));
   });
+
   return lines;
 }

@@ -25,11 +25,14 @@ export class FigureJobs extends Context.Service<
       const hold = (owner: object, bookId: string, startPage: number): Effect.Effect<void> =>
         Effect.gen(function* () {
           const holding = owners.get(bookId) ?? new Set();
+
           holding.add(owner);
           owners.set(bookId, holding);
           if (fibers.has(bookId)) return;
+
           // Read in `ensuring`, which can run before forkDetach returns if the job ends at once.
           const job: { fiber?: Fiber.Fiber<void> } = {};
+
           job.fiber = yield* Effect.forkDetach(
             renderFigures(bookId, startPage).pipe(
               Effect.provideContext(services),
@@ -47,16 +50,21 @@ export class FigureJobs extends Context.Service<
       const release = (owner: object, bookId: string): Effect.Effect<void> =>
         Effect.suspend(() => {
           const holding = owners.get(bookId);
+
           holding?.delete(owner);
           if (holding !== undefined && holding.size > 0) return Effect.void;
+
           owners.delete(bookId);
+
           return stopFiber(bookId);
         });
 
       const stopFiber = (bookId: string): Effect.Effect<void> => {
         const fiber = fibers.get(bookId);
+
         fibers.delete(bookId);
-        return fiber === undefined ? Effect.void : Fiber.interrupt(fiber);
+        
+return fiber === undefined ? Effect.void : Fiber.interrupt(fiber);
       };
 
       const stop = (bookId: string): Effect.Effect<void> =>

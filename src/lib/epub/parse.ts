@@ -63,10 +63,12 @@ function resolve(dir: string, href: string): string {
   // A malformed escape stays as written.
   const decoded = Option.getOrElse(Option.liftThrowable(decodeURIComponent)(raw), () => raw);
   const parts = dir.split("/").filter((part) => part !== "");
+
   for (const part of decoded.split("/")) {
     if (part === "..") parts.pop();
     else if (part !== "." && part !== "") parts.push(part);
   }
+
   return parts.join("/");
 }
 
@@ -74,20 +76,26 @@ function resolve(dir: string, href: string): string {
 function readStyle(declarations: string): Style {
   let bold: boolean | undefined;
   let italic: boolean | undefined;
+
   for (const declaration of declarations.split(";")) {
     const colon = declaration.indexOf(":");
+
     if (colon < 0) continue;
+
     const property = declaration.slice(0, colon).trim().toLowerCase();
     const value = declaration
       .slice(colon + 1)
       .replace("!important", "")
       .trim()
       .toLowerCase();
+
     if (property === "font-style") italic = value === "italic" || value === "oblique";
+
     if (property === "font-weight") {
       bold = value === "bold" || value === "bolder" || Number(value) >= 600;
     }
   }
+
   return { bold, italic };
 }
 
@@ -103,9 +111,13 @@ export function parseEpub(
     };
     const parse = (path: string, type: DOMParserSupportedType): Document | null => {
       const source = read(path);
+
       if (source === null) return null;
+
       const parsed = new DOMParser().parseFromString(source, type);
+
       if (parsed.getElementsByTagName("parsererror").length === 0) return parsed;
+
       // Many books ship loose XHTML. The HTML parser accepts it.
       return type === "application/xml"
         ? null
@@ -114,7 +126,9 @@ export function parseEpub(
     const corrupt = new EpubFailure({ reason: "corrupt" });
 
     if (read("META-INF/sinf.xml") !== null) return yield* new EpubFailure({ reason: "drm" });
+
     const encryption = parse("META-INF/encryption.xml", "application/xml");
+
     for (const method of encryption?.getElementsByTagNameNS("*", "EncryptionMethod") ?? []) {
       if (!fontObfuscation.has(method.getAttribute("Algorithm") ?? "")) {
         return yield* new EpubFailure({ reason: "drm" });
@@ -125,12 +139,17 @@ export function parseEpub(
     const opfPath = container
       ?.getElementsByTagNameNS("*", "rootfile")[0]
       ?.getAttribute("full-path");
+
     if (opfPath === null || opfPath === undefined) return yield* corrupt;
+
     const opf = parse(opfPath, "application/xml");
+
     if (opf === null) return yield* corrupt;
+
     const opfDir = opfPath.slice(0, opfPath.lastIndexOf("/") + 1);
 
     const metadataTags = [...opf.getElementsByTagNameNS("*", "meta")];
+
     for (const meta of metadataTags) {
       if (
         meta.getAttribute("property") === "rendition:layout" &&
@@ -142,9 +161,11 @@ export function parseEpub(
 
     const items = new Map<string, { path: string; type: string; properties: string }>();
     const types = new Map<string, string>();
+
     for (const item of opf.getElementsByTagNameNS("*", "item")) {
       const path = resolve(opfDir, item.getAttribute("href") ?? "");
       const type = item.getAttribute("media-type") ?? "";
+
       types.set(path, type);
       items.set(item.getAttribute("id") ?? "", {
         path,
@@ -152,37 +173,54 @@ export function parseEpub(
         properties: item.getAttribute("properties") ?? "",
       });
     }
+
     const spine: string[] = [];
+
     for (const reference of opf.getElementsByTagNameNS("*", "itemref")) {
       const item = items.get(reference.getAttribute("idref") ?? "");
+
       if (item !== undefined) spine.push(item.path);
     }
+
     if (spine.length === 0) return yield* corrupt;
 
     const classStyles = new Map<string, Style>();
+
     for (const item of items.values()) {
       if (item.type !== "text/css") continue;
+
       let css = read(item.path) ?? "";
+
       for (let open = css.indexOf("/*"); open >= 0; open = css.indexOf("/*")) {
         const close = css.indexOf("*/", open + 2);
+
         css = css.slice(0, open) + (close < 0 ? "" : css.slice(close + 2));
       }
+
       for (const rule of css.split("}")) {
         const open = rule.lastIndexOf("{");
+
         if (open < 0) continue;
+
         const style = readStyle(rule.slice(open + 1));
+
         if (style.bold === undefined && style.italic === undefined) continue;
+
         // The text after the last "{" drops an enclosing "@media … {".
         const head = rule.slice(0, open);
+
         for (const selector of head.slice(head.lastIndexOf("{") + 1).split(",")) {
           const last = selector.trim().split(" ").at(-1) ?? "";
           const dot = last.lastIndexOf(".");
+
           if (dot < 0) continue;
+
           const name =
             last
               .slice(dot + 1)
               .split(":")[0]
               ?.split("[")[0] ?? "";
+
           if (name !== "") classStyles.set(name, { ...classStyles.get(name), ...style });
         }
       }
@@ -199,6 +237,7 @@ export function parseEpub(
     const flush = (): void => {
       const lead = text.length - text.trimStart().length;
       const body = text.trim();
+
       if (body !== "") {
         const kept = marks
           .map((mark) => ({
@@ -207,6 +246,7 @@ export function parseEpub(
             end: Math.min(body.length, mark.end - lead),
           }))
           .filter((mark) => mark.end > mark.start);
+
         blocks.push(
           new Block({
             kind: level > 0 ? "heading" : "paragraph",
@@ -217,6 +257,7 @@ export function parseEpub(
           }),
         );
       }
+
       text = "";
       marks = [];
     };
@@ -225,6 +266,7 @@ export function parseEpub(
       for (const child of node.childNodes) {
         if (child.nodeType === Node.TEXT_NODE || child.nodeType === Node.CDATA_SECTION_NODE) {
           const from = text.length;
+
           // Collapse the source's whitespace the way a browser would. No-break spaces stay.
           for (const char of child.nodeValue ?? "") {
             if (" \n\t\r\f".includes(char)) {
@@ -233,17 +275,22 @@ export function parseEpub(
               text += char;
             }
           }
+
           if (text.length > from && style.bold === true) {
             marks.push({ start: from, end: text.length, style: "bold" });
           }
+
           if (text.length > from && style.italic === true) {
             marks.push({ start: from, end: text.length, style: "italic" });
           }
+
           continue;
         }
         if (child.nodeType !== Node.ELEMENT_NODE) continue;
+
         const element = child as Element;
         const name = element.localName.toLowerCase();
+
         if (skipNames.has(name)) continue;
         if (name === "br") {
           if (text !== "" && !text.endsWith(" ")) text += " ";
@@ -253,9 +300,12 @@ export function parseEpub(
         const heading =
           name.length === 2 && name.startsWith("h") && "123456".includes(name[1] ?? "");
         const image = name === "img" || name === "image";
+
         if (heading || image || blockNames.has(name)) flush();
+
         // A block element flushed first, so the next block pushed is the one this id names.
         const id = element.getAttribute("id");
+
         if (id !== null) anchors.set(`${path}#${id}`, blocks.length);
 
         if (image) {
@@ -263,9 +313,12 @@ export function parseEpub(
             element.getAttribute("src") ??
             element.getAttribute("href") ??
             element.getAttribute("xlink:href");
+
           if (source === null) continue;
+
           const target = resolve(path.slice(0, path.lastIndexOf("/") + 1), source);
           const imageId = imageIds.get(target) ?? `epub-${imageIds.size + 1}`;
+
           imageIds.set(target, imageId);
           blocks.push(new Block({ kind: "image", level: 0, text: "", page, imageId }));
           continue;
@@ -273,11 +326,14 @@ export function parseEpub(
 
         let bold = style.bold === true || name === "b" || name === "strong";
         let italic = style.italic === true || italicNames.has(name);
+
         for (const className of (element.getAttribute("class") ?? "").split(" ")) {
           const own = classStyles.get(className);
+
           bold = own?.bold ?? bold;
           italic = own?.italic ?? italic;
         }
+
         const inline = readStyle(element.getAttribute("style") ?? "");
         const next = { bold: inline.bold ?? bold, italic: inline.italic ?? italic };
 
@@ -293,8 +349,10 @@ export function parseEpub(
         Effect.sync(() => {
           page = index + 1;
           anchors.set(path, blocks.length);
+
           const chapter = parse(path, "application/xhtml+xml");
           const body = chapter?.getElementsByTagNameNS("*", "body")[0];
+
           if (body !== undefined) walk(body, {}, path);
           flush();
           onChapter(page, spine.length);
@@ -308,6 +366,7 @@ export function parseEpub(
     const contents: Array<{ title: string; target: string; depth: number }> = [];
     const navItem = [...items.values()].find((item) => item.properties.split(" ").includes("nav"));
     const nav = navItem === undefined ? null : parse(navItem.path, "application/xhtml+xml");
+
     if (navItem !== undefined && nav !== null) {
       const navs = [...nav.getElementsByTagNameNS("*", "nav")];
       const toc =
@@ -318,35 +377,44 @@ export function parseEpub(
       const visit = (list: Element, depth: number): void => {
         for (const entry of list.children) {
           if (entry.localName !== "li") continue;
+
           for (const part of entry.children) {
             const href = part.getAttribute("href");
+
             if (part.localName === "a" && href !== null) {
               const fragment = href.split("#")[1];
               const file = resolve(navDir, href);
+
               contents.push({
                 title: part.textContent?.trim() ?? "",
                 target: fragment === undefined ? file : `${file}#${fragment}`,
                 depth,
               });
             }
+
             if (part.localName === "ol" || part.localName === "ul") visit(part, depth + 1);
           }
         }
       };
       const list = [...(toc?.children ?? [])].find((element) => element.localName === "ol");
+
       if (list !== undefined) visit(list, 0);
     }
+
     const ncxItem = [...items.values()].find((item) => item.type === "application/x-dtbncx+xml");
     const ncx =
       contents.length > 0 || ncxItem === undefined ? null : parse(ncxItem.path, "application/xml");
+
     if (ncxItem !== undefined && ncx !== null) {
       const ncxDir = ncxItem.path.slice(0, ncxItem.path.lastIndexOf("/") + 1);
       const visit = (parent: Element, depth: number): void => {
         for (const point of parent.children) {
           if (point.localName !== "navPoint") continue;
+
           const source = point.getElementsByTagNameNS("*", "content")[0]?.getAttribute("src") ?? "";
           const fragment = source.split("#")[1];
           const file = resolve(ncxDir, source);
+
           contents.push({
             title: point.getElementsByTagNameNS("*", "text")[0]?.textContent?.trim() ?? "",
             target: fragment === undefined ? file : `${file}#${fragment}`,
@@ -356,17 +424,22 @@ export function parseEpub(
         }
       };
       const map = ncx.getElementsByTagNameNS("*", "navMap")[0];
+
       if (map !== undefined) visit(map, 0);
     }
 
     const toc: TocEntry[] = [];
+
     for (const entry of contents) {
       const index = anchors.get(entry.target) ?? anchors.get(entry.target.split("#")[0] ?? "");
       const block = index === undefined ? undefined : blocks[index];
+
       if (index === undefined || block === undefined || entry.title === "") continue;
+
       // Books often style chapter titles as bold paragraphs. Spaces differ around a <br/>.
       const title = entry.title.toLowerCase().replaceAll(" ", "");
       const opening = block.text.toLowerCase().replaceAll(" ", "");
+
       if (block.kind === "paragraph" && block.text.length <= 120 && opening.startsWith(title)) {
         blocks[index] = new Block({
           ...block,
@@ -374,6 +447,7 @@ export function parseEpub(
           level: Math.min(3, entry.depth + 2),
         });
       }
+
       toc.push(
         new TocEntry({
           title: entry.title,

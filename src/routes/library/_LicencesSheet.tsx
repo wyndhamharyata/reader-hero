@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 
@@ -19,12 +20,10 @@ export function LicencesSheet({ onClose }: { onClose: () => void }): ReactElemen
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close open source licences"
-        onClick={() => dismiss()}
+      <SheetBackdrop
+        reference={backdropRef}
+        label="Close open source licences"
+        onClose={() => dismiss()}
       />
       <aside
         ref={sheetRef}

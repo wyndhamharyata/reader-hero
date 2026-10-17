@@ -63,6 +63,7 @@ export class SettingsStore extends Context.Service<
           tour: patch.tour ?? current.tour,
           readerTour: patch.readerTour ?? current.readerTour,
         });
+
         // Applied before the save, so a failed write still changes this session.
         yield* SubscriptionRef.set(settingsRef, next);
         yield* Effect.tryPromise({
@@ -102,10 +103,13 @@ export class SettingsStore extends Context.Service<
           try: () => withReaderDb((db) => db.get("settings", "grouped")),
           catch: storageFailure("getGroupedBooks"),
         });
+
         if (row === undefined) return [];
+
         const decoded = yield* decodeGroupedBooks(row).pipe(
           Effect.catch(() => Effect.succeed(null)),
         );
+
         return decoded?.ids ?? [];
       });
 
@@ -152,8 +156,10 @@ export class SettingsStore extends Context.Service<
             output: (before?.output ?? 0) + (usage.output ?? 0),
             since: before?.since ?? Date.now(),
           });
+
           return [tally, new Map(current).set(key, tally)];
         });
+
         yield* Effect.tryPromise({
           try: () => withReaderDb((db) => db.put("settings", next, `usage:${key}`)),
           catch: storageFailure("putUsage"),
@@ -163,8 +169,10 @@ export class SettingsStore extends Context.Service<
       const resetUsage = Effect.fn("SettingsStore.resetUsage")(function* (key: string) {
         yield* SubscriptionRef.update(usageRef, (current) => {
           const next = new Map(current);
+
           next.delete(key);
-          return next;
+          
+return next;
         });
         yield* Effect.tryPromise({
           try: () => withReaderDb((db) => db.delete("settings", `usage:${key}`)),

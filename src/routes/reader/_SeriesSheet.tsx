@@ -1,3 +1,4 @@
+import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { ArrowLeftIcon, BookOpenIcon, XMarkIcon } from "@/components/icons";
@@ -64,6 +65,7 @@ export function SeriesSheet({
   // The stored summaries follow every write, so the run's chapters and paragraph show as they land.
   useEffect(() => {
     if (volumes === null) return;
+
     const fiber = forkApp(
       Effect.flatMap(SummaryStore, (store) =>
         Effect.forEach(
@@ -80,6 +82,7 @@ export function SeriesSheet({
         ),
       ),
     );
+
     return () => stopFiber(fiber);
   }, [volumes]);
 
@@ -96,6 +99,7 @@ export function SeriesSheet({
       setConsentPending(true);
       return;
     }
+
     onStart();
   };
 
@@ -108,13 +112,7 @@ export function SeriesSheet({
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <button
-        type="button"
-        ref={backdropRef}
-        className="absolute inset-0 bg-(--backdrop) motion-safe:animate-fade-in"
-        aria-label="Close"
-        onClick={() => dismiss()}
-      />
+      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
       <aside
         ref={sheetRef}
         role="dialog"
@@ -147,11 +145,7 @@ export function SeriesSheet({
             const open = fixed || expanded.has(card.book.id);
             // Any summary counts, also one that stops before the position.
             const summary = summaries.get(card.book.id) ?? null;
-            const summarised =
-              summary !== null &&
-              (summary.chapters.length > 0 ||
-                summary.current !== undefined ||
-                summary.volume !== undefined);
+            const summarised = hasSummary(summary);
             const line = (
               <>
                 {/* Clipped at the start, as in the library, so "Vol. 3" stays in view. */}
@@ -174,12 +168,9 @@ export function SeriesSheet({
               </>
             );
             // The series colour, so the book being read reads apart from a hovered row.
-            const rowStyle = current
-              ? {
-                  backgroundColor: `color-mix(in oklab, oklch(var(--tray) ${series.color}) 40%, var(--color-base-100))`,
-                }
-              : undefined;
+            const rowStyle = rowStyleFor(current, series.color);
             const rowClass = `flex min-w-0 flex-1 flex-col gap-1 rounded-field px-2 py-2 text-left ${text}`;
+
             return (
               <li key={card.book.id} className="px-2 font-sans">
                 <div className="flex items-stretch gap-1">
@@ -203,10 +194,13 @@ export function SeriesSheet({
                       onClick={(event) => {
                         if (listRef.current !== null)
                           holdLowestRow(listRef.current, event.currentTarget);
+
                         setExpanded((current) => {
                           const next = new Set(current);
+
                           if (open) next.delete(card.book.id);
                           else next.add(card.book.id);
+
                           return next;
                         });
                       }}
@@ -325,4 +319,19 @@ export function SeriesSheet({
       </aside>
     </div>
   );
+}
+
+function hasSummary(summary: Summary | null): boolean {
+  return (
+    summary !== null &&
+    (summary.chapters.length > 0 || summary.current !== undefined || summary.volume !== undefined)
+  );
+}
+
+function rowStyleFor(current: boolean, color: number): CSSProperties | undefined {
+  if (!current) return undefined;
+
+  return {
+    backgroundColor: `color-mix(in oklab, oklch(var(--tray) ${color}) 40%, var(--color-base-100))`,
+  };
 }

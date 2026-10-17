@@ -17,9 +17,13 @@ export function openOriginalPages(
 
     // User Timing marks that Safari's Timelines tab shows and scripts/bench reads.
     performance.mark("reader-hero:open-start");
+
     const blob = yield* store.getFile(bookId);
+
     performance.mark("reader-hero:file-read");
+
     const rendered = yield* renderer.open(blob);
+
     performance.mark("reader-hero:document-open");
     performance.measure("reader-hero:file", "reader-hero:open-start", "reader-hero:file-read");
     performance.measure(
@@ -27,6 +31,7 @@ export function openOriginalPages(
       "reader-hero:file-read",
       "reader-hero:document-open",
     );
+
     return rendered;
   });
 }

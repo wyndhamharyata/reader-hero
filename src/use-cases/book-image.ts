@@ -27,6 +27,7 @@ export function ensureCovers(
       Effect.gen(function* () {
         const store = yield* BookStore;
         const pdf = yield* PdfClient;
+
         if ((yield* store.getImage(bookId, "cover")) !== null) return;
         // An EPUB stores its cover at import. pdf.js cannot open one.
         if ((yield* store.get(bookId)).format === "epub") return;
@@ -41,6 +42,7 @@ export function ensureCovers(
           (handle) => pdf.thumbnail(handle, 1, 400),
           (handle) => pdf.release(handle),
         );
+
         if (cover !== null) yield* store.putImage(bookId, { id: "cover", ...cover });
         // A cover that fails to render keeps its placeholder. The next library visit retries it.
       }).pipe(Effect.catch(() => Effect.void)),
@@ -56,10 +58,14 @@ export function setBookCover(
   return Effect.gen(function* () {
     const store = yield* BookStore;
     const shrunk = yield* shrinkPicture(picture);
+
     if (shrunk === null) return false;
+
     const meta = yield* store.get(bookId);
+
     if (meta.customCover !== true) {
       const own = yield* store.getImage(bookId, "cover");
+
       if (own !== null) {
         yield* store.putImage(bookId, {
           id: "cover-default",
@@ -69,8 +75,10 @@ export function setBookCover(
         });
       }
     }
+
     yield* store.putImage(bookId, { id: "cover", ...shrunk });
     yield* store.putMeta(new BookMeta({ ...meta, customCover: true }));
+
     return true;
   });
 }
@@ -83,6 +91,7 @@ export function resetBookCover(
     const store = yield* BookStore;
     const meta = yield* store.get(bookId);
     const own = yield* store.getImage(bookId, "cover-default");
+
     if (own === null) yield* store.removeImage(bookId, "cover");
     else {
       yield* store.putImage(bookId, {
@@ -93,7 +102,9 @@ export function resetBookCover(
       });
       yield* store.removeImage(bookId, "cover-default");
     }
+
     const { customCover: _customCover, ...rest } = meta;
+
     yield* store.putMeta(new BookMeta(rest));
     yield* ensureCovers([bookId]);
   });
