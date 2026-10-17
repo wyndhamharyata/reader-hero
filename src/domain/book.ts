@@ -36,7 +36,7 @@ export class TocEntry extends Schema.Class<TocEntry>("reader-hero/domain/TocEntr
   depth: Schema.Int,
 }) {}
 
-export const PARSED_VERSION = 3;
+export const PARSED_VERSION = 4;
 
 export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/ParsedBook")({
   version: Schema.Int,
@@ -73,6 +73,20 @@ export const StoredPages = Schema.Array(
         fontFamily: Schema.String,
         hasEOL: Schema.Boolean,
       }),
+    ),
+    links: Schema.optional(
+      Schema.Array(
+        Schema.Struct({
+          left: Schema.Number,
+          right: Schema.Number,
+          bottom: Schema.Number,
+          top: Schema.Number,
+          target: Schema.Union([
+            Schema.Struct({ url: Schema.String }),
+            Schema.Struct({ page: Schema.Int }),
+          ]),
+        }),
+      ),
     ),
   }),
 );
@@ -230,14 +244,24 @@ export interface RawTextItem {
   readonly hasEOL: boolean;
 }
 
+// A link annotation's box in page points, from the bottom left corner.
+export interface PageLinkBox {
+  readonly left: number;
+  readonly right: number;
+  readonly bottom: number;
+  readonly top: number;
+  readonly target: { readonly url: string } | { readonly page: number };
+}
+
 export interface PageText {
   readonly page: number;
   readonly width: number;
   readonly height: number;
   readonly items: ReadonlyArray<RawTextItem>;
+  readonly links?: ReadonlyArray<PageLinkBox>;
 }
 
-export type PageSize = Omit<PageText, "items">;
+export type PageSize = Omit<PageText, "items" | "links">;
 
 export interface ImagePlacement {
   readonly id: string;

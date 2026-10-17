@@ -1,5 +1,11 @@
 import type { BlockKind, ImagePlacement } from "@/domain/book";
 
+export interface LinkRange {
+  readonly start: number;
+  readonly end: number;
+  readonly href: string;
+}
+
 export interface TextLine {
   readonly page: number;
   readonly text: string;
@@ -8,6 +14,7 @@ export interface TextLine {
   readonly width: number;
   readonly fontSize: number;
   readonly fontFamily: string;
+  readonly marks?: ReadonlyArray<LinkRange>;
 }
 
 export interface RawBlock {
@@ -17,6 +24,7 @@ export interface RawBlock {
   readonly page: number;
   readonly imageId?: string;
   readonly ratio?: number;
+  readonly marks?: ReadonlyArray<LinkRange>;
 }
 
 export type FlowItem =

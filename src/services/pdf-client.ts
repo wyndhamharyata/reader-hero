@@ -15,6 +15,7 @@ import type {
 } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 import { toPageText } from "@/lib/pdf/page-text";
+import { readLinkBoxes } from "@/lib/pdf/links";
 import { collectImageBoxes, imagePayloadFields, type ImagePaint } from "@/lib/pdf/image-boxes";
 
 type PdfLib = typeof import("pdfjs-dist");
@@ -373,8 +374,15 @@ export class PdfClient extends Context.Service<
           try: () => pageProxy.getTextContent(),
           catch: pdfFailure,
         });
+        const links = yield* Effect.tryPromise({
+          try: () => readLinkBoxes(handle.proxy, pageProxy),
+          catch: pdfFailure,
+        }).pipe(Effect.orElseSucceed(() => []));
 
-        return toPageText(page, content, pageProxy.getViewport({ scale: 1 }));
+        return {
+          ...toPageText(page, content, pageProxy.getViewport({ scale: 1 })),
+          links,
+        };
       }),
 
       readImages: Effect.fn("PdfClient.readImages")(function* (handle: PdfHandle, page: number) {

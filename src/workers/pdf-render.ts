@@ -1,6 +1,5 @@
 // Holds a PDF and paints its pages to OffscreenCanvas, so the original view never paints on the main thread.
 import {
-  AnnotationType,
   getDocument,
   GlobalWorkerOptions,
   PDFWorker,
@@ -9,6 +8,7 @@ import {
   type RenderTask,
 } from "pdfjs-dist";
 import { pageSearchText, searchForm } from "@/lib/find-text";
+import { readLinkBoxes } from "@/lib/pdf/links";
 import type { PageLink, PageTextContent } from "@/services/page-renderer";
 
 GlobalWorkerOptions.workerSrc = "/worker/pdf.worker.shimmed.min.mjs";
@@ -96,69 +96,20 @@ const keepDrawn = async (
   (await opened.document.getPage(oldest)).cleanup();
 };
 
-// Only schemes a reader expects a tap to open. pdf.js has already checked the URL is absolute.
-const OPENABLE = /^(https?|mailto|tel):/i;
-
-const linkPage = async (document: PDFDocumentProxy, dest: unknown): Promise<number | null> => {
-  const explicit = typeof dest === "string" ? await document.getDestination(dest) : dest;
-
-  if (!Array.isArray(explicit) || explicit.length === 0) return null;
-
-  const [ref] = explicit as unknown[];
-
-  if (typeof ref === "number" && Number.isInteger(ref)) return ref + 1;
-  if (typeof ref !== "object" || ref === null) return null;
-
-  return (await document.getPageIndex(ref as never)) + 1;
-};
-
 const readLinks = async (
   document: PDFDocumentProxy,
   page: Awaited<ReturnType<PDFDocumentProxy["getPage"]>>,
 ): Promise<PageLink[]> => {
   const viewport = page.getViewport({ scale: 1 });
-  const links: PageLink[] = [];
+  const boxes = await readLinkBoxes(document, page);
 
-  for (const annotation of await page.getAnnotations({ intent: "display" })) {
-    const { annotationType, rect, url, dest } = annotation as {
-      annotationType: number;
-      rect: number[];
-      url?: unknown;
-      dest?: unknown;
-    };
-
-    if (annotationType !== AnnotationType.LINK) continue;
-
-    let target: PageLink["target"] | null = null;
-
-    if (typeof url === "string" && OPENABLE.test(url)) target = { url };
-    else if (dest !== undefined) {
-      const linked = await linkPage(document, dest).catch(() => null);
-
-      if (linked !== null) target = { page: linked };
-    }
-
-    if (target === null) continue;
-
-    const [x1 = 0, y1 = 0] = viewport.convertToViewportPoint(
-      rect[0] ?? 0,
-      rect[1] ?? 0,
-    ) as number[];
-    const [x2 = 0, y2 = 0] = viewport.convertToViewportPoint(
-      rect[2] ?? 0,
-      rect[3] ?? 0,
-    ) as number[];
-
-    links.push({
-      left: Math.min(x1, x2) / viewport.width,
-      top: Math.min(y1, y2) / viewport.height,
-      width: Math.abs(x2 - x1) / viewport.width,
-      height: Math.abs(y2 - y1) / viewport.height,
-      target,
-    });
-  }
-
-  return links;
+  return boxes.map((box) => ({
+    left: box.left / viewport.width,
+    top: (viewport.height - box.top) / viewport.height,
+    width: (box.right - box.left) / viewport.width,
+    height: (box.top - box.bottom) / viewport.height,
+    target: box.target,
+  }));
 };
 
 // One pdf.js worker for every document, which pdf.js cannot make here as it reads `window.location`.

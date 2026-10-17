@@ -1,4 +1,4 @@
-import { median, type FlowItem, type RawBlock, type TextLine } from "./types";
+import { median, type FlowItem, type LinkRange, type RawBlock, type TextLine } from "./types";
 
 const HEADING_LEVELS: ReadonlyArray<{ readonly ratio: number; readonly level: number }> = [
   { ratio: 1.8, level: 1 },
@@ -25,10 +25,12 @@ function headingLevel(line: TextLine, bodySize: number): number {
   return 0;
 }
 
-function joinText(text: string, next: string): string {
-  if (endsHyphen(text) && /^[a-z]/.test(next)) return `${text.slice(0, -1)}${next}`;
+function joinLine(text: string, next: string): { readonly text: string; readonly offset: number } {
+  if (endsHyphen(text) && /^[a-z]/.test(next)) {
+    return { text: `${text.slice(0, -1)}${next}`, offset: -1 };
+  }
 
-  return `${text} ${next}`;
+  return { text: `${text} ${next}`, offset: 1 };
 }
 
 function startsNewParagraph(
@@ -58,11 +60,21 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
   );
 
   const blocks: RawBlock[] = [];
-  let current: { kind: "paragraph"; level: number; text: string; page: number } | null = null;
+  let current: {
+    kind: "paragraph";
+    level: number;
+    text: string;
+    page: number;
+    marks: Array<LinkRange>;
+  } | null = null;
   let previous: TextLine | null = null;
 
   const flush = () => {
-    if (current !== null) blocks.push(current);
+    if (current === null) return;
+
+    const marks = current.marks.filter((mark) => mark.end > mark.start);
+
+    blocks.push({ ...current, marks: marks.length > 0 ? marks : undefined });
     current = null;
   };
 
@@ -86,13 +98,19 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
 
     if (level > 0) {
       flush();
-      blocks.push({ kind: "heading", level, text: line.text, page: line.page });
+      blocks.push({ kind: "heading", level, text: line.text, page: line.page, marks: line.marks });
       previous = line;
       continue;
     }
 
     if (current === null) {
-      current = { kind: "paragraph", level: 0, text: line.text, page: line.page };
+      current = {
+        kind: "paragraph",
+        level: 0,
+        text: line.text,
+        page: line.page,
+        marks: [...(line.marks ?? [])],
+      };
       previous = line;
       continue;
     }
@@ -104,6 +122,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
       continue;
     }
 
+    const block = current;
     const samePage = prior.page === line.page;
     const breaks = samePage
       ? startsNewParagraph(line, prior, bodySize, bodyWidth, leftEdge)
@@ -111,9 +130,32 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
 
     if (breaks) {
       flush();
-      current = { kind: "paragraph", level: 0, text: line.text, page: line.page };
+      current = {
+        kind: "paragraph",
+        level: 0,
+        text: line.text,
+        page: line.page,
+        marks: [...(line.marks ?? [])],
+      };
     } else {
-      current.text = joinText(current.text, line.text);
+      const joined = joinLine(block.text, line.text);
+      const offset = block.text.length + joined.offset;
+      const added = (line.marks ?? []).map((mark) => ({
+        ...mark,
+        start: Math.max(0, mark.start + offset),
+        end: Math.max(0, mark.end + offset),
+      }));
+      const kept =
+        joined.offset < 0
+          ? block.marks.map((mark) => ({
+              ...mark,
+              start: Math.min(mark.start, block.text.length - 1),
+              end: Math.min(mark.end, block.text.length - 1),
+            }))
+          : block.marks;
+
+      block.marks = [...kept, ...added];
+      block.text = joined.text;
     }
 
     previous = line;

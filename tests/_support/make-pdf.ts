@@ -12,6 +12,14 @@ export interface PdfImage {
   readonly height: number;
 }
 
+export interface PdfLink {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly url: string;
+}
+
 type Part = string | Uint8Array;
 
 const escapeText = (text: string): string =>
@@ -22,6 +30,7 @@ export function makePdf(
   lines: ReadonlyArray<PdfLine>,
   image?: PdfImage,
   mediaBox: readonly [number, number, number, number] = [0, 0, 612, 792],
+  links: ReadonlyArray<PdfLink> = [],
 ): Uint8Array {
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
@@ -45,6 +54,11 @@ export function makePdf(
   }
   const content = contentLines.join("\n");
   const imageBytes = new Uint8Array([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]);
+  const firstLink = 6 + (image === undefined ? 0 : 1);
+  const annots =
+    links.length === 0
+      ? ""
+      : ` /Annots [${links.map((_, index) => `${firstLink + index} 0 R`).join(" ")}]`;
 
   const objects: Part[][] = [
     ["<< /Type /Catalog /Pages 2 0 R >>"],
@@ -52,7 +66,7 @@ export function makePdf(
     [
       `<< /Type /Page /Parent 2 0 R /MediaBox [${mediaBox.join(" ")}] /Resources << /Font << /F1 5 0 R >>${
         image === undefined ? "" : " /XObject << /Im0 6 0 R >>"
-      } >> /Contents 4 0 R >>`,
+      } >> /Contents 4 0 R${annots} >>`,
     ],
     [`<< /Length ${content.length} >>\nstream\n${content}\nendstream`],
     ["<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"],
@@ -62,6 +76,11 @@ export function makePdf(
       `<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Length ${imageBytes.length} >>\nstream\n`,
       imageBytes,
       "\nendstream",
+    ]);
+  }
+  for (const link of links) {
+    objects.push([
+      `<< /Type /Annot /Subtype /Link /Rect [${link.x} ${link.y} ${link.x + link.width} ${link.y + link.height}] /Border [0 0 0] /A << /S /URI /URI (${escapeText(link.url)}) >> >>`,
     ]);
   }
 

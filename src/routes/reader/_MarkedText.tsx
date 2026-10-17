@@ -1,19 +1,10 @@
 import type { ReactElement } from "react";
 import type { Block } from "@/domain/book";
+import { blockIndexOf } from "@/lib/links";
 
 interface Props {
   text: string;
   marks: Block["marks"];
-}
-
-const BLOCK_LINK_PREFIX = "#block-";
-
-function linkedBlock(href: string): number | null {
-  if (!href.startsWith(BLOCK_LINK_PREFIX)) return null;
-
-  const index = Number(href.slice(BLOCK_LINK_PREFIX.length));
-
-  return Number.isInteger(index) ? index : null;
 }
 
 // Marks may overlap, so the text splits at every mark edge and each piece takes all marks over it.
@@ -32,7 +23,7 @@ export function MarkedText({ text, marks = [] }: Props): ReactElement {
         const link = over.find((mark) => mark.style === "link" && mark.href !== undefined);
 
         if (link?.href !== undefined) {
-          const block = linkedBlock(link.href);
+          const block = blockIndexOf(link.href);
 
           return (
             <a

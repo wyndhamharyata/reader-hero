@@ -8,6 +8,7 @@ import {
   type OutlineItem,
   type PageText,
 } from "@/domain/book";
+import { blockLink, pageOfLink } from "@/lib/links";
 import { buildBlocks } from "./blocks";
 import { dropBoilerplate, isSmallBandImage } from "./boilerplate";
 import { orderFlow } from "./columns";
@@ -21,6 +22,32 @@ export interface PageExtract {
 
 export function isScanned(charCount: number, pageCount: number): boolean {
   return charCount < Math.max(50, pageCount * 40);
+}
+
+function resolvePageLinks(blocks: Array<Block>): void {
+  for (const [index, block] of blocks.entries()) {
+    if (block.marks === undefined) continue;
+
+    const marks: Array<NonNullable<Block["marks"]>[number]> = [];
+    let changed = false;
+
+    for (const mark of block.marks) {
+      const page = mark.href === undefined ? null : pageOfLink(mark.href);
+
+      if (page === null) {
+        marks.push(mark);
+        continue;
+      }
+
+      const target = blocks.findIndex((candidate) => candidate.page >= page);
+
+      changed = true;
+      if (target >= 0) marks.push({ ...mark, href: blockLink(target) });
+    }
+
+    if (changed)
+      blocks[index] = new Block({ ...block, marks: marks.length > 0 ? marks : undefined });
+  }
 }
 
 function buildToc(outline: ReadonlyArray<OutlineItem>, blocks: ReadonlyArray<Block>): TocEntry[] {
@@ -81,8 +108,11 @@ export function assembleBook(
           page: raw.page,
           imageId: raw.imageId,
           ratio: raw.ratio,
+          marks: raw.marks?.map((mark) => ({ ...mark, style: "link" as const })),
         }),
     );
+
+    resolvePageLinks(blocks);
 
     const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
 

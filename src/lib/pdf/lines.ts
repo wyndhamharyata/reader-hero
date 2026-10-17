@@ -1,5 +1,7 @@
-import type { PageText, RawTextItem } from "@/domain/book";
-import type { TextLine } from "./types";
+import type { PageLinkBox, PageText, RawTextItem } from "@/domain/book";
+import { pageLink } from "@/lib/links";
+import { trimTextRanges } from "@/lib/text-ranges";
+import type { LinkRange, TextLine } from "./types";
 
 const LINE_TOLERANCE = 0.45;
 const SPACE_FACTOR = 0.22;
@@ -9,8 +11,44 @@ const GUTTER_MARGIN_PT = 20;
 // At least 3 rows with a gutter, and a third of all rows, make a page two columns.
 const MIN_GUTTER_ROWS = 3;
 
-function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
+function occupies(item: RawTextItem, box: PageLinkBox): boolean {
+  return (
+    item.x < box.right &&
+    item.x + item.width > box.left &&
+    item.y < box.top &&
+    item.y + item.height > box.bottom
+  );
+}
+
+function linkAt(item: RawTextItem, links: ReadonlyArray<PageLinkBox>): string | undefined {
+  const box = links.find((link) => occupies(item, link));
+
+  if (box === undefined) return undefined;
+
+  return "url" in box.target ? box.target.url : pageLink(box.target.page);
+}
+
+function appendNormalized(text: string, value: string): string {
+  let next = text;
+
+  for (const char of value) {
+    if (" \n\t\r\f".includes(char)) {
+      if (next !== "" && !next.endsWith(" ")) next += " ";
+    } else {
+      next += char;
+    }
+  }
+
+  return next;
+}
+
+function makeLine(
+  page: number,
+  items: ReadonlyArray<RawTextItem>,
+  links: ReadonlyArray<PageLinkBox>,
+): TextLine {
   const sorted = [...items].sort((a, b) => a.x - b.x);
+  const marks: Array<LinkRange> = [];
   let text = "";
   let previousEnd: number | null = null;
   let maxSize = 0;
@@ -25,7 +63,14 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
       if (gap > item.fontSize * SPACE_FACTOR && !text.endsWith(" ")) text += " ";
     }
 
-    text += item.str;
+    const start = text.length;
+
+    text = appendNormalized(text, item.str);
+
+    const href = item.str.trim() === "" ? undefined : linkAt(item, links);
+
+    if (href !== undefined && text.length > start) marks.push({ start, end: text.length, href });
+
     previousEnd = item.x + item.width;
     maxSize = Math.max(maxSize, item.fontSize);
     if (fontFamily === "" && item.fontFamily !== "") fontFamily = item.fontFamily;
@@ -36,14 +81,17 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
     maxX = Math.max(maxX, item.x + item.width);
   }
 
+  const kept = trimTextRanges(text, marks);
+
   return {
     page,
-    text: text.replace(/\s+/g, " ").trim(),
+    text: text.trim(),
     x: minX,
     y: sorted[0]?.y ?? 0,
     width: maxX - minX,
     fontSize: maxSize,
     fontFamily,
+    marks: kept.length > 0 ? kept : undefined,
   };
 }
 
@@ -93,7 +141,7 @@ export function buildLines(page: PageText): ReadonlyArray<TextLine> {
 
   const lines: TextLine[] = [];
   const push = (row: ReadonlyArray<RawTextItem>) => {
-    const line = makeLine(page.page, row);
+    const line = makeLine(page.page, row, page.links ?? []);
 
     if (line.text.length > 0) lines.push(line);
   };

@@ -46,9 +46,7 @@ const text = (value: TextLine): FlowItem => ({ type: "text", line: value });
 
 describe("buildLines", () => {
   it("given items on one baseline, joins them into a line in reading order", () => {
-    const lines = buildLines(
-      page(1, [item("World", 40, 100), item("Hello", 0, 100)]),
-    );
+    const lines = buildLines(page(1, [item("World", 40, 100), item("Hello", 0, 100)]));
 
     expect(lines.map((entry) => entry.text)).toEqual(["Hello World"]);
   });
@@ -57,6 +55,29 @@ describe("buildLines", () => {
     const lines = buildLines(page(1, [item("First", 0, 100), item("Second", 0, 80)]));
 
     expect(lines.map((entry) => entry.text)).toEqual(["First", "Second"]);
+  });
+
+  it("given a link box over words, marks their range", () => {
+    const linked = {
+      ...page(1, [
+        item("Visit", 0, 100, { width: 25 }),
+        item("example.com", 40, 100, { width: 55 }),
+        item("now", 110, 100, { width: 15 }),
+      ]),
+      links: [
+        {
+          left: 35,
+          right: 105,
+          bottom: 95,
+          top: 110,
+          target: { url: "https://example.com" },
+        },
+      ],
+    };
+    const [line] = buildLines(linked);
+
+    expect(line?.text).toBe("Visit example.com now");
+    expect(line?.marks).toEqual([{ start: 6, end: 17, href: "https://example.com" }]);
   });
 });
 
@@ -170,14 +191,20 @@ describe("orderFlow", () => {
 
 describe("buildBlocks", () => {
   it("given a full line followed by a full line, joins them into one paragraph", () => {
-    const blocks = buildBlocks([text(line("first half", 0, 700, 200)), text(line("second half", 0, 688, 200))]);
+    const blocks = buildBlocks([
+      text(line("first half", 0, 700, 200)),
+      text(line("second half", 0, 688, 200)),
+    ]);
 
     expect(blocks).toHaveLength(1);
     expect(blocks[0]?.text).toBe("first half second half");
   });
 
   it("given a hyphenated line break, rejoins the word without a space", () => {
-    const blocks = buildBlocks([text(line("inter-", 0, 700, 200)), text(line("national law", 0, 688, 200))]);
+    const blocks = buildBlocks([
+      text(line("inter-", 0, 700, 200)),
+      text(line("national law", 0, 688, 200)),
+    ]);
 
     expect(blocks[0]?.text).toBe("international law");
   });
@@ -193,7 +220,10 @@ describe("buildBlocks", () => {
   });
 
   it("given a short line, starts a new paragraph", () => {
-    const blocks = buildBlocks([text(line("A short line.", 0, 700, 60)), text(line("New paragraph here", 0, 680, 200))]);
+    const blocks = buildBlocks([
+      text(line("A short line.", 0, 700, 60)),
+      text(line("New paragraph here", 0, 680, 200)),
+    ]);
 
     expect(blocks).toHaveLength(2);
   });
@@ -201,13 +231,11 @@ describe("buildBlocks", () => {
 
 describe("dropBoilerplate", () => {
   it("given a running header on every page, removes it", () => {
-    const pages = [1, 2, 3, 4].map((number) =>
-      ({
-        page: number,
-        height: 800,
-        lines: [line("Journal of Tests", 0, 790, 120), line(`body ${number}`, 0, 400, 200)],
-      }),
-    );
+    const pages = [1, 2, 3, 4].map((number) => ({
+      page: number,
+      height: 800,
+      lines: [line("Journal of Tests", 0, 790, 120), line(`body ${number}`, 0, 400, 200)],
+    }));
     const cleaned = dropBoilerplate(pages);
 
     expect(cleaned.flatMap((entry) => entry.lines.map((l) => l.text))).toEqual([
@@ -279,5 +307,45 @@ describe("assembleBook", () => {
 
     expect(book.blocks.map((block) => block.kind)).toEqual(["paragraph", "image", "paragraph"]);
     expect(book.blocks[1]?.imageId).toBe("1-0");
+  });
+
+  it("given link boxes, keeps external links and resolves page links", async () => {
+    const first = {
+      ...page(1, [
+        item("Jump to page two", 0, 700, { width: 100 }),
+        item("and visit example.com.", 0, 686, { width: 120 }),
+      ]),
+      links: [
+        {
+          left: 0,
+          right: 100,
+          bottom: 699,
+          top: 710,
+          target: { page: 2 },
+        },
+        {
+          left: 0,
+          right: 120,
+          bottom: 685,
+          top: 696,
+          target: { url: "https://example.com" },
+        },
+      ],
+    };
+    const book = await Effect.runPromise(
+      assembleBook(
+        [
+          { text: first, images: [] },
+          { text: page(2, [item("The second page", 0, 700)]), images: [] },
+        ],
+        [],
+      ),
+    );
+
+    expect(book.blocks[0]?.text).toBe("Jump to page two and visit example.com.");
+    expect(book.blocks[0]?.marks).toEqual([
+      { start: 0, end: 16, style: "link", href: "#block-1" },
+      { start: 17, end: 39, style: "link", href: "https://example.com" },
+    ]);
   });
 });

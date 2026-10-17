@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { PageText } from "@/domain/book";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { collectImageBoxes } from "@/lib/pdf/image-boxes";
+import { readLinkBoxes } from "@/lib/pdf/links";
 import { toPageText } from "@/lib/pdf/page-text";
 import { makePdf } from "../_support/make-pdf";
 
@@ -90,6 +91,32 @@ describe("toPageText with real pdf.js output", () => {
     const [page] = await readPages(data);
     expect(page?.height).toBe(792);
     expect(page?.items[0]?.y).toBeCloseTo(750);
+  });
+});
+
+describe("readLinkBoxes with real pdf.js output", () => {
+  it("given a link annotation, reads its box and puts the link on the words", async () => {
+    const data = makePdf(
+      [{ text: "Visit example.com", size: 12, x: 72, y: 700 }],
+      undefined,
+      undefined,
+      [{ x: 72, y: 700, width: 100, height: 14, url: "https://example.com" }],
+    );
+    const task = pdfjs.getDocument({ data });
+    const doc = await task.promise;
+    const page = await doc.getPage(1);
+    const boxes = await readLinkBoxes(doc, page);
+    const text = toPageText(1, await page.getTextContent(), page.getViewport({ scale: 1 }));
+    const book = await Effect.runPromise(
+      assembleBook([{ text: { ...text, links: boxes }, images: [] }], []),
+    );
+
+    await task.destroy();
+
+    expect(boxes.map((box) => box.target)).toEqual([{ url: "https://example.com/" }]);
+    expect(book.blocks[0]?.marks).toEqual([
+      { start: 0, end: 17, style: "link", href: "https://example.com/" },
+    ]);
   });
 });
 

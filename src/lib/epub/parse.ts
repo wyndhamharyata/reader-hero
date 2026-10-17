@@ -1,6 +1,8 @@
 import { Effect, Option, Stream } from "effect";
 import { Block, PARSED_VERSION, ParsedBook, TocEntry } from "@/domain/book";
 import { EpubFailure } from "@/domain/errors";
+import { blockLink } from "@/lib/links";
+import { trimTextRanges } from "@/lib/text-ranges";
 
 export interface EpubBook {
   readonly title?: string;
@@ -24,7 +26,6 @@ type Style = {
 };
 
 const INTERNAL_LINK_PREFIX = "epub:";
-const BLOCK_LINK_PREFIX = "#block-";
 
 const blockNames = new Set([
   "address",
@@ -428,17 +429,10 @@ interface ChapterState {
 }
 
 function flushChapter(state: ChapterState): void {
-  const lead = state.text.length - state.text.trimStart().length;
   const body = state.text.trim();
 
   if (body !== "") {
-    const kept = state.marks
-      .map((mark) => ({
-        ...mark,
-        start: Math.max(0, mark.start - lead),
-        end: Math.min(body.length, mark.end - lead),
-      }))
-      .filter((mark) => mark.end > mark.start);
+    const kept = trimTextRanges(state.text, state.marks);
 
     state.blocks.push(
       new Block({
@@ -639,7 +633,7 @@ function resolveBlockLinks(blocks: Array<Block>, anchors: ReadonlyMap<string, nu
       if (!isInternal) marks.push(mark);
       else {
         changed = true;
-        if (target !== undefined) marks.push({ ...mark, href: `${BLOCK_LINK_PREFIX}${target}` });
+        if (target !== undefined) marks.push({ ...mark, href: blockLink(target) });
       }
     }
 
