@@ -283,7 +283,6 @@ count of each at or below the number it has today, so none can grow.
   stages, and each stage reads the lead and series maps the one before it wrote.
 - `SummarySheet` has 35 branch points, against rule 6. Its JSX branches all test the one sheet's
   state, and the sections share its refs and callbacks.
-- `ReaderRoute` has 40 branch points, against rule 6. It is one screen's event wiring and layout.
 - `LibraryRoute` has 28 branch points, against rule 6. It is one route's toolbar, grid and sheets.
 
 ## What the check enforces

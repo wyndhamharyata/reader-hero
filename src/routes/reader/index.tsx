@@ -1,5 +1,5 @@
-import { Effect, Option, Schema, Stream } from "effect";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Effect, Option, Schema } from "effect";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   forkApp,
@@ -11,36 +11,32 @@ import {
   useSettings,
   useSummary,
 } from "@/lib/hooks";
-import { AiSettings, CONSENT_VERSION, hasConsent } from "@/domain/ai";
-import {
-  BookPrefs,
-  ReaderSettings,
-  TOUR_VERSION,
-  type ReaderMode,
-  FINISHED_PERCENT,
-} from "@/domain/book";
+import { hasConsent } from "@/domain/ai";
+import { BookPrefs, ReaderSettings, TOUR_VERSION } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
-import { guessKind } from "@/lib/guess-kind";
-import { guessMode } from "@/lib/guess-mode";
 import { shelfRecords } from "@/lib/shelf";
-import { readerTourSteps } from "@/lib/tour";
 import { holdWakeLock } from "@/lib/wake-lock";
 import { Tour } from "@/routes/library/_Tour";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
-import { SummaryJobs, type JobState } from "@/services/summary-jobs";
-import { chapters } from "@/use-cases/ai-context";
+import { SummaryJobs } from "@/services/summary-jobs";
 import { saveBookPrefs } from "@/use-cases/book-prefs";
 import { reparseBook, watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
-import { coverage, describeSummary, pendingVolumes, type SummaryInput } from "@/use-cases/summary";
-import { MenuSheet } from "./_MenuSheet";
+import { pendingVolumes } from "@/use-cases/summary";
 import { ReaderNav } from "./_ReaderNav";
 import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
-import { SeriesSheet } from "./_SeriesSheet";
-import { SummarySheet } from "./_SummarySheet";
+import { ReaderSheets } from "./_ReaderSheets";
+import {
+  describePageLabels,
+  useBookKind,
+  useBookSeries,
+  useBookSettings,
+  useReaderMode,
+  useSummaryView,
+} from "./_use-reader-derived";
 import { useReaderKeys } from "./_use-reader-keys";
 import type { JumpRequest } from "./_ReaderView";
 
@@ -125,32 +121,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const data = state.status === "done" ? state.value : null;
   // After the book shows, so the lookup does not slow its open.
   const loaded = data !== null;
-  const { state: seriesState, reload: reloadSeries } = useAppEffect(
-    Effect.gen(function* () {
-      if (!loaded) return null;
-
-      return yield* findBookSeries(bookId);
-    }),
-    [bookId, loaded],
-  );
-  const series = seriesState.status === "done" ? seriesState.value : null;
-  const seriesId = series?.id ?? null;
-  // The series summary's run, kept here so the menu shows Stop while the sheet is closed.
-  const [seriesJob, setSeriesJob] = useState<JobState>({ run: null, error: null });
-
-  useEffect(() => {
-    if (seriesId === null) return;
-
-    const fiber = forkApp(
-      Effect.flatMap(SummaryJobs, (jobs) =>
-        jobs
-          .state(`series:${seriesId}`)
-          .pipe(Stream.runForEach((next) => Effect.sync(() => setSeriesJob(next)))),
-      ),
-    );
-
-    return () => stopFiber(fiber);
-  }, [seriesId]);
+  const { series, seriesId, seriesJob, reloadSeries } = useBookSeries(bookId, loaded);
 
   // The saved place until a view reports one, so the original view opens at the saved page.
   const position = reported ?? data?.progress?.blockIndex ?? 0;
@@ -164,26 +135,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     setFurthest(furthestRef.current);
   }, [data]);
 
-  // The book's saved choices, with this visit's changes on top until a reload reads them back.
-  const prefs = useMemo<Partial<BookPrefs>>(
-    () => ({ ...(data === null ? glance?.prefs : data.prefs), ...prefChanges }),
-    [data, glance, prefChanges],
-  );
-  // Memoised so a position change does not hand the memoised reader view a new settings object.
-  const bookSettings = useMemo(
-    () =>
-      new ReaderSettings({
-        ...settings,
-        theme: prefs.theme ?? settings.theme,
-        font: prefs.font ?? settings.font,
-        fontSize: prefs.fontSize ?? settings.fontSize,
-        lineHeight: prefs.lineHeight ?? settings.lineHeight,
-        textAlign: prefs.textAlign ?? settings.textAlign,
-        textWidth: prefs.textWidth ?? settings.textWidth,
-        temperature: prefs.temperature ?? settings.temperature,
-      }),
-    [settings, prefs],
-  );
+  const { prefs, bookSettings } = useBookSettings(settings, data, glance, prefChanges);
 
   useReaderKeys({
     isEnabled: readerKeysEnabled(
@@ -200,66 +152,21 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     lineHeight: bookSettings.lineHeight,
   });
 
-  const guessed = useMemo(
-    () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
-    [data],
+  const { guessed, kind, epub, isTouring, tourSteps } = useBookKind(
+    data,
+    prefs,
+    settings.readerTour,
   );
-  const guessedKind = useMemo(
-    () => (data === null ? "story" : guessKind(data.meta, data.parsed)),
-    [data],
-  );
-  const kind = prefs.kind ?? guessedKind;
-  // An EPUB has no pages to show, so it always reads in reader mode.
-  const epub = data?.meta.format === "epub";
-  const touring = (settings.readerTour ?? 0) < TOUR_VERSION;
-  const tourSteps = useMemo(readerTourSteps, []);
-
-  const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
-  const readingIndex = Math.max(position, furthest);
-  const finished = data?.progress?.finished ?? (data?.progress?.percent ?? 0) >= FINISHED_PERCENT;
-  const summaryIndex = data !== null && finished ? data.parsed.blocks.length : readingIndex;
-  const cover = useMemo(
-    () =>
-      data === null
-        ? { target: 0, current: null }
-        : coverage(chapterList, data.parsed, kind, summaryIndex),
-    [data, chapterList, kind, summaryIndex],
-  );
-  const readingCover = useMemo(
-    () =>
-      data === null
-        ? { target: 0, current: null }
-        : coverage(chapterList, data.parsed, kind, readingIndex),
-    [data, chapterList, kind, readingIndex],
-  );
-  const summaryInput = useMemo<SummaryInput | null>(
-    () =>
-      data === null ? null : { meta: data.meta, parsed: data.parsed, kind, index: summaryIndex },
-    [data, kind, summaryIndex],
-  );
-  const autoSummaryInput = useMemo<SummaryInput | null>(
-    () => (summaryInput === null ? null : { ...summaryInput, index: readingIndex }),
-    [summaryInput, readingIndex],
-  );
-  const summaryText = describeSummary(summary, cover, run, kind);
-  const lines = useMemo(() => {
-    const map = new Map<number, string>();
-
-    if (ai === null || !ai.linesInContents || summary === null) return map;
-
-    chapterList.forEach((chapter, index) => {
-      if (index >= cover.target) return;
-
-      const stored = summary.chapters[index];
-
-      // A re-parse can change the chapters. A line shows only under the heading it was made for.
-      if (stored !== undefined && stored.heading === chapter.heading) {
-        map.set(chapter.start, stored.line);
-      }
-    });
-
-    return map;
-  }, [ai, summary, chapterList, cover.target]);
+  const {
+    chapterList,
+    isFinished,
+    cover,
+    readingCover,
+    summaryInput,
+    autoSummaryInput,
+    summaryText,
+    lines,
+  } = useSummaryView({ data, ai, summary, run, kind, position, furthest });
 
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
@@ -308,7 +215,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     }
     if (!navigator.onLine || (summary?.chapters.length ?? 0) < readingCover.target) return;
 
-    const target = finished ? Number.POSITIVE_INFINITY : readingCover.target;
+    const target = isFinished ? Number.POSITIVE_INFINITY : readingCover.target;
 
     if (target <= seriesTarget.current) return;
 
@@ -327,7 +234,17 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     });
 
     forkApp(program.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
-  }, [ai, seriesId, bookId, run, summaryError, seriesJob, summary, readingCover.target, finished]);
+  }, [
+    ai,
+    seriesId,
+    bookId,
+    run,
+    summaryError,
+    seriesJob,
+    summary,
+    readingCover.target,
+    isFinished,
+  ]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts at startup.
   useEffect(() => {
@@ -336,15 +253,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
   }, [data, epub]);
 
-  const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
-  // Figures only show in the reader view, so the job pauses while the original pages show.
-  const showsPages = mode === "original" || data?.meta.parseState === "scanned";
-  const pendingBooks = useMemo(
-    () => (data === null || showsPages ? [] : [data.meta]),
-    [data, showsPages],
-  );
-  // The figure job starts at the page being read, so its figures land first.
-  const startPage = data?.parsed.blocks[data.progress?.blockIndex ?? 0]?.page ?? 1;
+  const { mode, showsPages, pendingBooks, startPage } = useReaderMode({
+    data,
+    epub,
+    prefs,
+    guessed,
+  });
 
   useFigureJobs(pendingBooks, startPage);
 
@@ -392,11 +306,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     }
   }, [loadError]);
 
-  const title = data?.meta.title ?? glance?.meta.title ?? "Reader";
-  const toc = data?.parsed.toc ?? [];
-  const total = data === null ? 1 : Math.max(1, data.parsed.blocks.length - 1);
-  const shown = data === null ? (glance?.progress?.percent ?? 0) : position;
-  const percentLabel = formatPercent(shown / total);
+  const { title, toc, total, shown, percentLabel } = describePageLabels(
+    data,
+    glance,
+    position,
+    formatPercent,
+  );
 
   useEffect(() => {
     totalRef.current = total;
@@ -529,7 +444,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         onSearch={searchable ? () => setSearchOpen(true) : undefined}
       />
 
-      {data !== null && touring && (
+      {data !== null && isTouring && (
         <Tour steps={tourSteps} onDone={() => update({ readerTour: TOUR_VERSION })} />
       )}
 
@@ -541,104 +456,43 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         </div>
       )}
 
-      <MenuSheet
-        isOpen={isTocOpen}
+      <ReaderSheets
+        isTocOpen={isTocOpen}
         toc={toc}
         modeLabel={modeLabel}
-        settings={bookSettings}
-        summary={summaryText.row}
-        isSummaryRunning={run !== null}
-        onSummary={() => setSummarySheet({ openAt: null })}
-        onStopSummary={stop}
-        series={
-          series === null
-            ? null
-            : `${series.name} · ${series.books.findIndex((card) => card.book.id === bookId) + 1} of ${series.count}`
-        }
-        isSeriesRunning={seriesJob.run !== null}
-        onSeries={() => {
-          // The badges follow the reading done since the book opened.
-          reloadSeries();
-          setSeriesOpen(true);
-        }}
-        onStopSeries={() => {
-          forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(`series:${seriesId}`)));
-        }}
+        bookSettings={bookSettings}
+        summaryText={summaryText}
+        run={run}
+        stop={stop}
+        series={series}
+        seriesJob={seriesJob}
+        reloadSeries={reloadSeries}
+        setSeriesOpen={setSeriesOpen}
+        seriesId={seriesId}
         lines={lines}
         onSelect={selectToc}
-        onLine={(blockIndex) => {
-          const index = chapterList.findIndex((chapter) => chapter.start === blockIndex);
-
-          setSummarySheet({ openAt: index === -1 ? null : index });
-        }}
-        onToggleMode={epub ? undefined : toggleMode}
-        onSettingsChange={changeSettings}
-        onClose={closeToc}
+        chapterList={chapterList}
+        setSummarySheet={setSummarySheet}
+        epub={epub}
+        toggleMode={toggleMode}
+        changeSettings={changeSettings}
+        closeToc={closeToc}
+        summarySheet={summarySheet}
+        summaryInput={summaryInput}
+        cover={cover}
+        ai={ai}
+        summary={summary}
+        summaryError={summaryError}
+        savePrefs={savePrefs}
+        start={start}
+        discard={discard}
+        addName={addName}
+        editName={editName}
+        putAi={putAi}
+        setTocOpen={setTocOpen}
+        isSeriesOpen={isSeriesOpen}
+        bookId={bookId}
       />
-
-      {summarySheet !== null && summaryInput !== null && (
-        <SummarySheet
-          input={summaryInput}
-          list={chapterList}
-          cover={cover}
-          settings={ai}
-          reading={bookSettings}
-          state={{ summary, run, error: summaryError }}
-          onKind={(next) => savePrefs({ kind: next })}
-          openAt={summarySheet.openAt}
-          onStart={(allowed) => {
-            const settings = allowed ?? ai;
-
-            if (settings !== null) start(summaryInput, settings);
-          }}
-          onStop={stop}
-          onDiscard={discard}
-          onAddName={addName}
-          onEditName={editName}
-          onConsent={() => {
-            if (ai === null) return null;
-
-            const allowed = new AiSettings({
-              ...ai,
-              consentedAt: Date.now(),
-              consentVersion: CONSENT_VERSION,
-            });
-
-            putAi(allowed);
-
-            return allowed;
-          }}
-          onClose={() => setSummarySheet(null)}
-          onBack={() => setTocOpen(true)}
-        />
-      )}
-
-      {isSeriesOpen && series !== null && (
-        <SeriesSheet
-          series={series}
-          bookId={bookId}
-          settings={ai}
-          reading={bookSettings}
-          state={seriesJob}
-          onStart={() => {
-            if (ai !== null) {
-              forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.startSeries(series, bookId, ai)));
-            }
-          }}
-          onStop={() => {
-            forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(`series:${series.id}`)));
-          }}
-          onConsent={() => {
-            if (ai === null) return;
-
-            putAi(
-              new AiSettings({ ...ai, consentedAt: Date.now(), consentVersion: CONSENT_VERSION }),
-            );
-          }}
-          onClose={() => setSeriesOpen(false)}
-          onBack={() => setTocOpen(true)}
-        />
-      )}
     </div>
   );
 }
