@@ -370,7 +370,7 @@ async function run(layoutName, layout) {
     cpu = cpuSeconds();
     const originalScroll = await withTimeout(
       page.evaluate(async () => {
-        const container = document.querySelector(".overflow-y-auto.bg-base-300");
+        const container = document.querySelector("[data-scroller].bg-base-300");
         window.__startSampler();
         for (let i = 0; i < 15; i += 1) {
           container.scrollTop += 4000;

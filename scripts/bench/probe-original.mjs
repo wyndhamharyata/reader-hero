@@ -102,7 +102,7 @@ if (process.env.SAMPLE) {
   await page.waitForTimeout(300);
 }
 const result = await page.evaluate(async () => {
-  const container = document.querySelector(".overflow-y-auto.bg-base-300");
+  const container = document.querySelector("[data-scroller].bg-base-300");
   // What one canvas size change costs: in WebKit it lays out every page wrapper again.
   const probeCanvas = document.querySelectorAll("canvas")[10];
   void container.offsetHeight;
