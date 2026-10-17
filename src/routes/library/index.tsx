@@ -3,7 +3,6 @@ import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
-import type { AiSettings } from "@/domain/ai";
 import { fontFamily, TOUR_VERSION } from "@/domain/book";
 import {
   forkApp,
@@ -30,11 +29,10 @@ import {
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers, resetBookCover, setBookCover } from "@/use-cases/book-image";
-import { groupSeries, resetGrouping } from "@/use-cases/group-series";
 import { importInboxOnce } from "@/use-cases/import-inbox";
 import { setBookFinished } from "@/use-cases/save-progress";
 import { hideSeries, saveSeries, setBookSeries } from "@/use-cases/series";
-import { describeAiFailure, describeError } from "@/lib/describe-error";
+import { describeError } from "@/lib/describe-error";
 import { BookSheet } from "./_BookSheet";
 import { FilterChips } from "./_FilterChips";
 import { FilterSheet } from "./_FilterSheet";
@@ -50,6 +48,7 @@ import {
   showsTour,
 } from "./_library-derived";
 import { useLibraryActions } from "./_use-library-actions";
+import { useSeriesGrouping } from "./_use-series-grouping";
 import { useHideOnScroll, useKeyboardFit, useSearchPanelHeight } from "./_use-library-viewport";
 import { LibraryStatus } from "./_LibraryStatus";
 import { NoMatches } from "./_NoMatches";
@@ -96,19 +95,6 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
   const { settings, update } = useSettings();
   const { ai } = useAiSettings();
-  const [grouping, setGrouping] = useState<
-    | { readonly left: number }
-    | { readonly books: number; readonly series: number }
-    | { readonly error: string }
-    | null
-  >(null);
-  // After a failure, only Retry, a new book or new settings start the next run.
-  const [groupingFailed, setGroupingFailed] = useState<{
-    ai: AiSettings | null;
-    books: string;
-  } | null>(null);
-  // Reset changes no book and no setting, so a new round starts the run after it.
-  const [groupingRound, setGroupingRound] = useState(0);
   const {
     isBusy,
     isImporting,
@@ -164,6 +150,17 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
   useFigureJobs(booksToShow(isHidden, books));
 
+  const {
+    grouping,
+    retry: retryGrouping,
+    reset: resetGrouping,
+  } = useSeriesGrouping({
+    isHidden,
+    isBusy,
+    books,
+    ai,
+  });
+
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
   const wasHidden = useRef(isHidden);
 
@@ -182,37 +179,6 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
     return () => stopFiber(fiber);
   }, [isHidden, bookIds]);
-
-  // A finished parse starts a run, but none starts during an import, so its books group together.
-  const groupable = books
-    .filter((book) => book.parseState !== "parsing" && book.parseState !== "pending")
-    .map((book) => book.id)
-    .join(" ");
-
-  useEffect(() => {
-    if (isHidden || isBusy || groupable === "" || !navigator.onLine) return;
-    if (groupingFailed?.ai === ai && groupingFailed.books === groupable) return;
-
-    const fiber = forkApp(
-      groupSeries(ai, (left) => setGrouping({ left })).pipe(
-        Effect.match({
-          onSuccess: (totals) => setGrouping(totals),
-          onFailure: (error) => {
-            setGrouping({
-              error:
-                error._tag === "StorageFailure"
-                  ? "Could not save series"
-                  : describeAiFailure(error),
-            });
-            setGroupingFailed({ ai, books: groupable });
-          },
-        }),
-        Effect.onInterrupt(() => Effect.sync(() => setGrouping(null))),
-      ),
-    );
-
-    return () => stopFiber(fiber);
-  }, [isHidden, isBusy, groupable, ai, groupingFailed, groupingRound]);
 
   // A book's text waits for its font, so the reading fonts load with the library.
   useEffect(() => {
@@ -639,21 +605,8 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       <SettingsSheet
         isOpen={settingsOpen}
         grouping={grouping}
-        onRetry={() => setGroupingFailed(null)}
-        onReset={() => {
-          setGrouping(null);
-          void runApp(
-            resetGrouping().pipe(
-              Effect.match({
-                onSuccess: () => {
-                  setGroupingFailed(null);
-                  setGroupingRound((round) => round + 1);
-                },
-                onFailure: () => setGrouping({ error: "Could not reset series" }),
-              }),
-            ),
-          );
-        }}
+        onRetry={retryGrouping}
+        onReset={resetGrouping}
         onClose={() => setSettingsOpen(false)}
         onLicences={() => {
           setSettingsOpen(false);
