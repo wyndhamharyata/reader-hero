@@ -56,7 +56,6 @@ const skippedFiles = new Set(["src/domain/licences.ts"]);
 const branchLimit = new Map([
   ["src/lib/epub/parse.ts:(anonymous)", 72],
   ["src/lib/shelf.ts:buildShelf", 64],
-  ["src/routes/reader/_SummarySheet.tsx:SummarySheet", 35],
 ]);
 
 const problems = [];

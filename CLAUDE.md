@@ -281,8 +281,6 @@ count of each at or below the number it has today, so none can grow.
   would pass that whole context through each call.
 - `buildShelf` in `src/lib/shelf.ts` has 64 branch points, against rule 6. It derives one shelf in
   stages, and each stage reads the lead and series maps the one before it wrote.
-- `SummarySheet` has 35 branch points, against rule 6. Its JSX branches all test the one sheet's
-  state, and the sections share its refs and callbacks.
 
 ## What the check enforces
 

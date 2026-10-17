@@ -1,8 +1,7 @@
 import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
-import { ArrowLeftIcon, ArrowUpIcon, TrashIcon, XMarkIcon } from "@/components/icons";
-import { hasConsent, type AiSettings, type BookKind } from "@/domain/ai";
+import { AiSettings, hasConsent, type BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
@@ -16,8 +15,8 @@ import {
   type SummaryInput,
 } from "@/use-cases/summary";
 import { ChapterList } from "./_ChapterList";
-import { ConsentNote } from "./_ConsentNote";
-import { CopyButton } from "./_CopyButton";
+import { SummaryFooter } from "./_SummaryFooter";
+import { summaryView } from "./_summary-derived";
 import { NameList } from "./_NameList";
 import { NameSheet } from "./_NameSheet";
 
@@ -43,11 +42,6 @@ interface Props {
   // Set on the bottom sheet, so Back turns to the menu instead of closing both.
   onBack?: () => void;
 }
-
-const text = "text-base md:text-sm";
-// Fields and their buttons keep the app's font inside the reading text.
-const field = "input w-full font-sans text-base md:input-sm md:text-sm";
-const button = "btn md:btn-sm";
 
 // Closing the sheet keeps the summary job running. Only Stop ends it.
 export function SummarySheet({
@@ -98,13 +92,15 @@ export function SummarySheet({
   const { summary, run, error } = state;
   const isStory = input.kind === "story";
   const { row, action } = describeSummary(summary, cover, run, input.kind);
-  const visibleChapters = summary?.chapters.slice(0, cover.target) ?? [];
-  // A isStory hides the names from after the position, so the list gives nothing away. The reader's own show.
-  const names = (summary?.names ?? []).filter(
-    (entry) => !isStory || entry.edited === true || entry.chapter <= cover.target,
-  );
-  const unit = isStory ? "chapter" : "section";
-  const namesLabel = isStory ? "Characters" : "Terms";
+  const { visibleChapters, names, unit, namesLabel, current, copied } = summaryView({
+    summary,
+    cover,
+    input,
+    run,
+    list,
+    isStory,
+    tab,
+  });
   const spinner = <span className="loading loading-sm loading-spinner md:loading-xs" />;
 
   useEffect(() => {
@@ -169,28 +165,6 @@ export function SummarySheet({
       ),
     );
   };
-
-  // A chapter that already has its own paragraph drops its "current position" entry.
-  const stored =
-    summary?.current !== undefined &&
-    summary.current.end <= input.index + 1 &&
-    !visibleChapters.some((chapter) => chapter.heading === summary.current?.heading)
-      ? summary.current
-      : undefined;
-  const current =
-    run !== null && run.stage === "current"
-      ? { heading: list[run.chapter - 1]?.heading ?? "", text: run.text }
-      : stored === undefined
-        ? null
-        : { heading: stored.heading, text: stored.text };
-
-  const copied =
-    tab === "chapters"
-      ? [
-          ...visibleChapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
-          ...(stored === undefined ? [] : [`${stored.heading} · current position\n${stored.text}`]),
-        ].join("\n\n")
-      : names.map((entry) => `${entry.name}: ${entry.note}`).join("\n");
 
   const close = (): void => {
     if (job.current !== null) stopFiber(job.current);
@@ -284,158 +258,49 @@ export function SummarySheet({
           </div>
         </div>
 
-        {consentPending !== null && settings !== null ? (
-          <ConsentNote
-            provider={settings.provider}
-            onCancel={() => setConsentPending(null)}
-            onAllow={() => {
-              const then = consentPending;
+        <SummaryFooter
+          consentPending={consentPending}
+          settings={settings}
+          onCancelConsent={() => setConsentPending(null)}
+          onAllowConsent={() => {
+            const then = consentPending;
 
-              setConsentPending(null);
+            setConsentPending(null);
 
-              const allowed = onConsent();
+            const allowed = onConsent();
 
-              if (allowed === null) return;
+            if (allowed === null) return;
 
-              if (then === "ask") ask(allowed);
-              else onStart(allowed);
-            }}
-          />
-        ) : discardPending ? (
-          <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
-            <span>The summary is removed. Summarising starts again from the first {unit}.</span>
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="button"
-                className={`${button} btn-ghost`}
-                onClick={() => setDiscardPending(false)}
-              >
-                Keep
-              </button>
-              <button
-                type="button"
-                className={`${button} btn-error`}
-                onClick={() => {
-                  setDiscardPending(false);
-                  onDiscard();
-                }}
-              >
-                Discard
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {error !== null && (
-              <p className={`mt-2 flex items-center gap-3 text-error ${text}`}>
-                {error}
-                <button type="button" className={`${button} btn-ghost`} onClick={start}>
-                  Retry
-                </button>
-              </p>
-            )}
-            {settings === null ? (
-              <p className={`mt-3 opacity-70 ${text}`}>No provider · set in Library Settings</p>
-            ) : run !== null ? (
-              <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
-                <span className="flex items-center gap-2">
-                  {spinner}
-                  {row}
-                </span>
-                <button type="button" className={`${button} btn-ghost`} onClick={onStop}>
-                  Stop
-                </button>
-              </div>
-            ) : (
-              action !== null && (
-                <button
-                  type="button"
-                  className={`${button} mt-3 w-full btn-primary`}
-                  onClick={start}
-                >
-                  {action}
-                </button>
-              )
-            )}
-
-            <form
-              className="mt-2 flex gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                ask();
-              }}
-            >
-              <input
-                type="text"
-                className={field}
-                placeholder="Ask about the book"
-                aria-label="Ask about the book"
-                value={question}
-                disabled={settings === null || summary === null || run !== null || pending !== null}
-                onChange={(event) => setQuestion(event.target.value)}
-              />
-              <button
-                type="submit"
-                className={`${button} btn-square btn-primary`}
-                aria-label="Send"
-                title="Send"
-                disabled={
-                  settings === null ||
-                  summary === null ||
-                  run !== null ||
-                  pending !== null ||
-                  question.trim() === ""
-                }
-              >
-                <ArrowUpIcon className="size-6 md:size-4" />
-              </button>
-            </form>
-
-            {/* The kind sits here, in the foot, so it takes no row from the content. */}
-            <div className="mt-2 flex items-center gap-1 md:gap-2">
-              {onBack !== undefined && (
-                <button
-                  type="button"
-                  className={`${button} flex-1 px-3 md:hidden`}
-                  onClick={() => dismiss(onBack)}
-                >
-                  <ArrowLeftIcon className="size-6" />
-                  Back
-                </button>
-              )}
-              <button
-                type="button"
-                className={`${button} px-3 md:px-4`}
-                aria-label={isStory ? "Book kind: Story" : "Book kind: Document"}
-                disabled={run !== null}
-                onClick={() => onKind(isStory ? "reference" : "story")}
-              >
-                {isStory ? "Story" : "Document"}
-              </button>
-              <span className={onBack === undefined ? "flex-1" : "hidden flex-1 md:block"} />
-              <CopyButton text={copied} />
-              <button
-                type="button"
-                className={`${button} btn-square btn-ghost text-error`}
-                aria-label="Discard"
-                title="Discard"
-                disabled={summary === null || run !== null}
-                onClick={() => setDiscardPending(true)}
-              >
-                <TrashIcon className="size-6 md:size-4" />
-              </button>
-              <button
-                type="button"
-                className={`${button} btn-square btn-ghost`}
-                aria-label="Close"
-                title="Close"
-                onClick={close}
-              >
-                <XMarkIcon className="size-6 md:size-4" />
-              </button>
-            </div>
-          </>
-        )}
+            if (then === "ask") ask(allowed);
+            else onStart(allowed);
+          }}
+          discardPending={discardPending}
+          onKeep={() => setDiscardPending(false)}
+          onDiscard={() => {
+            setDiscardPending(false);
+            onDiscard();
+          }}
+          error={error}
+          onRetry={start}
+          run={run !== null}
+          onStop={onStop}
+          action={action}
+          onStart={start}
+          row={row}
+          spinner={spinner}
+          question={question}
+          onQuestion={setQuestion}
+          onAsk={ask}
+          hasSummary={summary !== null}
+          isAsking={pending !== null}
+          onBack={onBack === undefined ? undefined : () => dismiss(onBack)}
+          isStory={isStory}
+          onKind={() => onKind(isStory ? "reference" : "story")}
+          copied={copied}
+          onDiscardClick={() => setDiscardPending(true)}
+          onClose={close}
+          unit={unit}
+        />
       </aside>
 
       {nameSheet !== null && (
