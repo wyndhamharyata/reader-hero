@@ -13,7 +13,6 @@ import {
   useAppEffect,
   useFigureJobs,
   useSettings,
-  type Job,
 } from "@/lib/hooks";
 import { onLaunchFiles } from "@/lib/launch-files";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
@@ -31,12 +30,8 @@ import {
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { ensureCovers, resetBookCover, setBookCover } from "@/use-cases/book-image";
-import type { ParseProgress } from "@/use-cases/extract";
 import { groupSeries, resetGrouping } from "@/use-cases/group-series";
-import { importBooks } from "@/use-cases/import-books";
 import { importInboxOnce } from "@/use-cases/import-inbox";
-import { reparseBook } from "@/use-cases/parse-book";
-import { removeBook } from "@/use-cases/remove-book";
 import { setBookFinished } from "@/use-cases/save-progress";
 import { hideSeries, saveSeries, setBookSeries } from "@/use-cases/series";
 import { describeAiFailure, describeError } from "@/lib/describe-error";
@@ -46,6 +41,7 @@ import { FilterSheet } from "./_FilterSheet";
 import { ProgressPanel } from "./_ProgressPanel";
 import { InstallHint } from "./_InstallHint";
 import { LibraryRows } from "./_LibraryRows";
+import { useLibraryActions } from "./_use-library-actions";
 import { useHideOnScroll, useKeyboardFit, useSearchPanelHeight } from "./_use-library-viewport";
 import { LibraryStatus } from "./_LibraryStatus";
 import { NoMatches } from "./_NoMatches";
@@ -105,9 +101,17 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   } | null>(null);
   // Reset changes no book and no setting, so a new round starts the run after it.
   const [groupingRound, setGroupingRound] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<ParseProgress | null>(null);
-  const importJob = useRef<Job | null>(null);
+  const {
+    busy,
+    importing,
+    progress,
+    message,
+    setMessage,
+    importFiles,
+    cancelImport,
+    remove,
+    reparse,
+  } = useLibraryActions(reload);
   const [query, setQuery] = useState("");
   const [mobileSearchAndFiltersVisible, setMobileSearchAndFiltersVisible] = useState(true);
   const searchPanel = useRef<HTMLDivElement>(null);
@@ -132,8 +136,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     length: null,
     author: null,
   });
-  const [importing, setImporting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -258,64 +260,6 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
     return () => stopFiber(fiber);
   }, [hidden, reload]);
-
-  const importFiles = (
-    files: ReadonlyArray<File>,
-    then?: (ids: ReadonlyArray<string>) => void,
-  ): void => {
-    if (files.length === 0) return;
-
-    setBusy(true);
-    setImporting(true);
-    setMessage(null);
-
-    // Runs on cancel too, so a cancelled file is removed without a meta update.
-    const settle = Effect.sync(() => {
-      setBusy(false);
-      setImporting(false);
-      setProgress(null);
-      importJob.current = null;
-      reload();
-    });
-
-    importJob.current = forkApp(
-      importBooks(files, setProgress, setMessage).pipe(
-        Effect.tap((ids) => Effect.sync(() => then?.(ids))),
-        Effect.ensuring(settle),
-      ),
-    );
-  };
-
-  const cancelImport = (): void => {
-    if (importJob.current !== null) stopFiber(importJob.current);
-  };
-
-  const remove = (id: string): void => {
-    const program = removeBook(id).pipe(
-      Effect.tap(() => Effect.sync(() => reload())),
-      Effect.catchTag("StorageFailure", (error) =>
-        Effect.sync(() => setMessage(describeError(error, "This book"))),
-      ),
-    );
-
-    void runApp(program);
-  };
-
-  const reparse = (id: string): void => {
-    setBusy(true);
-    setMessage(null);
-
-    const settle = Effect.sync(() => {
-      setBusy(false);
-      setProgress(null);
-    });
-    const program = reparseBook(id, setProgress, setMessage).pipe(
-      Effect.ensuring(settle),
-      Effect.tap(() => Effect.sync(() => reload())),
-    );
-
-    void runApp(program);
-  };
 
   const actionLabel = busy ? "Working…" : "Add book";
   const isGrid = settings.libraryView === "grid";
