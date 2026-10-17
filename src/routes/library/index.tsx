@@ -41,24 +41,21 @@ import { setBookFinished } from "@/use-cases/save-progress";
 import { hideSeries, saveSeries, setBookSeries } from "@/use-cases/series";
 import { describeAiFailure, describeError } from "@/lib/describe-error";
 import { BookSheet } from "./_BookSheet";
-import { BookCard } from "./_BookCard";
-import { BookTile } from "./_BookTile";
 import { FilterChips } from "./_FilterChips";
 import { FilterSheet } from "./_FilterSheet";
 import { ProgressPanel } from "./_ProgressPanel";
 import { InstallHint } from "./_InstallHint";
+import { LibraryRows } from "./_LibraryRows";
+import { useHideOnScroll, useKeyboardFit, useSearchPanelHeight } from "./_use-library-viewport";
 import { LibraryStatus } from "./_LibraryStatus";
 import { NoMatches } from "./_NoMatches";
 import { Logo } from "./_Logo";
 import { SearchField } from "./_SearchField";
-import { SeriesCard } from "./_SeriesCard";
 import { SeriesSheet } from "./_SeriesSheet";
-import { SeriesTile } from "./_SeriesTile";
 import { LicencesSheet } from "./_LicencesSheet";
 import { SettingsSheet } from "./_SettingsSheet";
 import { SortMenu } from "./_SortMenu";
 import { StorageUsage } from "./_StorageUsage";
-import type { TrayFlags } from "./_TrayPart";
 import { Tour } from "./_Tour";
 import { ViewToggle } from "./_ViewToggle";
 
@@ -114,19 +111,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const [query, setQuery] = useState("");
   const [mobileSearchAndFiltersVisible, setMobileSearchAndFiltersVisible] = useState(true);
   const searchPanel = useRef<HTMLDivElement>(null);
-  const [searchPanelHeight, setSearchPanelHeight] = useState(0);
-
-  useLayoutEffect(() => {
-    const panel = searchPanel.current;
-
-    if (panel === null) return;
-
-    const observer = new ResizeObserver(() => setSearchPanelHeight(panel.offsetHeight));
-
-    observer.observe(panel);
-
-    return () => observer.disconnect();
-  }, []);
+  const searchPanelHeight = useSearchPanelHeight(searchPanel);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -154,132 +139,9 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // A scroll down hides the phone search and chips to give the list room. The action row stays.
-  useEffect(() => {
-    const box = scrollRef.current;
+  useHideOnScroll(scrollRef, setMobileSearchAndFiltersVisible);
 
-    if (box === null) return;
-
-    const mobile = window.matchMedia("(width < 48rem)");
-    const readPosition = () => {
-      const height = box.clientHeight;
-      const end = Math.max(0, box.scrollHeight - height);
-      return { top: Math.min(Math.max(box.scrollTop, 0), end), height, end };
-    };
-    let previous = readPosition();
-    const onScroll = (): void => {
-      const current = readPosition();
-
-      if (current.top <= 0) {
-        setMobileSearchAndFiltersVisible(true);
-        previous = current;
-        return;
-      }
-
-      // Ignore elastic overscroll and position clamps caused by a change to the scroll range.
-      if (current.height !== previous.height || current.end !== previous.end) {
-        previous = current;
-        return;
-      }
-
-      if (!mobile.matches) {
-        previous = current;
-        return;
-      }
-
-      const delta = current.top - previous.top;
-
-      if (Math.abs(delta) >= 24) {
-        const searchFocused = document.activeElement?.matches('input[type="search"]') ?? false;
-
-        // Keep a focused search field available while its keyboard is open.
-        if (delta < 0 || !searchFocused) setMobileSearchAndFiltersVisible(delta < 0);
-        previous = current;
-      }
-    };
-    const onBreakpointChange = (): void => {
-      previous = readPosition();
-      setMobileSearchAndFiltersVisible(true);
-    };
-
-    box.addEventListener("scroll", onScroll, { passive: true });
-    mobile.addEventListener("change", onBreakpointChange);
-
-    return () => {
-      box.removeEventListener("scroll", onScroll);
-      mobile.removeEventListener("change", onBreakpointChange);
-    };
-  }, []);
-
-  // With the keyboard up the library takes only the visible area, so its bar stays above the keyboard.
-  useEffect(() => {
-    const root = rootRef.current;
-    const viewport = window.visualViewport;
-
-    if (root === null || viewport === null) return;
-
-    const html = document.documentElement;
-    let typing = false;
-    const fit = (): void => {
-      root.style.height = typing ? `${viewport.height}px` : "";
-
-      // iOS scrolls the window. Its viewport offset lags behind and stays stale for a while after the close.
-      const shift = typing ? Math.max(window.scrollY, viewport.offsetTop) : window.scrollY;
-
-      root.style.top = shift > 0 ? `${shift}px` : "";
-      // The page is no taller than what shows and does not scroll, so iOS has less to move.
-      html.style.height = typing ? `${viewport.height}px` : "";
-      html.style.overflow = typing ? "hidden" : "";
-
-      // The root's clientHeight stays the full screen with the keyboard up. InnerHeight shrinks with it.
-      const covered = html.clientHeight - viewport.height;
-
-      if (typing && covered > 0) {
-        try {
-          localStorage.setItem("keyboard-height", String(covered));
-        } catch {
-          // Without storage, the next focus shrinks the column only once the keyboard is up.
-        }
-      }
-    };
-    const onFocus = (event: FocusEvent): void => {
-      typing = event.type === "focusin" && (event.target as Element).matches("input, textarea");
-
-      const known = (() => {
-        try {
-          return Number(localStorage.getItem("keyboard-height") ?? 0);
-        } catch {
-          return 0;
-        }
-      })();
-
-      // At once while it opens, so iOS sees the field's final place. The close slides with the keyboard.
-      root.style.transition = typing ? "none" : "";
-
-      // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not move the page.
-      if (typing && known > 0 && html.clientHeight - viewport.height < 1) {
-        root.style.height = `${html.clientHeight - known}px`;
-        html.style.height = `${html.clientHeight - known}px`;
-        html.style.overflow = "hidden";
-      } else {
-        fit();
-      }
-    };
-
-    root.addEventListener("focusin", onFocus);
-    root.addEventListener("focusout", onFocus);
-    viewport.addEventListener("resize", fit);
-    viewport.addEventListener("scroll", fit);
-    window.addEventListener("scroll", fit);
-
-    return () => {
-      root.removeEventListener("focusin", onFocus);
-      root.removeEventListener("focusout", onFocus);
-      viewport.removeEventListener("resize", fit);
-      viewport.removeEventListener("scroll", fit);
-      window.removeEventListener("scroll", fit);
-    };
-  }, []);
+  useKeyboardFit(rootRef);
 
   const books = state.status === "done" ? state.value.books : [];
   const estimate = state.status === "done" ? state.value.estimate : null;
@@ -643,6 +505,17 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const toggleFilter = (group: FilterGroup, value: string): void =>
     setFilters((current) => ({ ...current, [group]: current[group] === value ? null : value }));
   const pickFiles = (): void => input.current?.click();
+  const toggleSeries = (id: string): void => {
+    const next = new Set(openSeries);
+
+    if (next.delete(id)) justOpened.current = null;
+    else {
+      next.add(id);
+      justOpened.current = id;
+    }
+
+    setOpenSeries(next);
+  };
 
   const searchField = <SearchField value={query} onChange={setQuery} />;
   const filterChips = <FilterChips shelf={shelf} onToggle={toggleFilter} onClear={clearFilters} />;
@@ -724,83 +597,18 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
           />
 
           <div ref={listRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
-            {virtualizer.getVirtualItems().map((row) => (
-              <ul
-                key={row.key}
-                ref={virtualizer.measureElement}
-                data-index={row.index}
-                {...(row.index === 0 ? { "data-tour": "book" } : {})}
-                // Above the next row while a tile's menu is open, so the menu is not under it.
-                className={`absolute inset-x-0 top-0 grid gap-x-3 focus-within:z-10 ${grid ? "pb-5" : "pb-3"}`}
-                style={{
-                  transform: `translateY(${row.start - listTop}px)`,
-                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                }}
-              >
-                {rows[row.index]?.map((item, column) => {
-                  const itemIndex = row.index * columns + column;
-                  const range = trays.find(
-                    (entry) => entry.start <= itemIndex && itemIndex <= entry.end,
-                  );
-                  const tray: TrayFlags | null =
-                    range === undefined
-                      ? null
-                      : {
-                          index: itemIndex,
-                          start: range.start,
-                          end: range.end,
-                          columns,
-                          rowGap: grid ? "1.25rem" : "0.75rem",
-                          hue: range.hue,
-                        };
-
-                  if (item.kind === "series") {
-                    const props = {
-                      series: item,
-                      expanded: openSeries.has(item.id),
-                      onToggle: () => {
-                        const next = new Set(openSeries);
-
-                        if (next.delete(item.id)) justOpened.current = null;
-                        else {
-                          next.add(item.id);
-                          justOpened.current = item.id;
-                        }
-
-                        setOpenSeries(next);
-                      },
-                      onActions: () => setSeriesEdit(item),
-                      tray,
-                    };
-                    return grid ? (
-                      <SeriesTile key={`series:${item.id}`} {...props} />
-                    ) : (
-                      <SeriesCard key={`series:${item.id}`} {...props} />
-                    );
-                  }
-
-                  const seriesMember = item.kind === "member";
-
-                  return grid ? (
-                    <BookTile
-                      key={`book:${item.card.book.id}`}
-                      card={item.card}
-                      onActions={() => setBookActions(item.card)}
-                      seriesMember={seriesMember}
-                      tray={tray}
-                    />
-                  ) : (
-                    <BookCard
-                      key={`book:${item.card.book.id}`}
-                      card={item.card}
-                      onActions={() => setBookActions(item.card)}
-                      seriesMember={seriesMember}
-                      tray={tray}
-                    />
-                  );
-                })}
-              </ul>
-            ))}
+            <LibraryRows
+              virtualizer={virtualizer}
+              rows={rows}
+              columns={columns}
+              grid={grid}
+              listTop={listTop}
+              trays={trays}
+              openSeries={openSeries}
+              onToggleSeries={toggleSeries}
+              onSeriesActions={setSeriesEdit}
+              onBookActions={setBookActions}
+            />
           </div>
 
           {items.length === 0 && books.length > 0 && <NoMatches onClear={clearAll} />}

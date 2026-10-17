@@ -23,7 +23,6 @@ import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
 import { shelfRecords } from "@/lib/shelf";
-import { slideTo } from "@/lib/slide-to";
 import { readerTourSteps } from "@/lib/tour";
 import { holdWakeLock } from "@/lib/wake-lock";
 import { Tour } from "@/routes/library/_Tour";
@@ -42,17 +41,18 @@ import { LoadError } from "./_LoadError";
 import { ReaderBody } from "./_ReaderBody";
 import { SeriesSheet } from "./_SeriesSheet";
 import { SummarySheet } from "./_SummarySheet";
+import { useReaderKeys } from "./_use-reader-keys";
 import type { JumpRequest } from "./_ReaderView";
 
 const SAVE_DELAY_MS = 400;
 
-function isTypingTarget(event: KeyboardEvent): boolean {
-  const target = event.target as HTMLElement | null;
-
-  return (
-    target !== null &&
-    (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName))
-  );
+function readerKeysEnabled(
+  tocOpen: boolean,
+  sheetOpen: boolean,
+  seriesOpen: boolean,
+  tour: number | undefined,
+): boolean {
+  return !tocOpen && !sheetOpen && !seriesOpen && (tour ?? 0) >= TOUR_VERSION;
 }
 
 export function ReaderRoute({ bookId }: { bookId: string }) {
@@ -185,153 +185,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     [settings, prefs],
   );
 
-  // Off under a sheet or the tour, which take their own Escape. Moves are smooth so the eye can follow.
-  useEffect(() => {
-    if (tocOpen || summarySheet !== null || seriesOpen) return;
-    if ((settings.readerTour ?? 0) < TOUR_VERSION) return;
-
-    const line = bookSettings.fontSize * bookSettings.lineHeight;
-    const behavior: ScrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? "auto"
-      : "smooth";
-    const scroller = (): HTMLElement | null => document.querySelector("[data-scroller]");
-    let held: {
-      key: string;
-      direction: 1 | -1;
-      since: number;
-      last: number;
-      frame: number;
-    } | null = null;
-    const stop = (): void => {
-      if (held !== null) cancelAnimationFrame(held.frame);
-      held = null;
-    };
-    // A clock of its own, not key repeat, which starts late and moves in steps.
-    const run = (now: number): void => {
-      if (held === null) return;
-
-      const seconds = (now - held.last) / 1000;
-      const heldFor = (now - held.since) / 1000;
-
-      held.last = now;
-
-      const target = scroller();
-
-      if (heldFor > 0.12 && target !== null) {
-        const speed = Math.min(36, 12 + (heldFor - 0.12) * 12) * line;
-
-        target.scrollBy({ top: held.direction * speed * seconds });
-      }
-
-      held.frame = requestAnimationFrame(run);
-    };
-    const jump = (direction: 1 | -1, instant: boolean): void => {
-      const target = scroller();
-
-      if (target === null) return;
-
-      const top = target.getBoundingClientRect().top + 16;
-      const items = Array.from(target.querySelectorAll<HTMLElement>("[data-block], [data-page]"));
-      const next =
-        direction === 1
-          ? items.find((item) => item.getBoundingClientRect().top > top + 2)
-          : items.reverse().find((item) => item.getBoundingClientRect().top < top - 2);
-
-      target.scrollBy({
-        top:
-          next === undefined
-            ? (direction * target.clientHeight) / 2
-            : next.getBoundingClientRect().top - top,
-        behavior: instant ? "auto" : behavior,
-      });
-    };
-    const scroll = (event: KeyboardEvent, direction: 1 | -1): void => {
-      if (event.repeat) return;
-
-      scroller()?.scrollBy({ top: direction * 2 * line, behavior });
-      if (held !== null) return;
-
-      const now = performance.now();
-
-      held = {
-        key: event.key,
-        direction,
-        since: now,
-        last: now,
-        frame: requestAnimationFrame(run),
-      };
-    };
-    const closeOrLeave = (event: KeyboardEvent): void => {
-      // Escape closes the search first, as a browser's find does.
-      if (searchOpen) setSearchOpen(false);
-      else if (!event.repeat) slideTo(navigate, "/", "out");
-    };
-    const handleKey = (event: KeyboardEvent): boolean => {
-      switch (event.key) {
-        case "Escape":
-          closeOrLeave(event);
-          return true;
-        case "ArrowDown":
-        case "j":
-          if (event.ctrlKey) return false;
-
-          scroll(event, 1);
-          return true;
-        case "ArrowUp":
-        case "k":
-          if (event.ctrlKey) return false;
-
-          scroll(event, -1);
-          return true;
-        case "d":
-          if (!event.ctrlKey) return false;
-
-          jump(1, event.repeat);
-          return true;
-        case "u":
-          if (!event.ctrlKey) return false;
-
-          jump(-1, event.repeat);
-          return true;
-        case "s":
-          if (event.ctrlKey) return false;
-
-          setTocOpen(true);
-          return true;
-        default:
-          return false;
-      }
-    };
-    const onKey = (event: KeyboardEvent): void => {
-      if (isTypingTarget(event) || event.metaKey || event.altKey) return;
-      if (!handleKey(event)) return;
-
-      event.preventDefault();
-    };
-    const onKeyUp = (event: KeyboardEvent): void => {
-      if (held !== null && event.key === held.key) stop();
-    };
-
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", stop);
-
-    return () => {
-      stop();
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", stop);
-    };
-  }, [
-    tocOpen,
-    summarySheet,
-    seriesOpen,
+  useReaderKeys({
+    enabled: readerKeysEnabled(tocOpen, summarySheet !== null, seriesOpen, settings.readerTour),
     searchOpen,
-    settings.readerTour,
+    setSearchOpen,
+    setTocOpen,
     navigate,
-    bookSettings.fontSize,
-    bookSettings.lineHeight,
-  ]);
+    fontSize: bookSettings.fontSize,
+    lineHeight: bookSettings.lineHeight,
+  });
 
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
