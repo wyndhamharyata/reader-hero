@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
@@ -17,21 +18,41 @@ export default defineConfig({
       name: "relay",
       // The dev server has no Worker, so it answers /relay with the Worker's own relay code.
       configureServer(server) {
-        server.middlewares.use("/relay", (req, res) => {
-          const bodyless = req.method === "GET" || req.method === "HEAD";
+        server.middlewares.use("/relay", (req, res, next) => {
+          // As the Worker routes it: /relay alone, by GET or POST.
+          if (req.url !== "/" || (req.method !== "GET" && req.method !== "POST")) {
+            next();
+            return;
+          }
+          // A reader who stops a summary closes the request, so the provider stops writing too.
+          const stop = new AbortController();
+          res.on("close", () => stop.abort());
           const request = new Request(`http://${req.headers.host ?? "localhost"}/relay`, {
             method: req.method,
             headers: Object.entries(req.headers).flatMap(([name, value]) =>
               typeof value === "string" ? [[name, value] as [string, string]] : [],
             ),
-            body: bodyless ? null : (Readable.toWeb(req) as ReadableStream),
+            body: req.method === "GET" ? null : (Readable.toWeb(req) as ReadableStream),
             duplex: "half",
+            signal: stop.signal,
           });
-          void relay(request).then((response) => {
-            res.writeHead(response.status, Object.fromEntries(response.headers));
-            if (response.body === null) res.end();
-            else Readable.fromWeb(response.body as NodeReadableStream).pipe(res);
-          });
+          relay(request).then(
+            (response) => {
+              res.writeHead(response.status, Object.fromEntries(response.headers));
+              if (response.body === null) {
+                res.end();
+                return;
+              }
+              // A stream that breaks ends this response instead of the dev server.
+              pipeline(Readable.fromWeb(response.body as NodeReadableStream), res).catch(() =>
+                res.destroy(),
+              );
+            },
+            () => {
+              res.statusCode = 502;
+              res.end();
+            },
+          );
         });
       },
     },

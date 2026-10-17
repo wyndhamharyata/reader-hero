@@ -63,7 +63,8 @@ export function groupSeries(
         const batch = pending.slice(0, cut > 0 ? cut : 30);
 
         const stored = yield* store.listSeries();
-        const authors = new Set(batch.map((book) => book.author ?? ""));
+        // A book with no author names no series, so one such book cannot list the whole library.
+        const authors = new Set(batch.flatMap((book) => (book.author ? [book.author] : [])));
         // Only these authors' series keep the request small; this batch stays out, so none repeats.
         const sending = new Set(batch.map((book) => book.id));
         const existing = buildShelf(books, new Map(), "", none, "added", stored)
@@ -74,7 +75,9 @@ export function groupSeries(
           .filter(
             (group) =>
               group.books.length > 0 &&
-              (authors.has("") || group.books.some((card) => authors.has(card.book.author ?? ""))),
+              group.books.some(
+                (card) => card.book.author !== undefined && authors.has(card.book.author),
+              ),
           );
         const numbers = new Map(
           stored.flatMap((series) =>
@@ -131,6 +134,12 @@ export function groupSeries(
         ].join("\n");
 
         let reply = "";
+        // Once the provider answers, the batch has left: it counts as sent, so a failure after cannot send it again.
+        const sentNow = [
+          ...books.filter((book) => sent.has(book.id)).map((book) => book.id),
+          ...batch.map((book) => book.id),
+        ];
+        let recorded = false;
         yield* client
           .complete(
             settings,
@@ -140,7 +149,11 @@ export function groupSeries(
           )
           .pipe(
             Stream.runForEach((delta) =>
-              Effect.sync(() => {
+              Effect.gen(function* () {
+                if (!recorded) {
+                  recorded = true;
+                  yield* grouped.putGroupedBooks(sentNow);
+                }
                 if (delta.type === "text") reply += delta.text;
               }),
             ),
@@ -294,10 +307,7 @@ export function groupSeries(
               );
             }
             for (const series of changed.values()) yield* store.putSeries(series);
-            yield* grouped.putGroupedBooks([
-              ...books.filter((book) => sent.has(book.id)).map((book) => book.id),
-              ...batch.map((book) => book.id),
-            ]);
+            yield* grouped.putGroupedBooks(sentNow);
           }),
         );
       }

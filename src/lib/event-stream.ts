@@ -95,10 +95,9 @@ function deltasOf(data: ReadonlyArray<string>): ReadonlyArray<Delta> {
   }
   // Any reason but these means the provider stopped the reply on purpose, often a filter.
   const finish = chunk.choices?.[0]?.finish_reason;
-  if (
-    typeof finish === "string" &&
-    !["stop", "length", "tool_calls", "function_call"].includes(finish)
-  )
+  if (finish === "length")
+    out.push({ type: "error", message: "The provider cut this reply short" });
+  else if (typeof finish === "string" && !["stop", "tool_calls", "function_call"].includes(finish))
     out.push({ type: "error", message: `The provider stopped this reply: ${finish}` });
   return out;
 }
@@ -124,9 +123,17 @@ function anthropicDeltas(event: unknown): ReadonlyArray<Delta> {
     }
     return [];
   }
+  // A reply that ran out of room, or that the model refused, is not a whole one to keep.
+  const stop = type === "message_delta" ? delta?.stop_reason : undefined;
+  const stopped: Array<Delta> =
+    stop === "max_tokens"
+      ? [{ type: "error", message: "The provider cut this reply short" }]
+      : stop === "refusal"
+        ? [{ type: "error", message: "The provider stopped this reply: refusal" }]
+        : [];
   const counts =
     type === "message_start" ? message?.usage : type === "message_delta" ? usage : undefined;
-  if (counts === undefined) return [];
+  if (counts === undefined) return stopped;
   const plain = count(counts.input_tokens);
   const read = count(counts.cache_read_input_tokens);
   const written = count(counts.cache_creation_input_tokens);
@@ -148,6 +155,7 @@ function anthropicDeltas(event: unknown): ReadonlyArray<Delta> {
           : { output: count(counts.output_tokens) }),
       },
     },
+    ...stopped,
   ];
 }
 

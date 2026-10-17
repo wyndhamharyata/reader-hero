@@ -455,6 +455,8 @@ export function SettingsSheet({
                       setProvider(next);
                       // Another provider's model id means nothing here, so Test fills the field afresh.
                       setModel(next === ai?.provider ? ai.model : "");
+                      // A key goes only to the provider it was made for, so Test cannot send it to this one.
+                      setApiKey(next === ai?.provider ? ai.apiKey : "");
                       setModels([]);
                       setTest({ state: "idle" });
                     }}
@@ -698,6 +700,7 @@ export function SettingsSheet({
                   onClick={() => {
                     setProvider(relayNotice);
                     setModel(relayNotice === ai?.provider ? ai.model : "");
+                    setApiKey(relayNotice === ai?.provider ? ai.apiKey : "");
                     setRelayNotice(null);
                   }}
                 >

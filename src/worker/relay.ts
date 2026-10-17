@@ -10,7 +10,12 @@ const hosts = new Set([
   "api.together.xyz",
 ]);
 
-const forwarded = ["authorization", "content-type", "accept", "x-opencode-session"];
+const forwarded = ["authorization", "content-type", "accept"];
+
+// The two calls the app makes, under any base path, so a custom base URL still works and nothing else is reached.
+const allowedCall = (method: string, path: string): boolean =>
+  (method === "POST" && path.endsWith("/chat/completions")) ||
+  (method === "GET" && path.endsWith("/models"));
 
 const refuse = (message: string, status: number): Response =>
   Response.json({ error: { message } }, { status });
@@ -31,8 +36,17 @@ export async function relay(request: Request): Promise<Response> {
   } catch {
     return refuse("The relay needs a target URL", 400);
   }
-  if (url.protocol !== "https:" || !hosts.has(url.hostname)) {
+  if (
+    url.protocol !== "https:" ||
+    !hosts.has(url.hostname) ||
+    url.port !== "" ||
+    url.username !== "" ||
+    url.password !== ""
+  ) {
     return refuse(`The relay does not reach ${url.host}`, 403);
+  }
+  if (!allowedCall(request.method, url.pathname)) {
+    return refuse("The relay passes on only chat and model list calls", 403);
   }
   // The provider sees who calls it, with the deployment that did: the app and nothing else.
   const headers = new Headers({ "user-agent": `reader-hero/1.0 (+${origin})` });
@@ -40,6 +54,10 @@ export async function relay(request: Request): Promise<Response> {
     const value = request.headers.get(name);
     if (value !== null) headers.set(name, value);
   }
+  // Only OpenCode reads its session header, so no other provider gets the book's id in it.
+  const session = request.headers.get("x-opencode-session");
+  if (session !== null && url.hostname === "opencode.ai")
+    headers.set("x-opencode-session", session);
   // Node's fetch, which the dev server uses, refuses a streamed body without `duplex`.
   const init = {
     method: request.method,
@@ -47,6 +65,8 @@ export async function relay(request: Request): Promise<Response> {
     body: request.method === "GET" ? null : request.body,
     duplex: "half" as const,
     redirect: "manual" as const,
+    // A reader who stops a request ends it upstream too, so the provider stops writing.
+    signal: request.signal,
   };
   let upstream: Response;
   try {
@@ -59,6 +79,8 @@ export async function relay(request: Request): Promise<Response> {
     headers: {
       "content-type": upstream.headers.get("content-type") ?? "application/json",
       "cache-control": "no-store",
+      // Served from the app's own origin, so the browser must never read it as anything but its stated type.
+      "x-content-type-options": "nosniff",
     },
   });
 }

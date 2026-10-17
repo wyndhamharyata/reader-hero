@@ -106,6 +106,14 @@ describe("event stream parser", () => {
     expect(collect([raw(JSON.stringify(chunk))])).toEqual([{ type: "text", text: "Jim fled." }]);
   });
 
+  it("given a length finish reason, yields the text and an error, so a cut-off reply is not kept", () => {
+    const chunk = { choices: [{ delta: { content: "Jim fl" }, finish_reason: "length" }] };
+    expect(collect([raw(JSON.stringify(chunk))])).toEqual([
+      { type: "text", text: "Jim fl" },
+      { type: "error", message: "The provider cut this reply short" },
+    ]);
+  });
+
   it("given a content_filter finish reason, yields one error naming it", () => {
     const chunk = { choices: [{ delta: {}, finish_reason: "content_filter" }] };
     expect(collect([raw(JSON.stringify(chunk))])).toMatchObject([
@@ -147,6 +155,17 @@ describe("Anthropic event stream", () => {
       { type: "reasoning", text: "hm" },
       { type: "text", text: "Jim fled." },
       { type: "usage", usage: { output: 90 } },
+    ]);
+  });
+
+  it("given a reply stopped at max_tokens, yields an error after its usage", () => {
+    expect(
+      collect([
+        sse("message_delta", { delta: { stop_reason: "max_tokens" }, usage: { output_tokens: 9 } }),
+      ]),
+    ).toEqual([
+      { type: "usage", usage: { output: 9 } },
+      { type: "error", message: "The provider cut this reply short" },
     ]);
   });
 });

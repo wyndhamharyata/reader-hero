@@ -345,6 +345,24 @@ describe("groupSeries, the request", () => {
   });
 });
 
+describe("groupSeries, what it lists", () => {
+  it("given a new book with no author, lists no series of other authors", async () => {
+    const state: State = {
+      books: [
+        book("b1", "Beacon at Low Water", { series: "The Tide Cycle", seriesNumber: 1 }),
+        book("x", "Untitled scan", { author: undefined }),
+      ],
+      series: [],
+      sent: ["b1"],
+    };
+    const { calls, run } = harness(state, () => '{"series":[]}');
+
+    await run();
+
+    expect(calls[0]?.user).not.toContain("The Tide Cycle");
+  });
+});
+
 describe("groupSeries, the checks", () => {
   it("drops unknown keys, a second place for a book, bad numbers and markup in a name", async () => {
     const state: State = { books: tide, series: [], sent: [] };
@@ -421,7 +439,7 @@ describe("groupSeries, the checks", () => {
     ]);
   });
 
-  it("given a reply that is not JSON or empty, stores nothing and fails", async () => {
+  it("given a reply that is not JSON or empty, stores no series, counts the books as sent, and fails", async () => {
     for (const reply of ["I cannot group these.", "{ broken", "  "]) {
       const state: State = { books: tide, series: [], sent: [] };
       const { fail } = harness(state, () => reply);
@@ -430,7 +448,8 @@ describe("groupSeries, the checks", () => {
 
       expect(error).toBeInstanceOf(AiFailure);
       expect(state.series).toEqual([]);
-      expect(state.sent).toEqual([]);
+      // The books reached the provider, so a retry would send them a second time.
+      expect([...state.sent].sort()).toEqual(["b1", "b2", "b3", "b4"]);
     }
   });
 });

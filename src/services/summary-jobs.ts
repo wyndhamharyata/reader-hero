@@ -58,6 +58,8 @@ export class SummaryJobs extends Context.Service<
       const held = new Map<string, string>();
       // Set before the other runs stop, so none starts again in the gap before the rebuild holds its books.
       let rebuilding = false;
+      // Taken before the first yield, so two starts at once cannot both pass the check and run twice.
+      const starting = new Set<string>();
 
       const stateRef = (key: string): Effect.Effect<SubscriptionRef.SubscriptionRef<JobState>> =>
         Effect.gen(function* () {
@@ -71,12 +73,23 @@ export class SummaryJobs extends Context.Service<
       const state = (key: string): Stream.Stream<JobState> =>
         Stream.unwrap(Effect.map(stateRef(key), SubscriptionRef.changes));
 
-      const start = Effect.fn("SummaryJobs.start")(function* (
+      const start = (input: SummaryInput, settings: AiSettings): Effect.Effect<void> =>
+        Effect.suspend(() => {
+          const bookId = input.meta.id;
+          if (rebuilding || fibers.has(bookId) || held.has(bookId) || starting.has(bookId)) {
+            return Effect.void;
+          }
+          starting.add(bookId);
+          return launch(input, settings).pipe(
+            Effect.ensuring(Effect.sync(() => starting.delete(bookId))),
+          );
+        });
+
+      const launch = Effect.fn("SummaryJobs.start")(function* (
         input: SummaryInput,
         settings: AiSettings,
       ) {
         const bookId = input.meta.id;
-        if (rebuilding || fibers.has(bookId) || held.has(bookId)) return;
         const ref = yield* stateRef(bookId);
         yield* SubscriptionRef.set(ref, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
@@ -153,10 +166,22 @@ export class SummaryJobs extends Context.Service<
         fibers.set(key, yield* Effect.forkDetach(job));
       });
 
-      const startRebuild = Effect.fn("SummaryJobs.startRebuild")(function* (settings: AiSettings) {
+      // A setup stopped before the rebuild runs lets go of the flag, or no summary could start again until a reload.
+      const startRebuild = (settings: AiSettings): Effect.Effect<void> =>
+        Effect.suspend(() => {
+          if (rebuilding) return Effect.void;
+          rebuilding = true;
+          return launchRebuild(settings).pipe(
+            Effect.onExit(() =>
+              Effect.sync(() => {
+                if (!fibers.has("rebuild")) rebuilding = false;
+              }),
+            ),
+          );
+        });
+
+      const launchRebuild = Effect.fn("SummaryJobs.startRebuild")(function* (settings: AiSettings) {
         const key = "rebuild";
-        if (rebuilding) return;
-        rebuilding = true;
         yield* Fiber.interruptAll([...fibers.values()]);
         const ref = yield* stateRef(key);
         yield* SubscriptionRef.set(ref, {

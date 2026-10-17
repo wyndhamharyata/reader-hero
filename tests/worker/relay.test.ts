@@ -39,7 +39,10 @@ describe("relay", () => {
     vi.stubGlobal("fetch", mock);
     const response = await relay(
       new Request("https://reader-hero.example/relay", {
-        headers: { "sec-fetch-site": "same-origin", "x-relay-target": target },
+        headers: {
+          "sec-fetch-site": "same-origin",
+          "x-relay-target": "https://api.groq.com/openai/v1/models",
+        },
       }),
     );
     expect(response.status).toBe(200);
@@ -104,7 +107,8 @@ describe("relay", () => {
     const headers = new Headers(init.headers);
     expect(headers.get("authorization")).toBe("Bearer k");
     expect(headers.get("content-type")).toBe("application/json");
-    expect(headers.get("x-opencode-session")).toBe("reader-hero:b3");
+    // Only OpenCode reads it, so another provider never gets the book's id.
+    expect(headers.get("x-opencode-session")).toBeNull();
     expect(headers.get("user-agent")).toBe("reader-hero/1.0 (+https://reader-hero.example)");
     expect(headers.get("cookie")).toBeNull();
     expect(headers.get("x-relay-target")).toBeNull();
@@ -144,5 +148,33 @@ describe("relay", () => {
     const response = await relay(call({ "x-relay-target": target }));
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: { message: "The provider did not answer" } });
+  });
+
+  it("given OpenCode as the target, forwards its session header", async () => {
+    const mock = vi.fn(async (_url: URL, _init: RequestInit) => new Response("{}"));
+    vi.stubGlobal("fetch", mock);
+    await relay(
+      call({
+        "x-relay-target": "https://opencode.ai/zen/go/v1/chat/completions",
+        "x-opencode-session": "reader-hero:b3",
+      }),
+    );
+    const headers = new Headers(mock.mock.calls[0]?.[1].headers);
+    expect(headers.get("x-opencode-session")).toBe("reader-hero:b3");
+  });
+
+  it("given a path, a port or credentials the app never uses, refuses with 403 and calls nothing", async () => {
+    const mock = vi.fn(() => Promise.resolve(new Response("{}")));
+    vi.stubGlobal("fetch", mock);
+    for (const refused of [
+      "https://api.groq.com/openai/v1/files",
+      "https://opencode.ai/",
+      "https://api.groq.com:8443/openai/v1/chat/completions",
+      "https://user:pass@api.groq.com/openai/v1/chat/completions",
+    ]) {
+      const response = await relay(call({ "x-relay-target": refused }));
+      expect(response.status).toBe(403);
+    }
+    expect(mock).not.toHaveBeenCalled();
   });
 });
