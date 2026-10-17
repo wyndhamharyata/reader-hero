@@ -1,18 +1,11 @@
-import { useCallback, type ReactElement } from "react";
-import type {
-  BookMeta,
-  ParsedBook,
-  ReaderMode,
-  ReaderSettings,
-  ReadingProgress,
-} from "@/domain/book";
+import { useCallback, useMemo, type ReactElement } from "react";
+import type { BookMeta, ParsedBook, ReaderMode, ReaderSettings } from "@/domain/book";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
 
 interface Props {
   meta: BookMeta;
   parsed: ParsedBook;
-  progress: ReadingProgress | null;
   position: number;
   onPosition: (blockIndex: number) => void;
   mode: ReaderMode;
@@ -27,7 +20,6 @@ interface Props {
 export function ReaderBody({
   meta,
   parsed,
-  progress,
   position,
   onPosition,
   mode,
@@ -40,7 +32,8 @@ export function ReaderBody({
 }: Props): ReactElement {
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
-  const initialBlock = progress?.blockIndex ?? 0;
+  // The place now, not at open, so coming back from the original view keeps the reading done there.
+  const initialBlock = position;
   const currentPage = parsed.blocks[position]?.page ?? 1;
 
   // Stable, or every page change rebuilds the original view's observer over every page.
@@ -50,6 +43,12 @@ export function ReaderBody({
       if (index >= 0) onPosition(index);
     },
     [parsed, onPosition],
+  );
+
+  const pageJump = useMemo(
+    () =>
+      jump === null ? null : { page: parsed.blocks[jump.index]?.page ?? 1, nonce: jump.nonce },
+    [jump, parsed],
   );
 
   return (
@@ -73,6 +72,7 @@ export function ReaderBody({
           pageCount={meta.pageCount}
           initialPage={currentPage}
           showChrome={chrome}
+          jump={pageJump}
           blocks={scanned ? null : parsed.blocks}
           searching={searching}
           onCloseSearch={onCloseSearch}

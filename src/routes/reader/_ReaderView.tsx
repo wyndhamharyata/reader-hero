@@ -130,7 +130,8 @@ export const ReaderView = memo(function ReaderView({
       }
       // The top block brings a resume to the same screen; the last block marks the book finished.
       const atEnd = top + container.clientHeight >= container.scrollHeight - 2;
-      const index = atEnd ? nodes.length - 1 : topIndex;
+      // The block's own index, as a custom cover leaves block 0 out of the nodes.
+      const index = Number(nodes[atEnd ? nodes.length - 1 : topIndex]?.dataset.block ?? 0);
       if (index !== positionRef.current) {
         positionRef.current = index;
         onPosition(index);

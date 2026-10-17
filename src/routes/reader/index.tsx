@@ -493,15 +493,17 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   const toggleMode = (): void => {
     setSearchOpen(false);
+    // The other view mounts at the place being read, not at the last Contents entry.
+    setJump(null);
     savePrefs({ mode: mode === "reader" ? "original" : "reader" });
   };
   // The search goes through the parsed text, so a scanned book, which has none, has no search.
   const searchable = showsPages && data?.meta.parseState !== "scanned";
   const toggleChrome = useCallback(() => setChrome((value) => !value), []);
   const closeToc = () => setTocOpen(false);
+  // The view showing goes to the entry, so a Contents tap never changes the book's view.
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
-    if (mode !== "reader") savePrefs({ mode: "reader" });
     setJump({ index: blockIndex, nonce: Date.now() });
   };
 
@@ -528,7 +530,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           <ReaderBody
             meta={data.meta}
             parsed={data.parsed}
-            progress={data.progress}
             position={position}
             onPosition={onPosition}
             mode={mode}

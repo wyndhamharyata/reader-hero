@@ -44,6 +44,8 @@ interface Props {
   pageCount: number;
   initialPage: number;
   showChrome: boolean;
+  // A Contents entry's page; the nonce lets the same entry go again.
+  jump: { readonly page: number; readonly nonce: number } | null;
   // The parsed text, which the search goes through; null hides the search, as for a scanned book.
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }> | null;
   searching: boolean;
@@ -57,6 +59,7 @@ export function OriginalView({
   pageCount,
   initialPage,
   showChrome,
+  jump,
   blocks,
   searching,
   onCloseSearch,
@@ -338,6 +341,11 @@ export function OriginalView({
     (page: number) => virtualizer.scrollToIndex(page - 1, { align: "start" }),
     [virtualizer],
   );
+
+  // After the open, as no page can be scrolled to before the list has its pages.
+  useEffect(() => {
+    if (jump !== null && doc !== null) jumpTo(jump.page);
+  }, [jump, doc, jumpTo]);
 
   // New sizes or width change every page's height: first the view goes to the saved page, then the page being read stays.
   const startPage = useRef(initialPage);
