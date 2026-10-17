@@ -1,7 +1,8 @@
 import { Effect, Option, Stream } from "effect";
 import { Block, PARSED_VERSION, ParsedBook, TocEntry } from "@/domain/book";
 import { EpubFailure } from "@/domain/errors";
-import { blockLink } from "@/lib/links";
+import { isOpenableUrl } from "@/lib/links";
+import { relinkBlocks } from "@/lib/relink";
 import { trimTextRanges } from "@/lib/text-ranges";
 
 export interface EpubBook {
@@ -94,24 +95,13 @@ function resolveTarget(path: string, href: string): string {
   return fragment === "" ? base : `${base}#${fragment}`;
 }
 
-function hasExternalScheme(href: string): boolean {
-  const lower = href.toLowerCase();
-
-  return (
-    lower.startsWith("http://") ||
-    lower.startsWith("https://") ||
-    lower.startsWith("mailto:") ||
-    lower.startsWith("tel:")
-  );
-}
-
 function readLink(path: string, value: string | null): string | undefined {
   const href = value?.trim() ?? "";
   const lower = href.toLowerCase();
 
   if (href === "" || lower.startsWith("javascript:") || lower.startsWith("data:")) return undefined;
   if (href.startsWith("//")) return `https:${href}`;
-  if (hasExternalScheme(href)) return href;
+  if (isOpenableUrl(href)) return href;
 
   return `${INTERNAL_LINK_PREFIX}${resolveTarget(path, href)}`;
 }
@@ -615,33 +605,13 @@ function buildToc(
 }
 
 function resolveBlockLinks(blocks: Array<Block>, anchors: ReadonlyMap<string, number>): void {
-  for (const [index, block] of blocks.entries()) {
-    if (block.marks === undefined) continue;
+  relinkBlocks(blocks, (href) => {
+    if (!href.startsWith(INTERNAL_LINK_PREFIX)) return "keep";
 
-    const marks: Array<Mark> = [];
-    let changed = false;
+    const target = anchors.get(href.slice(INTERNAL_LINK_PREFIX.length));
 
-    for (const mark of block.marks) {
-      const isInternal =
-        mark.style === "link" &&
-        mark.href !== undefined &&
-        mark.href.startsWith(INTERNAL_LINK_PREFIX);
-      const target = isInternal
-        ? anchors.get((mark.href ?? "").slice(INTERNAL_LINK_PREFIX.length))
-        : undefined;
-
-      if (!isInternal) marks.push(mark);
-      else {
-        changed = true;
-
-        if (target !== undefined && target < blocks.length)
-          marks.push({ ...mark, href: blockLink(target) });
-      }
-    }
-
-    if (changed)
-      blocks[index] = new Block({ ...block, marks: marks.length > 0 ? marks : undefined });
-  }
+    return target !== undefined && target < blocks.length ? target : null;
+  });
 }
 
 export function parseEpub(

@@ -1,6 +1,6 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Option, Schema } from "effect";
 import type { PDFPageProxy } from "pdfjs-dist";
-import type { PageSize } from "@/domain/book";
+import { LinkTarget, type PageSize } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
 
 export interface RenderedDocument {
@@ -22,7 +22,7 @@ export interface PageLink {
   readonly top: number;
   readonly width: number;
   readonly height: number;
-  readonly target: { readonly url: string } | { readonly page: number };
+  readonly target: LinkTarget;
 }
 
 export interface PageTextContent {
@@ -33,6 +33,56 @@ export interface PageTextContent {
   readonly pageX: number;
   readonly pageY: number;
 }
+
+const PageLinkSchema = Schema.Struct({
+  left: Schema.Number,
+  top: Schema.Number,
+  width: Schema.Number,
+  height: Schema.Number,
+  target: LinkTarget,
+});
+
+const TextContentSchema = Schema.declare(
+  (input): input is PageTextContent["content"] =>
+    typeof input === "object" && input !== null && "items" in input,
+);
+
+const BitmapSchema = Schema.declare(
+  (input): input is ImageBitmap =>
+    typeof ImageBitmap !== "undefined" && input instanceof ImageBitmap,
+);
+
+const OpenReply = Schema.Struct({
+  id: Schema.Number,
+  pageCount: Schema.Number,
+  width: Schema.Number,
+  height: Schema.Number,
+});
+const SizeReply = Schema.Struct({ width: Schema.Number, height: Schema.Number });
+const RenderReply = Schema.Struct({ bitmap: BitmapSchema });
+const LinksReply = Schema.Struct({ links: Schema.Array(PageLinkSchema) });
+const TextReply = Schema.Struct({
+  text: Schema.Struct({
+    content: TextContentSchema,
+    rotation: Schema.Number,
+    pageWidth: Schema.Number,
+    pageHeight: Schema.Number,
+    pageX: Schema.Number,
+    pageY: Schema.Number,
+  }),
+});
+const FindReply = Schema.Struct({ pages: Schema.Array(Schema.Number) });
+
+const decodeReply = <S extends Schema.ConstraintDecoder<unknown, never>>(
+  schema: S,
+  reply: Record<string, unknown>,
+): Effect.Effect<S["Type"], PdfFailure> => {
+  const decoded = Schema.decodeUnknownOption(schema)(reply);
+
+  return Option.isNone(decoded)
+    ? Effect.fail(new PdfFailure({ reason: "unknown", message: "Malformed worker reply" }))
+    : Effect.succeed(decoded.value);
+};
 
 let renderer: Worker | null = null;
 let nextId = 0;
@@ -136,36 +186,34 @@ export class PageRenderer extends Context.Service<
           worker().postMessage({ type: "warm" });
         }),
       open: (file) =>
-        Effect.map(request({ type: "open", file }, [], "close"), (reply) => ({
-          id: Number(reply.id),
-          pageCount: Number(reply.pageCount),
-          first: { page: 1, width: Number(reply.width), height: Number(reply.height) },
-        })),
+        Effect.flatMap(request({ type: "open", file }, [], "close"), (reply) =>
+          Effect.map(decodeReply(OpenReply, reply), (opened) => ({
+            id: opened.id,
+            pageCount: opened.pageCount,
+            first: { page: 1, width: opened.width, height: opened.height },
+          })),
+        ),
       pageSize: (rendered, page) =>
-        Effect.map(request({ type: "size", id: rendered.id, page }, [], null), (reply) => ({
-          page,
-          width: Number(reply.width),
-          height: Number(reply.height),
-        })),
+        Effect.flatMap(request({ type: "size", id: rendered.id, page }, [], null), (reply) =>
+          Effect.map(decodeReply(SizeReply, reply), (size) => ({ page, ...size })),
+        ),
       render: (rendered, page, scale, crop) =>
-        Effect.map(
+        Effect.flatMap(
           request({ type: "render", id: rendered.id, page, scale, crop }, [], "cancel"),
-          (reply) => reply.bitmap as ImageBitmap,
+          (reply) => Effect.map(decodeReply(RenderReply, reply), (rendered) => rendered.bitmap),
         ),
       links: (rendered, page) =>
-        Effect.map(
-          request({ type: "links", id: rendered.id, page }, [], null),
-          (reply) => reply.links as ReadonlyArray<PageLink>,
+        Effect.flatMap(request({ type: "links", id: rendered.id, page }, [], null), (reply) =>
+          Effect.map(decodeReply(LinksReply, reply), (links) => links.links),
         ),
       text: (rendered, page) =>
-        Effect.map(
-          request({ type: "text", id: rendered.id, page }, [], null),
-          (reply) => reply.text as PageTextContent,
+        Effect.flatMap(request({ type: "text", id: rendered.id, page }, [], null), (reply) =>
+          Effect.map(decodeReply(TextReply, reply), (text) => text.text),
         ),
       find: (rendered, pages, query) =>
-        Effect.map(
-          request({ type: "find", id: rendered.id, pages, query }, [], null),
-          (reply) => reply.pages as ReadonlyArray<number>,
+        Effect.flatMap(
+          request({ type: "find", id: rendered.id, pages, query }, [], "cancel"),
+          (reply) => Effect.map(decodeReply(FindReply, reply), (found) => found.pages),
         ),
       close: (rendered) =>
         Effect.sync(() => {

@@ -1,5 +1,12 @@
 const BLOCK_LINK_PREFIX = "#block-";
 const PAGE_LINK_PREFIX = "page:";
+const OPENABLE_SCHEMES = ["http://", "https://", "mailto:", "tel:"];
+
+export function isOpenableUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+
+  return OPENABLE_SCHEMES.some((scheme) => lower.startsWith(scheme));
+}
 
 export const blockLink = (index: number): string => `${BLOCK_LINK_PREFIX}${index}`;
 

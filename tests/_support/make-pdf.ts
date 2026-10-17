@@ -17,7 +17,8 @@ export interface PdfLink {
   readonly y: number;
   readonly width: number;
   readonly height: number;
-  readonly url: string;
+  readonly url?: string;
+  readonly page?: number;
 }
 
 type Part = string | Uint8Array;
@@ -79,8 +80,13 @@ export function makePdf(
     ]);
   }
   for (const link of links) {
+    const action =
+      link.url === undefined
+        ? `/Dest [3 0 R /XYZ null null null]`
+        : `/A << /S /URI /URI (${escapeText(link.url)}) >>`;
+
     objects.push([
-      `<< /Type /Annot /Subtype /Link /Rect [${link.x} ${link.y} ${link.x + link.width} ${link.y + link.height}] /Border [0 0 0] /A << /S /URI /URI (${escapeText(link.url)}) >> >>`,
+      `<< /Type /Annot /Subtype /Link /Rect [${link.x} ${link.y} ${link.x + link.width} ${link.y + link.height}] /Border [0 0 0] ${action} >>`,
     ]);
   }
 

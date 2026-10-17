@@ -69,6 +69,7 @@ const documents = new Map<number, Opened>();
 const tasks = new Map<number, RenderTask>();
 // A cancel can land before its render has a task, so the render checks this after each wait.
 const rendering = new Set<number>();
+const finding = new Set<number>();
 const cancelled = new Set<number>();
 // An open closed before it finished is destroyed once it does.
 const opening = new Set<number>();
@@ -279,7 +280,7 @@ async function handleMessage(message: WorkerMessage): Promise<void> {
   }
 
   if (message.type === "cancel") {
-    if (!rendering.has(message.requestId)) return;
+    if (!rendering.has(message.requestId) && !finding.has(message.requestId)) return;
 
     cancelled.add(message.requestId);
     tasks.get(message.requestId)?.cancel();
@@ -300,15 +301,20 @@ async function handleMessage(message: WorkerMessage): Promise<void> {
   await handleOpened(opened, message);
 }
 
-async function handleOpened(
+async function findPages(
   opened: Opened,
-  message: Exclude<WorkerMessage, { type: "warm" | "open" | "cancel" | "close" }>,
+  message: Extract<WorkerMessage, { type: "find" }>,
 ): Promise<void> {
-  if (message.type === "find") {
-    const wanted = searchForm(message.query).trim();
-    const found: number[] = [];
+  const wanted = searchForm(message.query).trim();
+  const found: number[] = [];
 
+  finding.add(message.requestId);
+
+  try {
     for (const number of message.pages) {
+      // A cancelled search stops before the next page is read.
+      if (cancelled.has(message.requestId)) return;
+
       const content = await (await opened.document.getPage(number)).getTextContent();
       const runs = content.items.filter((item) => "str" in item);
 
@@ -316,6 +322,18 @@ async function handleOpened(
     }
 
     postMessage({ type: "found", requestId: message.requestId, pages: found });
+  } finally {
+    finding.delete(message.requestId);
+    cancelled.delete(message.requestId);
+  }
+}
+
+async function handleOpened(
+  opened: Opened,
+  message: Exclude<WorkerMessage, { type: "warm" | "open" | "cancel" | "close" }>,
+): Promise<void> {
+  if (message.type === "find") {
+    await findPages(opened, message);
     return;
   }
 

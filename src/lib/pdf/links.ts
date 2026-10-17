@@ -1,12 +1,9 @@
-import type { PDFDocumentProxy, PDFPageProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, PDFPageProxy, PageViewport } from "pdfjs-dist";
 import type { PageLinkBox } from "@/domain/book";
+import { isOpenableUrl } from "@/lib/links";
 
 // pdf.js AnnotationType.LINK.
 const LINK_ANNOTATION = 2;
-// Only schemes a reader expects a tap to open. pdf.js has already checked the URL is absolute.
-const OPENABLE = /^(https?|mailto|tel):/i;
-
-const isOpenableUrl = (url: string): boolean => OPENABLE.test(url);
 
 async function destinationPage(document: PDFDocumentProxy, dest: unknown): Promise<number | null> {
   const resolved = typeof dest === "string" ? await document.getDestination(dest) : dest;
@@ -21,49 +18,56 @@ async function destinationPage(document: PDFDocumentProxy, dest: unknown): Promi
   return (await document.getPageIndex(ref as never)) + 1;
 }
 
+async function readTarget(
+  document: PDFDocumentProxy,
+  url: unknown,
+  dest: unknown,
+): Promise<PageLinkBox["target"] | null> {
+  if (typeof url === "string" && isOpenableUrl(url)) return { url };
+
+  if (dest === undefined) return null;
+
+  const page = await destinationPage(document, dest).catch(() => null);
+
+  return page === null ? null : { page };
+}
+
+async function readBox(
+  document: PDFDocumentProxy,
+  viewport: PageViewport,
+  annotation: { annotationType: number; rect?: unknown; url?: unknown; dest?: unknown },
+): Promise<PageLinkBox | null> {
+  if (annotation.annotationType !== LINK_ANNOTATION) return null;
+
+  const rect = annotation.rect;
+
+  if (!Array.isArray(rect) || rect.length < 4) return null;
+
+  const target = await readTarget(document, annotation.url, annotation.dest);
+
+  if (target === null) return null;
+
+  const [x1 = 0, y1 = 0] = viewport.convertToViewportPoint(rect[0] ?? 0, rect[1] ?? 0) as number[];
+  const [x2 = 0, y2 = 0] = viewport.convertToViewportPoint(rect[2] ?? 0, rect[3] ?? 0) as number[];
+
+  return {
+    left: Math.min(x1, x2),
+    right: Math.max(x1, x2),
+    bottom: viewport.height - Math.max(y1, y2),
+    top: viewport.height - Math.min(y1, y2),
+    target,
+  };
+}
+
 export async function readLinkBoxes(
   document: PDFDocumentProxy,
   page: PDFPageProxy,
 ): Promise<PageLinkBox[]> {
   const viewport = page.getViewport({ scale: 1 });
-  const links: PageLinkBox[] = [];
+  const annotations = await page.getAnnotations({ intent: "display" });
+  const boxes = await Promise.all(
+    annotations.map((annotation) => readBox(document, viewport, annotation)),
+  );
 
-  for (const annotation of await page.getAnnotations({ intent: "display" })) {
-    if (annotation.annotationType !== LINK_ANNOTATION) continue;
-
-    const rect = annotation.rect;
-    const url = annotation.url;
-
-    if (!Array.isArray(rect) || rect.length < 4) continue;
-
-    let target: PageLinkBox["target"] | null = null;
-
-    if (typeof url === "string" && isOpenableUrl(url)) target = { url };
-    else if (annotation.dest !== undefined) {
-      const linked = await destinationPage(document, annotation.dest).catch(() => null);
-
-      if (linked !== null) target = { page: linked };
-    }
-
-    if (target === null) continue;
-
-    const [x1 = 0, y1 = 0] = viewport.convertToViewportPoint(
-      rect[0] ?? 0,
-      rect[1] ?? 0,
-    ) as number[];
-    const [x2 = 0, y2 = 0] = viewport.convertToViewportPoint(
-      rect[2] ?? 0,
-      rect[3] ?? 0,
-    ) as number[];
-
-    links.push({
-      left: Math.min(x1, x2),
-      right: Math.max(x1, x2),
-      bottom: viewport.height - Math.max(y1, y2),
-      top: viewport.height - Math.min(y1, y2),
-      target,
-    });
-  }
-
-  return links;
+  return boxes.filter((box): box is PageLinkBox => box !== null);
 }

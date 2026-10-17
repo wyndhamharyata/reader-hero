@@ -8,7 +8,8 @@ import {
   type OutlineItem,
   type PageText,
 } from "@/domain/book";
-import { blockLink, pageOfLink } from "@/lib/links";
+import { pageOfLink } from "@/lib/links";
+import { relinkBlocks } from "@/lib/relink";
 import { buildBlocks } from "./blocks";
 import { dropBoilerplate, isSmallBandImage } from "./boilerplate";
 import { orderFlow } from "./columns";
@@ -24,40 +25,48 @@ export function isScanned(charCount: number, pageCount: number): boolean {
   return charCount < Math.max(50, pageCount * 40);
 }
 
-function resolvePageLinks(blocks: Array<Block>): void {
+// The first block on each page. A page with no block reads as the next page.
+function firstBlockOfPage(blocks: ReadonlyArray<Block>, pageCount: number): Array<number> {
+  const first = Array.from({ length: pageCount + 1 }, () => -1);
+
   for (const [index, block] of blocks.entries()) {
-    if (block.marks === undefined) continue;
-
-    const marks: Array<NonNullable<Block["marks"]>[number]> = [];
-    let changed = false;
-
-    for (const mark of block.marks) {
-      const page = mark.href === undefined ? null : pageOfLink(mark.href);
-
-      if (page === null) {
-        marks.push(mark);
-        continue;
-      }
-
-      const target = blocks.findIndex((candidate) => candidate.page >= page);
-
-      changed = true;
-      if (target >= 0) marks.push({ ...mark, href: blockLink(target) });
-    }
-
-    if (changed)
-      blocks[index] = new Block({ ...block, marks: marks.length > 0 ? marks : undefined });
+    if (block.page <= pageCount && first[block.page] === -1) first[block.page] = index;
   }
+
+  let next = -1;
+
+  for (let page = pageCount; page >= 1; page -= 1) {
+    if (first[page] !== -1) next = first[page] ?? next;
+    else first[page] = next;
+  }
+
+  return first;
 }
 
-function buildToc(outline: ReadonlyArray<OutlineItem>, blocks: ReadonlyArray<Block>): TocEntry[] {
+function resolvePageLinks(blocks: Array<Block>, firstByPage: ReadonlyArray<number>): void {
+  relinkBlocks(blocks, (href) => {
+    const page = pageOfLink(href);
+
+    if (page === null) return "keep";
+
+    const target = firstByPage[page];
+
+    return target === undefined || target < 0 ? null : target;
+  });
+}
+
+function buildToc(
+  outline: ReadonlyArray<OutlineItem>,
+  blocks: ReadonlyArray<Block>,
+  firstByPage: ReadonlyArray<number>,
+): TocEntry[] {
   const entries: TocEntry[] = [];
   const seen = new Set<number>();
 
   for (const item of outline) {
-    const index = blocks.findIndex((block) => block.page >= item.page);
+    const index = firstByPage[item.page];
 
-    if (index < 0 || seen.has(index)) continue;
+    if (index === undefined || index < 0 || seen.has(index)) continue;
 
     seen.add(index);
     entries.push(
@@ -112,7 +121,9 @@ export function assembleBook(
         }),
     );
 
-    resolvePageLinks(blocks);
+    const firstByPage = firstBlockOfPage(blocks, pages.length);
+
+    resolvePageLinks(blocks, firstByPage);
 
     const charCount = blocks.reduce((sum, block) => sum + block.text.length, 0);
 
@@ -121,7 +132,7 @@ export function assembleBook(
       pageCount: pages.length,
       charCount,
       blocks,
-      toc: buildToc(outline, blocks),
+      toc: buildToc(outline, blocks, firstByPage),
       figuresThrough: 0,
     });
   });

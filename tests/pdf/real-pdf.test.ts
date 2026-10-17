@@ -118,6 +118,28 @@ describe("readLinkBoxes with real pdf.js output", () => {
       { start: 0, end: 17, style: "link", href: "https://example.com/" },
     ]);
   });
+
+  it("given a page destination, resolves it to the first block on that page", async () => {
+    const data = makePdf(
+      [{ text: "Jump to page one", size: 12, x: 72, y: 700 }],
+      undefined,
+      undefined,
+      [{ x: 72, y: 700, width: 120, height: 14, page: 1 }],
+    );
+    const task = pdfjs.getDocument({ data });
+    const doc = await task.promise;
+    const page = await doc.getPage(1);
+    const boxes = await readLinkBoxes(doc, page);
+    const text = toPageText(1, await page.getTextContent(), page.getViewport({ scale: 1 }));
+    const book = await Effect.runPromise(
+      assembleBook([{ text: { ...text, links: boxes }, images: [] }], []),
+    );
+
+    await task.destroy();
+
+    expect(boxes.map((box) => box.target)).toEqual([{ page: 1 }]);
+    expect(book.blocks[0]?.marks).toEqual([{ start: 0, end: 16, style: "link", href: "#block-0" }]);
+  });
 });
 
 describe("collectImageBoxes with real pdf.js output", () => {

@@ -15,7 +15,7 @@ export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
   imageId: Schema.optional(Schema.String),
   // Width over height of a figure, so its placeholder has the final size before the image loads.
   ratio: Schema.optional(Schema.Number),
-  // Character ranges of `text`. Only EPUB blocks carry them, so a PDF block renders as plain text.
+  // Character ranges of `text`, for bold, italic and link marks.
   marks: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -56,6 +56,12 @@ export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
   pages: Schema.optional(Schema.Array(Schema.Int)),
 }) {}
 
+export const LinkTarget = Schema.Union([
+  Schema.Struct({ url: Schema.String }),
+  Schema.Struct({ page: Schema.Int }),
+]);
+export type LinkTarget = typeof LinkTarget.Type;
+
 // Each page's raw text, kept from the parse until the figure job has used it.
 export const StoredPages = Schema.Array(
   Schema.Struct({
@@ -81,16 +87,17 @@ export const StoredPages = Schema.Array(
           right: Schema.Number,
           bottom: Schema.Number,
           top: Schema.Number,
-          target: Schema.Union([
-            Schema.Struct({ url: Schema.String }),
-            Schema.Struct({ page: Schema.Int }),
-          ]),
+          target: LinkTarget,
         }),
       ),
     ),
   }),
 );
 export type StoredPages = typeof StoredPages.Type;
+
+export type PageText = (typeof StoredPages.Type)[number];
+export type RawTextItem = PageText["items"][number];
+export type PageLinkBox = NonNullable<PageText["links"]>[number];
 
 export const FigureState = Schema.Literals(["none", "pending", "ready"]);
 export type FigureState = typeof FigureState.Type;
@@ -232,34 +239,6 @@ export const DEFAULT_SETTINGS = new ReaderSettings({
   textAlign: "left",
   temperature: 0,
 });
-
-export interface RawTextItem {
-  readonly str: string;
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly fontSize: number;
-  readonly fontFamily: string;
-  readonly hasEOL: boolean;
-}
-
-// A link annotation's box in page points, from the bottom left corner.
-export interface PageLinkBox {
-  readonly left: number;
-  readonly right: number;
-  readonly bottom: number;
-  readonly top: number;
-  readonly target: { readonly url: string } | { readonly page: number };
-}
-
-export interface PageText {
-  readonly page: number;
-  readonly width: number;
-  readonly height: number;
-  readonly items: ReadonlyArray<RawTextItem>;
-  readonly links?: ReadonlyArray<PageLinkBox>;
-}
 
 export type PageSize = Omit<PageText, "items" | "links">;
 
