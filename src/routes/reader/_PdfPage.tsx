@@ -19,7 +19,7 @@ interface Props {
   size: PageSize;
   // CSS pixels per PDF point at the width the page is shown.
   scale: number;
-  // Only the page being read holds its text, so the list never carries many pages of text nodes.
+  // Only pages on screen hold their text, so the list never carries many pages of text nodes.
   text: boolean;
   // The search to mark on this page's text; empty for none.
   query: string;

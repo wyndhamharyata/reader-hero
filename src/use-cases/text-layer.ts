@@ -53,12 +53,24 @@ const searchMap = (layer: HTMLElement) => {
   return { text, from };
 };
 
-const markMatches = (layer: HTMLElement, query: string): void => {
+// Every page on screen has a layer, and the one highlight holds the matches of them all.
+const marked = new Map<HTMLElement, Range[]>();
+const paintMarks = (): void => {
   const registry = highlights();
   if (registry === null) return;
-  registry.delete(SEARCH_HIGHLIGHT);
+  const ranges = [...marked.values()].flat();
+  if (ranges.length === 0) registry.delete(SEARCH_HIGHLIGHT);
+  else registry.set(SEARCH_HIGHLIGHT, new Highlight(...ranges));
+};
+
+const markMatches = (layer: HTMLElement, query: string): void => {
+  if (highlights() === null) return;
+  marked.delete(layer);
   const wanted = searchForm(query).trim();
-  if (wanted === "") return;
+  if (wanted === "") {
+    paintMarks();
+    return;
+  }
   const { text, from } = searchMap(layer);
   const ranges: Range[] = [];
   for (let at = text.indexOf(wanted); at !== -1; at = text.indexOf(wanted, at + wanted.length)) {
@@ -70,7 +82,8 @@ const markMatches = (layer: HTMLElement, query: string): void => {
     range.setEnd(end.node, Math.min(end.offset + 1, end.node.length));
     ranges.push(range);
   }
-  if (ranges.length > 0) registry.set(SEARCH_HIGHLIGHT, new Highlight(...ranges));
+  if (ranges.length > 0) marked.set(layer, ranges);
+  paintMarks();
 };
 
 // pdf.js measures each run of text with the canvas on the main thread; a slice this size stays short on a slow phone.
@@ -162,7 +175,7 @@ export function drawTextLayer(
       highlight: (query) => markMatches(div, query),
       remove: () => {
         listening.abort();
-        highlights()?.delete(SEARCH_HIGHLIGHT);
+        if (marked.delete(div)) paintMarks();
         div.remove();
       },
     };

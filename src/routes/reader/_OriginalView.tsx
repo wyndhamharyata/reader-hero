@@ -33,6 +33,8 @@ const DETAIL_MARGINS = [0.5, 0.25, 0];
 
 const clampZoom = (zoom: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 
+const NO_PAGES: ReadonlySet<number> = new Set();
+
 type Detail = { readonly scale: number; readonly area: PageArea };
 const NO_DETAILS: ReadonlyMap<number, Detail> = new Map();
 
@@ -164,20 +166,33 @@ export function OriginalView({
       onPageChange(page);
     },
   });
-  // The page being read gets its text once scrolling rests, so a fling builds none along the way.
-  const [textPage, setTextPage] = useState<number | null>(null);
-  const textPageRef = useRef<number | null>(null);
-  const textReady = useRef<number | null>(null);
+  // Each page on screen gets its text once scrolling rests, so a fling builds none along the way.
+  const [textPages, setTextPages] = useState<ReadonlySet<number>>(NO_PAGES);
+  const textPagesRef = useRef<ReadonlySet<number>>(NO_PAGES);
+  const textReady = useRef(new Set<number>());
   const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const showText = useCallback((page: number | null) => {
-    if (textPageRef.current === page) return;
-    textPageRef.current = page;
-    textReady.current = null;
-    setTextPage(page);
+  const showText = useCallback((pages: ReadonlySet<number>) => {
+    const was = textPagesRef.current;
+    if (pages.size === was.size && [...pages].every((page) => was.has(page))) return;
+    textPagesRef.current = pages;
+    for (const page of textReady.current) if (!pages.has(page)) textReady.current.delete(page);
+    setTextPages(pages);
   }, []);
   const onTextReady = useCallback((page: number) => {
-    if (textPageRef.current === page) textReady.current = page;
+    if (textPagesRef.current.has(page)) textReady.current.add(page);
   }, []);
+  // Every page with a part on screen, as two pages share it around the gap between them.
+  const pagesOnScreen = useCallback((): ReadonlySet<number> => {
+    const container = containerRef.current;
+    if (container === null) return NO_PAGES;
+    const top = container.scrollTop;
+    const bottom = top + container.clientHeight;
+    const pages = new Set<number>();
+    for (const item of virtualizer.getVirtualItems()) {
+      if (item.end > top && item.start < bottom) pages.add(item.index + 1);
+    }
+    return pages;
+  }, [virtualizer]);
   // Read when scrolling rests, from the values of that moment, not of the render that set the timer.
   const latest = useRef({ zoom, pageWidth, sizes });
   useEffect(() => {
@@ -247,14 +262,16 @@ export function OriginalView({
   const waitToSettle = useCallback(() => {
     clearTimeout(settle.current);
     settle.current = setTimeout(() => {
-      showText(shown.current);
+      showText(pagesOnScreen());
       placeDetails();
     }, TEXT_SETTLE_MS);
-  }, [showText, placeDetails]);
-  // A scroll that starts while the text is still being built stops it; a finished layer stays until the next rest.
+  }, [showText, pagesOnScreen, placeDetails]);
+  // A scroll that starts while text is still being built stops that build; finished layers stay until the next rest.
   const onScroll = useCallback(() => {
     waitToSettle();
-    if (textPageRef.current !== null && textReady.current !== textPageRef.current) showText(null);
+    const pages = textPagesRef.current;
+    if (pages.size === textReady.current.size) return;
+    showText(new Set([...pages].filter((page) => textReady.current.has(page))));
   }, [waitToSettle, showText]);
   useEffect(() => {
     if (doc === null) return;
@@ -417,8 +434,8 @@ export function OriginalView({
                         doc={doc}
                         size={size}
                         scale={pageWidth / size.width}
-                        text={textPage === size.page}
-                        query={textPage === size.page ? query : ""}
+                        text={textPages.has(size.page)}
+                        query={textPages.has(size.page) ? query : ""}
                         detail={details.get(size.page) ?? null}
                         onTextReady={onTextReady}
                         onJump={jumpTo}
