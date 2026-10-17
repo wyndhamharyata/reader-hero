@@ -38,13 +38,12 @@ interface Props {
   onKind: (kind: BookKind) => void;
   // The chapter to open at, from a line in Contents; null opens at the latest entry.
   openAt: number | null;
-  // Given the settings Allow just saved, so the first run goes with the consent it was given.
+  // Given Allow's settings, so the first run has the consent.
   onStart: (settings?: AiSettings) => void;
   onStop: () => void;
   onDiscard: () => void;
   onAddName: (entry: { name: string; note: string; chapter: number }) => void;
   onEditName: (name: string, next: { name: string; note: string } | null) => void;
-  // Returns the settings with the consent recorded.
   onConsent: () => AiSettings | null;
   onClose: () => void;
   // Set on the bottom sheet, so Back turns to the menu instead of closing both.
@@ -79,7 +78,6 @@ export function SummarySheet({
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [tab, setTab] = useState<"chapters" | "names">("chapters");
-  // What Allow goes on to do: the summary run, or the question that was held for consent.
   const [consentPending, setConsentPending] = useState<"start" | "ask" | null>(null);
   const [discardPending, setDiscardPending] = useState(false);
   const [question, setQuestion] = useState("");
@@ -143,7 +141,7 @@ export function SummarySheet({
     onStart();
   };
 
-  // A question sends the summaries, the names and the thread, so it asks for consent as a run does.
+  // A question sends summaries and names, so it needs consent as a run does.
   const ask = (allowed: AiSettings | null = settings): void => {
     const asked = question.trim();
     if (allowed === null || summary === null || asked === "" || run !== null) return;

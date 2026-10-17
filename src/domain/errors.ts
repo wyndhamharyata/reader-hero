@@ -31,7 +31,6 @@ export class UnsupportedFile extends Schema.TaggedError<UnsupportedFile>()("Unsu
   name: Schema.String,
 }) {}
 
-// A defect, or a service that failed to start: nothing the screen can name, only report.
 export class UnexpectedFailure extends Schema.TaggedError<UnexpectedFailure>()(
   "UnexpectedFailure",
   {

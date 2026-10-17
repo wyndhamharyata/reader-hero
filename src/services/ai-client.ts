@@ -58,8 +58,7 @@ export class AiClient extends Context.Service<
           .pipe(Effect.catchTag("StorageFailure", () => Effect.void));
       };
 
-      // The last check before any text leaves: a run that started under other settings, or a path that skipped the
-      // consent sheet, stops here, so no request reaches a provider the reader has not allowed with this key.
+      // The last check before text leaves: the saved settings must hold consent for this provider and key.
       const allowed = (settings: AiSettings): Effect.Effect<void, AiFailure> =>
         Effect.flatMap(store.ai(), (current) =>
           hasConsent(current) &&

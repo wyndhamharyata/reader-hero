@@ -47,7 +47,7 @@ export function coverage(
   const target = list.filter((chapter) => chapter.end <= index).length;
   const chapter = list[target];
   if (chapter === undefined || chapter.start > index) return { target, current: null };
-  // The reader calls this on each block it reaches, so it counts words only up to 100 and joins the text when read.
+  // Called on every block reached: counts to 100 words only, and joins the text when read.
   let words = 0;
   for (let at = chapter.start; at <= index && words < 100; at += 1) {
     const block = parsed.blocks[at];

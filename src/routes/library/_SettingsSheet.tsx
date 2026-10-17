@@ -455,7 +455,7 @@ export function SettingsSheet({
                       setProvider(next);
                       // Another provider's model id means nothing here, so Test fills the field afresh.
                       setModel(next === ai?.provider ? ai.model : "");
-                      // A key goes only to the provider it was made for, so Test cannot send it to this one.
+                      // Test must not send this key to another provider.
                       setApiKey(next === ai?.provider ? ai.apiKey : "");
                       setModels([]);
                       setTest({ state: "idle" });

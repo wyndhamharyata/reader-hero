@@ -8,7 +8,7 @@ import { PdfClient } from "@/services/pdf-client";
 
 const IMAGE_CONCURRENCY = 2;
 
-// Only where each figure sits: its pixels are already stored, so the job does not hold every one until it ends.
+// Positions only: the pixels are stored, so the job holds no figure until it ends.
 const placement = ({ id, page, x, y, width, height }: ImagePlacement): ImagePlacement => ({
   id,
   page,
@@ -108,7 +108,7 @@ export function renderFigures(
           Stream.mapEffect(
             (page) =>
               Effect.gen(function* () {
-                // A page whose figures cannot be read has none, so the job moves on instead of stopping there on every visit.
+                // A page whose figures cannot be read has none, so the job moves past it.
                 const images = yield* pdf
                   .readImages(handle, page)
                   .pipe(Effect.orElseSucceed((): ReadonlyArray<PageImage> => []));

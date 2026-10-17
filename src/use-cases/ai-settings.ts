@@ -4,7 +4,7 @@ import type { StorageFailure } from "@/domain/errors";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs } from "@/services/summary-jobs";
 
-// A running job holds the settings it started with, so it would go on sending to the old provider with the old key.
+// A running job holds its start settings, so it would go on sending with the old key.
 const endsRuns = (current: AiSettings | null, next: AiSettings | null): boolean =>
   current !== null &&
   (next === null ||

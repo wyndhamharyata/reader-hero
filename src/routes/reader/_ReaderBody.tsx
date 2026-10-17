@@ -32,8 +32,7 @@ export function ReaderBody({
 }: Props): ReactElement {
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
-  // The place when the reader view mounts: the open's, or where the original view left off. Never the live
-  // place, which would render every block of the reader view again on each block it reaches.
+  // Taken at mount: the live place would render every block again on each block reached.
   const [initialBlock, setInitialBlock] = useState(position);
   useEffect(() => {
     if (showOriginal) setInitialBlock(position);

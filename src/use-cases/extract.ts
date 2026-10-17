@@ -14,7 +14,6 @@ export interface ParseProgress {
 
 export interface PageRead extends ParseProgress {
   readonly text: PageText;
-  // pdf.js could not read the page, so it stands in empty.
   readonly failed?: boolean;
 }
 

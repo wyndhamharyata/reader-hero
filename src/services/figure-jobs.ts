@@ -11,7 +11,6 @@ export class FigureJobs extends Context.Service<
     // A screen that shows the book holds its job, which runs while any screen holds it.
     hold(owner: object, bookId: string, startPage: number): Effect.Effect<void>;
     release(owner: object, bookId: string): Effect.Effect<void>;
-    // Ends the job whoever holds it, once it has stopped writing.
     stop(bookId: string): Effect.Effect<void>;
   }
 >()("reader-hero/FigureJobs") {
@@ -22,7 +21,7 @@ export class FigureJobs extends Context.Service<
       const owners = new Map<string, Set<object>>();
       const fibers = new Map<string, Fiber.Fiber<void>>();
 
-      // A job that ended, done or failed, starts again on the next hold, as it did when each screen ran its own.
+      // A job that ended, done or failed, starts again on the next hold.
       const hold = (owner: object, bookId: string, startPage: number): Effect.Effect<void> =>
         Effect.gen(function* () {
           const holding = owners.get(bookId) ?? new Set();

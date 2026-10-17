@@ -50,7 +50,7 @@ export function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
   return connection;
 }
 
-// Each operation takes the connection at its start, so one closed by an upgrade elsewhere or by the system is opened again.
+// Per operation, so a connection that an upgrade or WebKit closed opens again.
 export async function withReaderDb<A>(run: (db: IDBPDatabase<ReaderDb>) => Promise<A>): Promise<A> {
   return run(await openReaderDb());
 }

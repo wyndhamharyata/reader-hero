@@ -45,8 +45,7 @@ const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
     catch: pdfFailure,
   });
 
-// One pdf.js worker for every load, as the render worker keeps one: each import, cover, figure job and rebuild
-// would otherwise start its own and parse its 1.3 MB script again.
+// One pdf.js worker for every load, as the render worker has, not a 1.3 MB script parse per load.
 let sharedWorker: InstanceType<PdfLib["PDFWorker"]> | null = null;
 const pdfWorker = (lib: PdfLib): InstanceType<PdfLib["PDFWorker"]> => {
   if (sharedWorker === null || sharedWorker.destroyed) sharedWorker = new lib.PDFWorker();
@@ -324,7 +323,7 @@ export class PdfClient extends Context.Service<
           isImageDecoderSupported: true,
           worker: pdfWorker(lib),
         });
-        // An open that is given up on destroys its task, so its worker does not run on with the whole file.
+        // Given up on, the task is destroyed, so its worker does not run on with the whole file.
         const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }).pipe(
           Effect.onInterrupt(() => Effect.sync(() => void task.destroy().catch(() => undefined))),
         );
@@ -477,7 +476,7 @@ export class PdfClient extends Context.Service<
         return yield* walk(raw, 0);
       }),
 
-      // A worker lost to memory pressure never answers destroy, so the wait ends; else the stall check would hang on it.
+      // A worker lost to memory pressure never answers, so the wait ends and the stall check cannot hang.
       release: Effect.fn("PdfClient.release")(function* (handle: PdfHandle) {
         const destroyed = yield* Effect.tryPromise({
           try: () => handle.task.destroy(),
@@ -486,7 +485,6 @@ export class PdfClient extends Context.Service<
           Effect.timeoutOption("2 seconds"),
           Effect.orElseSucceed(() => Option.some(undefined)),
         );
-        // A worker that never answered is gone, and the next load starts a new one instead of waiting on it.
         if (Option.isNone(destroyed)) {
           sharedWorker?.destroy();
           sharedWorker = null;

@@ -134,7 +134,7 @@ export function groupSeries(
         ].join("\n");
 
         let reply = "";
-        // Once the provider answers, the batch has left: it counts as sent, so a failure after cannot send it again.
+        // Once the provider answers the batch has left, so a later failure cannot send it again.
         const sentNow = [
           ...books.filter((book) => sent.has(book.id)).map((book) => book.id),
           ...batch.map((book) => book.id),

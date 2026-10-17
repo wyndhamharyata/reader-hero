@@ -12,7 +12,7 @@ const hosts = new Set([
 
 const forwarded = ["authorization", "content-type", "accept"];
 
-// The two calls the app makes, under any base path, so a custom base URL still works and nothing else is reached.
+// Only the app's two calls, under any base path, so a custom base URL still works.
 const allowedCall = (method: string, path: string): boolean =>
   (method === "POST" && path.endsWith("/chat/completions")) ||
   (method === "GET" && path.endsWith("/models"));
@@ -79,7 +79,7 @@ export async function relay(request: Request): Promise<Response> {
     headers: {
       "content-type": upstream.headers.get("content-type") ?? "application/json",
       "cache-control": "no-store",
-      // Served from the app's own origin, so the browser must never read it as anything but its stated type.
+      // Served from the app's origin, so never sniffed as another type.
       "x-content-type-options": "nosniff",
     },
   });

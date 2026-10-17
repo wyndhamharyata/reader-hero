@@ -20,9 +20,8 @@ interface Props {
   renderScale: number;
   // Only pages on screen hold their text, so the list never carries many pages of text nodes.
   text: boolean;
-  // The search to mark on this page's text; empty for none.
   query: string;
-  // A zoomed page's sharp area and the scale it is drawn at; null while the whole-page bitmap is sharp enough.
+  // Null while the whole-page bitmap is sharp enough.
   detail: { readonly scale: number; readonly area: PageArea } | null;
   onTextReady: (page: number) => void;
   onJump: (page: number) => void;
@@ -83,7 +82,7 @@ export const PdfPage = memo(function PdfPage({
     const canvas = detailRef.current;
     if (canvas === null) return;
     if (detailScale === 0) {
-      // Only a canvas that held an area has a context to empty; making one here would cost each page that mounts.
+      // Only a canvas that held an area has a context; making one would cost every mount.
       if (!canvas.hidden) canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
       canvas.hidden = true;
       return;
@@ -97,7 +96,6 @@ export const PdfPage = memo(function PdfPage({
     return () => stopFiber(fiber);
   }, [doc, size, detailScale, left, top, width, height]);
 
-  // Its bitmap goes back when the page leaves the list, as the page's own does.
   useEffect(() => {
     const canvas = detailRef.current;
     return () => {
@@ -115,7 +113,7 @@ export const PdfPage = memo(function PdfPage({
       drawTextLayer(doc, size.page, host, drawnAt).pipe(
         Effect.tap((drawn) =>
           Effect.sync(() => {
-            // A zoom while it was built found no layer to update, so it takes the new scale now.
+            // A zoom during the build found no layer to update.
             if (scaleRef.current !== drawnAt) drawn.update(scaleRef.current);
             textLayer.current = drawn;
             drawn.highlight(queryRef.current);

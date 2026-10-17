@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-// Holds the screen awake until interrupted; the system lets the lock go when the app hides, so it is taken again on return.
+// The system drops the lock when the app hides, so it is taken again on return.
 export function holdWakeLock(): Effect.Effect<never> {
   return Effect.callback<never>(() => {
     let held: WakeLockSentinel | null = null;

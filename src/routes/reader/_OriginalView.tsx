@@ -24,12 +24,11 @@ import { PdfPage } from "./_PdfPage";
 // Long enough that a pause between flicks is not a rest.
 const TEXT_SETTLE_MS = 150;
 
-// Fit to width is the least; past 4x a phone shows a few words at a time.
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 // pdf.js's own cap for one canvas on iOS and Android.
 const DETAIL_PIXELS = 5_242_880;
-// The sharp area reaches this share of the screen past each edge, so a short pan stays sharp.
+// Past each edge of the screen, so a short pan stays sharp.
 const DETAIL_MARGINS = [0.5, 0.25, 0];
 
 const clampZoom = (zoom: number): number => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
@@ -46,7 +45,7 @@ interface Props {
   showChrome: boolean;
   // A Contents entry's page; the nonce lets the same entry go again.
   jump: { readonly page: number; readonly nonce: number } | null;
-  // The parsed text, which the search goes through; null hides the search, as for a scanned book.
+  // Null for a scanned book, which has no text to search.
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }> | null;
   searching: boolean;
   onCloseSearch: () => void;
@@ -150,7 +149,7 @@ export function OriginalView({
   const virtualizer = useVirtualizer({
     count: sizes.length,
     getScrollElement: () => containerRef.current,
-    // Not inside the scroll event: a synchronous render of the list there competes with the scroll itself.
+    // A render in the scroll event competes with the scroll.
     useFlushSync: false,
     // From each page's own size; each drawn page is then measured, so a wrong guess cannot leave a gap.
     estimateSize: (index) => {
@@ -188,7 +187,6 @@ export function OriginalView({
   const onTextReady = useCallback((page: number) => {
     if (textPagesRef.current.has(page)) textReady.current.add(page);
   }, []);
-  // Every page with a part on screen, as two pages share it around the gap between them.
   const pagesOnScreen = useCallback((): ReadonlySet<number> => {
     const container = containerRef.current;
     if (container === null) return NO_PAGES;
@@ -200,12 +198,12 @@ export function OriginalView({
     }
     return pages;
   }, [virtualizer]);
-  // Read when scrolling rests, from the values of that moment, not of the render that set the timer.
+  // Values when scrolling rests, not those of the render that set the timer.
   const latest = useRef({ zoom, width, pageWidth, sizes });
   useEffect(() => {
     latest.current = { zoom, width, pageWidth, sizes };
   });
-  // At a zoom past what the whole-page bitmaps hold, each page on screen gets one sharp area, as pdf.js's detail view.
+  // One sharp area per page on screen, as pdf.js's detail view.
   const placeDetails = useCallback(() => {
     const container = containerRef.current;
     const list = listRef.current;
@@ -237,7 +235,6 @@ export function OriginalView({
       const right = Math.min(shownWidth, view.left + view.width);
       if (bottom <= top || right <= left) continue;
       let scale = cssPerPoint * ratio;
-      // No sharper than the whole-page bitmap already is, so no area is worth drawing.
       if (scale <= pageRenderScale(size, latest.current.width, ratio) * 1.15) continue;
       let area = { left, top: top - item.start, width: right - left, height: bottom - top };
       visible.set(size.page, {
@@ -300,7 +297,7 @@ export function OriginalView({
       placeDetails();
     }, TEXT_SETTLE_MS);
   }, [showText, pagesOnScreen, placeDetails]);
-  // A scroll that starts while text is still being built stops that build; finished layers stay until the next rest.
+  // A scroll stops builds in progress; finished layers stay.
   const onScroll = useCallback(() => {
     waitToSettle();
     const pages = textPagesRef.current;
@@ -313,7 +310,7 @@ export function OriginalView({
     return () => clearTimeout(settle.current);
   }, [doc, waitToSettle]);
 
-  // During a pinch only the list's transform changes; the zoom, and with it every page's layout, changes once at the end.
+  // A pinch moves only the list's transform; the zoom changes once, when it ends.
   const gesture = useRef<{ x: number; y: number } | null>(null);
   const anchor = useRef<{
     index: number;
@@ -392,7 +389,6 @@ export function OriginalView({
       : undefined;
     const part =
       held === undefined || held.size === 0 ? 0 : (container.scrollTop - held.start) / held.size;
-    // The pinch's transform goes in the same frame as the zoom it stood for.
     list.style.transform = "";
     virtualizer.measure();
     // The new height goes in now: the old one would cut the scroll below short.
@@ -452,7 +448,7 @@ export function OriginalView({
             if (tap.isTap(event)) onToggleChrome();
           }}
         >
-          {/* The column's width at no zoom, read here as the list's own grows with the zoom. */}
+          {/* The column's width at no zoom; the list's own grows with it. */}
           <div aria-hidden className="mx-auto h-0 max-w-3xl px-2">
             <div ref={measureRef} />
           </div>

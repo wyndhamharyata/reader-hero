@@ -71,7 +71,6 @@ export class BookStore extends Context.Service<
     removeImage(bookId: string, imageId: string): Effect.Effect<void, StorageFailure>;
     updates(): Stream.Stream<StoreUpdate>;
     getImage(bookId: string, imageId: string): Effect.Effect<ImageRecord | null, StorageFailure>;
-    // The stored image, then the image again after each write to it.
     watchImage(bookId: string, imageId: string): Stream.Stream<ImageRecord | null>;
     listImages(
       bookId: string,
@@ -344,7 +343,7 @@ export class BookStore extends Context.Service<
 
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* withDb("remove", async (db) => {
-          // The summary goes in the same transaction, so a tab closed mid-removal keeps no summary of a gone book.
+          // The summary goes in this transaction, so a closed tab leaves none for a gone book.
           const tx = db.transaction(
             [
               "books",
@@ -388,7 +387,7 @@ export class BookStore extends Context.Service<
         );
       });
 
-      // A row that no longer decodes can never import, so it goes; the rest stay until each one imports.
+      // A row that no longer decodes can never import, so it goes.
       const inbox = Effect.fn("BookStore.inbox")(function* () {
         const rows = yield* withDb("inbox", (db) => db.getAll("inbox"));
         const entries = yield* Effect.forEach(rows, (row) =>

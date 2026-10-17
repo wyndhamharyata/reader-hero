@@ -6,7 +6,7 @@ const SPACE_FACTOR = 0.22;
 // A gap this many ems wide over the page's middle is a column gutter, wider than any word space.
 const GUTTER_FACTOR = 1;
 const GUTTER_MARGIN = 20;
-// Rows with a gutter needed, at least, and a third of the page's rows, for the page to be two columns.
+// At least 3 rows with a gutter, and a third of all rows, make a page two columns.
 const MIN_GUTTER_ROWS = 3;
 
 function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
@@ -44,7 +44,6 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
   };
 }
 
-// Where a row splits at the column gutter: the index of the first item past it, or -1.
 function gutterAt(row: ReadonlyArray<RawTextItem>, middle: number): number {
   let end = Number.NEGATIVE_INFINITY;
   for (const [index, item] of row.entries()) {

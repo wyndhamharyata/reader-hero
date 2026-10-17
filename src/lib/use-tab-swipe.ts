@@ -17,7 +17,7 @@ export function useTabSwipe<T>(
   tab: T,
   onTab: (next: T) => void,
 ): void {
-  // Outside the effect, so a render mid-swipe, as each streamed word of a summary makes, keeps the swipe.
+  // Outside the effect, so a render mid-swipe keeps the swipe.
   const swipe = useRef<Swipe | null>(null);
   const latest = useRef({ tabs, tab, onTab });
   useEffect(() => {

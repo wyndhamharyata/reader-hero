@@ -72,7 +72,7 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
 // The consent text's version; a reader who allowed an older text sees the note again.
 export const CONSENT_VERSION = 5;
 
-// Every request that sends text asks this, so a reader who allowed an older text sees the note before any send.
+// Every send checks this, so consent to an older note text asks again.
 export const hasConsent = (settings: AiSettings | null): settings is AiSettings =>
   settings !== null &&
   settings.consentedAt !== undefined &&

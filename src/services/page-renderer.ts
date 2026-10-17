@@ -9,7 +9,6 @@ export interface RenderedDocument {
   readonly first: PageSize;
 }
 
-// A part of the page in device pixels at the scale it is drawn at.
 export interface PageCrop {
   readonly x: number;
   readonly y: number;
@@ -26,7 +25,6 @@ export interface PageLink {
   readonly target: { readonly url: string } | { readonly page: number };
 }
 
-// pdf.js's text content, with the page's own box, which its text layer places text in.
 export interface PageTextContent {
   readonly content: Awaited<ReturnType<PDFPageProxy["getTextContent"]>>;
   readonly rotation: number;
@@ -52,14 +50,14 @@ const worker = (): Worker => {
       if (typeof key !== "number") return;
       const settle = pending.get(key);
       pending.delete(key);
-      // A page that left the list before its pixels came: nothing holds them, so they go back now, not at collection.
+      // A page that left the list before its pixels came: they go back now, not at collection.
       if (settle === undefined) {
         if (reply.bitmap instanceof ImageBitmap) reply.bitmap.close();
         return;
       }
       settle(reply);
     };
-    // A failed worker is dropped, so the next request starts a new one instead of waiting on this one forever.
+    // Dropped, so the next request starts a new worker instead of waiting forever.
     current.onerror = () => {
       for (const settle of pending.values()) settle({ type: "error", message: "Worker failed" });
       pending.clear();
@@ -70,8 +68,7 @@ const worker = (): Worker => {
   return renderer;
 };
 
-// Posts one request and waits for its reply. An interrupted wait tells the worker to stop the render, or to close the
-// document it is still opening, so neither runs on, or stays, with no one to take it.
+// Waits for the reply; an interrupt cancels the render, or closes a document still opening.
 const request = (
   body: Record<string, unknown>,
   transfer: Transferable[],
@@ -110,7 +107,6 @@ export class PageRenderer extends Context.Service<
     ): Effect.Effect<ImageBitmap, PdfFailure>;
     links(doc: RenderedDocument, page: number): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure>;
     text(doc: RenderedDocument, page: number): Effect.Effect<PageTextContent, PdfFailure>;
-    // Of `pages`, those whose own text holds the query.
     find(
       doc: RenderedDocument,
       pages: ReadonlyArray<number>,

@@ -166,7 +166,7 @@ export class SummaryJobs extends Context.Service<
         fibers.set(key, yield* Effect.forkDetach(job));
       });
 
-      // A setup stopped before the rebuild runs lets go of the flag, or no summary could start again until a reload.
+      // A setup stopped early lets go of the flag, or no summary could start until a reload.
       const startRebuild = (settings: AiSettings): Effect.Effect<void> =>
         Effect.suspend(() => {
           if (rebuilding) return Effect.void;

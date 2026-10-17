@@ -32,7 +32,6 @@ export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElemen
           </p>
         </>
       )}
-      {/* Every kind of request, so the note covers what the app sends and not only the chapters. */}
       <ul className="list-disc space-y-1 pl-5 text-base md:text-sm">
         <li>Each chapter it summarises, with the summary of the chapter before.</li>
         <li>

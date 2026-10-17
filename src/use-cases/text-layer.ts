@@ -8,22 +8,19 @@ import {
 } from "@/services/page-renderer";
 
 export interface DrawnTextLayer {
-  // Measures the text again for a new page width.
   readonly update: (scale: number) => void;
-  // Marks every match on the page; an empty query clears the marks.
   readonly highlight: (query: string) => void;
   readonly remove: () => void;
 }
 
 const SEARCH_HIGHLIGHT = "reader-hero-search";
 
-// The CSS Custom Highlight API paints ranges without touching the text nodes; Safari 17.2+ and Chrome 105+ have it.
+// Paints ranges without touching text nodes; Safari 17.2+ and Chrome 105+.
 const highlights = (): HighlightRegistry | null =>
   typeof CSS !== "undefined" && "highlights" in CSS && typeof Highlight !== "undefined"
     ? CSS.highlights
     : null;
 
-// The layer's text in search form, with the node and offset each of its characters came from.
 const searchMap = (layer: HTMLElement) => {
   let text = "";
   const from: Array<{ node: Text; offset: number }> = [];
@@ -86,7 +83,7 @@ const markMatches = (layer: HTMLElement, query: string): void => {
   paintMarks();
 };
 
-// pdf.js measures each run of text with the canvas on the main thread; a slice this size stays short on a slow phone.
+// pdf.js measures each run on the main thread; this many stays short on a slow phone.
 const ITEMS_PER_SLICE = 150;
 
 const pdfFailure = (cause: unknown): PdfFailure =>
@@ -104,7 +101,7 @@ const viewportOf = (text: PageTextContent, scale: number) => ({
   },
 });
 
-// One slice per turn of the event loop, so a scroll or a tap runs between slices instead of after them all.
+// One slice per event-loop turn, so scrolls and taps run between slices.
 const sliced = (content: PageTextContent["content"]): ReadableStream => {
   let at = 0;
   return new ReadableStream(
@@ -123,7 +120,7 @@ const sliced = (content: PageTextContent["content"]): ReadableStream => {
   );
 };
 
-// Builds the page's selectable text out of the page, then adds it in one step, so the list lays out once.
+// Built off the page and added in one step, so the list lays out once.
 export function drawTextLayer(
   doc: RenderedDocument,
   page: number,
@@ -157,7 +154,7 @@ export function drawTextLayer(
       return Effect.sync(() => layer.cancel());
     });
 
-    // As in pdf.js's viewer: while a drag selects, this covers the empty space, so the selection does not jump to the page's end.
+    // As in pdf.js's viewer: while dragging, this covers the gaps so the selection does not jump.
     const end = document.createElement("div");
     end.className = "endOfContent";
     div.append(end);

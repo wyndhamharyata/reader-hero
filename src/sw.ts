@@ -13,8 +13,7 @@ const SHARE_PATH = "/share-target";
 const manifest = self.__WB_MANIFEST;
 const precacheUrls = manifest.map((entry) => entry.url);
 
-// One cache per build, named by its files' revisions, so activate drops the last build's and a waiting worker
-// never writes into the cache the live one serves.
+// One cache per build, so activate drops the last one and a waiting worker never writes into the live one.
 const CACHE = `reader-hero-shell-${hash(manifest.map((entry) => `${entry.url}@${entry.revision}`).join("\n"))}`;
 
 function hash(text: string): string {
@@ -58,7 +57,7 @@ self.addEventListener("message", (event) => {
   }
 });
 
-// The library opens whatever happens; a share it could not store is lost, but never shows an error page.
+// The app opens whatever happens; a share that could not be stored is lost, not an error page.
 async function handleShare(request: Request): Promise<Response> {
   try {
     const form = await request.formData();
@@ -68,7 +67,7 @@ async function handleShare(request: Request): Promise<Response> {
       await db.add("inbox", { name: file.name, blob: file, addedAt: Date.now() });
     }
   } catch {
-    // Nothing to keep: the redirect below still opens the app.
+    // Nothing to keep.
   }
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }

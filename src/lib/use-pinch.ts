@@ -6,12 +6,9 @@ export interface PinchPoint {
 }
 
 interface Handlers {
-  // Each move of the gesture: the scale since it began, where it began, and where the fingers are now.
   readonly onPreview: (scale: number, start: PinchPoint, now: PinchPoint) => void;
   readonly onEnd: (scale: number, start: PinchPoint, now: PinchPoint) => void;
-  // A cancelled gesture, as when the system takes the touch, ends with nothing changed.
   readonly onCancel: () => void;
-  // The scale the content can take, so a wheel past the limit does not need undoing before it moves back.
   readonly clamp: (scale: number) => number;
 }
 
@@ -24,7 +21,7 @@ const local = (element: HTMLElement, x: number, y: number): PinchPoint => {
   return { x: x - box.left, y: y - box.top };
 };
 
-// The two fingers that began the gesture, by identifier, so a third finger or a lifted one never swaps the pair.
+// By identifier, so a third finger or a lifted one never swaps the pair.
 const pair = (touches: TouchList, ids: readonly [number, number]): [Touch, Touch] | null => {
   const found = [...touches].filter((entry) => ids.includes(entry.identifier));
   const [a, b] = found;
@@ -59,7 +56,7 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
       timer: ReturnType<typeof setTimeout> | undefined;
     } | null = null;
 
-    // As pdf.js's TouchManager: a move listener only while two fingers are down, so a one-finger scroll never waits on one.
+    // As pdf.js's TouchManager: no move listener until two fingers are down, so a scroll never waits on it.
     let moving: AbortController | null = null;
     const onTouchStart = (event: TouchEvent) => {
       // A gesture under way keeps its own start, whatever finger lands next.
@@ -90,7 +87,6 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
       moving = null;
       return ended;
     };
-    // The gesture ends when one of its two fingers lifts, whatever other fingers stay down.
     const onTouchEnd = (event: TouchEvent) => {
       if (touch === null || pair(event.touches, touch.ids) !== null) return;
       const ended = finish();
@@ -117,7 +113,7 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     const stop = (event: Event) => event.preventDefault();
 
     const options = { passive: false } as const;
-    // Not passive either, as pdf.js has it, so the browser holds the gesture for the move listener added on the second finger.
+    // Not passive, as in pdf.js, so the move listener added on the second finger can stop the pan.
     element.addEventListener("touchstart", onTouchStart, options);
     element.addEventListener("touchend", onTouchEnd);
     element.addEventListener("touchcancel", onTouchCancel);

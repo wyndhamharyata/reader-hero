@@ -66,21 +66,19 @@ const fonts = (self as { fonts?: FontFaceSet }).fonts;
 type Opened = { task: PDFDocumentLoadingTask; document: PDFDocumentProxy; drawn: Set<number> };
 const documents = new Map<number, Opened>();
 const tasks = new Map<number, RenderTask>();
-// Renders between their request and their reply. A cancel can land while one still waits on its page, before
-// it has a task to cancel, so the render checks this set after each wait and stops there.
+// A cancel can land before its render has a task, so the render checks this after each wait.
 const rendering = new Set<number>();
 const cancelled = new Set<number>();
-// Documents still opening, and those closed before they finished: such a one is destroyed once it opens.
+// An open closed before it finished is destroyed once it does.
 const opening = new Set<number>();
 const closedEarly = new Set<number>();
 
-// No canvas past this, whatever scale is asked: pdf.js's cap for one canvas on iOS and Android, under WebKit's limit.
+// pdf.js's mobile cap for one canvas, whatever scale is asked; under WebKit's limit.
 const MAX_CANVAS_PIXELS = 5_242_880;
 
 // pdf.js's own viewer keeps its last 10 pages: fewer re-parses a page on the way back, more holds memory.
 const KEEP_PAGES = 10;
 
-// Oldest first, so a page drawn again moves to the end and the first one is the one to free.
 const keepDrawn = async (
   opened: { document: PDFDocumentProxy; drawn: Set<number> },
   page: number,
@@ -97,7 +95,6 @@ const keepDrawn = async (
 // Only schemes a reader expects a tap to open; pdf.js has already checked the URL is absolute.
 const OPENABLE = /^(https?|mailto|tel):/i;
 
-// A link inside the document names its page by a reference, by an index, or by a named destination.
 const linkPage = async (document: PDFDocumentProxy, dest: unknown): Promise<number | null> => {
   const explicit = typeof dest === "string" ? await document.getDestination(dest) : dest;
   if (!Array.isArray(explicit) || explicit.length === 0) return null;
@@ -172,7 +169,7 @@ type RenderMessage = {
   crop?: { x: number; y: number; width: number; height: number };
 };
 
-// A close that came while this opened finds it gone: the document is destroyed and nothing answers.
+// A close that came mid-open destroys the document, and nothing answers.
 const openDocument = async (message: OpenMessage): Promise<void> => {
   const origin = self.location.origin;
   // Read here, so the main thread never copies the whole file.
@@ -209,7 +206,7 @@ const openDocument = async (message: OpenMessage): Promise<void> => {
   });
 };
 
-// Stops at each wait once cancelled, so a page scrolled past in a fling never takes its turn from one on screen.
+// Stops at each wait once cancelled, so a page flung past never delays one on screen.
 const render = async (opened: Opened, message: RenderMessage): Promise<void> => {
   const page = await opened.document.getPage(message.page);
   if (cancelled.has(message.requestId)) return;
@@ -237,7 +234,6 @@ const render = async (opened: Opened, message: RenderMessage): Promise<void> => 
     bitmap = canvas.transferToImageBitmap();
   } finally {
     tasks.delete(message.requestId);
-    // Its pixels are in the bitmap, or the render failed; either way the canvas gives its memory back now.
     canvas.width = 0;
     canvas.height = 0;
   }

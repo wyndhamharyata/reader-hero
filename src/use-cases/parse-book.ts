@@ -43,7 +43,7 @@ function parseBook(
       return book.parsed;
     }
 
-    // Released however the read ends, as the import does, so a failed or stopped rebuild keeps no PDF open.
+    // Released however the read ends, so a failed or stopped rebuild keeps no PDF open.
     const { pages, result } = yield* Effect.acquireUseRelease(
       pdf.load(data),
       (handle) =>

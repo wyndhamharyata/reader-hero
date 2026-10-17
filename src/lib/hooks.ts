@@ -30,7 +30,7 @@ export function runApp<A, E>(effect: Effect.Effect<A, E, AppServices>): Promise<
   return runtime.runPromise(effect);
 }
 
-// A failure no caller handled would vanish with its fiber, so it goes to the console.
+// An unhandled failure would vanish with its fiber.
 export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>): Job {
   const fiber = runtime.runFork(effect);
   fiber.addObserver((exit) => {
@@ -57,7 +57,7 @@ const bookImages = new Map<
 >();
 
 export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): void {
-  // This screen's hold on each job; another screen's hold keeps a job running when this one lets go.
+  // Another screen's hold keeps a job running when this one lets go.
   const [owner] = useState(() => ({}));
   const held = useRef(new Set<string>());
 
@@ -164,7 +164,7 @@ export function useAppEffect<A, E>(
         onSuccess: (value) => setState({ status: "done", value }),
       }),
     );
-    // A defect, or a service that failed to start, ends the fiber past the match; the screen leaves loading anyway.
+    // A defect or a failed service skips the match; the screen leaves loading anyway.
     fiber.addObserver((exit) => {
       if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause)) return;
       const message = String(Cause.squash(exit.cause));

@@ -123,7 +123,7 @@ function anthropicDeltas(event: unknown): ReadonlyArray<Delta> {
     }
     return [];
   }
-  // A reply that ran out of room, or that the model refused, is not a whole one to keep.
+  // A cut-off or refused reply is not a whole one to keep.
   const stop = type === "message_delta" ? delta?.stop_reason : undefined;
   const stopped: Array<Delta> =
     stop === "max_tokens"

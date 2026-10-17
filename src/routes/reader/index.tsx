@@ -158,7 +158,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       }),
     [settings, prefs],
   );
-  // Off while a sheet or the tour is open, as each takes its own Escape; moves are smooth so the eye can follow.
+  // Off under a sheet or the tour, which take their own Escape; moves are smooth so the eye can follow.
   useEffect(() => {
     if (tocOpen || summarySheet !== null || seriesOpen) return;
     if ((settings.readerTour ?? 0) < TOUR_VERSION) return;
@@ -229,7 +229,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       if (typing || event.metaKey || event.altKey) return;
       switch (event.key) {
         case "Escape":
-          // The search closes first, as a browser's find does, so Escape never leaves the book from it.
+          // Escape closes the search first, as a browser's find does.
           if (searchOpen) setSearchOpen(false);
           else if (!event.repeat) slideTo(navigate, "/", "out");
           break;
@@ -295,7 +295,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   // An EPUB has no pages to show, so it always reads in reader mode.
   const epub = data?.meta.format === "epub";
   const touring = (settings.readerTour ?? 0) < TOUR_VERSION;
-  // One list, so the tour does not measure its step again on every render of the reader.
   const tourSteps = useMemo(readerTourSteps, []);
 
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
@@ -427,7 +426,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const savePrefs = (changes: Partial<BookPrefs>): void => {
     const next = { ...prefChanges, ...changes };
     setPrefChanges(next);
-    // Every change of this visit goes, so a save that lands after another still holds both.
+    // The whole visit's changes, so saves that land out of order lose none.
     void runApp(saveBookPrefs(bookId, next).pipe(Effect.ignore));
   };
   // Saves to this book; a text choice also goes global for new books, but Settings owns the theme.
@@ -505,7 +504,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     );
     void runApp(program);
   };
-  // A stored reader view from an older build is rebuilt at once, once per open; a failed one leaves the button.
+  // An out-of-date reader view rebuilds on open, once; a failure leaves the button.
   const rebuiltOnce = useRef(false);
   useEffect(() => {
     if (loadError?._tag !== "ParsedMissing" || rebuiltOnce.current) return;
@@ -523,7 +522,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const searchable = showsPages && data?.meta.parseState !== "scanned";
   const toggleChrome = useCallback(() => setChrome((value) => !value), []);
   const closeToc = () => setTocOpen(false);
-  // The view showing goes to the entry, so a Contents tap never changes the book's view.
+  // Contents goes to the entry in the view showing; it never switches the view.
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
     setJump({ index: blockIndex, nonce: Date.now() });

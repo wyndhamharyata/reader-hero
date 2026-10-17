@@ -24,7 +24,7 @@ export function buildEpub(
     // Images inflate one at a time below, so the import never holds every image at once.
     const unzip = (keep: (name: string) => boolean): Effect.Effect<Unzipped, EpubFailure> =>
       Effect.suspend(() => {
-        // Sizes from the zip's own headers, checked before anything inflates, so a zip bomb fails instead of filling memory.
+        // By the zip's own sizes, before anything inflates, so a zip bomb fails instead of filling memory.
         let total = 0;
         let tooLarge = false;
         const files = Effect.try({

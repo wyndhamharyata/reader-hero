@@ -42,7 +42,6 @@ export function readPageLinks(
   return Effect.flatMap(PageRenderer, (renderer) => renderer.links(doc, page));
 }
 
-// A share of the page: 0 to 1 across its width and down its height.
 export interface PageArea {
   readonly left: number;
   readonly top: number;
@@ -95,7 +94,7 @@ export function renderPageDetail(
   });
 }
 
-// The parsed text names the pages that may match; the worker keeps those whose own text does, as the text layer marks.
+// The parsed text names candidate pages; the worker keeps those whose own text matches.
 export function searchPages(
   doc: RenderedDocument,
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>,

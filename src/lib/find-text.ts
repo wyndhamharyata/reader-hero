@@ -3,8 +3,7 @@ export function searchForm(text: string): string {
   return text.toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
-// Each page that may hold a match, once, in page order; the render worker then checks each against its own text.
-// The page's text as the text layer joins it: runs end to end, a line end as a space.
+// Joined as the text layer joins it, so a confirmed page always has marks.
 export function pageSearchText(
   items: ReadonlyArray<{ readonly str?: string; readonly hasEOL?: boolean }>,
 ): string {
@@ -13,6 +12,7 @@ export function pageSearchText(
   );
 }
 
+// Pages that may hold a match, in order; the render worker confirms each against its own text.
 export function findPages(
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>,
   query: string,

@@ -6,7 +6,6 @@ import { addBook } from "./import-book";
 
 let started = false;
 
-// The books added, and what went wrong with the first shared file that did not add, for the library to say.
 export function importInboxOnce(): Effect.Effect<
   { readonly imported: number; readonly failure: string | null },
   never,
