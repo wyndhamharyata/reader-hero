@@ -18,7 +18,9 @@ const highlights = (): HighlightRegistry | null =>
     ? CSS.highlights
     : null;
 
-const searchMap = (layer: HTMLElement) => {
+const searchMap = (
+  layer: HTMLElement,
+): { readonly text: string; readonly from: Array<{ node: Text; offset: number }> } => {
   let text = "";
   const from: Array<{ node: Text; offset: number }> = [];
   let last: { node: Text; offset: number } | null = null;

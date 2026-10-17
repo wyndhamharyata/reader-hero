@@ -3,8 +3,10 @@ import { ThemeControls } from "@/components/ThemeControls";
 import { AiSettings, CONSENT_VERSION, hasConsent } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import type { useJob } from "@/lib/hooks";
-import { ConsentNote } from "@/routes/reader/_ConsentNote";
-import { settingsHeading, type GroupingState } from "./_settings-shared";
+import { ConsentNote } from "@/components/ConsentNote";
+import { GroupingStatus } from "./_GroupingStatus";
+import { settingsHeading } from "./_settings-shared";
+import type { Grouping } from "./_use-series-grouping";
 
 export function GeneralSettings({
   ai,
@@ -38,7 +40,7 @@ export function GeneralSettings({
   readonly consentFor: "grouping" | "rebuild" | null;
   readonly onConsentFor: (value: "grouping" | "rebuild" | null) => void;
   readonly consentNote: RefObject<HTMLDivElement | null>;
-  readonly grouping: GroupingState;
+  readonly grouping: Grouping;
   readonly onRetry: () => void;
   readonly onReset: () => void;
   readonly onLicences: () => void;
@@ -180,37 +182,9 @@ export function GeneralSettings({
           Series grouping sends the title, author, file name and first 200 words of each new book,
           and the series that exist for its author.
         </p>
-        {isSeriesGrouping &&
-          grouping !== null &&
-          ("error" in grouping ? (
-            <p className="mt-2 flex items-center gap-3 text-base text-error md:text-sm">
-              {grouping.error}
-              <button type="button" className="btn btn-ghost md:btn-sm" onClick={onRetry}>
-                Retry
-              </button>
-            </p>
-          ) : "left" in grouping ? (
-            <p className="mt-2 flex items-center gap-2 text-base md:text-sm">
-              <span className="loading loading-sm loading-spinner md:loading-xs" />
-              {grouping.left} {grouping.left === 1 ? "book" : "books"} left
-            </p>
-          ) : (
-            <>
-              <p className="mt-2 flex items-center justify-between gap-3 text-base md:text-sm">
-                <span className="opacity-70">
-                  {grouping.books} {grouping.books === 1 ? "book" : "books"} · {grouping.series}{" "}
-                  series
-                </span>
-                <button type="button" className="btn btn-ghost md:btn-sm" onClick={onReset}>
-                  Reset
-                </button>
-              </p>
-              <p className="text-sm opacity-60 md:text-xs">
-                Reset sends every book again. Series that grouping made go, removed series come
-                back, and saved series stay.
-              </p>
-            </>
-          ))}
+        {isSeriesGrouping && (
+          <GroupingStatus grouping={grouping} onRetry={onRetry} onReset={onReset} />
+        )}
       </section>
 
       <section className="mt-4 px-4 pb-1">

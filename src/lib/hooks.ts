@@ -19,7 +19,7 @@ import { saveAiSettings } from "@/use-cases/ai-settings";
 import type { SummaryInput, SummaryRun } from "@/use-cases/summary";
 import { watchBookImage } from "@/use-cases/book-image";
 
-type AsyncState<A, E> =
+export type AsyncState<A, E> =
   | { readonly status: "loading" }
   | { readonly status: "done"; readonly value: A }
   | { readonly status: "error"; readonly error: E | UnexpectedFailure };

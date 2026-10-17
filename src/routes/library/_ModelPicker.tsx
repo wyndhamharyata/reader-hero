@@ -66,21 +66,25 @@ export function ModelPicker({
           >
             {models
               .filter((entry) => entry.id.includes(filter.trim()))
-              .map((entry) => (
-                <li
-                  key={entry.id}
-                  role="option"
-                  aria-selected={entry.id === model}
-                  className={`cursor-pointer rounded-field px-3 py-2 text-base md:py-1.5 md:text-sm ${entry.id === model ? "bg-base-200 font-medium" : "hover:bg-base-200"}`}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => {
-                    onModelChange(entry.id);
-                    onFilterChange(null);
-                  }}
-                >
-                  {entry.id}
-                </li>
-              ))}
+              .map((entry) => {
+                const optionClass = `cursor-pointer rounded-field px-3 py-2 text-base md:py-1.5 md:text-sm ${entry.id === model ? "bg-base-200 font-medium" : "hover:bg-base-200"}`;
+
+                return (
+                  <li
+                    key={entry.id}
+                    role="option"
+                    aria-selected={entry.id === model}
+                    className={optionClass}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      onModelChange(entry.id);
+                      onFilterChange(null);
+                    }}
+                  >
+                    {entry.id}
+                  </li>
+                );
+              })}
           </ul>
         )}
       </div>

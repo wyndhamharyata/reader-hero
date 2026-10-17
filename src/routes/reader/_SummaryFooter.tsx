@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import type { AiSettings } from "@/domain/ai";
-import { ConsentNote } from "./_ConsentNote";
+import { ConsentNote } from "@/components/ConsentNote";
 import { SummaryActions } from "./_SummaryActions";
 import { SummaryAskForm } from "./_SummaryAskForm";
 import { SummaryControls } from "./_SummaryControls";

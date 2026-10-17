@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findPages, pageSearchText, searchForm } from "@/lib/find-text";
 
 describe("searchForm", () => {
-  it("lowers case and folds whitespace runs to one space", () => {
+  it("given mixed case and a run of spaces, folds them to one lower-case form", () => {
     expect(searchForm("The  Quick\nBrown\tFox")).toBe("the quick brown fox");
   });
 });
@@ -16,11 +16,11 @@ describe("findPages", () => {
     { text: "a river again", page: 5 },
   ];
 
-  it("lists each page that may hold a match once, in order, with the page a last block runs on to", () => {
+  it("given a query on several pages, lists each page once in order", () => {
     expect(findPages(blocks, "river")).toEqual([2, 3, 5]);
   });
 
-  it("matches across a line break and in any case", () => {
+  it("given a query across a line break, matches in any case", () => {
     expect(findPages(blocks, "OLD river")).toEqual([2, 3]);
   });
 
@@ -32,18 +32,18 @@ describe("findPages", () => {
     expect(findPages(spanning, "ends")).toEqual([7, 8]);
   });
 
-  it("finds nothing for an empty or blank query", () => {
+  it("given an empty or blank query, finds nothing", () => {
     expect(findPages(blocks, "")).toEqual([]);
     expect(findPages(blocks, "   ")).toEqual([]);
   });
 
-  it("sorts pages even when blocks arrive out of order", () => {
+  it("given blocks out of order, sorts the pages", () => {
     expect(findPages([...blocks].reverse(), "river")).toEqual([2, 5]);
   });
 });
 
 describe("pageSearchText", () => {
-  it("joins runs end to end and reads a line end as a space, as the text layer does", () => {
+  it("given runs with a line end, joins them as the text layer does", () => {
     expect(
       pageSearchText([{ str: "The Old", hasEOL: true }, { str: "River" }, { str: " mill" }]),
     ).toBe("the old river mill");

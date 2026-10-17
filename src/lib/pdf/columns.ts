@@ -31,7 +31,7 @@ function detectColumns(lines: ReadonlyArray<Positioned>, pageWidth: number): Col
     else if (line.x >= middle - CROSS_MARGIN_PT) right += 1;
   }
 
-  // A title, an abstract or a footnote may cross the middle. Most lines crossing it is one column.
+  // A title, an abstract or a footnote may cross the middle. A fifth of the side lines crossing it means one column.
   if (crossing * 4 > left + right || left < MIN_COLUMN_LINES || right < MIN_COLUMN_LINES) {
     return { hasTwoColumns: false, middle };
   }

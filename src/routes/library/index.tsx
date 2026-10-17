@@ -143,7 +143,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const steps = tourSteps({ hasBooks: books.length > 0, needsInstall: showInstallHint });
   const isTouring = showsTour({
     isHidden,
-    status: state.status,
+    state,
     tour: settings.tour,
     steps,
   });

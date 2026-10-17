@@ -27,7 +27,7 @@ interface Props {
   onJump: (page: number) => void;
 }
 
-const box = (link: PageLink) => ({
+const box = (link: PageLink): CSSProperties => ({
   left: `${link.left * 100}%`,
   top: `${link.top * 100}%`,
   width: `${link.width * 100}%`,

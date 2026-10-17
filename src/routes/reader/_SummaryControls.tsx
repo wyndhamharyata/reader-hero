@@ -23,6 +23,10 @@ export function SummaryControls({
   readonly onDiscard: () => void;
   readonly onClose: () => void;
 }): ReactElement {
+  const kindLabel = isStory ? "Story" : "Document";
+  const kindAria = `Book kind: ${kindLabel}`;
+  const spacerClass = onBack === undefined ? "flex-1" : "hidden flex-1 md:block";
+
   return (
     <div className="mt-2 flex items-center gap-1 md:gap-2">
       {onBack !== undefined && (
@@ -34,13 +38,13 @@ export function SummaryControls({
       <button
         type="button"
         className={`${button} px-3 md:px-4`}
-        aria-label={isStory ? "Book kind: Story" : "Book kind: Document"}
+        aria-label={kindAria}
         disabled={isRunning}
         onClick={onKind}
       >
-        {isStory ? "Story" : "Document"}
+        {kindLabel}
       </button>
-      <span className={onBack === undefined ? "flex-1" : "hidden flex-1 md:block"} />
+      <span className={spacerClass} />
       <CopyButton text={copied} />
       <button
         type="button"

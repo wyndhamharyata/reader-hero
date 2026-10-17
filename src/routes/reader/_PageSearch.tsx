@@ -5,6 +5,18 @@ import { forkApp, stopFiber, type Job } from "@/lib/hooks";
 import type { RenderedDocument } from "@/services/page-renderer";
 import { searchPages } from "@/use-cases/render-page";
 
+function searchLabel(
+  isSearching: boolean,
+  pages: ReadonlyArray<number> | null,
+  index: number,
+): string | null {
+  if (isSearching) return "Searching…";
+  if (pages === null) return null;
+  if (pages.length === 0) return "No matches";
+
+  return `${index + 1} of ${pages.length} ${pages.length === 1 ? "page" : "pages"}`;
+}
+
 interface Props {
   doc: RenderedDocument;
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>;
@@ -79,13 +91,7 @@ export function PageSearch({
     onClose();
   };
 
-  const count = isSearching
-    ? "Searching…"
-    : pages === null
-      ? null
-      : pages.length === 0
-        ? "No matches"
-        : `${index + 1} of ${pages.length} ${pages.length === 1 ? "page" : "pages"}`;
+  const count = searchLabel(isSearching, pages, index);
 
   return (
     <form

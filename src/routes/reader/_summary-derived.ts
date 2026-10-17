@@ -45,18 +45,22 @@ export function summaryView({
     !visibleChapters.some((chapter) => chapter.heading === summary.current?.heading)
       ? summary.current
       : undefined;
-  const current =
-    run !== null && run.stage === "current"
-      ? { heading: list[run.chapter - 1]?.heading ?? "", text: run.text }
-      : stored === undefined
-        ? null
-        : { heading: stored.heading, text: stored.text };
+  let current: { heading: string; text: string } | null = null;
+
+  if (run !== null && run.stage === "current") {
+    current = { heading: list[run.chapter - 1]?.heading ?? "", text: run.text };
+  } else if (stored !== undefined) {
+    current = { heading: stored.heading, text: stored.text };
+  }
+
+  const copiedLines = visibleChapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`);
+
+  if (stored !== undefined)
+    copiedLines.push(`${stored.heading} · current position\n${stored.text}`);
+
   const copied =
     tab === "chapters"
-      ? [
-          ...visibleChapters.map((chapter) => `${chapter.heading}\n${chapter.paragraph}`),
-          ...(stored === undefined ? [] : [`${stored.heading} · current position\n${stored.text}`]),
-        ].join("\n\n")
+      ? copiedLines.join("\n\n")
       : names.map((entry) => `${entry.name}: ${entry.note}`).join("\n");
 
   return { visibleChapters, names, unit, namesLabel, stored, current, copied };

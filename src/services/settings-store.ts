@@ -171,8 +171,8 @@ export class SettingsStore extends Context.Service<
           const next = new Map(current);
 
           next.delete(key);
-          
-return next;
+
+          return next;
         });
         yield* Effect.tryPromise({
           try: () => withReaderDb((db) => db.delete("settings", `usage:${key}`)),

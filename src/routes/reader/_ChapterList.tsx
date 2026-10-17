@@ -42,31 +42,29 @@ export function ChapterList({
   readonly spinner: ReactElement;
 }): ReactElement {
   // The chapter in writing shares its stored key, so it stays open once it is stored.
-  const entries = [
-    ...visibleChapters.map((chapter, index) => ({
+  const entries: Array<{ key: string; heading: string; text: string }> = visibleChapters.map(
+    (chapter, index) => ({
       key: `${index}`,
       heading: chapter.heading,
       text: chapter.paragraph,
-    })),
-    ...(run !== null && run.stage === "chapter" && run.chapter > 0
-      ? [
-          {
-            key: `${run.chapter - 1}`,
-            heading: list[run.chapter - 1]?.heading ?? "",
-            text: run.text,
-          },
-        ]
-      : []),
-    ...(current === null
-      ? []
-      : [
-          {
-            key: "current",
-            heading: `${current.heading} · current position`,
-            text: current.text,
-          },
-        ]),
-  ];
+    }),
+  );
+
+  if (run !== null && run.stage === "chapter" && run.chapter > 0) {
+    entries.push({
+      key: `${run.chapter - 1}`,
+      heading: list[run.chapter - 1]?.heading ?? "",
+      text: run.text,
+    });
+  }
+
+  if (current !== null) {
+    entries.push({
+      key: "current",
+      heading: `${current.heading} · current position`,
+      text: current.text,
+    });
+  }
 
   return (
     <>

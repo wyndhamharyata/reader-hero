@@ -13,18 +13,19 @@ import type { ModelInfo } from "@/lib/ai-transport";
 import { runApp, useAiSettings, useJob, useSettings, useUsage } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { useTabSwipe } from "@/lib/use-tab-swipe";
-import { ConsentNote } from "@/routes/reader/_ConsentNote";
+import { ConsentNote } from "@/components/ConsentNote";
 import { AiClient } from "@/services/ai-client";
 import { GeneralSettings } from "./_GeneralSettings";
 import { ModelPicker } from "./_ModelPicker";
 import { UsagePanel } from "./_UsagePanel";
-import { settingsHeading, type GroupingState } from "./_settings-shared";
+import { settingsHeading } from "./_settings-shared";
+import type { Grouping } from "./_use-series-grouping";
 import { ProviderPicker } from "./_ProviderPicker";
 
 interface Props {
   isOpen: boolean;
   // The library's grouping run: books left while it runs, then the totals, or its error.
-  grouping: GroupingState;
+  grouping: Grouping;
   onRetry: () => void;
   onReset: () => void;
   onLicences: () => void;

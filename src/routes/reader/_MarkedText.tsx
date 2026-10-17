@@ -24,6 +24,8 @@ export function MarkedText({ text, marks = [] }: Props): ReactElement {
 
         if (link?.href !== undefined) {
           const block = blockIndexOf(link.href);
+          const linkTarget = block === null ? "_blank" : undefined;
+          const linkRel = block === null ? "noreferrer" : undefined;
 
           return (
             <a
@@ -31,8 +33,8 @@ export function MarkedText({ text, marks = [] }: Props): ReactElement {
               href={link.href}
               className={`${bold} ${italic} text-primary underline underline-offset-2`}
               data-link-block={block ?? undefined}
-              target={block === null ? "_blank" : undefined}
-              rel={block === null ? "noreferrer" : undefined}
+              target={linkTarget}
+              rel={linkRel}
             >
               {text.slice(start, end)}
             </a>

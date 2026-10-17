@@ -372,14 +372,16 @@ function collectDerivedGroups(state: ShelfState): void {
     const epubName = book.series?.trim() || undefined;
     const lead = state.leads.get(book.id) ?? "";
     const titleName = state.titleNames.get(lead);
-    const candidates = [
-      ...(epubName === undefined
-        ? []
-        : [{ id: seriesKey(epubName), name: epubName, number: book.seriesNumber }]),
-      ...(titleName === undefined
-        ? []
-        : [{ id: seriesKey(titleName), name: titleName, number: undefined }]),
-    ];
+    const candidates: Array<{ id: string; name: string; number: number | undefined }> = [];
+
+    if (epubName !== undefined) {
+      candidates.push({ id: seriesKey(epubName), name: epubName, number: book.seriesNumber });
+    }
+
+    if (titleName !== undefined) {
+      candidates.push({ id: seriesKey(titleName), name: titleName, number: undefined });
+    }
+
     const candidate = candidates.find(
       (entry) => entry.id !== "" && !state.removedBySeries.get(entry.id)?.has(book.id),
     );

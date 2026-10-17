@@ -1,5 +1,23 @@
 import { median, type FlowItem, type LinkRange, type RawBlock, type TextLine } from "./types";
 
+interface Paragraph {
+  kind: "paragraph";
+  level: number;
+  text: string;
+  page: number;
+  marks: Array<LinkRange>;
+}
+
+function startParagraph(line: TextLine): Paragraph {
+  return {
+    kind: "paragraph",
+    level: 0,
+    text: line.text,
+    page: line.page,
+    marks: [...(line.marks ?? [])],
+  };
+}
+
 const HEADING_LEVELS: ReadonlyArray<{ readonly ratio: number; readonly level: number }> = [
   { ratio: 1.8, level: 1 },
   { ratio: 1.35, level: 2 },
@@ -60,16 +78,10 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
   );
 
   const blocks: RawBlock[] = [];
-  let current: {
-    kind: "paragraph";
-    level: number;
-    text: string;
-    page: number;
-    marks: Array<LinkRange>;
-  } | null = null;
+  let current: Paragraph | null = null;
   let previous: TextLine | null = null;
 
-  const flush = () => {
+  const flush = (): void => {
     if (current === null) return;
 
     const marks = current.marks.filter((mark) => mark.end > mark.start);
@@ -104,13 +116,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
     }
 
     if (current === null) {
-      current = {
-        kind: "paragraph",
-        level: 0,
-        text: line.text,
-        page: line.page,
-        marks: [...(line.marks ?? [])],
-      };
+      current = startParagraph(line);
       previous = line;
       continue;
     }
@@ -130,13 +136,7 @@ export function buildBlocks(items: ReadonlyArray<FlowItem>): ReadonlyArray<RawBl
 
     if (breaks) {
       flush();
-      current = {
-        kind: "paragraph",
-        level: 0,
-        text: line.text,
-        page: line.page,
-        marks: [...(line.marks ?? [])],
-      };
+      current = startParagraph(line);
     } else {
       const joined = joinLine(block.text, line.text);
       const offset = block.text.length + joined.offset;

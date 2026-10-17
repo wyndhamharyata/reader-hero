@@ -13,7 +13,7 @@ import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import type { JobState } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 import { describeSeries, seriesScope } from "@/use-cases/summary";
-import { ConsentNote } from "./_ConsentNote";
+import { ConsentNote } from "@/components/ConsentNote";
 import { CopyButton } from "./_CopyButton";
 
 const text = "text-base md:text-sm";

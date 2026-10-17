@@ -26,7 +26,7 @@ const MIN_LINE_HEIGHT = 0.6;
 const MAX_LINE_HEIGHT = 2.0;
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
-// The panel has a base-300 background, so unchosen buttons drop to base-100. The isChosen one is neutral.
+// The panel has a base-300 background, so unchosen buttons drop to base-100. The chosen one is neutral.
 const choice = (isChosen: boolean): string =>
   isChosen ? "btn btn-neutral md:btn-sm" : "btn bg-base-100 md:btn-sm";
 

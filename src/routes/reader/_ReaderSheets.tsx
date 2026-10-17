@@ -84,6 +84,10 @@ export function ReaderSheets({
   readonly isSeriesOpen: boolean;
   readonly bookId: string;
 }): ReactElement {
+  const seriesIndex =
+    series === null ? 0 : series.books.findIndex((card) => card.book.id === bookId) + 1;
+  const seriesRow = series === null ? null : `${series.name} · ${seriesIndex} of ${series.count}`;
+
   return (
     <>
       <MenuSheet
@@ -95,11 +99,7 @@ export function ReaderSheets({
         isSummaryRunning={run !== null}
         onSummary={() => setSummarySheet({ openAt: null })}
         onStopSummary={stop}
-        series={
-          series === null
-            ? null
-            : `${series.name} · ${series.books.findIndex((card) => card.book.id === bookId) + 1} of ${series.count}`
-        }
+        series={seriesRow}
         isSeriesRunning={seriesJob.run !== null}
         onSeries={() => {
           // The badges follow the reading done since the book opened.

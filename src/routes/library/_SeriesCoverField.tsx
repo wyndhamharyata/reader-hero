@@ -24,11 +24,9 @@ export function SeriesCoverField({
   readonly pictureUrl: RefObject<string | null>;
   readonly onPicture: (picture: { readonly file: File; readonly url: string } | null) => void;
 }): ReactElement {
-  const values: Array<string | undefined> = [
-    undefined,
-    ...ids,
-    ...(picture !== null || storedCover === "image" ? ["image"] : []),
-  ];
+  const values: Array<string | undefined> = [undefined, ...ids];
+
+  if (picture !== null || storedCover === "image") values.push("image");
 
   return (
     <div
