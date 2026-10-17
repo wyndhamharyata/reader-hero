@@ -1,6 +1,7 @@
 import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import type { PageText, RawTextItem } from "@/domain/book";
+import { PdfFailure } from "@/domain/errors";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { assembleExtract, extractPages } from "@/use-cases/extract";
 
@@ -46,5 +47,45 @@ describe("extractPages and assembleExtract", () => {
     expect(result.scanned).toBe(false);
     expect(result.parsed.blocks.some((block) => block.kind === "image")).toBe(false);
     expect(result.parsed.charCount).toBeGreaterThan(0);
+  });
+});
+
+// Four pages, of which those in `bad` fail to read.
+const failing = (bad: ReadonlySet<number>) =>
+  Layer.succeed(
+    PdfClient,
+    PdfClient.of({
+      load: () => Effect.die("not used"),
+      readPage: (_handle, page) =>
+        bad.has(page)
+          ? Effect.fail(new PdfFailure({ reason: "unknown", message: "bad page" }))
+          : Effect.succeed(pageText(page)),
+      readImages: () => Effect.die("not used"),
+      pageSize: () => Effect.die("not used"),
+      readOutline: () => Effect.succeed([]),
+      release: () => Effect.void,
+      thumbnail: () => Effect.succeed(null),
+      pageCount: () => 4,
+    }),
+  );
+
+const extract = (bad: ReadonlySet<number>) =>
+  Effect.runPromiseExit(
+    extractPages(handle).pipe(
+      Stream.runCollect,
+      Effect.flatMap((pages) => assembleExtract(handle, Array.from(pages))),
+      Effect.provide(failing(bad)),
+    ),
+  );
+
+describe("extractPages with pages that fail", () => {
+  it("given one page that fails, reads the rest", async () => {
+    const exit = await extract(new Set([2]));
+    expect(exit).toMatchObject({ _tag: "Success" });
+  });
+
+  it("given most pages failing, fails the file as corrupt", async () => {
+    const exit = await extract(new Set([1, 2, 3]));
+    expect(JSON.stringify(exit)).toContain('"reason":"corrupt"');
   });
 });

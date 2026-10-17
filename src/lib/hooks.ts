@@ -11,13 +11,13 @@ import { Summary, type AiSettings, type UsageTally } from "@/domain/ai";
 import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
 import { UnexpectedFailure } from "@/domain/errors";
 import { runtime, type AppServices } from "@/runtime";
+import { FigureJobs } from "@/services/figure-jobs";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 import { saveAiSettings } from "@/use-cases/ai-settings";
 import type { SummaryInput, SummaryRun } from "@/use-cases/summary";
 import { watchBookImage } from "@/use-cases/book-image";
-import { renderFigures } from "@/use-cases/render-figures";
 
 type AsyncState<A, E> =
   | { readonly status: "loading" }
@@ -57,37 +57,32 @@ const bookImages = new Map<
 >();
 
 export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): void {
-  const jobs = useRef(new Map<string, Job>());
+  // This screen's hold on each job; another screen's hold keeps a job running when this one lets go.
+  const [owner] = useState(() => ({}));
+  const held = useRef(new Set<string>());
 
   useEffect(() => {
     // A book that leaves the list pauses: its job keeps a checkpoint, so the next start resumes it.
     const wanted = new Set(books.filter((book) => book.figuresPending).map((book) => book.id));
-    for (const [bookId, fiber] of jobs.current) {
+    for (const bookId of held.current) {
       if (wanted.has(bookId)) continue;
-      stopFiber(fiber);
-      jobs.current.delete(bookId);
+      held.current.delete(bookId);
+      forkApp(Effect.flatMap(FigureJobs, (jobs) => jobs.release(owner, bookId)));
     }
     for (const bookId of wanted) {
-      if (jobs.current.has(bookId)) continue;
-      let fiber: Job | null = null;
-      const job = renderFigures(bookId, startPage).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (jobs.current.get(bookId) === fiber) jobs.current.delete(bookId);
-          }),
-        ),
-      );
-      fiber = forkApp(job);
-      jobs.current.set(bookId, fiber);
+      held.current.add(bookId);
+      forkApp(Effect.flatMap(FigureJobs, (jobs) => jobs.hold(owner, bookId, startPage)));
     }
-  }, [books, startPage]);
+  }, [books, startPage, owner]);
 
   useEffect(
     () => () => {
-      for (const fiber of jobs.current.values()) stopFiber(fiber);
-      jobs.current.clear();
+      for (const bookId of held.current) {
+        forkApp(Effect.flatMap(FigureJobs, (jobs) => jobs.release(owner, bookId)));
+      }
+      held.current.clear();
     },
-    [],
+    [owner],
   );
 }
 

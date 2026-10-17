@@ -1,6 +1,7 @@
 import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import { Series } from "@/domain/book";
+import { FigureJobs } from "@/services/figure-jobs";
 import { SummaryJobs } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
 import { removeBook } from "@/use-cases/remove-book";
@@ -19,11 +20,13 @@ describe("removeBook", () => {
       series: Array<Series>;
       bookRemoved: boolean;
       stopped: Array<string>;
+      figuresStopped: Array<string>;
       summariesRemoved: Array<string>;
     } = {
       series: [stored],
       bookRemoved: false,
       stopped: [],
+      figuresStopped: [],
       summariesRemoved: [],
     };
     const books = bookStore({
@@ -59,7 +62,15 @@ describe("removeBook", () => {
         watch: () => Stream.empty,
       }),
     );
-    const layer = Layer.mergeAll(books, jobs, summaries);
+    const figures = Layer.succeed(
+      FigureJobs,
+      FigureJobs.of({
+        hold: () => Effect.die("not used"),
+        release: () => Effect.die("not used"),
+        stop: (id) => Effect.sync(() => state.figuresStopped.push(id)),
+      }),
+    );
+    const layer = Layer.mergeAll(books, jobs, summaries, figures);
 
     await Effect.runPromise(removeBook("b1").pipe(Effect.provide(layer)));
 
@@ -67,6 +78,7 @@ describe("removeBook", () => {
     expect(state.series[0]?.possible).toEqual([{ id: "b3" }]);
     expect(state.series[0]?.removed).toEqual(["b4"]);
     expect(state.stopped).toEqual(["b1"]);
+    expect(state.figuresStopped).toEqual(["b1"]);
     expect(state.bookRemoved).toBe(true);
     expect(state.summariesRemoved).toEqual(["b1"]);
   });

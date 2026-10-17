@@ -1,6 +1,7 @@
 import { Layer, ManagedRuntime } from "effect";
 import { AiClient } from "@/services/ai-client";
 import { BookStore } from "@/services/book-store";
+import { FigureJobs } from "@/services/figure-jobs";
 import { FigureSlots } from "@/services/figure-slots";
 import { PageRenderer } from "@/services/page-renderer";
 import { PdfClient } from "@/services/pdf-client";
@@ -24,6 +25,9 @@ const appLayer = Layer.mergeAll(
   ServiceWorkerClient.layer,
   aiLayer,
   SummaryJobs.layer.pipe(Layer.provide(Layer.mergeAll(aiLayer, BookStore.layer))),
+  FigureJobs.layer.pipe(
+    Layer.provide(Layer.mergeAll(BookStore.layer, PdfClient.layer, FigureSlots.layer)),
+  ),
 );
 
 export const runtime = ManagedRuntime.make(appLayer);
@@ -33,6 +37,7 @@ export type AppServices =
   | PdfClient
   | SettingsStore
   | FigureSlots
+  | FigureJobs
   | PageRenderer
   | ServiceWorkerClient
   | SummaryStore

@@ -1,5 +1,5 @@
 import { Effect, Semaphore, Stream } from "effect";
-import { BookMeta, ParsedBook, type PageImage } from "@/domain/book";
+import { BookMeta, ParsedBook, type ImagePlacement, type PageImage } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { BookStore } from "@/services/book-store";
@@ -7,6 +7,16 @@ import { FigureSlots } from "@/services/figure-slots";
 import { PdfClient } from "@/services/pdf-client";
 
 const IMAGE_CONCURRENCY = 2;
+
+// Only where each figure sits: its pixels are already stored, so the job does not hold every one until it ends.
+const placement = ({ id, page, x, y, width, height }: ImagePlacement): ImagePlacement => ({
+  id,
+  page,
+  x,
+  y,
+  width,
+  height,
+});
 
 export function renderFigures(
   bookId: string,
@@ -61,7 +71,7 @@ export function renderFigures(
 
         const pagesByPage = new Map<
           number,
-          { text: (typeof texts)[number]; images: ReadonlyArray<PageImage> }
+          { text: (typeof texts)[number]; images: ReadonlyArray<ImagePlacement> }
         >();
         for (const text of texts) pagesByPage.set(text.page, { text, images: [] });
         for (const { id, image } of stored) {
@@ -69,7 +79,7 @@ export function renderFigures(
           const entry = pagesByPage.get(page);
           if (!done.has(page) || entry === undefined) continue;
           if (image.x === undefined || image.y === undefined) continue;
-          const restored = { ...image, id, page, x: image.x, y: image.y };
+          const restored = placement({ ...image, id, page, x: image.x, y: image.y });
           pagesByPage.set(page, { text: entry.text, images: [...entry.images, restored] });
         }
 
@@ -98,12 +108,17 @@ export function renderFigures(
           Stream.mapEffect(
             (page) =>
               Effect.gen(function* () {
-                const images = yield* pdf.readImages(handle, page);
+                // A page whose figures cannot be read has none, so the job moves on instead of stopping there on every visit.
+                const images = yield* pdf
+                  .readImages(handle, page)
+                  .pipe(Effect.orElseSucceed((): ReadonlyArray<PageImage> => []));
                 for (const image of images) {
                   yield* store.putImage(bookId, image);
                 }
                 const entry = pagesByPage.get(page);
-                if (entry !== undefined) pagesByPage.set(page, { text: entry.text, images });
+                if (entry !== undefined) {
+                  pagesByPage.set(page, { text: entry.text, images: images.map(placement) });
+                }
                 done.add(page);
                 // Its own small record, so each page saves cheaply: iOS interrupts this job often.
                 yield* store.putFigureCheckpoint(bookId, [...done]);

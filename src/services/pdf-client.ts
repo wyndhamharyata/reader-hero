@@ -315,7 +315,10 @@ export class PdfClient extends Context.Service<
           // Set explicitly, so default merging cannot drop Safari's ImageDecoder JPEG fast path.
           isImageDecoderSupported: true,
         });
-        const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure });
+        // An open that is given up on destroys its task, so its worker does not run on with the whole file.
+        const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }).pipe(
+          Effect.onInterrupt(() => Effect.sync(() => void task.destroy().catch(() => undefined))),
+        );
         return { proxy, task, numPages: proxy.numPages };
       }),
 
@@ -465,11 +468,12 @@ export class PdfClient extends Context.Service<
         return yield* walk(raw, 0);
       }),
 
+      // A worker lost to memory pressure never answers destroy, so the wait ends; else the stall check would hang on it.
       release: Effect.fn("PdfClient.release")(function* (handle: PdfHandle) {
         yield* Effect.tryPromise({
           try: () => handle.task.destroy(),
           catch: pdfFailure,
-        }).pipe(Effect.catchTag("PdfFailure", () => Effect.void));
+        }).pipe(Effect.timeoutOption("2 seconds"), Effect.ignore);
       }),
 
       pageCount: (handle: PdfHandle) => handle.numPages,

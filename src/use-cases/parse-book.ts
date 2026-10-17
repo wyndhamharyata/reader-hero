@@ -43,12 +43,21 @@ function parseBook(
       return book.parsed;
     }
 
-    const handle = yield* pdf.load(data);
-    const pages = yield* extractPages(handle).pipe(
-      Stream.tap((read) => Effect.sync(() => onProgress({ page: read.page, total: read.total }))),
-      Stream.runCollect,
+    // Released however the read ends, as the import does, so a failed or stopped rebuild keeps no PDF open.
+    const { pages, result } = yield* Effect.acquireUseRelease(
+      pdf.load(data),
+      (handle) =>
+        Effect.gen(function* () {
+          const pages = yield* extractPages(handle).pipe(
+            Stream.tap((read) =>
+              Effect.sync(() => onProgress({ page: read.page, total: read.total })),
+            ),
+            Stream.runCollect,
+          );
+          return { pages, result: yield* assembleExtract(handle, pages) };
+        }),
+      (handle) => pdf.release(handle),
     );
-    const result = yield* assembleExtract(handle, pages);
 
     yield* store.putParsed(id, result.parsed);
     // The figure job reuses this text instead of reading every page again.
