@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderMode, ReaderSettings } from "@/domain/book";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type JumpRequest } from "./_ReaderView";
@@ -32,8 +32,12 @@ export function ReaderBody({
 }: Props): ReactElement {
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
-  // The place now, not at open, so coming back from the original view keeps the reading done there.
-  const initialBlock = position;
+  // The place when the reader view mounts: the open's, or where the original view left off. Never the live
+  // place, which would render every block of the reader view again on each block it reaches.
+  const [initialBlock, setInitialBlock] = useState(position);
+  useEffect(() => {
+    if (showOriginal) setInitialBlock(position);
+  }, [showOriginal, position]);
   const currentPage = parsed.blocks[position]?.page ?? 1;
 
   // Stable, or every page change rebuilds the original view's observer over every page.
