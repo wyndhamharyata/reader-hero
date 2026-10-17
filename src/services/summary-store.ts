@@ -2,7 +2,7 @@ import { Context, Effect, Layer, PubSub, Semaphore, Stream } from "effect";
 import type { Summary } from "@/domain/ai";
 import { StorageFailure } from "@/domain/errors";
 import { decodeSummary } from "@/lib/codecs";
-import { openReaderDb } from "@/lib/db";
+import { withReaderDb } from "@/lib/db";
 
 const attempt = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, StorageFailure> =>
   Effect.tryPromise({
@@ -27,12 +27,13 @@ export class SummaryStore extends Context.Service<
   static readonly layer = Layer.effect(
     SummaryStore,
     Effect.gen(function* () {
-      const db = yield* attempt("open", () => openReaderDb());
       const bus = yield* PubSub.unbounded<{ bookId: string; summary: Summary | null }>();
       const lock = yield* Semaphore.make(1);
 
       const get = Effect.fn("SummaryStore.get")(function* (bookId: string) {
-        const row = yield* attempt("getSummary", () => db.get("summaries", bookId));
+        const row = yield* attempt("getSummary", () =>
+          withReaderDb((db) => db.get("summaries", bookId)),
+        );
         if (row === undefined) return null;
         return yield* decodeSummary(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
@@ -45,14 +46,18 @@ export class SummaryStore extends Context.Service<
         Effect.gen(function* () {
           const next = change(yield* get(bookId));
           if (next === null) return next;
-          yield* attempt("putSummary", () => db.put("summaries", next, bookId));
+          yield* attempt("putSummary", () =>
+            withReaderDb((db) => db.put("summaries", next, bookId)),
+          );
           yield* PubSub.publish(bus, { bookId, summary: next });
           return next;
         }).pipe(Semaphore.withPermit(lock));
 
       const remove = (bookId: string): Effect.Effect<void, StorageFailure> =>
         Effect.gen(function* () {
-          yield* attempt("removeSummary", () => db.delete("summaries", bookId));
+          yield* attempt("removeSummary", () =>
+            withReaderDb((db) => db.delete("summaries", bookId)),
+          );
           yield* PubSub.publish(bus, { bookId, summary: null });
         }).pipe(Semaphore.withPermit(lock));
 

@@ -50,6 +50,11 @@ export function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
   return connection;
 }
 
+// Each operation takes the connection at its start, so one closed by an upgrade elsewhere or by the system is opened again.
+export async function withReaderDb<A>(run: (db: IDBPDatabase<ReaderDb>) => Promise<A>): Promise<A> {
+  return run(await openReaderDb());
+}
+
 async function connect(): Promise<IDBPDatabase<ReaderDb>> {
   const db = await openDB<ReaderDb>(DB_NAME, DB_VERSION, {
     upgrade(next) {
@@ -78,6 +83,10 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
     blocking() {
       connection = null;
       db.close();
+    },
+    // WebKit can drop a connection, as when it frees memory behind a backgrounded app.
+    terminated() {
+      connection = null;
     },
   });
   return db;

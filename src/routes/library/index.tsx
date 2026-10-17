@@ -329,9 +329,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   useEffect(() => {
     const program = importInboxOnce().pipe(
-      Effect.tap((count) =>
+      Effect.tap(({ imported, failure }) =>
         Effect.sync(() => {
-          if (count > 0) reload();
+          if (imported > 0) reload();
+          if (failure !== null) setMessage(failure);
         }),
       ),
     );

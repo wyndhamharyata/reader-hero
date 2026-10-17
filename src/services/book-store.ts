@@ -1,9 +1,11 @@
 import { Context, Effect, Layer, PubSub, Stream } from "effect";
+import type { IDBPDatabase } from "idb";
 import {
   BookMeta,
   BookPrefs,
   FigureCheckpoint,
   ImageRecord,
+  type InboxEntry,
   PARSED_VERSION,
   ParsedBook,
   ReadingProgress,
@@ -17,12 +19,13 @@ import {
   decodeBookPrefs,
   decodeFigureCheckpoint,
   decodeImageRecord,
+  decodeInboxEntry,
   decodeParsedBook,
   decodeReadingProgress,
   decodeSeries,
   decodeStoredPages,
 } from "@/lib/codecs";
-import { openReaderDb, type InboxFile } from "@/lib/db";
+import { withReaderDb, type ReaderDb } from "@/lib/db";
 
 export interface StorageEstimate {
   readonly usage: number;
@@ -44,6 +47,11 @@ const attempt = <A>(operation: string, run: () => Promise<A>): Effect.Effect<A, 
     try: run,
     catch: (cause) => new StorageFailure({ operation, cause }),
   });
+
+const withDb = <A>(
+  operation: string,
+  run: (db: IDBPDatabase<ReaderDb>) => Promise<A>,
+): Effect.Effect<A, StorageFailure> => attempt(operation, () => withReaderDb(run));
 
 export class BookStore extends Context.Service<
   BookStore,
@@ -84,26 +92,33 @@ export class BookStore extends Context.Service<
     remove(id: string): Effect.Effect<void, StorageFailure>;
     estimate(): Effect.Effect<StorageEstimate | null>;
     requestPersistent(): Effect.Effect<boolean>;
-    takeInbox(): Effect.Effect<ReadonlyArray<InboxFile>, StorageFailure>;
+    inbox(): Effect.Effect<ReadonlyArray<InboxEntry>, StorageFailure>;
+    removeInbox(id: number): Effect.Effect<void, StorageFailure>;
   }
 >()("reader-hero/BookStore") {
   static readonly layer = Layer.effect(
     BookStore,
     Effect.gen(function* () {
-      const db = yield* attempt("open", () => openReaderDb());
       const updateBus = yield* PubSub.unbounded<StoreUpdate>();
 
       const list = Effect.fn("BookStore.list")(function* () {
-        const rows = yield* attempt("list", () => db.getAll("books"));
-        return yield* Effect.forEach(rows, (row) =>
+        const rows = yield* withDb("list", (db) => db.getAll("books"));
+        // A book record that no longer decodes drops out, so one bad row cannot empty the library.
+        const books = yield* Effect.forEach(rows, (row) =>
           decodeBookMeta(row).pipe(
-            Effect.mapError((cause) => new StorageFailure({ operation: "decodeBookMeta", cause })),
+            Effect.catch((cause) =>
+              Effect.sync(() => {
+                console.warn("[books] a record no longer decodes", cause);
+                return null;
+              }),
+            ),
           ),
         );
+        return books.filter((book) => book !== null);
       });
 
       const listSeries = Effect.fn("BookStore.listSeries")(function* () {
-        const rows = yield* attempt("listSeries", () => db.getAll("series"));
+        const rows = yield* withDb("listSeries", (db) => db.getAll("series"));
         // A series record that no longer decodes drops out, so the library still opens.
         const series = yield* Effect.forEach(rows, (row) =>
           decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null))),
@@ -112,23 +127,23 @@ export class BookStore extends Context.Service<
       });
 
       const getSeries = Effect.fn("BookStore.getSeries")(function* (id: string) {
-        const row = yield* attempt("getSeries", () => db.get("series", id));
+        const row = yield* withDb("getSeries", (db) => db.get("series", id));
         if (row === undefined) return null;
         return yield* decodeSeries(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
       const putSeries = Effect.fn("BookStore.putSeries")(function* (series: Series) {
-        yield* attempt("putSeries", () => db.put("series", series));
+        yield* withDb("putSeries", (db) => db.put("series", series));
         yield* PubSub.publish(updateBus, { kind: "series" });
       });
 
       const removeSeries = Effect.fn("BookStore.removeSeries")(function* (id: string) {
-        yield* attempt("removeSeries", () => db.delete("series", id));
+        yield* withDb("removeSeries", (db) => db.delete("series", id));
         yield* PubSub.publish(updateBus, { kind: "series" });
       });
 
       const get = Effect.fn("BookStore.get")(function* (id: string) {
-        const row = yield* attempt("get", () => db.get("books", id));
+        const row = yield* withDb("get", (db) => db.get("books", id));
         if (row === undefined) return yield* new BookNotFound({ id });
         return yield* decodeBookMeta(row).pipe(
           Effect.mapError((cause) => new StorageFailure({ operation: "decodeBookMeta", cause })),
@@ -136,7 +151,7 @@ export class BookStore extends Context.Service<
       });
 
       const putMeta = Effect.fn("BookStore.putMeta")(function* (meta: BookMeta) {
-        yield* attempt("putMeta", () => db.put("books", meta));
+        yield* withDb("putMeta", (db) => db.put("books", meta));
         yield* PubSub.publish(updateBus, { kind: "meta", bookId: meta.id });
       });
 
@@ -145,7 +160,7 @@ export class BookStore extends Context.Service<
         blob: Blob,
         meta: BookMeta,
       ) {
-        yield* attempt("putFile", async () => {
+        yield* withDb("putFile", async (db) => {
           const tx = db.transaction(["books", "files"], "readwrite");
           await tx.objectStore("books").put(meta);
           await tx.objectStore("files").put(blob, id);
@@ -154,7 +169,7 @@ export class BookStore extends Context.Service<
       });
 
       const getFile = Effect.fn("BookStore.getFile")(function* (id: string) {
-        const blob = yield* attempt("getFile", () => db.get("files", id));
+        const blob = yield* withDb("getFile", (db) => db.get("files", id));
         if (blob === undefined) return yield* new BookNotFound({ id });
         return blob;
       });
@@ -163,12 +178,12 @@ export class BookStore extends Context.Service<
         id: string,
         parsed: ParsedBook,
       ) {
-        yield* attempt("putParsed", () => db.put("parsed", parsed, id));
+        yield* withDb("putParsed", (db) => db.put("parsed", parsed, id));
         yield* PubSub.publish(updateBus, { kind: "parsed", bookId: id });
       });
 
       const getParsed = Effect.fn("BookStore.getParsed")(function* (id: string) {
-        const row = yield* attempt("getParsed", () => db.get("parsed", id));
+        const row = yield* withDb("getParsed", (db) => db.get("parsed", id));
         if (row === undefined) return yield* new ParsedMissing({ id });
         const parsed = yield* decodeParsedBook(row).pipe(
           Effect.mapError(() => new ParsedMissing({ id })),
@@ -181,7 +196,7 @@ export class BookStore extends Context.Service<
         bookId: string,
         image: StoredImage,
       ) {
-        yield* attempt("putImage", () =>
+        yield* withDb("putImage", (db) =>
           db.put(
             "images",
             new ImageRecord({
@@ -201,21 +216,21 @@ export class BookStore extends Context.Service<
         bookId: string,
         imageId: string,
       ) {
-        yield* attempt("removeImage", () => db.delete("images", `${bookId}/${imageId}`));
+        yield* withDb("removeImage", (db) => db.delete("images", `${bookId}/${imageId}`));
         yield* PubSub.publish(updateBus, { kind: "image", bookId, imageId });
       });
 
       const updates = () => Stream.fromPubSub(updateBus);
 
       const getImage = Effect.fn("BookStore.getImage")(function* (bookId: string, imageId: string) {
-        const row = yield* attempt("getImage", () => db.get("images", `${bookId}/${imageId}`));
+        const row = yield* withDb("getImage", (db) => db.get("images", `${bookId}/${imageId}`));
         if (row === undefined) return null;
         return yield* decodeImageRecord(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
       const listImages = Effect.fn("BookStore.listImages")(function* (bookId: string) {
         // One transaction, so the keys and the rows line up.
-        const [keys, rows] = yield* attempt("listImages", async () => {
+        const [keys, rows] = yield* withDb("listImages", async (db) => {
           const store = db.transaction("images").store;
           return Promise.all([
             store.getAllKeys(imageRange(bookId)),
@@ -239,30 +254,30 @@ export class BookStore extends Context.Service<
         id: string,
         progress: ReadingProgress,
       ) {
-        yield* attempt("putProgress", () => db.put("progress", progress, id));
+        yield* withDb("putProgress", (db) => db.put("progress", progress, id));
         yield* PubSub.publish(updateBus, { kind: "progress", bookId: id });
       });
 
       const getProgress = Effect.fn("BookStore.getProgress")(function* (id: string) {
-        const row = yield* attempt("getProgress", () => db.get("progress", id));
+        const row = yield* withDb("getProgress", (db) => db.get("progress", id));
         if (row === undefined) return null;
         return yield* decodeReadingProgress(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
       const getPrefs = Effect.fn("BookStore.getPrefs")(function* (id: string) {
-        const row = yield* attempt("getPrefs", () => db.get("prefs", id));
+        const row = yield* withDb("getPrefs", (db) => db.get("prefs", id));
         if (row === undefined) return null;
         return yield* decodeBookPrefs(row).pipe(Effect.catch(() => Effect.succeed(null)));
       });
 
       const putPrefs = Effect.fn("BookStore.putPrefs")(function* (id: string, prefs: BookPrefs) {
-        yield* attempt("putPrefs", () => db.put("prefs", prefs, id));
+        yield* withDb("putPrefs", (db) => db.put("prefs", prefs, id));
       });
 
       const getFigureCheckpoint = Effect.fn("BookStore.getFigureCheckpoint")(function* (
         id: string,
       ) {
-        const row = yield* attempt("getFigureCheckpoint", () => db.get("figures", id));
+        const row = yield* withDb("getFigureCheckpoint", (db) => db.get("figures", id));
         if (row === undefined) return [];
         const checkpoint = yield* decodeFigureCheckpoint(row).pipe(
           Effect.catch(() => Effect.succeed(new FigureCheckpoint({}))),
@@ -276,7 +291,7 @@ export class BookStore extends Context.Service<
         id: string,
         pages: ReadonlyArray<number>,
       ) {
-        yield* attempt("putFigureCheckpoint", () =>
+        yield* withDb("putFigureCheckpoint", (db) =>
           db.put("figures", new FigureCheckpoint({ pages }), id),
         );
       });
@@ -285,11 +300,11 @@ export class BookStore extends Context.Service<
         id: string,
         pages: ReadonlyArray<PageText>,
       ) {
-        yield* attempt("putPages", () => db.put("pages", pages, id));
+        yield* withDb("putPages", (db) => db.put("pages", pages, id));
       });
 
       const getPages = Effect.fn("BookStore.getPages")(function* (id: string) {
-        const row = yield* attempt("getPages", () => db.get("pages", id));
+        const row = yield* withDb("getPages", (db) => db.get("pages", id));
         if (row === undefined) return null;
         return yield* decodeStoredPages(row).pipe(
           Effect.map((pages): ReadonlyArray<PageText> => pages),
@@ -298,11 +313,11 @@ export class BookStore extends Context.Service<
       });
 
       const deletePages = Effect.fn("BookStore.deletePages")(function* (id: string) {
-        yield* attempt("deletePages", () => db.delete("pages", id));
+        yield* withDb("deletePages", (db) => db.delete("pages", id));
       });
 
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
-        yield* attempt("remove", async () => {
+        yield* withDb("remove", async (db) => {
           const tx = db.transaction(
             ["books", "files", "parsed", "progress", "images", "prefs", "figures", "pages"],
             "readwrite",
@@ -335,16 +350,21 @@ export class BookStore extends Context.Service<
         );
       });
 
-      const takeInbox = Effect.fn("BookStore.takeInbox")(function* () {
-        return yield* attempt("takeInbox", async () => {
-          const tx = db.transaction("inbox", "readwrite");
-          const store = tx.objectStore("inbox");
-          const files = await store.getAll();
-          await store.clear();
-          await tx.done;
-          return files;
-        });
+      // A row that no longer decodes can never import, so it goes; the rest stay until each one imports.
+      const inbox = Effect.fn("BookStore.inbox")(function* () {
+        const rows = yield* withDb("inbox", (db) => db.getAll("inbox"));
+        const entries = yield* Effect.forEach(rows, (row) =>
+          decodeInboxEntry(row).pipe(
+            Effect.catch(() =>
+              Effect.as(typeof row.id === "number" ? removeInbox(row.id) : Effect.void, null),
+            ),
+          ),
+        );
+        return entries.filter((entry) => entry !== null);
       });
+
+      const removeInbox = (id: number): Effect.Effect<void, StorageFailure> =>
+        withDb("removeInbox", (db) => db.delete("inbox", id));
 
       return BookStore.of({
         list,
@@ -375,7 +395,8 @@ export class BookStore extends Context.Service<
         remove,
         estimate,
         requestPersistent,
-        takeInbox,
+        inbox,
+        removeInbox,
       });
     }),
   );

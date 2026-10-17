@@ -9,6 +9,9 @@ import { BookStore } from "@/services/book-store";
 import type { ParseProgress } from "./extract";
 
 const textFiles = [".xml", ".opf", ".ncx", ".xhtml", ".html", ".htm", ".css"];
+// Far past any real book's chapter or picture, and well under what a phone can inflate at once.
+const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
+const MAX_INFLATED_BYTES = 256 * 1024 * 1024;
 
 export function buildEpub(
   bookId: string,
@@ -20,9 +23,26 @@ export function buildEpub(
     const zip = new Uint8Array(data);
     // Images inflate one at a time below, so the import never holds every image at once.
     const unzip = (keep: (name: string) => boolean): Effect.Effect<Unzipped, EpubFailure> =>
-      Effect.try({
-        try: () => unzipSync(zip, { filter: (file) => keep(file.name) }),
-        catch: () => new EpubFailure({ reason: "corrupt" }),
+      Effect.suspend(() => {
+        // Sizes from the zip's own headers, checked before anything inflates, so a zip bomb fails instead of filling memory.
+        let total = 0;
+        let tooLarge = false;
+        const files = Effect.try({
+          try: () =>
+            unzipSync(zip, {
+              filter: (file) => {
+                if (!keep(file.name)) return false;
+                total += file.originalSize;
+                if (file.originalSize > MAX_ENTRY_BYTES || total > MAX_INFLATED_BYTES)
+                  tooLarge = true;
+                return !tooLarge;
+              },
+            }),
+          catch: () => new EpubFailure({ reason: "corrupt" }),
+        });
+        return Effect.flatMap(files, (unzipped) =>
+          tooLarge ? Effect.fail(new EpubFailure({ reason: "corrupt" })) : Effect.succeed(unzipped),
+        );
       });
 
     const files = yield* unzip((name) =>

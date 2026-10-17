@@ -5,6 +5,7 @@ import {
   BookPrefs,
   FigureCheckpoint,
   ImageRecord,
+  InboxEntry,
   ParsedBook,
   ReaderSettings,
   ReadingProgress,
@@ -13,6 +14,7 @@ import {
 } from "@/domain/book";
 
 export const decodeBookMeta = Schema.decodeUnknownEffect(BookMeta);
+export const decodeInboxEntry = Schema.decodeUnknownEffect(InboxEntry);
 export const decodeParsedBook = Schema.decodeUnknownEffect(ParsedBook);
 export const decodeReadingProgress = Schema.decodeUnknownEffect(ReadingProgress);
 export const decodeSeries = Schema.decodeUnknownEffect(Series);

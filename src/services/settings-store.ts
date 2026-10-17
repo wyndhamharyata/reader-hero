@@ -8,7 +8,7 @@ import {
   decodeReaderSettings,
   decodeUsageTally,
 } from "@/lib/codecs";
-import { AI_SETTINGS_KEY, openReaderDb, SETTINGS_KEY } from "@/lib/db";
+import { AI_SETTINGS_KEY, SETTINGS_KEY, withReaderDb } from "@/lib/db";
 
 const storageFailure = (operation: string) => (cause: unknown) =>
   new StorageFailure({ operation, cause });
@@ -32,13 +32,8 @@ export class SettingsStore extends Context.Service<
   static readonly layer = Layer.effect(
     SettingsStore,
     Effect.gen(function* () {
-      const db = yield* Effect.tryPromise({
-        try: () => openReaderDb(),
-        catch: storageFailure("open"),
-      });
-
       const stored = yield* Effect.tryPromise({
-        try: () => db.get("settings", SETTINGS_KEY),
+        try: () => withReaderDb((db) => db.get("settings", SETTINGS_KEY)),
         catch: storageFailure("getSettings"),
       });
 
@@ -71,13 +66,13 @@ export class SettingsStore extends Context.Service<
         // Applied before the save, so a failed write still changes this session.
         yield* SubscriptionRef.set(ref, next);
         yield* Effect.tryPromise({
-          try: () => db.put("settings", next, SETTINGS_KEY),
+          try: () => withReaderDb((db) => db.put("settings", next, SETTINGS_KEY)),
           catch: storageFailure("putSettings"),
         });
       });
 
       const storedAi = yield* Effect.tryPromise({
-        try: () => db.get("settings", AI_SETTINGS_KEY),
+        try: () => withReaderDb((db) => db.get("settings", AI_SETTINGS_KEY)),
         catch: storageFailure("getAiSettings"),
       });
       const aiRef = yield* SubscriptionRef.make<AiSettings | null>(
@@ -92,10 +87,11 @@ export class SettingsStore extends Context.Service<
       const putAi = Effect.fn("SettingsStore.putAi")(function* (next: AiSettings | null) {
         yield* SubscriptionRef.set(aiRef, next);
         yield* Effect.tryPromise({
-          try: async () => {
-            if (next === null) await db.delete("settings", AI_SETTINGS_KEY);
-            else await db.put("settings", next, AI_SETTINGS_KEY);
-          },
+          try: () =>
+            withReaderDb(async (db) => {
+              if (next === null) await db.delete("settings", AI_SETTINGS_KEY);
+              else await db.put("settings", next, AI_SETTINGS_KEY);
+            }),
           catch: storageFailure("putAiSettings"),
         });
       });
@@ -103,7 +99,7 @@ export class SettingsStore extends Context.Service<
       // A record that no longer decodes counts as none sent, so grouping sends those books again.
       const groupedBooks = Effect.fn("SettingsStore.groupedBooks")(function* () {
         const row = yield* Effect.tryPromise({
-          try: () => db.get("settings", "grouped"),
+          try: () => withReaderDb((db) => db.get("settings", "grouped")),
           catch: storageFailure("getGroupedBooks"),
         });
         if (row === undefined) return [];
@@ -117,20 +113,20 @@ export class SettingsStore extends Context.Service<
         ids: ReadonlyArray<string>,
       ) {
         yield* Effect.tryPromise({
-          try: () => db.put("settings", new GroupedBooks({ ids }), "grouped"),
+          try: () => withReaderDb((db) => db.put("settings", new GroupedBooks({ ids }), "grouped")),
           catch: storageFailure("putGroupedBooks"),
         });
       });
 
       const usageKeys = yield* Effect.tryPromise({
-        try: () => db.getAllKeys("settings"),
+        try: () => withReaderDb((db) => db.getAllKeys("settings")),
         catch: storageFailure("getUsageKeys"),
       });
       const tallies = yield* Effect.forEach(
         usageKeys.filter((key) => key.startsWith("usage:")),
         (key) =>
           Effect.tryPromise({
-            try: () => db.get("settings", key),
+            try: () => withReaderDb((db) => db.get("settings", key)),
             catch: storageFailure("getUsage"),
           }).pipe(
             Effect.flatMap((row) => decodeUsageTally(row)),
@@ -159,7 +155,7 @@ export class SettingsStore extends Context.Service<
           return [tally, new Map(current).set(key, tally)];
         });
         yield* Effect.tryPromise({
-          try: () => db.put("settings", next, `usage:${key}`),
+          try: () => withReaderDb((db) => db.put("settings", next, `usage:${key}`)),
           catch: storageFailure("putUsage"),
         });
       });
@@ -171,7 +167,7 @@ export class SettingsStore extends Context.Service<
           return next;
         });
         yield* Effect.tryPromise({
-          try: () => db.delete("settings", `usage:${key}`),
+          try: () => withReaderDb((db) => db.delete("settings", `usage:${key}`)),
           catch: storageFailure("deleteUsage"),
         });
       });

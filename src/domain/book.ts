@@ -252,6 +252,15 @@ export type StoredImage = Pick<ImageRecord, "blob" | "width" | "height" | "x" | 
   readonly id: string;
 };
 
+// A file shared to the app, which the service worker stores until the library imports it.
+export const InboxEntry = Schema.Struct({
+  id: Schema.Int,
+  name: Schema.String,
+  blob: Schema.instanceOf(Blob),
+  addedAt: Schema.Number,
+});
+export type InboxEntry = typeof InboxEntry.Type;
+
 export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/ImageRecord")({
   blob: Schema.instanceOf(Blob),
   width: Schema.Number,

@@ -127,7 +127,8 @@ function harness(figures: FigureState): Harness {
       remove: () => Effect.void,
       estimate: () => Effect.succeed(null),
       requestPersistent: () => Effect.succeed(false),
-      takeInbox: () => Effect.succeed([]),
+      inbox: () => Effect.succeed([]),
+      removeInbox: () => Effect.void,
     }),
   );
 
