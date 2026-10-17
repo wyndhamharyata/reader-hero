@@ -70,7 +70,13 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
 }) {}
 
 // The consent text's version; a reader who allowed an older text sees the note again.
-export const CONSENT_VERSION = 4;
+export const CONSENT_VERSION = 5;
+
+// Every request that sends text asks this, so a reader who allowed an older text sees the note before any send.
+export const hasConsent = (settings: AiSettings | null): settings is AiSettings =>
+  settings !== null &&
+  settings.consentedAt !== undefined &&
+  settings.consentVersion === CONSENT_VERSION;
 
 // The books that Series grouping sent, so each goes once; Remove key keeps this record.
 export class GroupedBooks extends Schema.Class<GroupedBooks>("reader-hero/domain/GroupedBooks")({

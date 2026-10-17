@@ -8,7 +8,7 @@ import {
   TrashIcon,
   XMarkIcon,
 } from "@/components/icons";
-import type { AiSettings, BookKind } from "@/domain/ai";
+import { hasConsent, type AiSettings, type BookKind } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
 import { holdLowestRow } from "@/lib/hold-lowest-row";
@@ -38,12 +38,14 @@ interface Props {
   onKind: (kind: BookKind) => void;
   // The chapter to open at, from a line in Contents; null opens at the latest entry.
   openAt: number | null;
-  onStart: () => void;
+  // Given the settings Allow just saved, so the first run goes with the consent it was given.
+  onStart: (settings?: AiSettings) => void;
   onStop: () => void;
   onDiscard: () => void;
   onAddName: (entry: { name: string; note: string; chapter: number }) => void;
   onEditName: (name: string, next: { name: string; note: string } | null) => void;
-  onConsent: () => void;
+  // Returns the settings with the consent recorded.
+  onConsent: () => AiSettings | null;
   onClose: () => void;
   // Set on the bottom sheet, so Back turns to the menu instead of closing both.
   onBack?: () => void;
@@ -77,7 +79,8 @@ export function SummarySheet({
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [tab, setTab] = useState<"chapters" | "names">("chapters");
-  const [consentPending, setConsentPending] = useState(false);
+  // What Allow goes on to do: the summary run, or the question that was held for consent.
+  const [consentPending, setConsentPending] = useState<"start" | "ask" | null>(null);
   const [discardPending, setDiscardPending] = useState(false);
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
@@ -133,23 +136,28 @@ export function SummarySheet({
 
   const start = (): void => {
     if (settings === null) return;
-    if (settings.consentedAt === undefined) {
-      setConsentPending(true);
+    if (!hasConsent(settings)) {
+      setConsentPending("start");
       return;
     }
     onStart();
   };
 
-  const ask = (): void => {
+  // A question sends the summaries, the names and the thread, so it asks for consent as a run does.
+  const ask = (allowed: AiSettings | null = settings): void => {
     const asked = question.trim();
-    if (settings === null || summary === null || asked === "" || run !== null) return;
+    if (allowed === null || summary === null || asked === "" || run !== null) return;
     if (pending !== null) return;
+    if (!hasConsent(allowed)) {
+      setConsentPending("ask");
+      return;
+    }
     setQuestion("");
     setPending("");
     setAskError(null);
     setTab("chapters");
     job.current = forkApp(
-      summaryFollowUp(input, settings, summary, asked, setPending).pipe(
+      summaryFollowUp(input, allowed, summary, asked, setPending).pipe(
         Effect.match({
           onSuccess: () => setPending(null),
           onFailure: (failure) => {
@@ -396,14 +404,17 @@ export function SummarySheet({
           </div>
         </div>
 
-        {consentPending && settings !== null ? (
+        {consentPending !== null && settings !== null ? (
           <ConsentNote
             provider={settings.provider}
-            onCancel={() => setConsentPending(false)}
+            onCancel={() => setConsentPending(null)}
             onAllow={() => {
-              setConsentPending(false);
-              onConsent();
-              onStart();
+              const then = consentPending;
+              setConsentPending(null);
+              const allowed = onConsent();
+              if (allowed === null) return;
+              if (then === "ask") ask(allowed);
+              else onStart(allowed);
             }}
           />
         ) : discardPending ? (

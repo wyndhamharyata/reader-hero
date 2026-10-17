@@ -32,6 +32,13 @@ export class UnsupportedFile extends Schema.TaggedError<UnsupportedFile>()("Unsu
 }) {}
 
 export class AiFailure extends Schema.TaggedError<AiFailure>()("AiFailure", {
-  reason: Schema.Literals(["offline", "unauthorized", "rate-limited", "provider", "malformed"]),
+  reason: Schema.Literals([
+    "offline",
+    "unauthorized",
+    "rate-limited",
+    "provider",
+    "malformed",
+    "no-consent",
+  ]),
   message: Schema.String,
 }) {}

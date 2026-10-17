@@ -13,6 +13,7 @@ import { runtime, type AppServices } from "@/runtime";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
+import { saveAiSettings } from "@/use-cases/ai-settings";
 import type { SummaryInput, SummaryRun } from "@/use-cases/summary";
 import { watchBookImage } from "@/use-cases/book-image";
 import { renderFigures } from "@/use-cases/render-figures";
@@ -228,8 +229,7 @@ export function useAiSettings(): {
   }, []);
 
   const putAi = useCallback((next: AiSettings | null) => {
-    const save = Effect.flatMap(SettingsStore, (store) => store.putAi(next));
-    forkApp(save.pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
+    forkApp(saveAiSettings(next).pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
   }, []);
 
   return { ai, putAi };

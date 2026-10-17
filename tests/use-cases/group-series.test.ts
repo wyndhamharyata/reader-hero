@@ -118,6 +118,7 @@ function harness(state: State, reply: (user: string) => string) {
       changes: () => Stream.empty,
       update: () => Effect.die("not used"),
       aiChanges: () => Stream.empty,
+      ai: () => Effect.die("not used"),
       putAi: () => Effect.die("not used"),
       groupedBooks: () => Effect.sync(() => state.sent),
       putGroupedBooks: (ids) =>

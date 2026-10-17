@@ -1,5 +1,5 @@
 import { Effect, Stream } from "effect";
-import { CONSENT_VERSION, Summary, type AiSettings, type BookKind } from "@/domain/ai";
+import { hasConsent, Summary, type AiSettings, type BookKind } from "@/domain/ai";
 import type { BookMeta, ParsedBook } from "@/domain/book";
 import { AiFailure, type StorageFailure } from "@/domain/errors";
 import { guessKind } from "@/lib/guess-kind";
@@ -641,7 +641,7 @@ export function earlierNames(
 > {
   return Effect.gen(function* () {
     // The current consent text is the one that names what a later volume's list sends.
-    if (series === null || input.kind !== "story" || settings.consentVersion !== CONSENT_VERSION) {
+    if (series === null || input.kind !== "story" || !hasConsent(settings)) {
       return [];
     }
     const store = yield* SummaryStore;

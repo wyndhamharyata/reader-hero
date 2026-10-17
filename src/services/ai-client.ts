@@ -1,5 +1,11 @@
 import { Context, Effect, Layer, Stream } from "effect";
-import type { AiSettings, AiUsage, PromptMessage, PromptPart } from "@/domain/ai";
+import {
+  hasConsent,
+  type AiSettings,
+  type AiUsage,
+  type PromptMessage,
+  type PromptPart,
+} from "@/domain/ai";
 import { AiFailure } from "@/domain/errors";
 import type { CompleteOptions, ModelInfo } from "@/lib/ai-transport";
 import type { Delta } from "@/lib/event-stream";
@@ -52,10 +58,27 @@ export class AiClient extends Context.Service<
           .pipe(Effect.catchTag("StorageFailure", () => Effect.void));
       };
 
+      // The last check before any text leaves: a run that started under other settings, or a path that skipped the
+      // consent sheet, stops here, so no request reaches a provider the reader has not allowed with this key.
+      const allowed = (settings: AiSettings): Effect.Effect<void, AiFailure> =>
+        Effect.flatMap(store.ai(), (current) =>
+          hasConsent(current) &&
+          current.provider === settings.provider &&
+          current.apiKey === settings.apiKey &&
+          current.baseUrl === settings.baseUrl
+            ? Effect.void
+            : Effect.fail(
+                new AiFailure({
+                  reason: "no-consent",
+                  message: "Allow sending to this provider first",
+                }),
+              ),
+        );
+
       return AiClient.of({
         complete: (settings, system, messages, options) =>
           Stream.unwrap(
-            Effect.map(transport(), (module) => {
+            Effect.map(Effect.andThen(allowed(settings), transport()), (module) => {
               // Anthropic reports the input at the start and the output at the end, so later fields win.
               let usage: AiUsage = {};
               return module.complete(settings, system, messages, options).pipe(

@@ -47,6 +47,7 @@ describe("removeBook", () => {
         startSeries: () => Effect.void,
         startRebuild: () => Effect.void,
         stop: (id) => Effect.sync(() => state.stopped.push(id)),
+        stopAll: () => Effect.die("not used"),
       }),
     );
     const summaries = Layer.succeed(

@@ -2,7 +2,7 @@ import { Effect, Stream } from "effect";
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { ArrowLeftIcon, BookOpenIcon, XMarkIcon } from "@/components/icons";
 import { SlideLink } from "@/components/SlideLink";
-import { CONSENT_VERSION, type AiSettings, type Summary } from "@/domain/ai";
+import { hasConsent, type AiSettings, type Summary } from "@/domain/ai";
 import type { ReaderSettings } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { forkApp, stopFiber, useAppEffect } from "@/lib/hooks";
@@ -93,7 +93,7 @@ export function SeriesSheet({
 
   const start = (): void => {
     if (settings === null) return;
-    if (settings.consentedAt === undefined || settings.consentVersion !== CONSENT_VERSION) {
+    if (!hasConsent(settings)) {
       setConsentPending(true);
       return;
     }

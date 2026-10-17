@@ -6,6 +6,7 @@ import {
   AiProvider,
   AiSettings,
   CONSENT_VERSION,
+  hasConsent,
   providerLabels,
   relayedProviders,
 } from "@/domain/ai";
@@ -195,10 +196,7 @@ export function SettingsSheet({
     const same =
       provider === ai?.provider && (provider !== "compatible" || baseUrl.trim() === ai.baseUrl);
     // Series grouping sends with no tap, so the note for the current text shows before it goes on.
-    if (
-      seriesGrouping &&
-      !(same && ai?.consentedAt !== undefined && ai.consentVersion === CONSENT_VERSION)
-    ) {
+    if (seriesGrouping && !(same && hasConsent(ai))) {
       setConsentPending(true);
       return;
     }
@@ -311,7 +309,7 @@ export function SettingsSheet({
                       onClick={() => {
                         if (ai === null) return;
                         // Only the current consent text names what a series paragraph and a later volume's list send.
-                        if (ai.consentedAt === undefined || ai.consentVersion !== CONSENT_VERSION) {
+                        if (!hasConsent(ai)) {
                           setConsentFor("rebuild");
                           return;
                         }
@@ -377,10 +375,7 @@ export function SettingsSheet({
                     onChange={(event) => {
                       const on = event.target.checked;
                       // Grouping sends with no tap, so the note for the current text shows before it goes on.
-                      if (
-                        on &&
-                        !(ai?.consentedAt !== undefined && ai.consentVersion === CONSENT_VERSION)
-                      ) {
+                      if (on && !hasConsent(ai)) {
                         setConsentFor("grouping");
                         return;
                       }

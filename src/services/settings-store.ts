@@ -19,6 +19,7 @@ export class SettingsStore extends Context.Service<
     changes(): Stream.Stream<ReaderSettings>;
     update(patch: Partial<ReaderSettings>): Effect.Effect<void, StorageFailure>;
     aiChanges(): Stream.Stream<AiSettings | null>;
+    ai(): Effect.Effect<AiSettings | null>;
     putAi(next: AiSettings | null): Effect.Effect<void, StorageFailure>;
     groupedBooks(): Effect.Effect<ReadonlyArray<string>, StorageFailure>;
     putGroupedBooks(ids: ReadonlyArray<string>): Effect.Effect<void, StorageFailure>;
@@ -86,6 +87,7 @@ export class SettingsStore extends Context.Service<
       );
 
       const aiChanges = () => SubscriptionRef.changes(aiRef);
+      const ai = () => SubscriptionRef.get(aiRef);
 
       const putAi = Effect.fn("SettingsStore.putAi")(function* (next: AiSettings | null) {
         yield* SubscriptionRef.set(aiRef, next);
@@ -178,6 +180,7 @@ export class SettingsStore extends Context.Service<
         changes,
         update,
         aiChanges,
+        ai,
         putAi,
         groupedBooks,
         putGroupedBooks,

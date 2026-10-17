@@ -1,6 +1,6 @@
 import { Effect, Layer, Stream } from "effect";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AiSettings, type AiUsage } from "@/domain/ai";
+import { AiSettings, CONSENT_VERSION, type AiUsage } from "@/domain/ai";
 import { AiClient } from "@/services/ai-client";
 import { SettingsStore } from "@/services/settings-store";
 
@@ -8,6 +8,8 @@ const settings = new AiSettings({
   provider: "anthropic",
   apiKey: "k",
   model: "claude-haiku-5-5",
+  consentedAt: 1,
+  consentVersion: CONSENT_VERSION,
   linesInContents: true,
   autoSummary: false,
   seriesGrouping: false,
@@ -16,12 +18,11 @@ const settings = new AiSettings({
 const sse = (type: string, data: Record<string, unknown>): string =>
   `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
 
-function run(body: string) {
+// `stored` is what Settings holds now; the request carries `settings`, as a running job would.
+function run(body: string, stored: AiSettings | null = settings) {
   const added: Array<{ key: string; usage: AiUsage }> = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response(body, { status: 200 })),
-  );
+  const fetched = vi.fn(async () => new Response(body, { status: 200 }));
+  vi.stubGlobal("fetch", fetched);
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   const store = Layer.succeed(
     SettingsStore,
@@ -29,6 +30,7 @@ function run(body: string) {
       changes: () => Stream.empty,
       update: () => Effect.die("not used"),
       aiChanges: () => Stream.empty,
+      ai: () => Effect.succeed(stored),
       putAi: () => Effect.die("not used"),
       groupedBooks: () => Effect.die("not used"),
       putGroupedBooks: () => Effect.die("not used"),
@@ -51,7 +53,7 @@ function run(body: string) {
         ),
     ).pipe(Effect.provide(AiClient.layer.pipe(Layer.provide(store)))),
   );
-  return { text, added };
+  return { text, added, fetched };
 }
 
 afterEach(() => {
@@ -84,5 +86,36 @@ describe("AI client usage", () => {
     );
     expect(await text).toBe("Done.");
     expect(added).toEqual([]);
+  });
+});
+
+describe("AI client consent", () => {
+  const body = sse("content_block_delta", { delta: { type: "text_delta", text: "Done." } });
+  const refused = { _tag: "AiFailure", reason: "no-consent" };
+
+  it("given no stored settings, as after Remove key, sends nothing", async () => {
+    const { text, fetched } = run(body, null);
+    await expect(text).rejects.toMatchObject(refused);
+    expect(fetched).not.toHaveBeenCalled();
+  });
+
+  it("given consent to an older text, sends nothing", async () => {
+    const { text, fetched } = run(
+      body,
+      new AiSettings({ ...settings, consentVersion: CONSENT_VERSION - 1 }),
+    );
+    await expect(text).rejects.toMatchObject(refused);
+    expect(fetched).not.toHaveBeenCalled();
+  });
+
+  it("given a run that started with another key or provider, sends nothing", async () => {
+    for (const stored of [
+      new AiSettings({ ...settings, apiKey: "new key" }),
+      new AiSettings({ ...settings, provider: "openai" }),
+    ]) {
+      const { text, fetched } = run(body, stored);
+      await expect(text).rejects.toMatchObject(refused);
+      expect(fetched).not.toHaveBeenCalled();
+    }
   });
 });

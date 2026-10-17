@@ -11,7 +11,7 @@ import {
   useSettings,
   useSummary,
 } from "@/lib/hooks";
-import { AiSettings, CONSENT_VERSION } from "@/domain/ai";
+import { AiSettings, CONSENT_VERSION, hasConsent } from "@/domain/ai";
 import { BookPrefs, ReaderSettings, TOUR_VERSION, type ReaderMode } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import { guessKind } from "@/lib/guess-kind";
@@ -337,12 +337,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
   useEffect(() => {
-    if (
-      ai === null ||
-      !ai.autoSummary ||
-      ai.consentedAt === undefined ||
-      autoSummaryInput === null
-    ) {
+    if (!hasConsent(ai) || !ai.autoSummary || autoSummaryInput === null) {
       return;
     }
     // An error waits for a tap in the sheet, so a failing provider is not asked again and again.
@@ -358,13 +353,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   // After the book's own job catches up, once per finished chapter, on Finished, and on open for earlier volumes.
   const seriesTarget = useRef(-1);
   useEffect(() => {
-    if (
-      ai === null ||
-      !ai.autoSummary ||
-      ai.consentedAt === undefined ||
-      ai.consentVersion !== CONSENT_VERSION ||
-      seriesId === null
-    ) {
+    if (!hasConsent(ai) || !ai.autoSummary || seriesId === null) {
       return;
     }
     if (
@@ -619,18 +608,23 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           state={{ summary, run, error: summaryError }}
           onKind={(next) => savePrefs({ kind: next })}
           openAt={summarySheet.openAt}
-          onStart={() => {
-            if (ai !== null) start(summaryInput, ai);
+          onStart={(allowed) => {
+            const settings = allowed ?? ai;
+            if (settings !== null) start(summaryInput, settings);
           }}
           onStop={stop}
           onDiscard={discard}
           onAddName={addName}
           onEditName={editName}
           onConsent={() => {
-            if (ai === null) return;
-            putAi(
-              new AiSettings({ ...ai, consentedAt: Date.now(), consentVersion: CONSENT_VERSION }),
-            );
+            if (ai === null) return null;
+            const allowed = new AiSettings({
+              ...ai,
+              consentedAt: Date.now(),
+              consentVersion: CONSENT_VERSION,
+            });
+            putAi(allowed);
+            return allowed;
           }}
           onClose={() => setSummarySheet(null)}
           onBack={() => setTocOpen(true)}

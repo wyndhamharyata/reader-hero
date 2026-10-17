@@ -54,6 +54,7 @@ export function describeAiFailure(error: AiFailure | StorageFailure): string {
     case "rate-limited":
       return "Rate limited";
     case "malformed":
+    case "no-consent":
       return error.message;
     default:
       return `Provider error: ${error.message}`;

@@ -1,5 +1,5 @@
 import { Effect, Semaphore, Stream } from "effect";
-import { CONSENT_VERSION, type AiSettings } from "@/domain/ai";
+import { hasConsent, type AiSettings } from "@/domain/ai";
 import { Series } from "@/domain/book";
 import { AiFailure, type StorageFailure } from "@/domain/errors";
 import { buildShelf, seriesKey } from "@/lib/shelf";
@@ -22,14 +22,7 @@ export function groupSeries(
 > {
   return oneRequest.withPermits(1)(
     Effect.gen(function* () {
-      if (
-        settings === null ||
-        !settings.seriesGrouping ||
-        settings.consentedAt === undefined ||
-        settings.consentVersion !== CONSENT_VERSION
-      ) {
-        return null;
-      }
+      if (!hasConsent(settings) || !settings.seriesGrouping) return null;
       const client = yield* AiClient;
       const store = yield* BookStore;
       const grouped = yield* SettingsStore;

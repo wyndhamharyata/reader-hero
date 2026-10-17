@@ -37,6 +37,8 @@ export class SummaryJobs extends Context.Service<
     // Stops every other run, then writes each summary again; only a tap starts it.
     startRebuild(settings: AiSettings): Effect.Effect<void>;
     stop(key: string): Effect.Effect<void>;
+    // Every run, the rebuild too: a removed key or another provider must not keep receiving text.
+    stopAll(): Effect.Effect<void>;
   }
 >()("reader-hero/SummaryJobs") {
   static readonly layer = Layer.effect(
@@ -212,7 +214,9 @@ export class SummaryJobs extends Context.Service<
         return fiber === undefined ? Effect.void : Fiber.interrupt(fiber);
       };
 
-      return SummaryJobs.of({ state, start, startSeries, startRebuild, stop });
+      const stopAll = (): Effect.Effect<void> => Fiber.interruptAll([...fibers.values()]);
+
+      return SummaryJobs.of({ state, start, startSeries, startRebuild, stop, stopAll });
     }),
   );
 }
