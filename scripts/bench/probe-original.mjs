@@ -72,13 +72,16 @@ await page.evaluate(async () => {
 });
 await page.waitForFunction(
   () =>
-    document.querySelector('li.card a[href^="/book/"]') !== null &&
-    !document.body.innerText.includes("rendering figures"),
+    document.querySelector('a[href^="/book/"] h2') !== null &&
+    !document.body.innerText.includes("Rendering figures"),
   null,
   { timeout: 180_000 },
 );
-await page.click('li.card a[href^="/book/"]');
+// A first launch shows the tours, whose shield takes the clicks.
+await page.click('button:has-text("Skip")', { timeout: 2000 }).catch(() => {});
+await page.click('a[href^="/book/"] h2');
 await page.waitForSelector("[data-block]");
+await page.click('button:has-text("Skip")', { timeout: 3000 }).catch(() => {});
 // Reading time before the switch, as in the full benchmark, so the warm-up has run.
 await page.waitForTimeout(3000);
 await page.click('button[aria-label="Menu"]');
@@ -89,7 +92,7 @@ const t0 = Date.now();
 await page.click('button:has-text("Original view")');
 await page.click('button[aria-label="Close"]');
 await page.waitForFunction(
-  () => [...document.querySelectorAll("canvas")].some((c) => c.width > 0 && c.width !== 300),
+  () => document.querySelector("canvas[data-painted]") !== null,
   null,
   { timeout: 60_000 },
 );
@@ -104,7 +107,7 @@ if (process.env.SAMPLE) {
 const result = await page.evaluate(async () => {
   const container = document.querySelector("[data-scroller].bg-base-300");
   // What one canvas size change costs: in WebKit it lays out every page wrapper again.
-  const probeCanvas = document.querySelectorAll("canvas")[10];
+  const probeCanvas = document.querySelector("canvas[data-painted]");
   void container.offsetHeight;
   const t = performance.now();
   probeCanvas.width += 1;

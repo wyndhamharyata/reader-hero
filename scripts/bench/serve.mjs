@@ -32,8 +32,15 @@ export function startServer(port) {
       return;
     }
     if (url.pathname === "/__bench/bench.epub") {
+      // Only a run that made one has it; a missing file is a 404, not a crash of the server.
+      const epub = await readFile(join(benchDir, "bench.epub")).catch(() => null);
+      if (epub === null) {
+        response.writeHead(404);
+        response.end();
+        return;
+      }
       response.writeHead(200, { "content-type": "application/epub+zip", "cache-control": "no-store" });
-      response.end(await readFile(join(benchDir, "bench.epub")));
+      response.end(epub);
       return;
     }
     if (url.pathname === "/__bench/bench.pdf") {

@@ -274,8 +274,11 @@ async function run(layoutName, layout) {
       window.__t0 = performance.now();
       window.__watch(() => document.querySelector("[data-block]") !== null);
     });
-    await page.click('li.card a[href^="/book/"]');
+    // A first launch shows the tours, whose shield takes the clicks.
+    await page.click('button:has-text("Skip")', { timeout: 2000 }).catch(() => undefined);
+    await page.click('a[href^="/book/"] h2');
     await page.waitForFunction(() => window.__ready !== null);
+    await page.click('button:has-text("Skip")', { timeout: 2000 }).catch(() => undefined);
     const readerOpenMs = await page.evaluate(() => Math.round(window.__ready - window.__t0));
     await sleep(1500);
     const blockCount = await page.evaluate(() => document.querySelectorAll("[data-block]").length);
