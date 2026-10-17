@@ -21,7 +21,12 @@ if (typeof self !== "undefined" && typeof self.ImageDecoder === "undefined") {
       const options = this._options;
       const bytes = options.data ?? null;
       const blob = new Blob(bytes === null ? [] : [bytes], { type: options.type ?? "image/jpeg" });
-      const bitmap = await createImageBitmap(blob);
+      // pdf.js asks for a smaller decode of a huge JPEG, which memory on iOS needs most.
+      const size =
+        options.desiredWidth > 0 && options.desiredHeight > 0
+          ? { resizeWidth: options.desiredWidth, resizeHeight: options.desiredHeight }
+          : undefined;
+      const bitmap = await createImageBitmap(blob, size);
       try {
         bitmap.displayWidth = bitmap.width;
         bitmap.displayHeight = bitmap.height;

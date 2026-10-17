@@ -110,10 +110,13 @@ export const PdfPage = memo(function PdfPage({
   useEffect(() => {
     const host = textRef.current;
     if (!text || host === null) return;
+    const drawnAt = scaleRef.current;
     const fiber = forkApp(
-      drawTextLayer(doc, size.page, host, scaleRef.current).pipe(
+      drawTextLayer(doc, size.page, host, drawnAt).pipe(
         Effect.tap((drawn) =>
           Effect.sync(() => {
+            // A zoom while it was built found no layer to update, so it takes the new scale now.
+            if (scaleRef.current !== drawnAt) drawn.update(scaleRef.current);
             textLayer.current = drawn;
             drawn.highlight(queryRef.current);
             onTextReady(size.page);

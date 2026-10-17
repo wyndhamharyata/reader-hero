@@ -363,6 +363,11 @@ export function OriginalView({
       setDetails(NO_DETAILS);
       setZoom(next);
     },
+    onCancel: () => {
+      gesture.current = null;
+      if (listRef.current !== null) listRef.current.style.transform = "";
+    },
+    clamp: (scale) => clampZoom(zoom * scale) / zoom,
   });
 
   // Stable, so a link's jump does not re-render every memoised page.
