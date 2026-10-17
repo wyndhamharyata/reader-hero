@@ -6,7 +6,7 @@ const selected = (): boolean => {
 };
 
 // A click that ends a text selection, or only clears one, is about the text, not a tap on the page.
-export function useTapGuard(): {
+export function useTapFilter(): {
   readonly onPointerDown: (event: ReactPointerEvent) => void;
   readonly isTap: (event: MouseEvent) => boolean;
 } {

@@ -46,7 +46,7 @@ export function BookSheet({
   // The sheet keeps the card it opened with, so Reset follows the choices made in it.
   const [custom, setCustom] = useState(card.book.customCover === true);
   const pictureInput = useRef<HTMLInputElement>(null);
-  // A choice shows until the library reads the store again; from then the stored series shows.
+  // A choice shows until the library reads the store again. From then the stored series shows.
   const [choice, setChoice] = useState<{
     seriesId: string | null;
     groups: Shelf["series"];

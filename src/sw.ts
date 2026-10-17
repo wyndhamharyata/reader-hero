@@ -33,7 +33,7 @@ self.addEventListener("install", (event) => {
           .filter((url) => url !== "index.html")
           .map((url) => new Request(url, { cache: "reload" })),
       );
-      // Safari refuses a navigation answered by a redirect, and Cloudflare 307s /index.html to /.
+      // Safari refuses a navigation answered by a redirect. Cloudflare 307s /index.html to /.
       const shell = await fetch(new Request("/", { cache: "reload" }));
       if (!shell.ok) throw new Error(`Shell fetch failed: ${shell.status}`);
       await cache.put(INDEX, shell);
@@ -57,7 +57,7 @@ self.addEventListener("message", (event) => {
   }
 });
 
-// The app opens whatever happens; a share that could not be stored is lost, not an error page.
+// The app opens whatever happens. A share that could not be stored is lost, not an error page.
 async function handleShare(request: Request): Promise<Response> {
   try {
     const form = await request.formData();
@@ -72,7 +72,7 @@ async function handleShare(request: Request): Promise<Response> {
   return Response.redirect(new URL("/", self.location.origin).toString(), 303);
 }
 
-// The shell comes only from the cache: a launch never waits, and it must match this build's assets.
+// The shell comes only from the cache, so a launch never waits. It must match this build's assets.
 async function handleNavigate(request: Request): Promise<Response> {
   const cached = await (await caches.open(CACHE)).match(INDEX);
   if (cached !== undefined) return cached;
@@ -104,7 +104,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // The relay answers per provider and key, and nothing it returns may be stored.
+  // The relay answers per provider and key. Nothing it returns may be stored.
   if (
     event.request.method !== "GET" ||
     url.origin !== self.location.origin ||

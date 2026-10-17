@@ -2,7 +2,7 @@ import { useRef, useState, type ReactElement } from "react";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 
 interface Props {
-  // Null adds a new entry.
+  // Null means a new entry.
   entry: { name: string; note: string } | null;
   story: boolean;
   onSave: (next: { name: string; note: string }) => void;

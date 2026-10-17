@@ -7,7 +7,7 @@ import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 export interface ParseProgress {
   readonly page: number;
   readonly total: number;
-  // What `page` counts; a PDF counts pages, an EPUB counts chapters and then images.
+  // What `page` counts. A PDF counts pages, an EPUB counts chapters and then images.
   readonly step?: "Chapter" | "Image";
   readonly file?: { readonly index: number; readonly count: number; readonly name: string };
 }
@@ -32,7 +32,7 @@ export function extractPages(handle: PdfHandle): Stream.Stream<PageRead, PdfFail
     Effect.map(PdfClient, (pdf) => {
       const total = pdf.pageCount(handle);
       return Stream.range(1, total).pipe(
-        // A damaged PDF often opens and then fails on a page or two; those read as empty, not as a failed book.
+        // A damaged PDF often opens and then fails on a page or two. Those read as empty, not as a failed book.
         Stream.mapEffect(
           (page) =>
             pdf.readPage(handle, page).pipe(

@@ -7,7 +7,7 @@ interface Props {
   onAllow: () => void;
 }
 
-// Shown once per provider before the first action sends text; Allow records the consent.
+// Shown once per provider before the first action sends text. Allow records the consent.
 export function ConsentNote({ provider, onCancel, onAllow }: Props): ReactElement {
   const name = providerLabels[provider];
   // A custom URL has no name of its own, so the note points at the field that holds it.

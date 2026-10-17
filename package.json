@@ -13,7 +13,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json --noEmit && tsc -p tsconfig.sw.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-words.mjs",
     "format": "prettier --write .",
     "icons": "node scripts/make-icons.mjs",
     "dev:worker": "wrangler dev --config wrangler.jsonc",

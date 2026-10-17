@@ -20,7 +20,7 @@ export class SummaryStore extends Context.Service<
       change: (current: Summary | null) => S,
     ): Effect.Effect<S, StorageFailure>;
     remove(bookId: string): Effect.Effect<void, StorageFailure>;
-    // The stored summary, then each write; null means none, or removed.
+    // The stored summary, then each write. Null means none, or removed.
     watch(bookId: string): Stream.Stream<Summary | null>;
   }
 >()("reader-hero/SummaryStore") {

@@ -1,4 +1,4 @@
-// iOS WebKit has no ImageDecoder, so pdf.js decodes JPEGs in slow pure JS; this prepends a shim built on createImageBitmap.
+// iOS WebKit has no ImageDecoder, so pdf.js decodes JPEGs in slow pure JS. This prepends a shim built on createImageBitmap.
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,7 +31,7 @@ if (typeof self !== "undefined" && typeof self.ImageDecoder === "undefined") {
         bitmap.displayWidth = bitmap.width;
         bitmap.displayHeight = bitmap.height;
       } catch {
-        // Non-extensible bitmap: wrap it instead.
+        // Non-extensible bitmap, so wrap it instead.
         const wrapper = {
           displayWidth: bitmap.width,
           displayHeight: bitmap.height,

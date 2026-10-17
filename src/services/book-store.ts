@@ -343,7 +343,7 @@ export class BookStore extends Context.Service<
 
       const remove = Effect.fn("BookStore.remove")(function* (id: string) {
         yield* withDb("remove", async (db) => {
-          // The summary goes in this transaction, so a closed tab leaves none for a gone book.
+          // The summary goes in this transaction, so a closed tab keeps none for a gone book.
           const tx = db.transaction(
             [
               "books",

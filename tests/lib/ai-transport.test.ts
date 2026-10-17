@@ -51,7 +51,7 @@ describe("request per provider", () => {
     expect(Object.keys(body).sort()).toEqual(["messages", "model", "stream", "stream_options"]);
   });
 
-  it("given an OpenAI model before 5.6, keys the cache by book and leaves breakpoints to OpenAI", () => {
+  it("given an OpenAI model before 5.6, keys the cache by book and lets OpenAI set breakpoints", () => {
     const { body } = sent("openai", "gpt-5.5");
     expect(body.prompt_cache_key).toBe("reader-hero:b3");
     expect(body).not.toHaveProperty("prompt_cache_options");

@@ -8,7 +8,7 @@ import { PdfClient } from "@/services/pdf-client";
 
 const IMAGE_CONCURRENCY = 2;
 
-// Positions only: the pixels are stored, so the job holds no figure until it ends.
+// Positions only, as the pixels are stored and the job holds no figure until it ends.
 const placement = ({ id, page, x, y, width, height }: ImagePlacement): ImagePlacement => ({
   id,
   page,
@@ -29,7 +29,7 @@ export function renderFigures(
 
       const meta = yield* store.get(bookId);
       if (!meta.figuresPending) return;
-      // Figures are encoded in a worker with OffscreenCanvas; a browser without it reads the text only.
+      // Figures are encoded in a worker with OffscreenCanvas. A browser without it reads the text only.
       if (typeof OffscreenCanvas === "undefined") {
         yield* store.putMeta(new BookMeta({ ...meta, figures: "none" }));
         return;
@@ -43,7 +43,7 @@ export function renderFigures(
 
       const handle = yield* pdf.load(data);
 
-      // A restarted job skips finished pages; an older build kept them in the parsed record.
+      // A restarted job skips finished pages. An older build kept them in the parsed record.
       const existing = yield* store
         .getParsed(bookId)
         .pipe(Effect.catchTag("ParsedMissing", () => Effect.succeed(null)));
@@ -54,7 +54,7 @@ export function renderFigures(
       const parsed = yield* Effect.gen(function* () {
         const total = pdf.pageCount(handle);
 
-        // The parse kept each page's text, so the job does not read it again; an older book reads it now.
+        // The parse kept each page's text, so the job does not read it again. An older book reads it now.
         const kept = yield* store.getPages(bookId);
         const texts =
           kept ??

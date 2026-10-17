@@ -540,7 +540,7 @@ describe("groupSeries, the merge", () => {
     expect(shown(state)).toEqual([["Tide Cycle", ["b3", "b1"]]]);
   });
 
-  it("never adds back a removed book, also of a removed series, and never moves a book from a saved series", async () => {
+  it("never puts back a removed book, also of a removed series, and never moves a book from a saved series", async () => {
     const state: State = {
       books: [...tide, book("h", "Harbor Lights"), book("l", "Lantern Keepers")],
       series: [
@@ -606,7 +606,7 @@ describe("groupSeries, the merge", () => {
     expect(state.series[0]).toMatchObject({ books: [{ id: "h2", number: 2 }], hidden: false });
   });
 
-  it("adds a book to a series from the EPUB fields under its name", async () => {
+  it("puts a book in a series from the EPUB fields under its name", async () => {
     const state: State = {
       books: [
         book("e1", "Lantern Keepers", { series: "Lighthouse Tales", seriesNumber: 1 }),

@@ -20,7 +20,7 @@ export function CopyButton({ text }: Props): ReactElement {
 
   const copy = (): void => {
     if (job.current !== null) stopFiber(job.current);
-    // A plain-IP page has no clipboard API, and tryPromise turns that TypeError into a failure too.
+    // A plain-IP page has no clipboard API. tryPromise turns that TypeError into a failure too.
     job.current = forkApp(
       Effect.tryPromise(() => navigator.clipboard.writeText(text)).pipe(
         Effect.match({

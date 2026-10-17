@@ -12,7 +12,7 @@ import type { PdfClient } from "@/services/pdf-client";
 import type { ParseProgress } from "./extract";
 import { addBook } from "./import-book";
 
-// One file at a time: each import holds a whole book in memory. Each file's book id, in order; a failed one has none.
+// One file at a time, as each import holds a whole book in memory. Each file's book id, in order. A failed one has none.
 export function importBooks(
   files: ReadonlyArray<File>,
   onProgress: (progress: ParseProgress) => void,
@@ -20,7 +20,7 @@ export function importBooks(
 ): Effect.Effect<ReadonlyArray<string>, never, BookStore | PdfClient> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
-    // The same name and size is the same file, sent here again; importing it twice helps no one.
+    // The same name and size is the same file, sent here again. Importing it twice helps no one.
     const held = (file: File): string => `${file.name}|${file.size}`;
     // A library that cannot be read yet counts as empty, so such a shelf still imports.
     const stored = yield* store
@@ -56,14 +56,14 @@ export function importBooks(
           failures: [...current.failures, describeError(error, file.name)],
         })).pipe(Effect.flatMap((current) => Effect.sync(() => onMessage(summary(current)))));
 
-      // A hung pdf.js call (its worker lost to memory pressure) never settles; 60 s with no page fails the file.
+      // A hung pdf.js call (its worker lost to memory pressure) never settles. 60 s with no page fails the file.
       let lastProgress = Date.now();
       let lastTick = Date.now();
       const stalled = Effect.gen(function* () {
         while (true) {
           yield* Effect.sleep("5 seconds");
           const now = Date.now();
-          // Timers stop while the app is in the background; that time is not a stall.
+          // Timers stop while the app is in the background. That time is not a stall.
           if (now - lastTick > 15_000) lastProgress = now;
           lastTick = now;
           if (now - lastProgress > 60_000) {

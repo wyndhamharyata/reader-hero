@@ -23,7 +23,7 @@ export class SettingsStore extends Context.Service<
     putAi(next: AiSettings | null): Effect.Effect<void, StorageFailure>;
     groupedBooks(): Effect.Effect<ReadonlyArray<string>, StorageFailure>;
     putGroupedBooks(ids: ReadonlyArray<string>): Effect.Effect<void, StorageFailure>;
-    // By "provider/model"; each request adds its reported tokens.
+    // By "provider/model". Each request records its reported tokens.
     usageChanges(): Stream.Stream<ReadonlyMap<string, UsageTally>>;
     addUsage(key: string, usage: AiUsage): Effect.Effect<void, StorageFailure>;
     resetUsage(key: string): Effect.Effect<void, StorageFailure>;
@@ -44,12 +44,12 @@ export class SettingsStore extends Context.Service<
               Effect.catch(() => Effect.succeed(DEFAULT_SETTINGS)),
             );
 
-      const ref = yield* SubscriptionRef.make(initial);
+      const settingsRef = yield* SubscriptionRef.make(initial);
 
-      const changes = () => SubscriptionRef.changes(ref);
+      const changes = () => SubscriptionRef.changes(settingsRef);
 
       const update = Effect.fn("SettingsStore.update")(function* (patch: Partial<ReaderSettings>) {
-        const current = yield* SubscriptionRef.get(ref);
+        const current = yield* SubscriptionRef.get(settingsRef);
         const next = new ReaderSettings({
           theme: patch.theme ?? current.theme,
           font: patch.font ?? current.font,
@@ -64,7 +64,7 @@ export class SettingsStore extends Context.Service<
           readerTour: patch.readerTour ?? current.readerTour,
         });
         // Applied before the save, so a failed write still changes this session.
-        yield* SubscriptionRef.set(ref, next);
+        yield* SubscriptionRef.set(settingsRef, next);
         yield* Effect.tryPromise({
           try: () => withReaderDb((db) => db.put("settings", next, SETTINGS_KEY)),
           catch: storageFailure("putSettings"),

@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, type RefObject } from "react";
 
 const closeMs = 200;
 
-// Bottom to top: Escape closes the top sheet only, so a summary over the sidebar closes first.
+// Bottom to top, so Escape closes the top sheet only and a summary over the sidebar closes first.
 const openSheets: Array<symbol> = [];
 
-// Leaves the way it came in: down on a phone, right for the sidebar, a fade for a desktop dialog.
+// Goes out the way it came in: down on a phone, right for the sidebar, a fade for a desktop dialog.
 function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => void): void {
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     done();
@@ -75,7 +75,7 @@ export function useBottomSheet(
     };
   }, [open, dismiss]);
 
-  // Native listeners: React's touchmove is passive and cannot stop the scrolling list's own bounce.
+  // Native listeners, as React's touchmove is passive and cannot stop the scrolling list's own bounce.
   useEffect(() => {
     const sheet = sheetRef.current;
     if (!open || sheet === null) return;
@@ -103,7 +103,7 @@ export function useBottomSheet(
       const dy = y - startY;
       const dx = (event.touches[0]?.clientX ?? startX) - startX;
       if (mode === "idle") {
-        // Any scrolled area under the finger scrolls back up first; the sheet drags only from the top.
+        // Any scrolled area under the finger scrolls back up first. The sheet drags only from the top.
         let scrolled = false;
         for (let node = event.target as Element | null; node !== null && node !== sheet;) {
           scrolled ||= node.scrollTop > 0;

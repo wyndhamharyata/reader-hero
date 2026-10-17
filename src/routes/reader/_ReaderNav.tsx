@@ -9,7 +9,7 @@ interface Props {
   position: number;
   total: number;
   onMenu: () => void;
-  // Only the original view searches; undefined hides the button.
+  // Only the original view searches. Undefined hides the button.
   onSearch?: () => void;
 }
 

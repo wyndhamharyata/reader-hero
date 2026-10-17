@@ -27,7 +27,7 @@ export function importInboxOnce(): Effect.Effect<
         Effect.catch((error) =>
           Effect.sync(() => {
             failure ??= describeError(error, entry.name);
-            // A full store may have room next launch; a file that cannot be read never will.
+            // A full store may have room next launch. A file that cannot be read never will.
             return error._tag === "StorageFailure" ? ("kept" as const) : ("dropped" as const);
           }),
         ),

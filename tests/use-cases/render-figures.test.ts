@@ -1,7 +1,7 @@
 import { Effect, Layer, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-// The job needs OffscreenCanvas to exist; the stubbed client never draws.
+// The job needs OffscreenCanvas to exist. The stubbed client never draws.
 vi.stubGlobal("OffscreenCanvas", class {});
 import {
   BookMeta,
@@ -187,7 +187,7 @@ describe("renderFigures", () => {
     await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
 
     expect(state.checkpoint).toEqual([1]);
-    // The first figures at once, then the finished book; a fresh job has no text to re-publish.
+    // The first figures at once, then the finished book. A fresh job has no text to re-publish.
     expect(state.parsedWrites).toBe(2);
   });
 

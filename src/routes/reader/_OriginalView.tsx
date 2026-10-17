@@ -14,7 +14,7 @@ import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
 import { pageRenderScale } from "@/lib/render-scale";
 import { usePinch, type PinchPoint } from "@/lib/use-pinch";
-import { useTapGuard } from "@/lib/use-tap-guard";
+import { useTapFilter } from "@/lib/use-tap-filter";
 import { openOriginalPages, readPageSizes, releaseOriginalPages } from "@/use-cases/open-book";
 import type { RenderedDocument } from "@/services/page-renderer";
 import type { PageArea } from "@/use-cases/render-page";
@@ -43,7 +43,7 @@ interface Props {
   pageCount: number;
   initialPage: number;
   showChrome: boolean;
-  // A Contents entry's page; the nonce lets the same entry go again.
+  // A Contents entry's page. The nonce lets the same entry go again.
   jump: { readonly page: number; readonly nonce: number } | null;
   // Null for a scanned book, which has no text to search.
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }> | null;
@@ -83,9 +83,9 @@ export function OriginalView({
     setScroller(element);
   }, []);
   const measureRef = useRef<HTMLDivElement>(null);
-  const tap = useTapGuard();
+  const tap = useTapFilter();
   const listRef = useRef<HTMLDivElement>(null);
-  const docRef = useRef<RenderedDocument | null>(null);
+  const documentRef = useRef<RenderedDocument | null>(null);
   const didScroll = useRef(false);
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function OriginalView({
     const program = openOriginalPages(bookId).pipe(
       Effect.flatMap((opened) =>
         Effect.gen(function* () {
-          docRef.current = opened;
+          documentRef.current = opened;
           setDoc(opened);
           // Every page takes the first page's size until its own arrives, so the first page paints at once.
           setSizes(
@@ -127,7 +127,7 @@ export function OriginalView({
 
   useEffect(() => {
     return () => {
-      const opened = docRef.current;
+      const opened = documentRef.current;
       if (opened === null) return;
       void forkApp(releaseOriginalPages(opened));
     };
@@ -151,7 +151,7 @@ export function OriginalView({
     getScrollElement: () => containerRef.current,
     // A render in the scroll event competes with the scroll.
     useFlushSync: false,
-    // From each page's own size; each drawn page is then measured, so a wrong guess cannot leave a gap.
+    // From each page's own size. Each drawn page is then measured, so a wrong guess cannot leave a blank space.
     estimateSize: (index) => {
       const size = sizes[index];
       return size === undefined ? 0 : (pageWidth * size.height) / size.width;
@@ -297,7 +297,7 @@ export function OriginalView({
       placeDetails();
     }, TEXT_SETTLE_MS);
   }, [showText, pagesOnScreen, placeDetails]);
-  // A scroll stops builds in progress; finished layers stay.
+  // A scroll stops builds in progress. Finished layers stay.
   const onScroll = useCallback(() => {
     waitToSettle();
     const pages = textPagesRef.current;
@@ -310,7 +310,7 @@ export function OriginalView({
     return () => clearTimeout(settle.current);
   }, [doc, waitToSettle]);
 
-  // A pinch moves only the list's transform; the zoom changes once, when it ends.
+  // A pinch moves only the list's transform. The zoom changes once, when it ends.
   const gesture = useRef<{ x: number; y: number } | null>(null);
   const anchor = useRef<{
     index: number;
@@ -391,7 +391,7 @@ export function OriginalView({
       held === undefined || held.size === 0 ? 0 : (container.scrollTop - held.start) / held.size;
     list.style.transform = "";
     virtualizer.measure();
-    // The new height goes in now: the old one would cut the scroll below short.
+    // The new height goes in now, as the old one would cut the scroll below short.
     list.style.height = `${virtualizer.getTotalSize()}px`;
     if (width === 0 || sizes.length === 0) return;
     const pinched = anchor.current;
@@ -414,7 +414,7 @@ export function OriginalView({
       return;
     }
     const moved = held === undefined ? undefined : virtualizer.measurementsCache[held.index];
-    // Only a real move: on iOS, writing scrollTop stops a fling, and size batches land while one runs.
+    // Only a real move, as writing scrollTop on iOS stops a fling. Size batches arrive while one runs.
     const target = moved === undefined ? null : moved.start + part * moved.size;
     if (target !== null && Math.abs(target - container.scrollTop) >= 1)
       container.scrollTop = target;

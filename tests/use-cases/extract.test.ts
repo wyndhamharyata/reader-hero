@@ -25,7 +25,7 @@ const stubLayer = Layer.succeed(
   PdfClient.of({
     load: () => Effect.die("not used"),
     readPage: (_handle, page) => Effect.succeed(pageText(page)),
-    // Parsing must not decode figures; that is the figure job's work.
+    // Parsing must not decode figures. That is the figure job's work.
     readImages: () => Effect.die("readImages called during parsing"),
     pageSize: () => Effect.die("not used"),
     readOutline: () => Effect.succeed([]),

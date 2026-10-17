@@ -13,7 +13,7 @@ import type { PageLink, PageTextContent } from "@/services/page-renderer";
 
 GlobalWorkerOptions.workerSrc = "/worker/pdf.worker.shimmed.min.mjs";
 
-// pdf.js makes its scratch canvases through this; a worker has no document to make them from.
+// pdf.js makes its scratch canvases through this. A worker has no document to make them from.
 class OffscreenCanvasFactory {
   create(width: number, height: number) {
     const canvas = new OffscreenCanvas(width, height);
@@ -73,7 +73,7 @@ const cancelled = new Set<number>();
 const opening = new Set<number>();
 const closedEarly = new Set<number>();
 
-// pdf.js's mobile cap for one canvas, whatever scale is asked; under WebKit's limit.
+// pdf.js's mobile cap for one canvas, whatever scale is asked. Under WebKit's limit.
 const MAX_CANVAS_PIXELS = 5_242_880;
 
 // pdf.js's own viewer keeps its last 10 pages: fewer re-parses a page on the way back, more holds memory.
@@ -92,7 +92,7 @@ const keepDrawn = async (
   (await opened.document.getPage(oldest)).cleanup();
 };
 
-// Only schemes a reader expects a tap to open; pdf.js has already checked the URL is absolute.
+// Only schemes a reader expects a tap to open. pdf.js has already checked the URL is absolute.
 const OPENABLE = /^(https?|mailto|tel):/i;
 
 const linkPage = async (document: PDFDocumentProxy, dest: unknown): Promise<number | null> => {
@@ -144,16 +144,16 @@ const readLinks = async (
   return links;
 };
 
-// One pdf.js worker for every document; pdf.js cannot make it here, as it reads `window.location`.
+// One pdf.js worker for every document, which pdf.js cannot make here as it reads `window.location`.
 let shared: PDFWorker | null = null;
 const pdfWorker = (): PDFWorker => {
   if (shared !== null) return shared;
   try {
     const port = new Worker(GlobalWorkerOptions.workerSrc, { type: "module" });
-    // The typings allow only null here; the runtime takes a Worker or a MessagePort.
+    // The typings allow only null here. The runtime takes a Worker or a MessagePort.
     shared = new PDFWorker({ port: port as never });
   } catch {
-    // No nested workers here: pdf.js parses on this thread instead.
+    // No nested workers here, so pdf.js parses on this thread instead.
     shared = new PDFWorker();
   }
   return shared;
@@ -169,7 +169,7 @@ type RenderMessage = {
   crop?: { x: number; y: number; width: number; height: number };
 };
 
-// A close that came mid-open destroys the document, and nothing answers.
+// A close that came mid-open destroys the document. Nothing answers.
 const openDocument = async (message: OpenMessage): Promise<void> => {
   const origin = self.location.origin;
   // Read here, so the main thread never copies the whole file.
@@ -220,7 +220,7 @@ const render = async (opened: Opened, message: RenderMessage): Promise<void> => 
     crop === undefined
       ? new OffscreenCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
       : new OffscreenCanvas(crop.width, crop.height);
-  // pdf.js types the canvas as a DOM element; it only needs a 2d context.
+  // pdf.js types the canvas as a DOM element. It only needs a 2d context.
   const task = page.render({
     canvas: canvas as never,
     viewport,

@@ -51,13 +51,13 @@ const blockNames = new Set([
 ]);
 const skipNames = new Set(["head", "noscript", "rp", "rt", "script", "style", "title"]);
 const italicNames = new Set(["cite", "dfn", "em", "i", "var"]);
-// Font obfuscation hides embedded fonts only; any other algorithm means the text itself is encrypted.
+// Font obfuscation hides embedded fonts only. Any other algorithm means the text itself is encrypted.
 const fontObfuscation = new Set([
   "http://www.idpf.org/2008/embedding",
   "http://ns.adobe.com/pdf/enc#RC",
 ]);
 
-// Hrefs are relative to the file that holds them and URL-encoded; zip paths are neither.
+// Hrefs are relative to the file that holds them and URL-encoded. Zip paths are neither.
 function resolve(dir: string, href: string): string {
   const raw = href.split("#")[0] ?? "";
   // A malformed escape stays as written.
@@ -70,7 +70,7 @@ function resolve(dir: string, href: string): string {
   return parts.join("/");
 }
 
-// Judgement call: two consumers (stylesheet rules and style attributes) share this parser.
+// Two consumers (stylesheet rules and style attributes) share this parser.
 function readStyle(declarations: string): Style {
   let bold: boolean | undefined;
   let italic: boolean | undefined;
@@ -104,9 +104,9 @@ export function parseEpub(
     const parse = (path: string, type: DOMParserSupportedType): Document | null => {
       const source = read(path);
       if (source === null) return null;
-      const doc = new DOMParser().parseFromString(source, type);
-      if (doc.getElementsByTagName("parsererror").length === 0) return doc;
-      // Many books ship loose XHTML; the HTML parser accepts it.
+      const parsed = new DOMParser().parseFromString(source, type);
+      if (parsed.getElementsByTagName("parsererror").length === 0) return parsed;
+      // Many books ship loose XHTML. The HTML parser accepts it.
       return type === "application/xml"
         ? null
         : new DOMParser().parseFromString(source, "text/html");
@@ -153,8 +153,8 @@ export function parseEpub(
       });
     }
     const spine: string[] = [];
-    for (const ref of opf.getElementsByTagNameNS("*", "itemref")) {
-      const item = items.get(ref.getAttribute("idref") ?? "");
+    for (const reference of opf.getElementsByTagNameNS("*", "itemref")) {
+      const item = items.get(reference.getAttribute("idref") ?? "");
       if (item !== undefined) spine.push(item.path);
     }
     if (spine.length === 0) return yield* corrupt;
@@ -225,7 +225,7 @@ export function parseEpub(
       for (const child of node.childNodes) {
         if (child.nodeType === Node.TEXT_NODE || child.nodeType === Node.CDATA_SECTION_NODE) {
           const from = text.length;
-          // Collapse the source's whitespace the way a browser would; no-break spaces stay.
+          // Collapse the source's whitespace the way a browser would. No-break spaces stay.
           for (const char of child.nodeValue ?? "") {
             if (" \n\t\r\f".includes(char)) {
               if (text !== "" && !text.endsWith(" ")) text += " ";
@@ -259,12 +259,12 @@ export function parseEpub(
         if (id !== null) anchors.set(`${path}#${id}`, blocks.length);
 
         if (image) {
-          const src =
+          const source =
             element.getAttribute("src") ??
             element.getAttribute("href") ??
             element.getAttribute("xlink:href");
-          if (src === null) continue;
-          const target = resolve(path.slice(0, path.lastIndexOf("/") + 1), src);
+          if (source === null) continue;
+          const target = resolve(path.slice(0, path.lastIndexOf("/") + 1), source);
           const imageId = imageIds.get(target) ?? `epub-${imageIds.size + 1}`;
           imageIds.set(target, imageId);
           blocks.push(new Block({ kind: "image", level: 0, text: "", page, imageId }));
@@ -293,8 +293,8 @@ export function parseEpub(
         Effect.sync(() => {
           page = index + 1;
           anchors.set(path, blocks.length);
-          const doc = parse(path, "application/xhtml+xml");
-          const body = doc?.getElementsByTagNameNS("*", "body")[0];
+          const chapter = parse(path, "application/xhtml+xml");
+          const body = chapter?.getElementsByTagNameNS("*", "body")[0];
           if (body !== undefined) walk(body, {}, path);
           flush();
           onChapter(page, spine.length);
@@ -344,9 +344,9 @@ export function parseEpub(
       const visit = (parent: Element, depth: number): void => {
         for (const point of parent.children) {
           if (point.localName !== "navPoint") continue;
-          const src = point.getElementsByTagNameNS("*", "content")[0]?.getAttribute("src") ?? "";
-          const fragment = src.split("#")[1];
-          const file = resolve(ncxDir, src);
+          const source = point.getElementsByTagNameNS("*", "content")[0]?.getAttribute("src") ?? "";
+          const fragment = source.split("#")[1];
+          const file = resolve(ncxDir, source);
           contents.push({
             title: point.getElementsByTagNameNS("*", "text")[0]?.textContent?.trim() ?? "",
             target: fragment === undefined ? file : `${file}#${fragment}`,
@@ -364,7 +364,7 @@ export function parseEpub(
       const index = anchors.get(entry.target) ?? anchors.get(entry.target.split("#")[0] ?? "");
       const block = index === undefined ? undefined : blocks[index];
       if (index === undefined || block === undefined || entry.title === "") continue;
-      // Books often style chapter titles as bold paragraphs; spaces differ around a <br/>.
+      // Books often style chapter titles as bold paragraphs. Spaces differ around a <br/>.
       const title = entry.title.toLowerCase().replaceAll(" ", "");
       const opening = block.text.toLowerCase().replaceAll(" ", "");
       if (block.kind === "paragraph" && block.text.length <= 120 && opening.startsWith(title)) {
@@ -455,7 +455,7 @@ export function parseEpub(
       cover,
       parsed: new ParsedBook({
         version: PARSED_VERSION,
-        // An EPUB has no pages; about 1,800 characters fill a printed novel page.
+        // An EPUB has no pages. About 1,800 characters fill a printed novel page.
         pageCount: Math.max(1, Math.round(charCount / 1800)),
         charCount,
         blocks,

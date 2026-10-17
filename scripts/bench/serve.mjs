@@ -1,5 +1,4 @@
-// Serves dist/client with an SPA fallback, a switchable delay on navigations, and the benchmark PDF.
-// Standalone, for Safari and its Web Inspector: node scripts/bench/serve.mjs [port]
+// Serves dist/client with an SPA fallback, a switchable delay on navigations, and the benchmark PDF. Standalone, for Safari: node scripts/bench/serve.mjs [port].
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -32,7 +31,7 @@ export function startServer(port) {
       return;
     }
     if (url.pathname === "/__bench/bench.epub") {
-      // Only a run that made one has it; a missing file is a 404, not a crash of the server.
+      // Only a run that made one has it. A missing file is a 404, not a crash of the server.
       const epub = await readFile(join(benchDir, "bench.epub")).catch(() => null);
       if (epub === null) {
         response.writeHead(404);

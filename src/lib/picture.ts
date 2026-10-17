@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 
-// A JPEG 400 px wide, like a rendered cover, so a large photo does not fill the store; null when it does not decode.
+// A JPEG 400 px wide, like a rendered cover, so a large photo does not fill the store. Null when it does not decode.
 export function shrinkPicture(
   picture: Blob,
 ): Effect.Effect<{ readonly blob: Blob; readonly width: number; readonly height: number } | null> {

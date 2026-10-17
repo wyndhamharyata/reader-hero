@@ -6,7 +6,7 @@ interface Props {
   onCancel?: () => void;
 }
 
-// Not a blocking overlay: a large import takes minutes, and finished books stay usable meanwhile.
+// Not a blocking overlay. A large import takes minutes. Finished books stay usable meanwhile.
 export function ProgressPanel({ progress, onCancel }: Props): ReactElement {
   const file = progress?.file;
   const title =

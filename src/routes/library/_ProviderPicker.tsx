@@ -58,7 +58,7 @@ export function ProviderPicker({ value, onChange }: Props): ReactElement {
   return (
     <div
       className="relative"
-      // A tap anywhere outside closes the list, and a tap on an option keeps it open until the pick lands.
+      // A tap anywhere outside closes the list. A tap on an option keeps it open until the pick arrives.
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
       }}

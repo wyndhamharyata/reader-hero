@@ -1,5 +1,4 @@
-/* The text layer rules from pdfjs-dist/web/pdf_viewer.css (pdf.js 6.4, Apache-2.0), so the
-   original view takes only these and not the whole viewer's stylesheet. */
+/* The text layer rules from pdfjs-dist/web/pdf_viewer.css (pdf.js 6.4, Apache-2.0), for the original view alone. */
 .textLayer {
   color-scheme: only light;
 

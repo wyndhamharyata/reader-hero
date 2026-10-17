@@ -1,7 +1,4 @@
-// Copies the pdf.js WASM decoders and ICC profile into public/, where the dev
-// server and the built app serve them at stable URLs. The pdf.js worker fetches
-// `${wasmUrl}openjpeg.wasm` and friends; without these files it silently falls
-// back to the slow pure-JS decoders.
+// Copies the pdf.js WASM decoders and ICC profile into public/, where the dev server and the app serve them at stable URLs.
 import { copyFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

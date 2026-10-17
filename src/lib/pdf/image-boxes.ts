@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import type { ImagePlacement } from "@/domain/book";
 
-const MIN_SIDE = 24;
+const MIN_SIDE_PT = 24;
 const MAX_IMAGES = 24;
 
 export interface ImageOperatorList {
@@ -75,7 +75,7 @@ const unitSquareBox = (matrix: Matrix, id: string, page: number): ImagePlacement
   const y = Math.min(...ys);
   const width = Math.max(...xs) - x;
   const height = Math.max(...ys) - y;
-  if (width < MIN_SIDE || height < MIN_SIDE) return null;
+  if (width < MIN_SIDE_PT || height < MIN_SIDE_PT) return null;
   return { id, page, x, y, width, height };
 };
 
@@ -101,65 +101,65 @@ const pushPaint = (
 };
 
 export function collectImageBoxes(
-  opList: ImageOperatorList,
+  operatorList: ImageOperatorList,
   page: number,
   ops: PdfOps,
-  util: PdfMatrixUtil,
+  matrixUtil: PdfMatrixUtil,
 ): ImagePaint[] {
   const paints: ImagePaint[] = [];
   const stack: Matrix[] = [];
   let ctm: Matrix = IDENTITY;
-  let index = 0;
+  let paintIndex = 0;
 
-  for (let i = 0; i < opList.fnArray.length; i += 1) {
-    const fn = opList.fnArray[i];
-    if (fn === undefined) continue;
-    const args = opList.argsArray[i] ?? [];
+  for (let step = 0; step < operatorList.fnArray.length; step += 1) {
+    const operation = operatorList.fnArray[step];
+    if (operation === undefined) continue;
+    const parameters = operatorList.argsArray[step] ?? [];
 
-    if (fn === ops.save) {
+    if (operation === ops.save) {
       stack.push(ctm);
       continue;
     }
-    if (fn === ops.restore) {
+    if (operation === ops.restore) {
       ctm = stack.pop() ?? IDENTITY;
       continue;
     }
-    if (fn === ops.transform) {
-      ctm = util.transform(ctm, toMatrix(args));
+    if (operation === ops.transform) {
+      ctm = matrixUtil.transform(ctm, toMatrix(parameters));
       continue;
     }
     // A form draws under its own matrix and gives it back at its end, as pdf.js's canvas does.
-    if (fn === ops.paintFormXObjectBegin) {
+    if (operation === ops.paintFormXObjectBegin) {
       stack.push(ctm);
-      const matrix = args[0];
+      const matrix = parameters[0];
       if (Array.isArray(matrix) || ArrayBuffer.isView(matrix)) {
-        ctm = util.transform(ctm, toMatrix(Array.from(matrix as ArrayLike<unknown>)));
+        ctm = matrixUtil.transform(ctm, toMatrix(Array.from(matrix as ArrayLike<unknown>)));
       }
       continue;
     }
-    if (fn === ops.paintFormXObjectEnd) {
+    if (operation === ops.paintFormXObjectEnd) {
       ctm = stack.pop() ?? IDENTITY;
       continue;
     }
-    if (fn === ops.paintImageXObject) {
-      pushPaint(paints, ctm, page, index, {
-        name: objectName(args[0]),
-        imgWidth: numberOr(args[1]),
-        imgHeight: numberOr(args[2]),
+    if (operation === ops.paintImageXObject) {
+      pushPaint(paints, ctm, page, paintIndex, {
+        name: objectName(parameters[0]),
+        imgWidth: numberOr(parameters[1]),
+        imgHeight: numberOr(parameters[2]),
       });
-      index += 1;
+      paintIndex += 1;
       continue;
     }
-    if (fn === ops.paintInlineImageXObject) {
-      const inline = inlineImage(args[0]);
+    if (operation === ops.paintInlineImageXObject) {
+      const inline = inlineImage(parameters[0]);
       if (inline !== undefined) {
-        pushPaint(paints, ctm, page, index, {
+        pushPaint(paints, ctm, page, paintIndex, {
           inline,
           imgWidth: numberOr(inline.width),
           imgHeight: numberOr(inline.height),
         });
       }
-      index += 1;
+      paintIndex += 1;
     }
   }
 

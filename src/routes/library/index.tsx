@@ -63,7 +63,7 @@ import { ViewToggle } from "./_ViewToggle";
 
 const showInstallHint = isIosBrowser && !isInstalled;
 
-// `hidden` while a book is open over it: it keeps its state, and pauses its background jobs.
+// `hidden` while a book is open over it, which keeps its state and pauses its background jobs.
 export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const { state, reload } = useAppEffect(
     Effect.gen(function* () {
@@ -144,7 +144,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // A scroll down hides the phone search and chips to give the list room; the action row stays.
+  // A scroll down hides the phone search and chips to give the list room. The action row stays.
   useEffect(() => {
     const box = scrollRef.current;
     if (box === null) return;
@@ -197,7 +197,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     };
   }, []);
 
-  // With the keyboard up the library takes only the visible area, so its bar sits on the keyboard.
+  // With the keyboard up the library takes only the visible area, so its bar stays above the keyboard.
   useEffect(() => {
     const root = rootRef.current;
     const viewport = window.visualViewport;
@@ -206,13 +206,13 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     let typing = false;
     const fit = (): void => {
       root.style.height = typing ? `${viewport.height}px` : "";
-      // iOS scrolls the window, and its viewport offset lags behind, stale for a while after the close.
+      // iOS scrolls the window. Its viewport offset lags behind and stays stale for a while after the close.
       const shift = typing ? Math.max(window.scrollY, viewport.offsetTop) : window.scrollY;
       root.style.top = shift > 0 ? `${shift}px` : "";
       // The page is no taller than what shows and does not scroll, so iOS has less to move.
       html.style.height = typing ? `${viewport.height}px` : "";
       html.style.overflow = typing ? "hidden" : "";
-      // The root's clientHeight stays the full screen with the keyboard up; innerHeight shrinks with it.
+      // The root's clientHeight stays the full screen with the keyboard up. InnerHeight shrinks with it.
       const covered = html.clientHeight - viewport.height;
       if (typing && covered > 0) {
         try {
@@ -231,7 +231,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
           return 0;
         }
       })();
-      // At once while it opens, so iOS sees the field's final place; the close slides with the keyboard.
+      // At once while it opens, so iOS sees the field's final place. The close slides with the keyboard.
       root.style.transition = typing ? "none" : "";
       // Shrunk before iOS opens the keyboard, the field is already in view, so iOS does not move the page.
       if (typing && known > 0 && html.clientHeight - viewport.height < 1) {
@@ -344,7 +344,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       Effect.gen(function* () {
         const store = yield* BookStore;
         yield* store.updates().pipe(
-          // A save as the book closes can land after the reread above; while hidden, it waits for it.
+          // A save as the book closes can land after the reread above. While hidden, it waits for it.
           Stream.filter(
             (update) =>
               update.kind === "meta" ||
@@ -366,7 +366,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     setBusy(true);
     setImporting(true);
     setMessage(null);
-    // Runs on cancel too: a cancelled file is removed without a meta update.
+    // Runs on cancel too, so a cancelled file is removed without a meta update.
     const settle = Effect.sync(() => {
       setBusy(false);
       setImporting(false);
@@ -438,7 +438,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     [items],
   );
 
-  // The grid's breakpoints: 2 columns, 3 from sm, 5 from md; a list has 1, or 2 from md.
+  // The grid's breakpoints: 2 columns, 3 from sm, 5 from md. A list has 1, or 2 from md.
   const [wide, setWide] = useState(() => ({
     sm: window.matchMedia("(width >= 40rem)").matches,
     md: window.matchMedia("(width >= 48rem)").matches,
@@ -463,7 +463,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     [items, columns],
   );
 
-  // Only a just-opened series fades in; the rest move at once, so the scroll holds.
+  // Only a just-opened series fades in. The rest move at once, so the scroll holds.
   useLayoutEffect(() => {
     const list = listRef.current;
     const opened = justOpened.current;
@@ -494,7 +494,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    // A first guess only: each row is measured once it renders.
+    // A first guess only, as each row is measured once it renders.
     estimateSize: () => (grid ? 320 : 132),
     overscan: 3,
     scrollMargin: listTop,
@@ -509,11 +509,11 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [query, filters]);
 
-  // Back from a book the shelf stays, unless the sort moved the book out of view; then it shows it.
+  // Back from a book the shelf stays, unless the sort moved the book out of view. Then it shows it.
   const { pathname } = useLocation();
   const navigate = useNavigate();
 
-  // A file the app was opened with imports like a choice from the picker, then opens; one it holds opens at once.
+  // A file the app was opened with imports like a choice from the picker, then opens. One it holds opens at once.
   const [launched, setLaunched] = useState<string | null>(null);
   const launch = useRef({ importFiles, hidden });
   useEffect(() => {
@@ -588,7 +588,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   );
 
   return (
-    // A fixed column with its own scroll box, so the window never scrolls; hidden, it keeps its layout.
+    // A fixed column with its own scroll box, so the window never scrolls. Hidden, it keeps its layout.
     <main
       ref={rootRef}
       // When the keyboard closes, the column grows back at about the keyboard's pace.

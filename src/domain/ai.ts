@@ -51,17 +51,17 @@ export const relayedProviders: ReadonlySet<AiProvider> = new Set([
 export const BookKind = Schema.Literals(["story", "reference"]);
 export type BookKind = typeof BookKind.Type;
 
-// The one AI record in the settings store; the key is stored next to the books and sent to this provider only.
+// The one AI record in the settings store. The key is stored next to the books and sent to this provider only.
 export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiSettings")({
   provider: AiProvider,
   apiKey: Schema.String,
   model: Schema.String,
-  // True only when the provider's list said this model may skip thinking; unset leaves the model to decide.
+  // True only when the provider's list said this model may skip thinking. Unset lets the model decide.
   reasoningOff: Schema.optional(Schema.Boolean),
-  // Only the OpenAI-compatible provider has one; its requests go through the relay.
+  // Only the OpenAI-compatible provider has one. Its requests go through the relay.
   baseUrl: Schema.optional(Schema.String),
   consentedAt: Schema.optional(Schema.Int),
-  // The consent text that was allowed; unset is the text from before Series grouping.
+  // The consent text that was allowed. Unset is the text from before Series grouping.
   consentVersion: Schema.optional(Schema.Int),
   // Records saved before these fields existed decode with their defaults.
   linesInContents: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(true))),
@@ -69,7 +69,7 @@ export class AiSettings extends Schema.Class<AiSettings>("reader-hero/domain/AiS
   seriesGrouping: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
 }) {}
 
-// The consent text's version; a reader who allowed an older text sees the note again.
+// The consent text's version. A reader who allowed an older text sees the note again.
 export const CONSENT_VERSION = 5;
 
 // Every send checks this, so consent to an older note text asks again.
@@ -78,7 +78,7 @@ export const hasConsent = (settings: AiSettings | null): settings is AiSettings 
   settings.consentedAt !== undefined &&
   settings.consentVersion === CONSENT_VERSION;
 
-// The books that Series grouping sent, so each goes once; Remove key keeps this record.
+// The books that Series grouping sent, so each goes once. Remove key keeps this record.
 export class GroupedBooks extends Schema.Class<GroupedBooks>("reader-hero/domain/GroupedBooks")({
   ids: Schema.Array(Schema.String),
 }) {}
@@ -89,7 +89,7 @@ export const AiMessage = Schema.Struct({
 });
 export type AiMessage = typeof AiMessage.Type;
 
-// `cache` ends a prefix worth keeping; a provider that bills cache writes keeps only marked prefixes.
+// `cache` ends a prefix the provider may keep. A provider that bills cache writes keeps only marked prefixes.
 export interface PromptPart {
   readonly text: string;
   readonly cache?: boolean;
@@ -101,7 +101,7 @@ export interface PromptMessage {
   readonly content: string | ReadonlyArray<PromptPart>;
 }
 
-// `input` counts every prompt token, `hit` and `write` included; a missing field was not reported.
+// `input` counts every prompt token, `hit` and `write` included. A missing field was not reported.
 export interface AiUsage {
   readonly input?: number;
   readonly hit?: number;
@@ -132,7 +132,7 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
       paragraph: Schema.String,
     }),
   ),
-  // `chapter` is 1-based; the next merge keeps an edited entry as the reader wrote it.
+  // `chapter` is 1-based. The next merge keeps an edited entry as the reader wrote it.
   names: Schema.Array(
     Schema.Struct({
       name: Schema.String,
@@ -141,13 +141,13 @@ export class Summary extends Schema.Class<Summary>("reader-hero/domain/Summary")
       edited: Schema.optional(Schema.Boolean),
     }),
   ),
-  // How many chapters the names list covers; it lags behind `chapters` until the next merge.
+  // How many chapters the names list covers. It lags behind `chapters` until the next merge.
   namesThrough: Schema.Int,
   // Names the reader added and removed, which the next merge must include and leave out.
   required: Schema.Array(Schema.String),
   removed: Schema.Array(Schema.String).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
   thread: Schema.Array(AiMessage),
-  // The chapter that held the position, up to the block before `end`; stale once the position moves.
+  // The chapter that held the position, up to the block before `end`. Stale once the position moves.
   current: Schema.optional(
     Schema.Struct({ heading: Schema.String, end: Schema.Int, text: Schema.String }),
   ),

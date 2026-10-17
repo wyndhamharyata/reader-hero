@@ -9,7 +9,7 @@ interface Swipe {
   dx: number;
 }
 
-// A sideways swipe drags the tab panels with the finger; the axis locks on the first move.
+// A sideways swipe drags the tab panels with the finger. The axis locks on the first move.
 export function useTabSwipe<T>(
   viewport: RefObject<HTMLElement | null>,
   track: RefObject<HTMLElement | null>,
@@ -24,7 +24,7 @@ export function useTabSwipe<T>(
     latest.current = { tabs, tab, onTab };
   });
 
-  // No dependency list: it binds again after each render, so it follows a late mount.
+  // No dependency list, so it binds again after each render and follows a late mount.
   useEffect(() => {
     const box = viewport.current;
     const rail = track.current;
@@ -46,7 +46,7 @@ export function useTabSwipe<T>(
               dx: 0,
             };
     };
-    // Native listeners: React's touchmove is passive and cannot stop the panel's scroll.
+    // Native listeners, as React's touchmove is passive and cannot stop the panel's scroll.
     const onMove = (event: TouchEvent): void => {
       const state = swipe.current;
       const touch = event.touches[0];

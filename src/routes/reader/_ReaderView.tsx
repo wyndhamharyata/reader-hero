@@ -1,6 +1,8 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+
+const FONT_FALLBACK_MS = 1500;
 import { fontFamily, type Block, type ParsedBook, type ReaderSettings } from "@/domain/book";
-import { useTapGuard } from "@/lib/use-tap-guard";
+import { useTapFilter } from "@/lib/use-tap-filter";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
 
@@ -47,7 +49,7 @@ export const ReaderView = memo(function ReaderView({
   customCover,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const tap = useTapGuard();
+  const tap = useTapFilter();
   const articleRef = useRef<HTMLElement>(null);
   // Every block's top edge in content coordinates, read once per layout change.
   const blocksRef = useRef<{ nodes: HTMLElement[]; tops: number[] }>({ nodes: [], tops: [] });
@@ -55,7 +57,7 @@ export const ReaderView = memo(function ReaderView({
   const positionRef = useRef(-1);
   const restoredRef = useRef(false);
 
-  // The text waits for its font: WebKit has no scroll anchoring to hold the position in a reflow.
+  // The text waits for its font, as WebKit has no scroll anchoring to hold the position in a reflow.
   const fontSpec = `1em "${fontFamily[settings.font]}"`;
   const [fontReady, setFontReady] = useState(() => document.fonts.check(fontSpec));
   useEffect(() => {
@@ -68,7 +70,7 @@ export const ReaderView = memo(function ReaderView({
       if (active) setFontReady(true);
     };
     // A font that never loads must not hold the book back.
-    const timer = window.setTimeout(show, 1500);
+    const timer = window.setTimeout(show, FONT_FALLBACK_MS);
     void document.fonts.load(fontSpec).then(show, show);
     return () => {
       active = false;
@@ -76,7 +78,7 @@ export const ReaderView = memo(function ReaderView({
     };
   }, [fontSpec, fontReady]);
 
-  // Before paint, so no frame shows the top; only the first open, as figures landing later must not move it.
+  // Before paint, so no frame shows the top. Only the first open, as figures arriving later must not move it.
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (container === null || restoredRef.current || !fontReady) return;
@@ -128,9 +130,9 @@ export const ReaderView = memo(function ReaderView({
       if (node !== undefined && nodeTop !== undefined) {
         anchorRef.current = { element: node, offset: nodeTop - top };
       }
-      // The top block brings a resume to the same screen; the last block marks the book finished.
+      // The top block brings a resume to the same screen. The last block marks the book finished.
       const atEnd = top + container.clientHeight >= container.scrollHeight - 2;
-      // The block's own index, as a custom cover leaves block 0 out of the nodes.
+      // The block's own index, as a custom cover keeps block 0 out of the nodes.
       const index = Number(nodes[atEnd ? nodes.length - 1 : topIndex]?.dataset.block ?? 0);
       if (index !== positionRef.current) {
         positionRef.current = index;
@@ -186,7 +188,7 @@ export const ReaderView = memo(function ReaderView({
     onToggleChrome();
   };
 
-  // Keys survive figures inserted earlier in the book; index keys made every later image reload.
+  // Keys keep their identity when figures are inserted earlier in the book. Index keys made every later image reload.
   const seen = new Map<string, number>();
   const nodes = parsed.blocks.map((block, index) => {
     const imageId = block.imageId;
@@ -208,7 +210,7 @@ export const ReaderView = memo(function ReaderView({
     };
   });
 
-  // Justified lines without hyphenation leave wide gaps between words.
+  // Justified lines without hyphenation leave wide spaces between words.
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
   // The book's own first page is its cover picture in most EPUBs: the reader's picture takes that place.
   const shown = customCover && parsed.blocks[0]?.kind === "image" ? nodes.slice(1) : nodes;
@@ -217,7 +219,7 @@ export const ReaderView = memo(function ReaderView({
     <div
       ref={containerRef}
       data-scroller
-      // The resize handler holds the top block; browser anchoring too would move the view twice.
+      // The resize handler holds the top block. Browser anchoring too would move the view twice.
       className="h-full overflow-y-auto overscroll-contain [overflow-anchor:none]"
       onPointerDown={tap.onPointerDown}
       onClick={handleClick}

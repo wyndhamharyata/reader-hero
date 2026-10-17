@@ -35,7 +35,7 @@ interface Props {
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
 
-// Where a reader makes a key, so the sheet points the way instead of leaving them to search.
+// Where a reader makes a key, so the sheet points the way instead of sending them to search.
 const keyPages: Partial<Record<AiProvider, string>> = {
   deepseek: "https://platform.deepseek.com/api_keys",
   openrouter: "https://openrouter.ai/settings/keys",
@@ -91,11 +91,11 @@ export function SettingsSheet({
   const rebuild = useJob("rebuild");
   const usage = useUsage();
   const [models, setModels] = useState<ReadonlyArray<ModelInfo>>([]);
-  // The model list's filter while it is open; the chevron opens it with none, so every model shows.
+  // The model list's filter while it is open. The chevron opens it with none, so every model shows.
   const [modelFilter, setModelFilter] = useState<string | null>(null);
   const [test, setTest] = useState<Test>({ state: "idle" });
 
-  // Reset on open, so a cancelled edit leaves nothing; a toggle's save keeps the Provider fields.
+  // Reset on open, so a cancelled edit stores nothing. A toggle's save keeps the Provider fields.
   useEffect(() => {
     if (!open) return;
     setProvider(ai?.provider ?? "deepseek");
@@ -156,7 +156,7 @@ export function SettingsSheet({
         Effect.match({
           onSuccess: ({ list, balance }) => {
             setModels(list);
-            // A filled field is kept as typed, so a model the provider's list leaves out survives the test.
+            // A filled field is kept as typed, so a model the provider's list omits stays through the test.
             if (list.length > 0 && model.trim() === "") {
               setModel(list[0]?.id ?? "");
             }
@@ -192,7 +192,7 @@ export function SettingsSheet({
   };
 
   const save = (): void => {
-    // Consent is per provider: a new provider asks again on the first action.
+    // Consent is per provider, so a new provider asks again on the first action.
     const same =
       provider === ai?.provider && (provider !== "compatible" || baseUrl.trim() === ai.baseUrl);
     // Series grouping sends with no tap, so the note for the current text shows before it goes on.

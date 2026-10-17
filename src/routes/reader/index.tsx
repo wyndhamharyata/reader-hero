@@ -38,6 +38,8 @@ import { SeriesSheet } from "./_SeriesSheet";
 import { SummarySheet } from "./_SummarySheet";
 import type { JumpRequest } from "./_ReaderView";
 
+const SAVE_DELAY_MS = 400;
+
 export function ReaderRoute({ bookId }: { bookId: string }) {
   const navigate = useNavigate();
   const { settings, update } = useSettings();
@@ -158,7 +160,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       }),
     [settings, prefs],
   );
-  // Off under a sheet or the tour, which take their own Escape; moves are smooth so the eye can follow.
+  // Off under a sheet or the tour, which take their own Escape. Moves are smooth so the eye can follow.
   useEffect(() => {
     if (tocOpen || summarySheet !== null || seriesOpen) return;
     if ((settings.readerTour ?? 0) < TOUR_VERSION) return;
@@ -331,7 +333,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     chapterList.forEach((chapter, index) => {
       if (index >= cover.target) return;
       const stored = summary.chapters[index];
-      // A re-parse can change the chapters; a line shows only under the heading it was made for.
+      // A re-parse can change the chapters. A line shows only under the heading it was made for.
       if (stored !== undefined && stored.heading === chapter.heading) {
         map.set(chapter.start, stored.line);
       }
@@ -429,7 +431,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     // The whole visit's changes, so saves that land out of order lose none.
     void runApp(saveBookPrefs(bookId, next).pipe(Effect.ignore));
   };
-  // Saves to this book; a text choice also goes global for new books, but Settings owns the theme.
+  // Saves to this book. A text choice also goes global for new books, but Settings owns the theme.
   const changeSettings = (patch: Partial<ReaderSettings>): void => {
     const changes = Schema.decodeUnknownOption(BookPrefs)(
       Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
@@ -472,7 +474,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         void runApp(saveReadingProgress(bookId, blockIndex, totalRef.current, furthestRef.current));
       };
       pendingSave.current = save;
-      saveTimer.current = window.setTimeout(save, 400);
+      saveTimer.current = window.setTimeout(save, SAVE_DELAY_MS);
     },
     [bookId],
   );
@@ -504,7 +506,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     );
     void runApp(program);
   };
-  // An out-of-date reader view rebuilds on open, once; a failure leaves the button.
+  // An out-of-date reader view rebuilds on open, once. A failure keeps the button.
   const rebuiltOnce = useRef(false);
   useEffect(() => {
     if (loadError?._tag !== "ParsedMissing" || rebuiltOnce.current) return;
@@ -522,7 +524,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const searchable = showsPages && data?.meta.parseState !== "scanned";
   const toggleChrome = useCallback(() => setChrome((value) => !value), []);
   const closeToc = () => setTocOpen(false);
-  // Contents goes to the entry in the view showing; it never switches the view.
+  // Contents goes to the entry in the view showing. It never switches the view.
   const selectToc = (blockIndex: number) => {
     setTocOpen(false);
     setJump({ index: blockIndex, nonce: Date.now() });

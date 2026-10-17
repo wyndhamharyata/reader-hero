@@ -88,7 +88,7 @@ describe("book cover", () => {
     expect(await text(state.images.get("cover-default"))).toBe("own");
   });
 
-  it("given a picture that does not decode, leaves the cover as it was", async () => {
+  it("given a picture that does not decode, keeps the cover as it was", async () => {
     const { state, layer, run } = harness(meta(), { cover: picture("own") });
 
     expect(await run(setBookCover("b1", new Blob([])).pipe(Effect.provide(layer)))).toBe(false);

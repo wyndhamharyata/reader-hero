@@ -1,4 +1,4 @@
-// Stateful: a network chunk can end mid-line, and a provider under load sends ": keep-alive" lines.
+// Stateful, as a network chunk can end mid-line and a provider under load sends ": keep-alive" lines.
 export interface EventStreamState {
   readonly buffer: string;
   readonly data: ReadonlyArray<string>;
@@ -35,7 +35,7 @@ export function pushEventStream(
   return [{ buffer, data }, out];
 }
 
-// The stream ended: a last event without its blank line still counts.
+// The stream ended, with a last event without its blank line still counted.
 export function endEventStream(state: EventStreamState): ReadonlyArray<Delta> {
   const data = state.buffer.startsWith("data:")
     ? [...state.data, state.buffer.slice(5).trimStart()]
@@ -86,7 +86,7 @@ function deltasOf(data: ReadonlyArray<string>): ReadonlyArray<Delta> {
       type: "usage",
       usage: {
         input: count(usage.prompt_tokens),
-        // DeepSeek names its hits itself; the others report them as cached tokens.
+        // DeepSeek names its hits itself. The others report them as cached tokens.
         hit: count(usage.prompt_cache_hit_tokens) ?? count(details?.cached_tokens) ?? 0,
         write: count(details?.cache_write_tokens) ?? 0,
         output: count(usage.completion_tokens),
@@ -102,7 +102,7 @@ function deltasOf(data: ReadonlyArray<string>): ReadonlyArray<Delta> {
   return out;
 }
 
-// Anthropic's own events: the start carries the input, and each message delta the output so far.
+// Anthropic's own events. The start carries the input. Each message delta carries the output so far.
 function anthropicDeltas(event: unknown): ReadonlyArray<Delta> {
   const { type, delta, message, usage } = event as {
     type: string;
@@ -137,7 +137,7 @@ function anthropicDeltas(event: unknown): ReadonlyArray<Delta> {
   const plain = count(counts.input_tokens);
   const read = count(counts.cache_read_input_tokens);
   const written = count(counts.cache_creation_input_tokens);
-  // Anthropic's input count leaves out the cached tokens, so the three add up to the whole prompt.
+  // Anthropic's input count omits the cached tokens, so the three add up to the whole prompt.
   const reported = plain !== undefined || read !== undefined || written !== undefined;
   return [
     {

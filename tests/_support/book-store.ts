@@ -1,7 +1,7 @@
 import { Effect, Layer, type Context } from "effect";
 import { BookStore } from "@/services/book-store";
 
-// A method the test leaves out dies when called, so each test lists only what it reads and writes.
+// A method the test omits dies when called, so each test lists only what it reads and writes.
 export function bookStore(
   methods: Partial<Context.Service.Shape<typeof BookStore>>,
 ): Layer.Layer<BookStore> {

@@ -3,9 +3,9 @@ import type { TextLine } from "./types";
 
 const LINE_TOLERANCE = 0.45;
 const SPACE_FACTOR = 0.22;
-// A gap this many ems wide over the page's middle is a column gutter, wider than any word space.
+// A space this many ems wide over the page's middle is a column gutter, wider than any word space.
 const GUTTER_FACTOR = 1;
-const GUTTER_MARGIN = 20;
+const GUTTER_MARGIN_PT = 20;
 // At least 3 rows with a gutter, and a third of all rows, make a page two columns.
 const MIN_GUTTER_ROWS = 3;
 
@@ -27,7 +27,7 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
     previousEnd = item.x + item.width;
     maxSize = Math.max(maxSize, item.fontSize);
     if (fontFamily === "" && item.fontFamily !== "") fontFamily = item.fontFamily;
-    // A space item can run to the next column; the line ends where its text does.
+    // A space item can run to the next column. The line ends where its text does.
     if (item.str.trim() === "") continue;
     minX = Math.min(minX, item.x);
     maxX = Math.max(maxX, item.x + item.width);
@@ -47,11 +47,11 @@ function makeLine(page: number, items: ReadonlyArray<RawTextItem>): TextLine {
 function gutterAt(row: ReadonlyArray<RawTextItem>, middle: number): number {
   let end = Number.NEGATIVE_INFINITY;
   for (const [index, item] of row.entries()) {
-    // pdf.js fills a wide gap with a space item, which would hide the gutter.
+    // pdf.js inserts a space item across a wide space, which would hide the gutter.
     if (item.str.trim() === "") continue;
     const gap = item.x - end;
     if (index > 0 && gap >= item.fontSize * GUTTER_FACTOR) {
-      if (end <= middle + GUTTER_MARGIN && item.x >= middle - GUTTER_MARGIN) return index;
+      if (end <= middle + GUTTER_MARGIN_PT && item.x >= middle - GUTTER_MARGIN_PT) return index;
     }
     end = Math.max(end, item.x + item.width);
   }
@@ -73,7 +73,7 @@ export function buildLines(page: PageText): ReadonlyArray<TextLine> {
     bucketY = item.y;
   }
 
-  // Two columns share baselines, so their rows split at the gutter; one wide space on one line splits nothing.
+  // Two columns share baselines, so their rows split at the gutter. One wide space on one line splits nothing.
   const middle = page.width / 2;
   const sorted = rows.map((row) => [...row].sort((a, b) => a.x - b.x));
   const splits = sorted.map((row) => gutterAt(row, middle));

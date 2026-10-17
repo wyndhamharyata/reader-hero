@@ -5,7 +5,7 @@ reflows it into an e-book-style reader built for a phone screen: adjustable
 font, theme, and spacing, a table of contents, saved reading position, and a
 one-tap fall back to the original page.
 
-Everything runs on the client. The worker serves files; it never sees a
+Everything runs on the client. The worker serves files. It never sees a
 document. Once installed, the app works with no network.
 
 ## Requirements
@@ -52,7 +52,7 @@ Production is the same command with `--stage production`
 ## Installing as an app
 
 Open the dev URL in Chrome or Safari and choose "Add to Home Screen". On iOS,
-open the app once and import a PDF; the app then asks the browser for persistent
+open the app once and import a PDF. The app then asks the browser for persistent
 storage so iOS does not evict your library.
 
 On Android, a PDF shared from Files or a browser offers "Reader Hero" as a share
@@ -64,7 +64,7 @@ open.
 The gear in the library opens Settings, where a provider (DeepSeek, OpenRouter,
 Gemini, Anthropic or OpenAI) and an API key are set. In a book, the Summary row
 of the menu sheet opens the book's summary. The request goes from the
-browser to the provider with that key; the worker never sees it. The summary is
+browser to the provider with that key. The worker never sees it. The summary is
 stored on the device and read offline.
 
 The summary is one record per book: a paragraph per chapter before the
@@ -81,12 +81,12 @@ summary" (off by default) runs the job as chapters are read.
 npm test
 ```
 
-The tests drive the reflow heuristics — line building, column order, paragraph
-merging, heading detection, boilerplate removal, and assembly — with synthetic
-pdf.js text items. They also cover the EPUB parser, the mode and kind guesses,
+The tests drive the reflow heuristics with synthetic pdf.js text items: line
+building, column order, paragraph merging, heading detection, boilerplate
+removal, and assembly. They also cover the EPUB parser, the mode and kind guesses,
 and the summary job against a fake provider.
 
 ## Architecture
 
-See [CLAUDE.md](./CLAUDE.md) for the module layout and the invariants that hold
+See [CLAUDE.md](./CLAUDE.md) for the module layout and the rules that hold
 across the codebase.

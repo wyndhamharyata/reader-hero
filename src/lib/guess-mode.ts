@@ -43,7 +43,7 @@ function sectionName(text: string): string {
   return name;
 }
 
-// The signals a paper or report leaves in its text; the mode guess and the kind guess both read them.
+// The signals a paper or report gives in its text. The mode guess and the kind guess both read them.
 export function sectionSignals(parsed: ParsedBook): {
   readonly found: number;
   readonly numbered: number;
@@ -72,7 +72,7 @@ export function sectionSignals(parsed: ParsedBook): {
   return { found: found.size, numbered, citations };
 }
 
-// Papers, reports, slides, and forms read better as their pages; novels and long prose reflow well.
+// Papers, reports, slides, and forms work better as their pages. Novels and long prose reflow well.
 export function guessMode(meta: BookMeta, parsed: ParsedBook): ReaderMode {
   if (meta.parseState === "scanned") return "original";
 
@@ -81,7 +81,7 @@ export function guessMode(meta: BookMeta, parsed: ParsedBook): ReaderMode {
 
   const { found, numbered, citations } = sectionSignals(parsed);
 
-  // Assignments, handouts, forms, and letters are short; 10 pages or fewer settles it alone.
+  // Assignments, handouts, forms, and letters are short. 10 pages or fewer settles it alone.
   let score = found;
   if (citations) score += 1;
   if (numbered >= 3) score += 1;

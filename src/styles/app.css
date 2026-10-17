@@ -151,7 +151,7 @@
   --app-height: 100dvh;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  /* -1 cool to 1 warm; warm runs from amber to red as it rises, as a lamp's light does. */
+  /* -1 cool to 1 warm. Warm runs from amber to red as it rises, like a lamp's light. */
   --temperature: 0;
 }
 
@@ -164,7 +164,7 @@
   );
 }
 
-/* A dark sheet sits darker than the page, so its backdrop dims less to keep the page lighter. */
+/* A dark sheet is darker than the page, so its backdrop dims less to keep the page lighter. */
 :root,
 [data-theme="rhlight"] {
   --sheet: oklch(calc(100% - var(--tint) * 1%) calc(var(--tint) * 0.015) var(--tint-hue));
@@ -273,9 +273,7 @@ body,
   height: 100%;
 }
 
-/* WebKit bug 301108: iOS opens a standalone app one top inset short (793 of 852pt) and only
-   corrects it when the page is taller than that; 100lvh is the full screen, so after the
-   correction the page fits exactly and cannot scroll. */
+/* WebKit bug 301108: iOS opens a standalone app one top inset short (793 of 852pt). It corrects that only when the page is taller. 100lvh is the full screen, so the page then fits exactly and cannot scroll. */
 @media (display-mode: standalone) {
   :root {
     --app-height: 100lvh;

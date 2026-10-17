@@ -28,7 +28,7 @@ export interface Coverage {
   } | null;
 }
 
-// `chapter` is 1-based; 0 means the job has not reached its first chapter. A series run names its volume in `book`.
+// `chapter` is 1-based. 0 means the job has not reached its first chapter. A series run names its volume in `book`.
 export interface SummaryRun {
   readonly stage: "chapter" | "names" | "current" | "volume";
   readonly chapter: number;
@@ -47,7 +47,7 @@ export function coverage(
   const target = list.filter((chapter) => chapter.end <= index).length;
   const chapter = list[target];
   if (chapter === undefined || chapter.start > index) return { target, current: null };
-  // Called on every block reached: counts to 100 words only, and joins the text when read.
+  // Called on every block reached, so it counts to 100 words only and joins the text when read.
   let words = 0;
   for (let at = chapter.start; at <= index && words < 100; at += 1) {
     const block = parsed.blocks[at];
@@ -113,7 +113,7 @@ export function describeSummary(
   return { row, action };
 }
 
-// One scope line and paragraph per book of the series; the action is null when every paragraph is current.
+// One scope line and paragraph per book of the series. The action is null when every paragraph is current.
 export function describeSeries(
   volumes: ReadonlyArray<{
     readonly card: LibraryCard;
@@ -216,7 +216,7 @@ const parseNames = (
   }
 };
 
-// One request: the list so far and the chapter summaries after it, up to `of`, merged into one list.
+// One request holds the list so far and the chapter summaries after it, up to `of`, merged into one list.
 export function mergeNames(
   input: SummaryInput,
   record: Summary,
@@ -230,8 +230,8 @@ export function mergeNames(
     const unit = units(input.kind);
     const earlier = story ? (input.earlier ?? []) : [];
     const namesSystem = story
-      ? `You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. Order the list by importance to the protagonist: the protagonist first, then those closest to them, then the rest. A note is at most ${earlier.length === 0 ? 20 : 25} words and says who the character is to the story so far.${earlier.length === 0 ? "" : ' This book continues a series, and "Known from earlier books" says what the earlier books told of their characters. That list is background, not entries: the list holds only characters whom the chapter summaries of this book name. When one of them appears in this book, the note may keep the gist of the earlier books in a few words, only if it matters to this book so far.'} Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the chapter where the entry first appears.`
-      : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. Order the list by importance to the subject of the document, the central terms first. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this shape: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the section where the term first appears.';
+      ? `You keep the list of characters of a story: the people and other beings who act in it. A place, a group, an object or a condition is not an entry. Merge the new chapter summaries into the list. Keep every entry, update a note when the new chapters add to it, and add each character who appears for the first time. Order the list by importance to the protagonist: the protagonist first, then those closest to them, then the rest. A note is at most ${earlier.length === 0 ? 20 : 25} words and says who the character is to the story so far.${earlier.length === 0 ? "" : ' This book continues a series, and "Known from earlier books" says what the earlier books told of their characters. That list is background, not entries: the list holds only characters whom the chapter summaries of this book name. When one of them appears in this book, the note may keep the gist of the earlier books in a few words, only if it matters to this book so far.'} Write in the language of the summaries. Reply with JSON only, in this form: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the chapter where the entry first appears.`
+      : 'You keep the list of terms of a document. Merge the new section summaries into the list. Keep every entry, update a note when the new sections add to it, and add each term that appears for the first time. Order the list by importance to the subject of the document, the central terms first. A note is at most 20 words. Write in the language of the summaries. Reply with JSON only, in this form: {"names":[{"name":"","note":"","first":1}]}, where first is the # of the section where the term first appears.';
     const fresh = record.chapters.slice(record.namesThrough, of);
     const visibleNames = record.names.filter(
       (entry) => !story || entry.edited === true || entry.chapter <= of,
@@ -338,7 +338,7 @@ export function summariseNext(
   input: SummaryInput,
   settings: AiSettings,
   onProgress: (run: SummaryRun) => Effect.Effect<void>,
-  // A series run leaves the names to the book's own Summary: its paragraph does not use them.
+  // A series run gives the names to the book's own Summary: its paragraph does not use them.
   names = true,
 ): Effect.Effect<Summary, AiFailure | StorageFailure, AiClient | SummaryStore> {
   return Effect.gen(function* () {
@@ -399,7 +399,7 @@ export function summariseNext(
       const chapter = list[index];
       if (chapter === undefined) break;
       const previous = record.chapters[index - 1]?.paragraph;
-      // The text before the previous summary: a rebuild writes that summary again, and a cache matches only up to a change.
+      // The text before the previous summary, which a rebuild writes again. A cache matches only up to a change.
       const user = [
         bookLine(input.meta),
         `Heading: ${chapter.heading}.`,
@@ -592,7 +592,7 @@ export function volumeScope(
   });
 }
 
-// Each book of the series in order; a started book has a scope, up to its boundary.
+// Each book of the series in order. A started book has a scope, up to its boundary.
 export function seriesScope(
   series: Shelf["series"][number],
   bookId: string,
@@ -644,7 +644,7 @@ export function pendingVolumes(
   });
 }
 
-// Latest first, so a name keeps its newest note; at most 60, so each request stays small.
+// Latest first, so a name keeps its newest note. At most 60, so each request stays small.
 export function earlierNames(
   series: Shelf["series"][number] | null,
   input: SummaryInput,
@@ -813,7 +813,7 @@ export function rebuildPlan(): Effect.Effect<
     const shelf = buildShelf(books, new Map(reading), "", none, "added", stored);
     const series = shelf.series.filter((entry) => entry.count >= 2);
     const grouped = new Set(series.flatMap((entry) => entry.books.map((card) => card.book.id)));
-    // A book alone goes only with a summary; a series book goes when started, as its paragraph needs it.
+    // A book alone goes only with a summary. A series book goes when started, as its paragraph needs it.
     const alone = books.flatMap((book, index) => {
       const card = shelf.cards.get(book.id);
       return card === undefined || grouped.has(book.id) || found[index] === null
@@ -827,7 +827,7 @@ export function rebuildPlan(): Effect.Effect<
   });
 }
 
-// Edits and removals stay for the new list; the thread goes, as it asked about the old summaries.
+// Edits and removals stay for the new list. The thread goes, as it asked about the old summaries.
 export function rebuildBook(
   series: Shelf["series"][number] | null,
   card: LibraryCard,

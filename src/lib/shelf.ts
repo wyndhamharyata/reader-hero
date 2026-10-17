@@ -101,7 +101,7 @@ export function buildShelf(
     return terms.every((term) => haystack.includes(term));
   });
 
-  // A volume number ("Vol. 3", "#4") is strong, so its lead needs 2 books; a 3-word start needs 4.
+  // A volume number ("Vol. 3", "#4") is strong, so its lead needs 2 books. A 3-word start needs 4.
   const marked = new Set<string>();
   const leads = new Map(
     books.map((book) => {
@@ -318,7 +318,7 @@ export function buildShelf(
     author: (book) => book.author ?? "",
   };
   const filterGroups = Object.keys(facet) as Array<FilterGroup>;
-  // A chip's count keeps every other group's choice applied, so it says how many books a tap leaves.
+  // A chip's count keeps every other group's choice applied, so it counts the books a tap would show.
   const matches = (book: BookMeta, except?: FilterGroup): boolean =>
     filterGroups.every(
       (group) =>
@@ -386,7 +386,7 @@ export function buildShelf(
       },
     ];
   });
-  // Oldest book first, so a new series leaves each older series its colour.
+  // Oldest book first, so a new series keeps the colours of the older ones.
   const turns = grouped
     .filter((group) => group.count >= 2)
     .map((group) => ({
@@ -446,7 +446,7 @@ export function buildShelf(
     group: "length",
     options: [
       ["short", "Under 150 pages"],
-      ["medium", "150–400 pages"],
+      ["medium", "150 to 400 pages"],
       ["long", "Over 400 pages"],
     ],
   });

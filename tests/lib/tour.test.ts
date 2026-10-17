@@ -24,7 +24,7 @@ describe("dockAt", () => {
     expect(dockAt(spot, 800)).toBe("top");
   });
 
-  it("given a target that straddles the middle, docks by where its centre sits", () => {
+  it("given a target that straddles the middle, docks by where its centre is", () => {
     const spot: Box = { top: 100, left: 20, width: 120, height: 200 };
 
     expect(dockAt(spot, 800)).toBe("bottom");
@@ -39,7 +39,7 @@ describe("tourSteps", () => {
     expect(steps.at(-1)?.anchor).toBeNull();
   });
 
-  it("given no books and no install hint, leaves out the install and book steps", () => {
+  it("given no books and no install hint, omits the install and book steps", () => {
     const steps = tourSteps({ books: false, install: false });
 
     expect(steps.map((step) => step.anchor)).toEqual([null, "import", null]);

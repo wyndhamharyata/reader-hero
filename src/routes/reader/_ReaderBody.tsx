@@ -32,7 +32,7 @@ export function ReaderBody({
 }: Props): ReactElement {
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
-  // Taken at mount: the live place would render every block again on each block reached.
+  // Taken at mount, as the live place would render every block again on each block reached.
   const [initialBlock, setInitialBlock] = useState(position);
   useEffect(() => {
     if (showOriginal) setInitialBlock(position);

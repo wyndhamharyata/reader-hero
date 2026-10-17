@@ -4,7 +4,7 @@ import { guessMode, sectionSignals } from "@/lib/guess-mode";
 
 const quotes = '"“”„«»「」『』‘';
 
-// A tie goes to story: a wrong story guess hides some names, a wrong reference guess shows later chapters.
+// A tie goes to story, as a wrong story guess hides some names and a wrong reference guess shows later chapters.
 export function guessKind(meta: BookMeta, parsed: ParsedBook): BookKind {
   if (guessMode(meta, parsed) === "original") return "reference";
 

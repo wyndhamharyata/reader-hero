@@ -29,7 +29,7 @@ const pdfFailure = (cause: unknown): PdfFailure => {
   return new PdfFailure({ reason: "unknown", message });
 };
 
-// Loaded on first use, so a cold start of the library does not parse pdf.js; a failed load retries.
+// Loaded on first use, so a cold start of the library does not parse pdf.js. A failed load retries.
 const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
   Effect.tryPromise({
     try: () =>
@@ -128,7 +128,7 @@ const encodeImage = (
     const height = image.height;
     if (width <= 0 || height <= 0) return null;
 
-    // pdf.js keeps the original for later paints, so a copy goes to the worker; a transfer would detach it.
+    // pdf.js keeps the original for later paints, so a copy goes to the worker. A transfer would detach it.
     if (image.bitmap instanceof ImageBitmap) {
       const copy = yield* Effect.tryPromise({
         try: () => createImageBitmap(image.bitmap as ImageBitmap),
@@ -355,7 +355,7 @@ export class PdfClient extends Context.Service<
           return [];
         }
 
-        // A figure never shows wider than the screen, and 2 pixels per CSS pixel is sharp enough.
+        // A figure never shows wider than the screen. Two pixels per CSS pixel is sharp enough.
         const maxDim = Math.min(1400, Math.round(screen.width * Math.min(2, devicePixelRatio)));
 
         const encoded = yield* Stream.fromIterable(paints).pipe(

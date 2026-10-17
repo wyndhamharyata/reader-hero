@@ -11,7 +11,7 @@ import { spanText } from "@/use-cases/ai-context";
 // Module-wide, so a run that is stopping and the run after it never have two requests open.
 const oneRequest = Semaphore.makeUnsafe(1);
 
-// Null when grouping may not send; else the totals, once no book is left to send.
+// Null when grouping may not send. The totals when it may, once no book is left to send.
 export function groupSeries(
   settings: AiSettings | null,
   onLeft: (left: number) => void,
@@ -31,7 +31,7 @@ export function groupSeries(
       while (true) {
         const books = yield* store.list();
         const sent = new Set(yield* grouped.groupedBooks());
-        // EPUB series fields already give the series; a book that is still parsing has no text yet.
+        // EPUB series fields already give the series. A book that is still parsing has no text yet.
         const pending = books
           .filter(
             (book) =>
@@ -65,7 +65,7 @@ export function groupSeries(
         const stored = yield* store.listSeries();
         // A book with no author names no series, so one such book cannot list the whole library.
         const authors = new Set(batch.flatMap((book) => (book.author ? [book.author] : [])));
-        // Only these authors' series keep the request small; this batch stays out, so none repeats.
+        // Only these authors' series keep the request small. This batch stays out, so none repeats.
         const sending = new Set(batch.map((book) => book.id));
         const existing = buildShelf(books, new Map(), "", none, "added", stored)
           .series.map((group) => ({
@@ -91,7 +91,7 @@ export function groupSeries(
             .flatMap((group) => group.books)
             .map((card, index) => [card.book.id, `b${index + 1}`] as const),
         );
-        // Only the books sent now can be grouped; a listed series' book has a key but is not one.
+        // Only the books sent now can be grouped. A listed series' book has a key but is not one.
         const cards = new Map(
           batch.map((book, index) => [`b${listed.size + index + 1}` as string, book] as const),
         );
@@ -143,7 +143,7 @@ export function groupSeries(
         yield* client
           .complete(
             settings,
-            'Group these books into series. A series is a set of books that its publisher numbers or orders. Use the titles, authors, file names and opening text. You may use what you know about published series. Put a book you are not sure of under "possible". Leave out books in no series. A side series with its own numbering is a separate series, even when its name starts like another. A book of a series that exists goes under that series\' name. Reply with JSON only, in this shape: {"series":[{"name":"","books":[{"key":"b1","number":1}],"possible":[{"key":"b2","number":2}]}]}, where number is the volume number, if known.',
+            'Group these books into series. A series is a set of books that its publisher numbers or orders. Use the titles, authors, file names and opening text. You may use what you know about published series. Put a book you are not sure of under "possible". Leave out books in no series. A side series with its own numbering is a separate series, even when its name starts like another. A book of a series that exists goes under that series\' name. Reply with JSON only, in this form: {"series":[{"name":"","books":[{"key":"b1","number":1}],"possible":[{"key":"b2","number":2}]}]}, where number is the volume number, if known.',
             [{ role: "user", content: user }],
             { json: true, purpose: { stage: "grouping" } },
           )
@@ -180,11 +180,11 @@ export function groupSeries(
           });
         }
 
-        // A book in two series stays in the first; in one series, books come before possible.
+        // A book in two series stays in the first. In one series, books come before possible.
         const claimed = new Set<string>();
         const entries = (json.series as Array<Record<string, unknown> | null>).flatMap((row) => {
           if (typeof row?.name !== "string") return [];
-          // Plain text: a tag is cut out and a line break becomes a space, so no markup is stored.
+          // Plain text, with a tag cut out and a line break turned into a space, so no markup is stored.
           let plain = "";
           let tag = false;
           for (const char of row.name) {
@@ -225,7 +225,7 @@ export function groupSeries(
           return [{ name, sure: sure ?? [], unsure: unsure ?? [] }];
         });
 
-        // Read again, so an edit saved during the request wins; the whole write lands or none of it.
+        // Read again, so an edit saved during the request wins. The whole write goes in, or none of it.
         yield* Effect.uninterruptible(
           Effect.gen(function* () {
             const fresh = yield* store.listSeries();
@@ -257,7 +257,7 @@ export function groupSeries(
               if (sure === undefined || unsure === undefined) continue;
               const possible = record?.possible ?? [];
               if (record?.edited === true) {
-                // A saved series keeps its name and order; the model can only offer a book.
+                // A saved series keeps its name and order. The model can only offer a book.
                 const offered = [...sure, ...unsure].filter(
                   (book) => !possible.some((other) => other.id === book.id),
                 );
@@ -315,7 +315,7 @@ export function groupSeries(
   );
 }
 
-// Every book is sent again; the model's series and offers go, removed series come back, saved series stay.
+// Every book is sent again. The model's series and offers go, removed series come back, saved series stay.
 export function resetGrouping(): Effect.Effect<void, StorageFailure, BookStore | SettingsStore> {
   return oneRequest.withPermits(1)(
     Effect.gen(function* () {

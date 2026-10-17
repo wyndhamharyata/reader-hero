@@ -41,7 +41,7 @@ export const AI_SETTINGS_KEY = "ai";
 
 let connection: Promise<IDBPDatabase<ReaderDb>> | null = null;
 
-// One connection per page: Safari's first open after a cold start is slow, and both stores need it.
+// One connection per page. Safari's first open after a cold start is slow. Both stores need the same connection.
 export function openReaderDb(): Promise<IDBPDatabase<ReaderDb>> {
   connection ??= connect().catch((cause: unknown) => {
     connection = null;
@@ -75,11 +75,11 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
       if (!next.objectStoreNames.contains("series")) {
         next.createObjectStore("series", { keyPath: "id" });
       }
-      // Version 6 and 7 stored recaps here; the summary holds the chapter being read instead.
+      // Version 6 and 7 stored recaps here. The summary holds the chapter being read instead.
       const raw = next as unknown as IDBDatabase;
       if (raw.objectStoreNames.contains("artifacts")) raw.deleteObjectStore("artifacts");
     },
-    // A newer version opening elsewhere waits for this connection; let go so its upgrade can run.
+    // A newer version opening elsewhere waits for this connection. Let go so its upgrade can run.
     blocking() {
       connection = null;
       db.close();

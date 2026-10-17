@@ -30,13 +30,13 @@ interface Props {
   input: SummaryInput;
   list: ReadonlyArray<Chapter>;
   cover: Coverage;
-  // Null with no provider: the stored summary still reads, and nothing runs.
+  // Null with no provider. The stored summary still reads but nothing runs.
   settings: AiSettings | null;
   // The book's text settings: the summary is reading text and takes their size, font and leading.
   reading: ReaderSettings;
   state: SummaryState;
   onKind: (kind: BookKind) => void;
-  // The chapter to open at, from a line in Contents; null opens at the latest entry.
+  // The chapter to open at, from a line in Contents. Null opens at the latest entry.
   openAt: number | null;
   // Given Allow's settings, so the first run has the consent.
   onStart: (settings?: AiSettings) => void;
@@ -55,7 +55,7 @@ const text = "text-base md:text-sm";
 const field = "input w-full font-sans text-base md:input-sm md:text-sm";
 const button = "btn md:btn-sm";
 
-// Closing the sheet leaves the summary job running; only Stop ends it.
+// Closing the sheet keeps the summary job running. Only Stop ends it.
 export function SummarySheet({
   input,
   list,
@@ -83,12 +83,12 @@ export function SummarySheet({
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
-  // Only the Contents chapter starts open, so the list stays short; a desktop has room for all.
+  // Only the Contents chapter starts open, so the list stays short. A desktop has room for all.
   const [desktop] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     new Set(openAt === null ? [] : [`${openAt}`]),
   );
-  // The entry open in its own sheet; `entry` is null for a new one.
+  // The entry open in its own sheet. `entry` is null for a new one.
   const [nameSheet, setNameSheet] = useState<{
     entry: { name: string; note: string } | null;
   } | null>(null);
@@ -103,7 +103,7 @@ export function SummarySheet({
   const story = input.kind === "story";
   const { row, action } = describeSummary(summary, cover, run, input.kind);
   const visibleChapters = summary?.chapters.slice(0, cover.target) ?? [];
-  // A story hides the names from after the position, so the list gives nothing away; the reader's own show.
+  // A story hides the names from after the position, so the list gives nothing away. The reader's own show.
   const names = (summary?.names ?? []).filter(
     (entry) => !story || entry.edited === true || entry.chapter <= cover.target,
   );
@@ -119,7 +119,7 @@ export function SummarySheet({
   useEffect(() => {
     if (tab !== "chapters") return;
     const target = openAt !== null && opened.current !== null ? opened.current : latest.current;
-    // Not scrollIntoView: it also scrolls the page under the sliding sheet, and the screen jumped.
+    // Not scrollIntoView, which also scrolls the page under the sliding sheet. The screen jumped.
     const list = body.current;
     if (list === null || target === null) return;
     list.scrollTop = target.offsetTop - list.offsetTop - 8;
@@ -234,7 +234,7 @@ export function SummarySheet({
         >
           <div
             ref={track}
-            // The reader's font, and its line width on desktop; its own layer, so a swipe does not repaint.
+            // The reader's font, and its line width on desktop. Its own layer, so a swipe does not repaint.
             className="flex h-full ease-out will-change-transform motion-safe:transition-transform motion-safe:duration-200 md:w-(--text-width)"
             data-font={reading.font}
             style={

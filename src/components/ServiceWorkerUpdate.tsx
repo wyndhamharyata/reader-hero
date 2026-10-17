@@ -10,7 +10,7 @@ export function ServiceWorkerUpdate(): ReactElement | null {
     const watch = Effect.flatMap(ServiceWorkerClient, (client) =>
       Stream.runForEach(client.waiting(), (worker) => Effect.sync(() => setWaiting(worker))),
     );
-    // Without a registered worker the app still runs; it only misses update prompts.
+    // Without a registered worker the app still runs. It only misses update prompts.
     const fiber = forkApp(watch.pipe(Effect.catchTag("ServiceWorkerFailure", () => Effect.void)));
     return () => stopFiber(fiber);
   }, []);

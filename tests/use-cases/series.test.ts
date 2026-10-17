@@ -31,7 +31,7 @@ const tide = [
 const lantern = book("l", "Lantern Keepers", { author: "H. Dahl" });
 const harbor = book("h", "Harbor Lights: Stories");
 
-// A store over plain arrays: the series records change as the use cases write them.
+// A store over plain arrays, so the series records change as the use cases write them.
 const run = async <A>(
   effect: Effect.Effect<A, unknown, BookStore>,
   state: {
@@ -313,7 +313,7 @@ describe("setBookSeries", () => {
     expect(state.series.find((series) => series.id === "the tide cycle")?.edited).toBe(true);
   });
 
-  it("given a book removed earlier, adds it back and clears it from removed", async () => {
+  it("given a book removed earlier, puts it back and clears it from removed", async () => {
     const state = {
       books: tide,
       series: [

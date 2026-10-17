@@ -1,13 +1,13 @@
 import type { ImagePlacement } from "@/domain/book";
 import type { FlowItem, Positioned, TextLine } from "./types";
 
-const CROSS_MARGIN = 20;
+const CROSS_MARGIN_PT = 20;
 const MIN_COLUMN_LINES = 3;
 
 const byVerticalPosition = (a: Positioned, b: Positioned): number => b.y - a.y || a.x - b.x;
 
 const crossesCenter = (item: Positioned, middle: number): boolean =>
-  item.x < middle - CROSS_MARGIN && item.x + item.width > middle + CROSS_MARGIN;
+  item.x < middle - CROSS_MARGIN_PT && item.x + item.width > middle + CROSS_MARGIN_PT;
 
 interface ColumnLayout {
   readonly twoColumn: boolean;
@@ -29,11 +29,11 @@ function detectColumns(
 
   for (const line of lines) {
     if (crossesCenter(line, middle)) crossing += 1;
-    else if (line.x + line.width <= middle + CROSS_MARGIN) left += 1;
-    else if (line.x >= middle - CROSS_MARGIN) right += 1;
+    else if (line.x + line.width <= middle + CROSS_MARGIN_PT) left += 1;
+    else if (line.x >= middle - CROSS_MARGIN_PT) right += 1;
   }
 
-  // A title, an abstract or a footnote may cross the middle; most lines crossing it is one column.
+  // A title, an abstract or a footnote may cross the middle. Most lines crossing it is one column.
   if (crossing * 4 > left + right || left < MIN_COLUMN_LINES || right < MIN_COLUMN_LINES) {
     return { twoColumn: false, middle };
   }

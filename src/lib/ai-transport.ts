@@ -1,4 +1,4 @@
-// A module of its own, so this code loads on the first request, like pdf.js, and not at launch.
+// A module of its own, so this code loads on the first request like pdf.js, not at launch.
 import { Effect, Stream } from "effect";
 import {
   relayedProviders,
@@ -10,7 +10,7 @@ import {
 import { AiFailure } from "@/domain/errors";
 import { emptyEventStream, endEventStream, pushEventStream, type Delta } from "@/lib/event-stream";
 
-// Every service answers on its own URL; the relay ones get there through the Worker because their hosts refuse browsers.
+// Every service answers on its own URL. The relay ones get there through the Worker because their hosts refuse browsers.
 const bases: Record<Exclude<AiProvider, "compatible">, string> = {
   deepseek: "https://api.deepseek.com",
   openrouter: "https://openrouter.ai/api/v1",
@@ -27,7 +27,7 @@ const bases: Record<Exclude<AiProvider, "compatible">, string> = {
   together: "https://api.together.xyz/v1",
 };
 
-// A custom service brings its own URL; every named service already has one.
+// A custom service brings its own URL. Every named service already has one.
 const baseOf = (settings: AiSettings): string =>
   settings.provider === "compatible" ? (settings.baseUrl ?? "") : bases[settings.provider];
 
@@ -70,7 +70,7 @@ const statusFailure = (status: number, body: string): AiFailure => {
     if (typeof parsed.error === "string") message = parsed.error;
     else if (typeof parsed.error?.message === "string") message = parsed.error.message;
   } catch {
-    // The body was not JSON; the raw text is the message.
+    // The body was not JSON. The raw text is the message.
   }
   return new AiFailure({ reason, message: message === "" ? `HTTP ${status}` : message });
 };
@@ -110,14 +110,14 @@ const request = (
 
 export interface CompleteOptions {
   readonly json?: boolean;
-  // What the request is for: the console line names it, and the book keys the provider's cache.
+  // What the request is for. The console line names it. The book keys the provider's cache.
   readonly purpose?: { readonly stage: string; readonly book?: string };
 }
 
 const joined = (content: string | ReadonlyArray<PromptPart>): string =>
   typeof content === "string" ? content : content.map((part) => part.text).join("");
 
-// Unmarked runs merged and empty parts dropped; null with no mark, so the plain string goes.
+// Unmarked runs merged and empty parts dropped. Null with no mark, so the plain string goes.
 function marked(content: string | ReadonlyArray<PromptPart>): ReadonlyArray<PromptPart> | null {
   if (typeof content === "string" || !content.some((part) => part.cache === true)) return null;
   const out: Array<{ text: string; cache: boolean }> = [];
@@ -155,7 +155,7 @@ export function requestOf(
       (sum, content) => sum + (marked(content)?.filter((part) => part.cache === true).length ?? 0),
       0,
     );
-    // Anthropic takes 4 breakpoints; the latest ones cover the longest prefixes.
+    // Anthropic takes 4 breakpoints. The latest ones cover the longest prefixes.
     let drop = Math.max(0, marks - 4);
     const blocks = (content: string | ReadonlyArray<PromptPart>) => {
       const parts = marked(content);
@@ -215,14 +215,14 @@ export function requestOf(
   if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
   if (settings.provider === "openrouter" && settings.reasoningOff === true)
     body.reasoning = { enabled: false };
-  // Measured on OpenCode Go: 9.2s to 1.2s on deepseek-v4.1-flash, and Console is the same gateway.
+  // Measured on OpenCode Go at 9.2s to 1.2s on deepseek-v4.1-flash. Console is the same gateway.
   if (
     settings.provider === "opencode" ||
     settings.provider === "opencodeConsole" ||
     settings.provider === "compatible"
   )
     body.reasoning_effort = "none";
-  // JSON mode where it is documented; the other presets get JSON from the prompt alone.
+  // JSON mode where it is documented. The other presets get JSON from the prompt alone.
   if (
     options.json === true &&
     (settings.provider === "deepseek" || settings.provider === "openai")
@@ -230,7 +230,7 @@ export function requestOf(
     body.response_format = { type: "json_object" };
   }
   if (explicit) body.prompt_cache_options = { mode: "explicit" };
-  // OpenAI routes by the key to a machine with the cache; OpenRouter keeps the session on one provider.
+  // OpenAI routes by the key to a machine with the cache. OpenRouter keeps the session on one provider.
   if (key !== undefined && settings.provider === "openai") body.prompt_cache_key = key;
   if (key !== undefined && settings.provider === "openrouter") body.session_id = key;
   return { path: "/chat/completions", body };
@@ -270,7 +270,7 @@ export function complete(
       }).pipe(
         Stream.decodeText(),
         Stream.mapAccum(() => emptyEventStream, pushEventStream, { onHalt: endEventStream }),
-        // A provider can report a failure after its 200, and that must fail the stream.
+        // A provider can report a failure after its 200. That must fail the stream.
         Stream.tap((delta) =>
           delta.type === "error"
             ? Effect.fail(new AiFailure({ reason: "provider", message: delta.message }))
@@ -291,7 +291,7 @@ export function models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelI
     const rows = json.data ?? [];
     return rows.flatMap((row): Array<ModelInfo> => {
       if (typeof row.id !== "string") return [];
-      // Gemini lists "models/gemini-…"; its chat endpoint takes the bare name.
+      // Gemini lists "models/gemini-…". Its chat endpoint takes the bare name.
       const id = row.id.startsWith("models/") ? row.id.slice(7) : row.id;
       // Only OpenRouter publishes whether a model may skip thinking.
       const reasoningOff =
@@ -301,7 +301,7 @@ export function models(settings: AiSettings): Effect.Effect<ReadonlyArray<ModelI
   });
 }
 
-// DeepSeek alone exposes a balance; the sheet shows it next to the key.
+// DeepSeek alone exposes a balance. The sheet shows it next to the key.
 export function balance(settings: AiSettings): Effect.Effect<string | null, AiFailure> {
   if (settings.provider !== "deepseek") return Effect.succeed(null);
   return Effect.gen(function* () {

@@ -15,11 +15,11 @@ export function openOriginalPages(
     const store = yield* BookStore;
     const renderer = yield* PageRenderer;
 
-    // User Timing marks: Safari's Timelines tab shows them, and scripts/bench reads them.
+    // User Timing marks that Safari's Timelines tab shows and scripts/bench reads.
     performance.mark("reader-hero:open-start");
     const blob = yield* store.getFile(bookId);
     performance.mark("reader-hero:file-read");
-    const doc = yield* renderer.open(blob);
+    const rendered = yield* renderer.open(blob);
     performance.mark("reader-hero:document-open");
     performance.measure("reader-hero:file", "reader-hero:open-start", "reader-hero:file-read");
     performance.measure(
@@ -27,21 +27,23 @@ export function openOriginalPages(
       "reader-hero:file-read",
       "reader-hero:document-open",
     );
-    return doc;
+    return rendered;
   });
 }
 
 // The remaining sizes arrive in batches, so the view does not wait on every page before it paints.
 export function readPageSizes(
-  doc: RenderedDocument,
+  rendered: RenderedDocument,
   from: number,
 ): Stream.Stream<ReadonlyArray<PageSize>, never, PageRenderer> {
   return Stream.unwrap(
     Effect.map(PageRenderer, (renderer) =>
-      Stream.range(from, doc.pageCount).pipe(
+      Stream.range(from, rendered.pageCount).pipe(
         Stream.mapEffect(
           (page) =>
-            renderer.pageSize(doc, page).pipe(Effect.orElseSucceed((): PageSize | null => null)),
+            renderer
+              .pageSize(rendered, page)
+              .pipe(Effect.orElseSucceed((): PageSize | null => null)),
           { concurrency: 4 },
         ),
         Stream.filter((size): size is PageSize => size !== null),
@@ -52,7 +54,7 @@ export function readPageSizes(
 }
 
 export function releaseOriginalPages(
-  doc: RenderedDocument,
+  rendered: RenderedDocument,
 ): Effect.Effect<void, never, PageRenderer> {
-  return Effect.flatMap(PageRenderer, (renderer) => renderer.close(doc));
+  return Effect.flatMap(PageRenderer, (renderer) => renderer.close(rendered));
 }

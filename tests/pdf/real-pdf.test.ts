@@ -81,7 +81,7 @@ describe("two columns with real pdf.js output", () => {
 
 describe("toPageText with real pdf.js output", () => {
   it("given a page box that starts above 0, places text in the page's own box", async () => {
-    // The box runs from y 100 to 892, so text drawn at 850 sits 750 up a 792-high page.
+    // The box runs from y 100 to 892, so text drawn at 850 is 750 up a 792-high page.
     const data = makePdf(
       [{ text: "Running head", size: 10, x: 72, y: 850 }],
       undefined,

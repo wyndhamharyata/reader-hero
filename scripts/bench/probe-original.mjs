@@ -1,6 +1,4 @@
-// The original view's scroll alone, on a fresh profile: npm run bench:probe -- <label> [mobile]
-// Env: SAMPLE=1 samples the content process during the scroll (macOS `sample`, written to
-// .bench/sample.txt); IOSTATS=1 times every IntersectionObserver callback with its React flush.
+// The original view's scroll alone, on a fresh profile: npm run bench:probe -- <label> [mobile]. SAMPLE=1 samples the process. IOSTATS=1 times each IntersectionObserver callback.
 import { execSync } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -86,7 +84,7 @@ await page.click('button:has-text("Skip")', { timeout: 3000 }).catch(() => {});
 await page.waitForTimeout(3000);
 await page.click('button[aria-label="Menu"]');
 await page.waitForSelector('button:has-text("Original view")');
-// The sheet animates in for 240 ms; the timed click must not wait on that.
+// The sheet animates in for 240 ms. The timed click must not wait on that.
 await page.waitForTimeout(400);
 const t0 = Date.now();
 await page.click('button:has-text("Original view")');

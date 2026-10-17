@@ -12,7 +12,7 @@ interface Handlers {
   readonly clamp: (scale: number) => number;
 }
 
-// A trackpad pinch or a ctrl+wheel arrives as many wheel events; this long without one ends it.
+// A trackpad pinch or a ctrl+wheel arrives as many wheel events. This long without one ends it.
 const WHEEL_END_MS = 150;
 
 // Points are in the element's own box, so they do not move when the element scrolls.
@@ -59,7 +59,7 @@ export function usePinch(element: HTMLElement | null, handlers: Handlers): void 
     // As pdf.js's TouchManager: no move listener until two fingers are down, so a scroll never waits on it.
     let moving: AbortController | null = null;
     const onTouchStart = (event: TouchEvent) => {
-      // A gesture under way keeps its own start, whatever finger lands next.
+      // A gesture under way keeps its own start, whatever finger touches next.
       if (touch !== null || event.touches.length !== 2) return;
       const [a, b] = event.touches;
       if (a === undefined || b === undefined) return;

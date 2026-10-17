@@ -12,7 +12,7 @@ export function pageSearchText(
   );
 }
 
-// Pages that may hold a match, in order; the render worker confirms each against its own text.
+// Pages that may hold a match, in order. The render worker confirms each against its own text.
 export function findPages(
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>,
   query: string,
@@ -23,7 +23,7 @@ export function findPages(
   for (const [index, block] of blocks.entries()) {
     if (!searchForm(block.text).includes(wanted)) continue;
     pages.add(block.page);
-    // A block holds only the page it starts on; one that runs on to the next page may match there.
+    // A block holds only the page it starts on. One that runs on to the next page may match there.
     const next = blocks[index + 1]?.page ?? block.page;
     if (next > block.page) pages.add(block.page + 1);
   }

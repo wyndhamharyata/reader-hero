@@ -210,7 +210,7 @@ describe("chapters", () => {
     ]);
   });
 
-  it("given a figure in a span, leaves it out of the text", () => {
+  it("given a figure in a span, omits it from the text", () => {
     const figure = new Block({ kind: "image", level: 0, text: "", page: 1, imageId: "1-0" });
     const parsed = book([paragraph("one", 1), figure, paragraph("two", 1)], []);
     expect(spanText(parsed, 0, 3)).toBe("one\n\ntwo");
@@ -384,7 +384,7 @@ describe("summariseNext", () => {
     expect(result.names).toContainEqual(later);
   });
 
-  it("given edited and removed entries, the merge keeps the edits and leaves the removed out", async () => {
+  it("given edited and removed entries, the merge keeps the edits and omits the removed", async () => {
     const curated = stored({
       names: [
         { name: "Jim", note: "The narrator.", chapter: 1 },
@@ -721,7 +721,7 @@ interface SeriesState {
   readonly reply?: string;
 }
 
-// The stores over plain maps; `reads` lists each book whose text was read.
+// The stores over plain maps. `reads` lists each book whose text was read.
 function seriesHarness(state: SeriesState) {
   const calls: Array<{ kind: string; system: string; user: string }> = [];
   const reads: Array<string> = [];
@@ -1442,7 +1442,7 @@ describe("rebuild", () => {
     expect(chapters).toHaveLength(6);
     const [first, second] = [chapters.slice(0, 3), chapters.slice(3)];
     for (const [index, user] of first.entries()) {
-      // The part a cache can reuse: everything before the previous summary, the whole text included.
+      // The part a cache can reuse, everything before the previous summary, including the whole text.
       const cut = user.indexOf("Previous chapter's summary:");
       const prefix = cut === -1 ? user : user.slice(0, cut);
       expect(prefix).toContain(`Text:\nChapter ${index + 1}\n\nw0 w1`);

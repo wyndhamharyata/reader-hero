@@ -1,7 +1,7 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
-// The job needs OffscreenCanvas to exist; the stubbed store never lets it reach a page.
+// The job needs OffscreenCanvas to exist. The stubbed store never lets it reach a page.
 vi.stubGlobal("OffscreenCanvas", class {});
 import { FigureJobs } from "@/services/figure-jobs";
 import { FigureSlots } from "@/services/figure-slots";

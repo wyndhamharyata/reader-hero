@@ -11,7 +11,7 @@ import type { CompleteOptions, ModelInfo } from "@/lib/ai-transport";
 import type { Delta } from "@/lib/event-stream";
 import { SettingsStore } from "@/services/settings-store";
 
-// Loaded on the first request, so launch does not pay for it; a failed load is a failure, not a defect.
+// Loaded on the first request, so launch does not pay for it. A failed load is a failure, not a defect.
 const transport = (): Effect.Effect<typeof import("@/lib/ai-transport"), AiFailure> =>
   Effect.tryPromise({
     try: () => import("@/lib/ai-transport"),
@@ -58,7 +58,7 @@ export class AiClient extends Context.Service<
           .pipe(Effect.catchTag("StorageFailure", () => Effect.void));
       };
 
-      // The last check before text leaves: the saved settings must hold consent for this provider and key.
+      // The last check before text goes out: the saved settings must hold consent for this provider and key.
       const allowed = (settings: AiSettings): Effect.Effect<void, AiFailure> =>
         Effect.flatMap(store.ai(), (current) =>
           hasConsent(current) &&

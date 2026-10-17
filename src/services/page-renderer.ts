@@ -68,7 +68,7 @@ const worker = (): Worker => {
   return renderer;
 };
 
-// Waits for the reply; an interrupt cancels the render, or closes a document still opening.
+// Waits for the reply. An interrupt cancels the render, or closes a document still opening.
 const request = (
   body: Record<string, unknown>,
   transfer: Transferable[],
@@ -98,21 +98,24 @@ export class PageRenderer extends Context.Service<
     // Loads both worker scripts ahead of the first open.
     warm(): Effect.Effect<void>;
     open(file: Blob): Effect.Effect<RenderedDocument, PdfFailure>;
-    pageSize(doc: RenderedDocument, page: number): Effect.Effect<PageSize, PdfFailure>;
+    pageSize(rendered: RenderedDocument, page: number): Effect.Effect<PageSize, PdfFailure>;
     render(
-      doc: RenderedDocument,
+      rendered: RenderedDocument,
       page: number,
       scale: number,
       crop?: PageCrop,
     ): Effect.Effect<ImageBitmap, PdfFailure>;
-    links(doc: RenderedDocument, page: number): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure>;
-    text(doc: RenderedDocument, page: number): Effect.Effect<PageTextContent, PdfFailure>;
+    links(
+      rendered: RenderedDocument,
+      page: number,
+    ): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure>;
+    text(rendered: RenderedDocument, page: number): Effect.Effect<PageTextContent, PdfFailure>;
     find(
-      doc: RenderedDocument,
+      rendered: RenderedDocument,
       pages: ReadonlyArray<number>,
       query: string,
     ): Effect.Effect<ReadonlyArray<number>, PdfFailure>;
-    close(doc: RenderedDocument): Effect.Effect<void>;
+    close(rendered: RenderedDocument): Effect.Effect<void>;
   }
 >()("reader-hero/PageRenderer") {
   static readonly layer = Layer.succeed(
@@ -128,35 +131,35 @@ export class PageRenderer extends Context.Service<
           pageCount: Number(reply.pageCount),
           first: { page: 1, width: Number(reply.width), height: Number(reply.height) },
         })),
-      pageSize: (doc, page) =>
-        Effect.map(request({ type: "size", id: doc.id, page }, [], null), (reply) => ({
+      pageSize: (rendered, page) =>
+        Effect.map(request({ type: "size", id: rendered.id, page }, [], null), (reply) => ({
           page,
           width: Number(reply.width),
           height: Number(reply.height),
         })),
-      render: (doc, page, scale, crop) =>
+      render: (rendered, page, scale, crop) =>
         Effect.map(
-          request({ type: "render", id: doc.id, page, scale, crop }, [], "cancel"),
+          request({ type: "render", id: rendered.id, page, scale, crop }, [], "cancel"),
           (reply) => reply.bitmap as ImageBitmap,
         ),
-      links: (doc, page) =>
+      links: (rendered, page) =>
         Effect.map(
-          request({ type: "links", id: doc.id, page }, [], null),
+          request({ type: "links", id: rendered.id, page }, [], null),
           (reply) => reply.links as ReadonlyArray<PageLink>,
         ),
-      text: (doc, page) =>
+      text: (rendered, page) =>
         Effect.map(
-          request({ type: "text", id: doc.id, page }, [], null),
+          request({ type: "text", id: rendered.id, page }, [], null),
           (reply) => reply.text as PageTextContent,
         ),
-      find: (doc, pages, query) =>
+      find: (rendered, pages, query) =>
         Effect.map(
-          request({ type: "find", id: doc.id, pages, query }, [], null),
+          request({ type: "find", id: rendered.id, pages, query }, [], null),
           (reply) => reply.pages as ReadonlyArray<number>,
         ),
-      close: (doc) =>
+      close: (rendered) =>
         Effect.sync(() => {
-          worker().postMessage({ type: "close", id: doc.id });
+          worker().postMessage({ type: "close", id: rendered.id });
         }),
     }),
   );

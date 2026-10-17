@@ -61,7 +61,7 @@ export function buildEpub(
           const bytes = (yield* unzip((name) => name === image.path))[image.path];
           if (bytes === undefined) return;
           const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: image.type });
-          // An SVG has no bitmap; the reader then sizes it from the file itself.
+          // An SVG has no bitmap. The reader then sizes it from the file itself.
           const bitmap = yield* decode(blob);
           const size = Option.match(bitmap, {
             onNone: () => ({ width: 0, height: 0 }),

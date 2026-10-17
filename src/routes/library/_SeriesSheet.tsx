@@ -6,7 +6,7 @@ import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import { AddToSeries } from "./_AddToSeries";
 import { BookCover } from "./_BookCover";
 
-// Edits only, and nothing is stored until Save, so Cancel leaves the series as it was.
+// Edits only, as nothing is stored until Save. Cancel keeps the series as it was.
 export function SeriesSheet({
   series,
   stored,
@@ -65,7 +65,7 @@ export function SeriesSheet({
   const handles = useRef(new Map<string, HTMLButtonElement>());
   const refocus = useRef<string | null>(null);
 
-  // A row moved by a key leaves the DOM and comes back, so its handle takes the focus again.
+  // A row moved by a key goes out of the DOM and comes back, so its handle takes the focus again.
   useLayoutEffect(() => {
     if (refocus.current === null) return;
     handles.current.get(refocus.current)?.focus();
@@ -157,9 +157,7 @@ export function SeriesSheet({
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
-            {author !== undefined && (
-              <p className="text-base opacity-70 md:text-sm">{author}</p>
-            )}
+            {author !== undefined && <p className="text-base opacity-70 md:text-sm">{author}</p>}
             <p className="text-sm opacity-60 md:text-xs">
               {rows.length} {rows.length === 1 ? "book" : "books"}
             </p>

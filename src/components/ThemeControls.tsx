@@ -8,7 +8,7 @@ interface Props {
 
 const heading = "mb-2 text-xs font-medium tracking-wide uppercase opacity-60";
 
-// Shared by Text settings and the library's Settings; on a base-300 panel, so unchosen are base-100.
+// Shared by Text settings and the library's Settings. On a base-300 panel, so unchosen are base-100.
 export function ThemeControls({ settings, onChange }: Props): ReactElement {
   // A drag saves once, on release: a save renders the whole book again.
   const [draft, setDraft] = useState<number | null>(null);
@@ -79,7 +79,7 @@ export function ThemeControls({ settings, onChange }: Props): ReactElement {
             // Fine steps, with a catch around neutral so it is easy to find again.
             const next = Math.abs(value) < 0.05 ? 0 : value;
             setDraft(next);
-            // The sheet follows the thumb; the page, which recolours every block of a book, once the finger rests.
+            // The sheet follows the thumb. The page, which recolours every block of a book, once the finger rests.
             event.target
               .closest<HTMLElement>("[data-theme]")
               ?.style.setProperty("--temperature", String(next));

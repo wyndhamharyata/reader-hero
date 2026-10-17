@@ -7,15 +7,15 @@ import { BookStore } from "@/services/book-store";
 
 // Its books leave every other stored series and stay out of it, so a model run cannot pull one back.
 export function saveSeries(edit: {
-  // Null for a new series: it takes its name's id, so it joins a series of that name.
+  // Null for a new series, which takes its name's id and joins a series of that name.
   readonly id: string | null;
   readonly name: string;
   readonly books: ReadonlyArray<string>;
-  // The books the reader took out, so no source adds them again.
+  // The books the reader took out, so no source puts them back.
   readonly removed: ReadonlyArray<string>;
   // Undefined keeps the stored colour, or the palette's turn when there is none.
   readonly color?: number | undefined;
-  // Undefined keeps the stored cover; null goes back to the book in progress, or the first.
+  // Undefined keeps the stored cover. Null goes back to the book in progress, or the first.
   readonly cover?: string | null | undefined;
   // The reader's own picture, for the cover "image".
   readonly image?: Blob | undefined;
@@ -67,7 +67,7 @@ export function saveSeries(edit: {
     const image = edit.image;
     if (cover === "image" && image !== undefined) {
       const shrunk = yield* shrinkPicture(image);
-      // A picture that does not decode leaves the cover as it was.
+      // A picture that does not decode keeps the cover as it was.
       if (shrunk === null) cover = current?.cover;
       else yield* store.putImage(`series:${id}`, { id: "cover", ...shrunk });
     }
@@ -94,7 +94,7 @@ export function saveSeries(edit: {
   });
 }
 
-// The grouping goes and the books stay; its books stay out of it, but a new book can start it again.
+// The grouping goes and the books stay. Its books stay out of it, but a new book can start it again.
 export function hideSeries(
   id: string,
   name: string,
@@ -127,7 +127,7 @@ export function hideSeries(
   });
 }
 
-// Null takes the book out of its series and keeps it out; an id moves it to that series' end.
+// Null takes the book out of its series and keeps it out. An id moves it to that series' end.
 export function setBookSeries(
   bookId: string,
   seriesId: string | null,

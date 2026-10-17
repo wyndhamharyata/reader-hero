@@ -21,12 +21,12 @@ interface Props {
   summaryRunning: boolean;
   onSummary: () => void;
   onStopSummary: () => void;
-  // The Series row's text, "The Tide Cycle · 3 of 4"; null hides the row, as for a book in no series.
+  // The Series row's text, "The Tide Cycle · 3 of 4". Null hides the row, as for a book in no series.
   series: string | null;
   seriesRunning: boolean;
   onSeries: () => void;
   onStopSeries: () => void;
-  // One-line summaries by the block index of their contents entry; empty when the toggle is off.
+  // One-line summaries by the block index of their contents entry. Empty when the toggle is off.
   lines: ReadonlyMap<number, string>;
   onSelect: (blockIndex: number) => void;
   onLine: (blockIndex: number) => void;
@@ -55,7 +55,7 @@ export function MenuSheet({
   onSettingsChange,
   onClose,
 }: Props): ReactElement | null {
-  // Contents fills the rest of the sheet, so a thumb at the bottom of a phone lands on chapters.
+  // Contents fills the rest of the sheet, so a thumb at the bottom of a phone reaches chapters.
   const [textOpen, setTextOpen] = useState(() => window.matchMedia("(width >= 48rem)").matches);
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
@@ -63,7 +63,7 @@ export function MenuSheet({
 
   if (!open) return null;
 
-  // The desktop sidebar stays open behind the summary; a phone's bottom sheet makes way for it.
+  // The desktop sidebar stays open behind the summary. A phone's bottom sheet makes way for it.
   const keepOpen = (then: () => void): void => {
     if (window.matchMedia("(width >= 48rem)").matches) then();
     else dismiss(then);

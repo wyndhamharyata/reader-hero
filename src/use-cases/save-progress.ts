@@ -27,7 +27,7 @@ export function saveReadingProgress(
   }).pipe(Effect.catchTag("StorageFailure", () => Effect.void));
 }
 
-// Finished puts the position at the end; unmarked, it returns to `place`: a toggle loses nothing.
+// Finished puts the position at the end. Unmarked, it returns to `place`: a toggle loses nothing.
 export function setBookFinished(
   bookId: string,
   finished: boolean,

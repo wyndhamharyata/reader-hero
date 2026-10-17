@@ -32,7 +32,7 @@ describe("decodeAiSettings", () => {
 });
 
 describe("decodeGroupedBooks", () => {
-  it("given the stored ids, returns them, and rejects a record of another shape", async () => {
+  it("given the stored ids, returns them, and rejects a record of another form", async () => {
     const decoded = await Effect.runPromise(decodeGroupedBooks({ ids: ["b1", "b2"] }));
     const broken = await Effect.runPromise(Effect.flip(decodeGroupedBooks({ ids: "b1" })));
 

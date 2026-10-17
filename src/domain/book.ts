@@ -15,7 +15,7 @@ export class Block extends Schema.Class<Block>("reader-hero/domain/Block")({
   imageId: Schema.optional(Schema.String),
   // Width over height of a figure, so its placeholder has the final size before the image loads.
   ratio: Schema.optional(Schema.Number),
-  // Character ranges of `text`; only EPUB blocks carry them, so a PDF block renders as plain text.
+  // Character ranges of `text`. Only EPUB blocks carry them, so a PDF block renders as plain text.
   marks: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -46,7 +46,7 @@ export class ParsedBook extends Schema.Class<ParsedBook>("reader-hero/domain/Par
   figuresThrough: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
 }) {}
 
-// It lives apart from ParsedBook, so each finished page saves cheaply; `through` is an older shape.
+// It lives apart from ParsedBook, so each finished page saves cheaply. `through` is an older form.
 export class FigureCheckpoint extends Schema.Class<FigureCheckpoint>(
   "reader-hero/domain/FigureCheckpoint",
 )({
@@ -83,7 +83,7 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   id: Schema.String,
   title: Schema.String,
   author: Schema.optional(Schema.String),
-  // Searchable metadata; books imported before these fields existed do not have them.
+  // Searchable metadata. Books imported before these fields existed do not have them.
   subject: Schema.optional(Schema.String),
   keywords: Schema.optional(Schema.String),
   fileName: Schema.optional(Schema.String),
@@ -98,7 +98,7 @@ export class BookMeta extends Schema.Class<BookMeta>("reader-hero/domain/BookMet
   parseState: ParseState,
   charCount: Schema.Int,
   figures: Schema.optional(FigureState),
-  // The reader's own picture is the cover; the book's own is kept as image "cover-default".
+  // The reader's own picture is the cover. The book's own is kept as image "cover-default".
   customCover: Schema.optional(Schema.Boolean),
 }) {
   get figuresPending(): boolean {
@@ -128,13 +128,13 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
   blockIndex: Schema.Int,
   percent: Schema.Number,
   updatedAt: Schema.Int,
-  // The furthest block the reader reached; the summary follows it, so re-reading moves nothing.
+  // The furthest block the reader reached. The summary follows it, so re-reading moves nothing.
   furthest: Schema.optional(Schema.Int),
   // Unset means the 98% rule decides.
   finished: Schema.optional(Schema.Boolean),
 }) {}
 
-// Sepia gave way to the temperature setting; a stored sepia choice opens as light.
+// Sepia gave way to the temperature setting. A stored sepia choice opens as light.
 export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdark"]).pipe(
   Schema.decodeTo(
     Schema.Literals(["rhlight", "rhdark"]),
@@ -186,7 +186,7 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
 export const ReaderMode = Schema.Literals(["reader", "original"]);
 export type ReaderMode = typeof ReaderMode.Type;
 
-// One book's own choices; a missing field falls back to the global ReaderSettings.
+// One book's own choices. A missing field falls back to the global ReaderSettings.
 export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookPrefs")({
   mode: Schema.optional(ReaderMode),
   // Unset means the guess applies.
@@ -200,7 +200,7 @@ export class BookPrefs extends Schema.Class<BookPrefs>("reader-hero/domain/BookP
   temperature: Schema.optional(Schema.Number),
 }) {}
 
-// The onboarding acts a reader has seen; a later version shows the tour again.
+// The onboarding acts a reader has seen. A later version shows the tour again.
 export const TOUR_VERSION = 1;
 
 export const DEFAULT_SETTINGS = new ReaderSettings({
@@ -265,7 +265,7 @@ export class ImageRecord extends Schema.Class<ImageRecord>("reader-hero/domain/I
   blob: Schema.instanceOf(Blob),
   width: Schema.Number,
   height: Schema.Number,
-  // A resumed figure job rebuilds finished pages from it; older images lack it.
+  // A resumed figure job rebuilds finished pages from it. Older images lack it.
   x: Schema.optional(Schema.Number),
   y: Schema.optional(Schema.Number),
 }) {}

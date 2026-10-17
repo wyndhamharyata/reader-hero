@@ -1,8 +1,9 @@
 import { flushSync } from "react-dom";
 import type { NavigateFunction } from "react-router";
 
-// The route changes inside the view transition, so its snapshot of the new page is the new route.
-// `replace` swaps the current entry, so a book opened from another book leaves one step back to the library.
+const SLIDE_TIMEOUT_MS = 1000;
+
+// The route changes inside the view transition, so its snapshot is the new page. `replace` swaps the entry, so Back returns to the library.
 export function slideTo(
   navigate: NavigateFunction,
   to: string,
@@ -17,7 +18,7 @@ export function slideTo(
       flushSync(() => void navigate(to, { replace: replace || direction === "out" }));
       return;
     }
-    // The step lands in a later popstate; the router has its new route once the listeners before this one ran.
+    // The step arrives in a later popstate. The router has its new route once the listeners before this one ran.
     return new Promise((resolve) => {
       window.addEventListener(
         "popstate",
@@ -27,7 +28,7 @@ export function slideTo(
         },
         { once: true },
       );
-      window.setTimeout(resolve, 1000);
+      window.setTimeout(resolve, SLIDE_TIMEOUT_MS);
       void navigate(-1);
     });
   };

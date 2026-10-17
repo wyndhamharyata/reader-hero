@@ -25,7 +25,7 @@ export interface JobState {
 export class SummaryJobs extends Context.Service<
   SummaryJobs,
   {
-    // The key: a book's id, `series:` plus a series id, or `rebuild` for the rebuild of every summary.
+    // The key is a book's id, `series:` plus a series id, or `rebuild` for the rebuild of every summary.
     state(key: string): Stream.Stream<JobState>;
     start(input: SummaryInput, settings: AiSettings): Effect.Effect<void>;
     // Every started volume whose paragraph is missing or out of date, one request each.
@@ -34,7 +34,7 @@ export class SummaryJobs extends Context.Service<
       bookId: string,
       settings: AiSettings,
     ): Effect.Effect<void>;
-    // Stops every other run, then writes each summary again; only a tap starts it.
+    // Stops every other run, then writes each summary again. Only a tap starts it.
     startRebuild(settings: AiSettings): Effect.Effect<void>;
     stop(key: string): Effect.Effect<void>;
     // Every run, the rebuild too: a removed key or another provider must not keep receiving text.
@@ -56,7 +56,7 @@ export class SummaryJobs extends Context.Service<
       const fibers = new Map<string, Fiber.Fiber<unknown, unknown>>();
       // The series run that holds a book, so the book's own job never appends to the same record.
       const held = new Map<string, string>();
-      // Set before the other runs stop, so none starts again in the gap before the rebuild holds its books.
+      // Set before the other runs stop, so none starts again in the pause before the rebuild holds its books.
       let rebuilding = false;
       // Taken before the first yield, so two starts at once cannot both pass the check and run twice.
       const starting = new Set<string>();
@@ -90,8 +90,8 @@ export class SummaryJobs extends Context.Service<
         settings: AiSettings,
       ) {
         const bookId = input.meta.id;
-        const ref = yield* stateRef(bookId);
-        yield* SubscriptionRef.set(ref, {
+        const state = yield* stateRef(bookId);
+        yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
@@ -101,14 +101,14 @@ export class SummaryJobs extends Context.Service<
           Effect.orElseSucceed(() => []),
           Effect.flatMap((earlier) =>
             summariseNext({ ...input, earlier }, settings, (run) =>
-              SubscriptionRef.set(ref, { run, error: null }),
+              SubscriptionRef.set(state, { run, error: null }),
             ),
           ),
           Effect.provide(services),
           Effect.match({ onSuccess: () => null, onFailure: describeAiFailure }),
           Effect.catchDefect((defect) => Effect.succeed(`Unexpected error: ${String(defect)}`)),
-          Effect.flatMap((error) => SubscriptionRef.set(ref, { run: null, error })),
-          Effect.onInterrupt(() => SubscriptionRef.set(ref, { run: null, error: null })),
+          Effect.flatMap((error) => SubscriptionRef.set(state, { run: null, error })),
+          Effect.onInterrupt(() => SubscriptionRef.set(state, { run: null, error: null })),
           Effect.ensuring(Effect.sync(() => fibers.delete(bookId))),
         );
         fibers.set(bookId, yield* Effect.forkDetach(job));
@@ -121,7 +121,7 @@ export class SummaryJobs extends Context.Service<
       ) {
         const key = `series:${series.id}`;
         if (rebuilding || fibers.has(key)) return;
-        const ref = yield* stateRef(key);
+        const state = yield* stateRef(key);
         const volumes = series.books.map((card) => card.book.id);
         // Held first, then awaited, so a volume's own job ends before this run writes its record.
         for (const id of volumes) held.set(id, key);
@@ -129,7 +129,7 @@ export class SummaryJobs extends Context.Service<
           const fiber = fibers.get(id);
           return fiber === undefined ? [] : [fiber];
         });
-        yield* SubscriptionRef.set(ref, {
+        yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
@@ -141,7 +141,7 @@ export class SummaryJobs extends Context.Service<
               yield* SubscriptionRef.set(yield* stateRef(shown), { run: null, error: null });
             }
             shown = run.book;
-            yield* SubscriptionRef.set(ref, { run, error: null });
+            yield* SubscriptionRef.set(state, { run, error: null });
             if (run.book !== undefined) {
               yield* SubscriptionRef.set(yield* stateRef(run.book), { run, error: null });
             }
@@ -151,8 +151,8 @@ export class SummaryJobs extends Context.Service<
           Effect.provide(services),
           Effect.match({ onSuccess: () => null, onFailure: describeAiFailure }),
           Effect.catchDefect((defect) => Effect.succeed(`Unexpected error: ${String(defect)}`)),
-          Effect.flatMap((error) => SubscriptionRef.set(ref, { run: null, error })),
-          Effect.onInterrupt(() => SubscriptionRef.set(ref, { run: null, error: null })),
+          Effect.flatMap((error) => SubscriptionRef.set(state, { run: null, error })),
+          Effect.onInterrupt(() => SubscriptionRef.set(state, { run: null, error: null })),
           Effect.ensuring(
             Effect.gen(function* () {
               fibers.delete(key);
@@ -183,8 +183,8 @@ export class SummaryJobs extends Context.Service<
       const launchRebuild = Effect.fn("SummaryJobs.startRebuild")(function* (settings: AiSettings) {
         const key = "rebuild";
         yield* Fiber.interruptAll([...fibers.values()]);
-        const ref = yield* stateRef(key);
-        yield* SubscriptionRef.set(ref, {
+        const state = yield* stateRef(key);
+        yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
         });
@@ -205,7 +205,7 @@ export class SummaryJobs extends Context.Service<
             }
             shown = book;
             const own = yield* stateRef(book);
-            yield* SubscriptionRef.set(ref, {
+            yield* SubscriptionRef.set(state, {
               run: { stage: "chapter", chapter: index + 1, of: plan.length, text: "", book },
               error: null,
             });
@@ -217,8 +217,8 @@ export class SummaryJobs extends Context.Service<
           Effect.provide(services),
           Effect.match({ onSuccess: () => null, onFailure: describeAiFailure }),
           Effect.catchDefect((defect) => Effect.succeed(`Unexpected error: ${String(defect)}`)),
-          Effect.flatMap((error) => SubscriptionRef.set(ref, { run: null, error })),
-          Effect.onInterrupt(() => SubscriptionRef.set(ref, { run: null, error: null })),
+          Effect.flatMap((error) => SubscriptionRef.set(state, { run: null, error })),
+          Effect.onInterrupt(() => SubscriptionRef.set(state, { run: null, error: null })),
           Effect.ensuring(
             Effect.gen(function* () {
               fibers.delete(key);

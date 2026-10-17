@@ -10,7 +10,7 @@ interface Props {
 export const sorts: ReadonlyArray<readonly [LibrarySort, string]> = [
   ["added", "Recently added"],
   ["recent", "Recently read"],
-  ["title", "Title A–Z"],
+  ["title", "Title A to Z"],
 ];
 
 export function SortMenu({ sort, onChange }: Props): ReactElement {

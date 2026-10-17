@@ -20,7 +20,7 @@ const isEpub = (file: File): boolean =>
 
 const stripExtension = (name: string): string => name.replace(/\.(pdf|epub)$/i, "").trim();
 
-// The PDF info dictionary is untrusted; each field decodes alone, so one bad field drops only itself.
+// The PDF info dictionary is untrusted. Each field decodes alone, so one bad field drops only itself.
 const decodeRecord = Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown));
 const decodeText = Schema.decodeUnknownOption(Schema.String);
 
@@ -93,7 +93,7 @@ export function addBook(
       });
 
       yield* store.putFile(id, file, meta);
-      // From here the book is in the library; a failure or cancel must not leave it "Building reader".
+      // From here the book is in the library. A failure or cancel must not leave it "Building reader".
       const parse = Effect.gen(function* () {
         const pages = yield* extractPages(handle).pipe(
           Stream.tap((read) =>

@@ -18,7 +18,7 @@ import { CopyButton } from "./_CopyButton";
 const text = "text-base md:text-sm";
 const button = "btn md:btn-sm";
 
-// Another book takes this one's place in the history, so Back goes to the library; closing the sheet leaves the run going.
+// Another book takes this one's place in the history, so Back goes to the library. Closing the sheet keeps the run going.
 export function SeriesSheet({
   series,
   bookId,
@@ -33,7 +33,7 @@ export function SeriesSheet({
 }: {
   series: Shelf["series"][number];
   bookId: string;
-  // Null with no provider: the stored paragraphs still read, and nothing runs.
+  // Null with no provider, so the stored paragraphs still read and nothing runs.
   settings: AiSettings | null;
   // The book's text settings: on desktop the sheet takes the reader's line width, as the Summary does.
   reading: ReaderSettings;
@@ -87,7 +87,7 @@ export function SeriesSheet({
   const { rows, action, status } = loaded
     ? describeSeries(volumes, summaries, state.run)
     : { rows: [], action: null, status: null };
-  // The rows follow the order that was read, so a scope line never lands on another book.
+  // The rows follow the order that was read, so a scope line never goes to another book.
   const cards = volumes?.map((volume) => volume.card) ?? series.books;
 
   const start = (): void => {

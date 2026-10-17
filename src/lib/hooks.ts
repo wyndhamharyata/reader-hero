@@ -62,7 +62,7 @@ export function useFigureJobs(books: ReadonlyArray<BookMeta>, startPage = 1): vo
   const held = useRef(new Set<string>());
 
   useEffect(() => {
-    // A book that leaves the list pauses: its job keeps a checkpoint, so the next start resumes it.
+    // A book that drops out of the list pauses. Its job keeps a checkpoint, so the next start resumes it.
     const wanted = new Set(books.filter((book) => book.figuresPending).map((book) => book.id));
     for (const bookId of held.current) {
       if (wanted.has(bookId)) continue;
@@ -154,7 +154,7 @@ export function useAppEffect<A, E>(
   const lastNonce = useRef(nonce);
 
   useEffect(() => {
-    // A reload keeps the current value on screen until the new one arrives; only new deps show loading.
+    // A reload keeps the current value on screen until the new one arrives. Only new deps show loading.
     if (lastNonce.current === nonce) setState({ status: "loading" });
     lastNonce.current = nonce;
     // Interrupting the fiber stops a load that new deps replaced, so it cannot overwrite the newer one.
@@ -164,7 +164,7 @@ export function useAppEffect<A, E>(
         onSuccess: (value) => setState({ status: "done", value }),
       }),
     );
-    // A defect or a failed service skips the match; the screen leaves loading anyway.
+    // A defect or a failed service skips the match. The screen stops loading anyway.
     fiber.addObserver((exit) => {
       if (Exit.isSuccess(exit) || Cause.hasInterruptsOnly(exit.cause)) return;
       const message = String(Cause.squash(exit.cause));
@@ -218,7 +218,7 @@ export function useSettings(): {
   return { settings, update };
 }
 
-// The AI record: null until it is set, and null again after "Remove key".
+// The AI record is null until it is set, and null again after "Remove key".
 export function useAiSettings(): {
   readonly ai: AiSettings | null;
   readonly putAi: (next: AiSettings | null) => void;
@@ -301,7 +301,7 @@ export function useSummary(bookId: string): SummaryState & {
   readonly stop: () => void;
   readonly discard: () => void;
   readonly addName: (entry: { name: string; note: string; chapter: number }) => void;
-  // A new name and note for the entry called `name`, or null to remove it; both survive the next merge.
+  // A new name and note for the entry called `name`, or null to remove it. Both stay through the next merge.
   readonly editName: (name: string, next: { name: string; note: string } | null) => void;
 } {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -359,7 +359,7 @@ export function useSummary(bookId: string): SummaryState & {
           store.update(bookId, (current) => {
             if (current === null) return null;
             const removed = current.removed.filter((name) => name.trim().toLowerCase() !== key);
-            // With no note the next merge writes one; with a note the entry is the reader's now.
+            // With no note the next merge writes one. With a note the entry is the reader's now.
             if (entry.note === "") {
               return new Summary({
                 ...current,
@@ -382,7 +382,7 @@ export function useSummary(bookId: string): SummaryState & {
     [bookId],
   );
 
-  // By name, not position: a merge that lands while the entry is open reorders the list.
+  // By name, not position: a merge that arrives while the entry is open reorders the list.
   const editName = useCallback(
     (name: string, next: { name: string; note: string } | null) => {
       forkApp(

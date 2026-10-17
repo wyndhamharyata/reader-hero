@@ -33,7 +33,7 @@ const pdf = (onLoad: () => void): Layer.Layer<PdfClient> =>
   );
 
 describe("importBooks", () => {
-  it("given a file the library already holds, adds nothing, says nothing, and returns that book", async () => {
+  it("given a file the library already holds, imports nothing, says nothing, and returns that book", async () => {
     const messages: string[] = [];
     let loaded = 0;
     const layer = bookStore({

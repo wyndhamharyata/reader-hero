@@ -46,7 +46,7 @@ describe("collectImageBoxes", () => {
     expect(boxes).toHaveLength(0);
   });
 
-  it("given an image inside a form, places it under the form's matrix and leaves it after", () => {
+  it("given an image inside a form, places it under the form's matrix and clears it after", () => {
     const boxes = collectImageBoxes(
       opList(
         [

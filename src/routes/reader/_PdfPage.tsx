@@ -16,7 +16,7 @@ interface Props {
   size: PageSize;
   // CSS pixels per PDF point at the width the page is shown.
   scale: number;
-  // Device pixels per PDF point of the whole-page bitmap, which a zoom leaves as it is.
+  // Device pixels per PDF point of the whole-page bitmap, which a zoom keeps as it is.
   renderScale: number;
   // Only pages on screen hold their text, so the list never carries many pages of text nodes.
   text: boolean;
@@ -71,7 +71,7 @@ export const PdfPage = memo(function PdfPage({
     );
     return () => {
       stopFiber(fiber);
-      // A page that leaves the list gives back its bitmap now: iOS caps the memory of all canvases.
+      // A page that drops out of the list gives back its bitmap now. iOS caps the memory of all canvases.
       canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
     };
   }, [doc, size.page, renderScale]);
@@ -82,7 +82,7 @@ export const PdfPage = memo(function PdfPage({
     const canvas = detailRef.current;
     if (canvas === null) return;
     if (detailScale === 0) {
-      // Only a canvas that held an area has a context; making one would cost every mount.
+      // Only a canvas that held an area has a context. Making one would cost every mount.
       if (!canvas.hidden) canvas.getContext("bitmaprenderer")?.transferFromImageBitmap(null);
       canvas.hidden = true;
       return;

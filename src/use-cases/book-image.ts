@@ -17,7 +17,7 @@ export function watchBookImage(
   );
 }
 
-// One book at a time: each cover loads a whole PDF, and the library can hold many.
+// One book at a time, as each cover loads a whole PDF. The library can hold many.
 export function ensureCovers(
   bookIds: ReadonlyArray<string>,
 ): Effect.Effect<void, never, BookStore | PdfClient> {
@@ -28,7 +28,7 @@ export function ensureCovers(
         const store = yield* BookStore;
         const pdf = yield* PdfClient;
         if ((yield* store.getImage(bookId, "cover")) !== null) return;
-        // An EPUB stores its cover at import; pdf.js cannot open one.
+        // An EPUB stores its cover at import. pdf.js cannot open one.
         if ((yield* store.get(bookId)).format === "epub") return;
 
         const blob = yield* store.getFile(bookId);
@@ -42,13 +42,13 @@ export function ensureCovers(
           (handle) => pdf.release(handle),
         );
         if (cover !== null) yield* store.putImage(bookId, { id: "cover", ...cover });
-        // A cover that fails to render keeps its placeholder; the next library visit retries it.
+        // A cover that fails to render keeps its placeholder. The next library visit retries it.
       }).pipe(Effect.catch(() => Effect.void)),
     { discard: true },
   );
 }
 
-// The book's own cover is kept the first time, so Reset can bring it back; false when the picture does not decode.
+// The book's own cover is kept the first time, so Reset can bring it back. False when the picture does not decode.
 export function setBookCover(
   bookId: string,
   picture: Blob,

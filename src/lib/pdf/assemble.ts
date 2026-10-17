@@ -39,7 +39,7 @@ function buildToc(outline: ReadonlyArray<OutlineItem>, blocks: ReadonlyArray<Blo
   return entries;
 }
 
-// Yields to the event loop between stages, so a long book does not freeze the import screen.
+// Yields to the event loop between stages, so a long book does not stall the import screen.
 export function assembleBook(
   pages: ReadonlyArray<PageExtract>,
   outline: ReadonlyArray<OutlineItem>,

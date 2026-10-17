@@ -18,7 +18,7 @@ const settings = new AiSettings({
 const sse = (type: string, data: Record<string, unknown>): string =>
   `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
 
-// `stored` is what Settings holds now; the request carries `settings`, as a running job would.
+// `stored` is what Settings holds now. The request carries `settings`, as a running job would.
 function run(body: string, stored: AiSettings | null = settings) {
   const added: Array<{ key: string; usage: AiUsage }> = [];
   const fetched = vi.fn(async () => new Response(body, { status: 200 }));
@@ -62,7 +62,7 @@ afterEach(() => {
 });
 
 describe("AI client usage", () => {
-  it("given a finished stream, adds one tally with the start's input and the end's output", async () => {
+  it("given a finished stream, records one tally with the start's input and the end's output", async () => {
     const { text, added } = run(
       sse("message_start", {
         message: { usage: { input_tokens: 10, cache_read_input_tokens: 990, output_tokens: 1 } },
@@ -80,7 +80,7 @@ describe("AI client usage", () => {
     expect(console.info).toHaveBeenCalledWith(expect.stringContaining("chapter b1"));
   });
 
-  it("given a stream that reports no usage, adds nothing", async () => {
+  it("given a stream that reports no usage, records nothing", async () => {
     const { text, added } = run(
       sse("content_block_delta", { delta: { type: "text_delta", text: "Done." } }),
     );

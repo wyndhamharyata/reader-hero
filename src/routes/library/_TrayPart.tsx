@@ -13,7 +13,7 @@ export interface TrayFlags {
 export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement | null {
   if (flags === null) return null;
   const { index, start, end, columns } = flags;
-  // The parts make one shape, so only outer sides have borders and outer corners round.
+  // The parts make one panel, so only outer sides have borders and outer corners round.
   const first = index % columns === 0 || index === start;
   const last = index % columns === columns - 1 || index === end;
   const above = index - columns >= start;
@@ -28,7 +28,7 @@ export function TrayPart({ flags }: { flags: TrayFlags | null }): ReactElement |
       style={{
         bottom: below ? `calc(0.375rem - ${flags.rowGap})` : "-0.375rem",
         borderColor: colour,
-        // Mixed with the page, not alpha, so no darker seam shows where two parts meet.
+        // Mixed with the page, not alpha, so no darker line shows where two parts meet.
         backgroundColor: `color-mix(in oklab, ${colour} 40%, var(--color-base-100))`,
       }}
     >

@@ -1,10 +1,4 @@
-// WebKit benchmark of the built app: npm run bench -- <label>
-// Runs the desktop and the mobile (md breakpoint) layout, each in a fresh profile, and writes
-// .bench/results/<label>-<layout>.json. Compare two labels with npm run bench:compare.
-//
-// Measured: launch on a slow network and offline, import plus the figure job, reader open,
-// reader scrolling, and the original view. WebKit cannot throttle its CPU, so the work-done
-// metric is the content process's CPU seconds per scenario, next to frame gaps.
+// WebKit benchmark of the built app: npm run bench -- <label>. Writes .bench/results/<label>-<layout>.json. Compare with npm run bench:compare.
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -51,10 +45,10 @@ const layouts = {
   mobile: { ...devices["iPhone 14"] },
 };
 
-// Installed into every page: a ready-watcher, a frame-gap sampler and a books reader.
+// Installed into every page: a ready-watcher, a frame-timing sampler and a books reader.
 const initScript = `
   window.__ready = null;
-  // One watch at a time: an earlier one left running could set __ready for this one.
+  // One watch at a time, as an earlier one left running could set __ready for this one.
   window.__watch = (test) => {
     window.__watching?.disconnect();
     window.__ready = null;
@@ -155,7 +149,7 @@ async function measureLaunch(page, tag) {
 }
 
 async function run(layoutName, layout) {
-  // A persistent profile: WebKit's memory-backed storage for an ephemeral context cannot hold a File.
+  // A persistent profile, as WebKit's memory-backed storage for an ephemeral context cannot hold a File.
   const context = await webkit.launchPersistentContext(
     mkdtempSync(join(tmpdir(), "rh-bench-")),
     layout,
@@ -166,8 +160,7 @@ async function run(layoutName, layout) {
   const log = (...args) => console.log(`[${label}/${layoutName}]`, ...args);
 
   try {
-    // 1. First visit: service worker install and precache. Only an active worker that controls
-    // this page, with the shell stored, makes a launch representative.
+    // First visit: service worker install and precache. Only an active worker that controls this page, with the shell stored, makes a launch representative.
     setDelay(0);
     let t = Date.now();
     await page.goto(base);
@@ -214,7 +207,7 @@ async function run(layoutName, layout) {
     await page.evaluate(() => window.__startSampler());
     let cpu = cpuSeconds();
     t = Date.now();
-    // The file is built in the page: WebKit's IndexedDB rejects a File that Playwright injects.
+    // The file is built in the page, as WebKit's IndexedDB rejects a File that Playwright injects.
     await page.evaluate(async () => {
       const blob = await (await fetch("/__bench/bench.pdf")).blob();
       const transfer = new DataTransfer();
@@ -331,7 +324,7 @@ async function run(layoutName, layout) {
     // 6. Original mode: time to the first page, then a fast scroll down and back.
     await page.click('button[aria-label="Menu"]');
     await page.waitForSelector('button:has-text("Original view")');
-    // The sheet animates in for 240 ms; the timed click must not wait on that.
+    // The sheet animates in for 240 ms. The timed click must not wait on that.
     await page.waitForTimeout(400);
     await page.evaluate(() => {
       window.__t0 = performance.now();

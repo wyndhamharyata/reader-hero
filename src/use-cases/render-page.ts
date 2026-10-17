@@ -4,17 +4,17 @@ import { PdfFailure } from "@/domain/errors";
 import { findPages } from "@/lib/find-text";
 import { PageRenderer, type PageLink, type RenderedDocument } from "@/services/page-renderer";
 
-// Paints one page: the worker renders a bitmap and the canvas adopts it without a copy.
+// Paints one page, with the worker rendering a bitmap that the canvas adopts without a copy.
 export function renderPdfPage(
-  doc: RenderedDocument,
+  rendered: RenderedDocument,
   page: number,
   canvas: HTMLCanvasElement,
   scale: number,
 ): Effect.Effect<void, PdfFailure, PageRenderer> {
   return Effect.gen(function* () {
     const renderer = yield* PageRenderer;
-    const bitmap = yield* renderer.render(doc, page, scale);
-    // The canvas was sized ahead; a size change here would relayout every page, so only a mismatch sets it.
+    const bitmap = yield* renderer.render(rendered, page, scale);
+    // The canvas was sized ahead. A size change here would relayout every page, so only a mismatch sets it.
     if (canvas.width !== bitmap.width) canvas.width = bitmap.width;
     if (canvas.height !== bitmap.height) canvas.height = bitmap.height;
     // The mark lets tests and the benchmark see when a page is on screen.
@@ -36,10 +36,10 @@ export function renderPdfPage(
 
 // Read after the page draws, so a page's links never hold up its pixels.
 export function readPageLinks(
-  doc: RenderedDocument,
+  rendered: RenderedDocument,
   page: number,
 ): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure, PageRenderer> {
-  return Effect.flatMap(PageRenderer, (renderer) => renderer.links(doc, page));
+  return Effect.flatMap(PageRenderer, (renderer) => renderer.links(rendered, page));
 }
 
 export interface PageArea {
@@ -51,7 +51,7 @@ export interface PageArea {
 
 // Paints one sharp area of a zoomed page over its whole-page bitmap, and places the canvas on that area.
 export function renderPageDetail(
-  doc: RenderedDocument,
+  rendered: RenderedDocument,
   size: PageSize,
   canvas: HTMLCanvasElement,
   scale: number,
@@ -66,7 +66,7 @@ export function renderPageDetail(
     const crop = {
       x,
       y,
-      // Rounded shares can reach past the page by a pixel; the crop stops at its last whole pixel.
+      // Rounded shares can reach past the page by a pixel. The crop stops at its last whole pixel.
       width: Math.max(
         1,
         Math.min(Math.floor(fullWidth), Math.ceil((area.left + area.width) * fullWidth)) - x,
@@ -76,7 +76,7 @@ export function renderPageDetail(
         Math.min(Math.floor(fullHeight), Math.ceil((area.top + area.height) * fullHeight)) - y,
       ),
     };
-    const bitmap = yield* renderer.render(doc, size.page, scale, crop);
+    const bitmap = yield* renderer.render(rendered, size.page, scale, crop);
     // Placed only now, so the last area stays sharp on screen until this one is ready.
     canvas.style.left = `${(crop.x / fullWidth) * 100}%`;
     canvas.style.top = `${(crop.y / fullHeight) * 100}%`;
@@ -94,9 +94,9 @@ export function renderPageDetail(
   });
 }
 
-// The parsed text names candidate pages; the worker keeps those whose own text matches.
+// The parsed text names candidate pages. The worker keeps those whose own text matches.
 export function searchPages(
-  doc: RenderedDocument,
+  rendered: RenderedDocument,
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>,
   query: string,
 ): Effect.Effect<ReadonlyArray<number>, never, PageRenderer> {
@@ -105,7 +105,7 @@ export function searchPages(
     if (candidates.length === 0) return [];
     const renderer = yield* PageRenderer;
     return yield* renderer
-      .find(doc, candidates, query)
+      .find(rendered, candidates, query)
       .pipe(Effect.orElseSucceed(() => candidates));
   });
 }

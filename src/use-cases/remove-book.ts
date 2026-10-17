@@ -37,7 +37,7 @@ export function removeBook(
       );
     }
     yield* store.remove(id);
-    // Its removal tells an open summary; the record itself went with the book.
+    // Its removal tells an open summary. The record itself went with the book.
     yield* (yield* SummaryStore).remove(id);
     const settings = yield* SettingsStore;
     const grouped = yield* settings.groupedBooks();
