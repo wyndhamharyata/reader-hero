@@ -505,6 +505,13 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     );
     void runApp(program);
   };
+  // A stored reader view from an older build is rebuilt at once, once per open; a failed one leaves the button.
+  const rebuiltOnce = useRef(false);
+  useEffect(() => {
+    if (loadError?._tag !== "ParsedMissing" || rebuiltOnce.current) return;
+    rebuiltOnce.current = true;
+    rebuild();
+  });
 
   const toggleMode = (): void => {
     setSearchOpen(false);

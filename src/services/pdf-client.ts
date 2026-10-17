@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema, Stream } from "effect";
+import { Context, Effect, Layer, Option, Schema, Stream } from "effect";
 import type {
   PDFDocumentLoadingTask,
   PDFDocumentProxy,
@@ -44,6 +44,14 @@ const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
         })),
     catch: pdfFailure,
   });
+
+// One pdf.js worker for every load, as the render worker keeps one: each import, cover, figure job and rebuild
+// would otherwise start its own and parse its 1.3 MB script again.
+let sharedWorker: InstanceType<PdfLib["PDFWorker"]> | null = null;
+const pdfWorker = (lib: PdfLib): InstanceType<PdfLib["PDFWorker"]> => {
+  if (sharedWorker === null || sharedWorker.destroyed) sharedWorker = new lib.PDFWorker();
+  return sharedWorker;
+};
 
 const IMAGE_RENDER_SCALE = 1.5;
 const IMAGE_LOOKUP_TIMEOUT = "15 seconds";
@@ -314,6 +322,7 @@ export class PdfClient extends Context.Service<
           iccUrl: `${origin}/icc/`,
           // Set explicitly, so default merging cannot drop Safari's ImageDecoder JPEG fast path.
           isImageDecoderSupported: true,
+          worker: pdfWorker(lib),
         });
         // An open that is given up on destroys its task, so its worker does not run on with the whole file.
         const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }).pipe(
@@ -470,10 +479,18 @@ export class PdfClient extends Context.Service<
 
       // A worker lost to memory pressure never answers destroy, so the wait ends; else the stall check would hang on it.
       release: Effect.fn("PdfClient.release")(function* (handle: PdfHandle) {
-        yield* Effect.tryPromise({
+        const destroyed = yield* Effect.tryPromise({
           try: () => handle.task.destroy(),
           catch: pdfFailure,
-        }).pipe(Effect.timeoutOption("2 seconds"), Effect.ignore);
+        }).pipe(
+          Effect.timeoutOption("2 seconds"),
+          Effect.orElseSucceed(() => Option.some(undefined)),
+        );
+        // A worker that never answered is gone, and the next load starts a new one instead of waiting on it.
+        if (Option.isNone(destroyed)) {
+          sharedWorker?.destroy();
+          sharedWorker = null;
+        }
       }),
 
       pageCount: (handle: PdfHandle) => handle.numPages,
