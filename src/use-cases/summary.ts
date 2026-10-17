@@ -351,7 +351,7 @@ export function mergeNames(
 
     yield* client
       .complete(settings, namesSystem, [{ role: "user", content: user }], {
-        json: true,
+        wantsJson: true,
         purpose: { stage: "names", book: input.meta.id },
       })
       .pipe(

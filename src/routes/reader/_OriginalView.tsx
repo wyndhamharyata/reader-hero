@@ -551,7 +551,7 @@ export function OriginalView({
                           size={size}
                           scale={pageWidth / size.width}
                           renderScale={pageRenderScale(size, width, ratio)}
-                          text={textPages.has(size.page)}
+                          hasText={textPages.has(size.page)}
                           query={textPages.has(size.page) ? query : ""}
                           detail={details.get(size.page) ?? null}
                           onTextReady={onTextReady}

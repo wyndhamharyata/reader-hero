@@ -5,7 +5,7 @@ import type { Summary } from "@/domain/ai";
 export function NameList({
   names,
   list,
-  story,
+  isStory,
   namesLabel,
   summary,
   onEdit,
@@ -16,7 +16,7 @@ export function NameList({
     readonly chapter: number;
   }>;
   readonly list: ReadonlyArray<{ readonly heading: string }>;
-  readonly story: boolean;
+  readonly isStory: boolean;
   readonly namesLabel: string;
   readonly summary: Summary | null;
   readonly onEdit: (entry: { readonly name: string; readonly note: string } | null) => void;
@@ -52,7 +52,7 @@ export function NameList({
             onClick={() => onEdit(null)}
           >
             <PlusIcon className="size-6 opacity-60 md:size-4" />
-            {story ? "Add character" : "Add term"}
+            {isStory ? "Add character" : "Add term"}
           </button>
         </div>
       )}

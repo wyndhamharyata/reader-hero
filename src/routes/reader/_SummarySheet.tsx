@@ -96,15 +96,15 @@ export function SummarySheet({
   const latest = useRef<HTMLDivElement>(null);
   const job = useRef<Job | null>(null);
   const { summary, run, error } = state;
-  const story = input.kind === "story";
+  const isStory = input.kind === "story";
   const { row, action } = describeSummary(summary, cover, run, input.kind);
   const visibleChapters = summary?.chapters.slice(0, cover.target) ?? [];
-  // A story hides the names from after the position, so the list gives nothing away. The reader's own show.
+  // A isStory hides the names from after the position, so the list gives nothing away. The reader's own show.
   const names = (summary?.names ?? []).filter(
-    (entry) => !story || entry.edited === true || entry.chapter <= cover.target,
+    (entry) => !isStory || entry.edited === true || entry.chapter <= cover.target,
   );
-  const unit = story ? "chapter" : "section";
-  const namesLabel = story ? "Characters" : "Terms";
+  const unit = isStory ? "chapter" : "section";
+  const namesLabel = isStory ? "Characters" : "Terms";
   const spinner = <span className="loading loading-sm loading-spinner md:loading-xs" />;
 
   useEffect(() => {
@@ -219,7 +219,7 @@ export function SummarySheet({
               aria-selected={tab === value}
               onClick={() => setTab(value)}
             >
-              {value === "names" ? namesLabel : story ? "Chapters" : "Sections"}
+              {value === "names" ? namesLabel : isStory ? "Chapters" : "Sections"}
             </button>
           ))}
         </div>
@@ -275,7 +275,7 @@ export function SummarySheet({
               <NameList
                 names={names}
                 list={list}
-                story={story}
+                isStory={isStory}
                 namesLabel={namesLabel}
                 summary={summary}
                 onEdit={(entry) => setNameSheet({ entry })}
@@ -406,11 +406,11 @@ export function SummarySheet({
               <button
                 type="button"
                 className={`${button} px-3 md:px-4`}
-                aria-label={story ? "Book kind: Story" : "Book kind: Document"}
+                aria-label={isStory ? "Book kind: Story" : "Book kind: Document"}
                 disabled={run !== null}
-                onClick={() => onKind(story ? "reference" : "story")}
+                onClick={() => onKind(isStory ? "reference" : "story")}
               >
-                {story ? "Story" : "Document"}
+                {isStory ? "Story" : "Document"}
               </button>
               <span className={onBack === undefined ? "flex-1" : "hidden flex-1 md:block"} />
               <CopyButton text={copied} />
@@ -441,7 +441,7 @@ export function SummarySheet({
       {nameSheet !== null && (
         <NameSheet
           entry={nameSheet.entry}
-          story={story}
+          isStory={isStory}
           onSave={(next) => {
             if (nameSheet.entry === null) {
               // Tagged with the chapter being read, where the reader met the entry.

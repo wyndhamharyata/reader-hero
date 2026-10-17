@@ -19,7 +19,7 @@ interface Props {
   // Device pixels per PDF point of the whole-page bitmap, which a zoom keeps as it is.
   renderScale: number;
   // Only pages on screen hold their text, so the list never carries many pages of text nodes.
-  text: boolean;
+  hasText: boolean;
   query: string;
   // Null while the whole-page bitmap is sharp enough.
   detail: { readonly scale: number; readonly area: PageArea } | null;
@@ -40,7 +40,7 @@ export const PdfPage = memo(function PdfPage({
   size,
   scale,
   renderScale,
-  text,
+  hasText,
   query,
   detail,
   onTextReady,
@@ -115,7 +115,7 @@ export const PdfPage = memo(function PdfPage({
   useEffect(() => {
     const host = textRef.current;
 
-    if (!text || host === null) return;
+    if (!hasText || host === null) return;
 
     const drawnAt = scaleRef.current;
     const fiber = forkApp(
@@ -138,7 +138,7 @@ export const PdfPage = memo(function PdfPage({
       textLayer.current?.remove();
       textLayer.current = null;
     };
-  }, [doc, size.page, text, onTextReady]);
+  }, [doc, size.page, hasText, onTextReady]);
 
   useEffect(() => {
     queryRef.current = query;

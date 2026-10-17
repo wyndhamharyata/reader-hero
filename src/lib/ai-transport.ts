@@ -119,7 +119,7 @@ const request = (
   });
 
 export interface CompleteOptions {
-  readonly json?: boolean;
+  readonly wantsJson?: boolean;
   // What the request is for. The console line names it. The book keys the provider's cache.
   readonly purpose?: { readonly stage: string; readonly book?: string };
 }
@@ -216,13 +216,13 @@ function openAiRequest(
 ): { readonly path: string; readonly body: Record<string, unknown> } {
   const purpose = options.purpose;
   const key = purpose === undefined ? undefined : `reader-hero:${purpose.book ?? purpose.stage}`;
-  const explicit =
+  const usesExplicitCache =
     (settings.provider === "openai" || settings.provider === "openrouter") &&
     writeBilled(settings.model);
   // DeepSeek and Gemini cache every prefix with no write charge, so they take plain strings.
   const content = (value: string | ReadonlyArray<PromptPart>) => {
     const parts =
-      settings.provider === "openrouter" || (settings.provider === "openai" && explicit)
+      settings.provider === "openrouter" || (settings.provider === "openai" && usesExplicitCache)
         ? marked(value)
         : null;
 
@@ -248,7 +248,7 @@ function openAiRequest(
     stream_options: { include_usage: true },
   };
 
-  addProviderOptions(body, settings, options, key, explicit);
+  addProviderOptions(body, settings, options, key, usesExplicitCache);
 
   return { path: "/chat/completions", body };
 }
@@ -258,7 +258,7 @@ function addProviderOptions(
   settings: AiSettings,
   options: CompleteOptions,
   key: string | undefined,
-  explicit: boolean,
+  usesExplicitCache: boolean,
 ): void {
   // Each service gets the setting we measured as best, so a reader never chooses an effort level.
   if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
@@ -278,13 +278,13 @@ function addProviderOptions(
 
   // JSON mode where it is documented. The other presets get JSON from the prompt alone.
   if (
-    options.json === true &&
+    options.wantsJson === true &&
     (settings.provider === "deepseek" || settings.provider === "openai")
   ) {
     body.response_format = { type: "json_object" };
   }
 
-  if (explicit) body.prompt_cache_options = { mode: "explicit" };
+  if (usesExplicitCache) body.prompt_cache_options = { mode: "explicit" };
   // OpenAI routes by the key to a machine with the cache. OpenRouter keeps the session on one provider.
   if (key !== undefined && settings.provider === "openai") body.prompt_cache_key = key;
   if (key !== undefined && settings.provider === "openrouter") body.session_id = key;

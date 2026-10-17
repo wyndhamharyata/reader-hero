@@ -140,7 +140,7 @@ function harness(
           : system.startsWith("You summarise the part")
             ? "current"
             : "names";
-        calls.push({ kind, system, user, json: request?.json === true });
+        calls.push({ kind, system, user, json: request?.wantsJson === true });
         if (options.during !== undefined) current = options.during(kind, current);
         const count = calls.length;
         const reply =

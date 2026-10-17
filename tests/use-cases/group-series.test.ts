@@ -81,7 +81,7 @@ function harness(state: State, reply: (user: string) => string) {
         Stream.unwrap(
           Effect.gen(function* () {
             const user = plain(messages[0]?.content ?? "");
-            calls.push({ system: plain(system), user, json: options?.json === true });
+            calls.push({ system: plain(system), user, json: options?.wantsJson === true });
             open.now += 1;
             open.peak = Math.max(open.peak, open.now);
             yield* Effect.sleep("2 millis");

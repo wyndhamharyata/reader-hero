@@ -5,20 +5,20 @@ import { useBottomSheet } from "@/lib/use-bottom-sheet";
 interface Props {
   // Null means a new entry.
   entry: { name: string; note: string } | null;
-  story: boolean;
+  isStory: boolean;
   onSave: (next: { name: string; note: string }) => void;
   onRemove: () => void;
   onClose: () => void;
 }
 
 // One entry at a time over the summary, so the list itself holds no form.
-export function NameSheet({ entry, story, onSave, onRemove, onClose }: Props): ReactElement {
+export function NameSheet({ entry, isStory, onSave, onRemove, onClose }: Props): ReactElement {
   const sheetRef = useRef<HTMLFormElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [name, setName] = useState(entry?.name ?? "");
   const [note, setNote] = useState(entry?.note ?? "");
-  const label = story ? "Character" : "Term";
+  const label = isStory ? "Character" : "Term";
 
   return (
     <div className="absolute inset-0 z-20 flex flex-col justify-end md:items-center md:justify-center">
