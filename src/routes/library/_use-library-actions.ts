@@ -8,8 +8,8 @@ import { reparseBook } from "@/use-cases/parse-book";
 import { removeBook } from "@/use-cases/remove-book";
 
 export function useLibraryActions(reload: () => void): {
-  readonly busy: boolean;
-  readonly importing: boolean;
+  readonly isBusy: boolean;
+  readonly isImporting: boolean;
   readonly progress: ParseProgress | null;
   readonly message: string | null;
   readonly setMessage: (message: string | null) => void;
@@ -21,9 +21,9 @@ export function useLibraryActions(reload: () => void): {
   readonly remove: (id: string) => void;
   readonly reparse: (id: string) => void;
 } {
-  const [busy, setBusy] = useState(false);
+  const [isBusy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ParseProgress | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [isImporting, setImporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const importJob = useRef<Job | null>(null);
 
@@ -86,8 +86,8 @@ export function useLibraryActions(reload: () => void): {
   };
 
   return {
-    busy,
-    importing,
+    isBusy,
+    isImporting,
     progress,
     message,
     setMessage,

@@ -129,18 +129,18 @@ const joined = (content: string | ReadonlyArray<PromptPart>): string =>
 
 // Unmarked runs merged and empty parts dropped. Null with no mark, so the plain string goes.
 function marked(content: string | ReadonlyArray<PromptPart>): ReadonlyArray<PromptPart> | null {
-  if (typeof content === "string" || !content.some((part) => part.cache === true)) return null;
+  if (typeof content === "string" || !content.some((part) => part.hasCache === true)) return null;
 
-  const out: Array<{ text: string; cache: boolean }> = [];
+  const out: Array<{ text: string; hasCache: boolean }> = [];
 
   for (const part of content) {
     const last = out[out.length - 1];
 
-    if (last !== undefined && !last.cache) {
+    if (last !== undefined && !last.hasCache) {
       last.text += part.text;
-      last.cache = part.cache === true;
+      last.hasCache = part.hasCache === true;
     } else {
-      out.push({ text: part.text, cache: part.cache === true });
+      out.push({ text: part.text, hasCache: part.hasCache === true });
     }
   }
 
@@ -175,7 +175,7 @@ function anthropicRequest(
   messages: ReadonlyArray<PromptMessage>,
 ): { readonly path: string; readonly body: Record<string, unknown> } {
   const marks = [system, ...messages.map((message) => message.content)].reduce(
-    (sum, content) => sum + (marked(content)?.filter((part) => part.cache === true).length ?? 0),
+    (sum, content) => sum + (marked(content)?.filter((part) => part.hasCache === true).length ?? 0),
     0,
   );
   // Anthropic takes 4 breakpoints. The latest ones cover the longest prefixes.
@@ -188,7 +188,7 @@ function anthropicRequest(
     return parts.map((part) => ({
       type: "text",
       text: part.text,
-      ...(part.cache === true && drop-- <= 0 ? { cache_control: { type: "ephemeral" } } : {}),
+      ...(part.hasCache === true && drop-- <= 0 ? { cache_control: { type: "ephemeral" } } : {}),
     }));
   };
 
@@ -216,13 +216,13 @@ function openAiRequest(
 ): { readonly path: string; readonly body: Record<string, unknown> } {
   const purpose = options.purpose;
   const key = purpose === undefined ? undefined : `reader-hero:${purpose.book ?? purpose.stage}`;
-  const usesExplicitCache =
+  const hasExplicitCache =
     (settings.provider === "openai" || settings.provider === "openrouter") &&
     writeBilled(settings.model);
   // DeepSeek and Gemini cache every prefix with no write charge, so they take plain strings.
   const content = (value: string | ReadonlyArray<PromptPart>) => {
     const parts =
-      settings.provider === "openrouter" || (settings.provider === "openai" && usesExplicitCache)
+      settings.provider === "openrouter" || (settings.provider === "openai" && hasExplicitCache)
         ? marked(value)
         : null;
 
@@ -231,7 +231,7 @@ function openAiRequest(
     return parts.map((part) => ({
       type: "text",
       text: part.text,
-      ...(part.cache !== true
+      ...(part.hasCache !== true
         ? {}
         : settings.provider === "openrouter"
           ? { cache_control: { type: "ephemeral" } }
@@ -248,7 +248,7 @@ function openAiRequest(
     stream_options: { include_usage: true },
   };
 
-  addProviderOptions(body, settings, options, key, usesExplicitCache);
+  addProviderOptions(body, settings, options, key, hasExplicitCache);
 
   return { path: "/chat/completions", body };
 }
@@ -258,7 +258,7 @@ function addProviderOptions(
   settings: AiSettings,
   options: CompleteOptions,
   key: string | undefined,
-  usesExplicitCache: boolean,
+  hasExplicitCache: boolean,
 ): void {
   // Each service gets the setting we measured as best, so a reader never chooses an effort level.
   if (settings.provider === "deepseek") body.thinking = { type: "disabled" };
@@ -284,7 +284,7 @@ function addProviderOptions(
     body.response_format = { type: "json_object" };
   }
 
-  if (usesExplicitCache) body.prompt_cache_options = { mode: "explicit" };
+  if (hasExplicitCache) body.prompt_cache_options = { mode: "explicit" };
   // OpenAI routes by the key to a machine with the cache. OpenRouter keeps the session on one provider.
   if (key !== undefined && settings.provider === "openai") body.prompt_cache_key = key;
   if (key !== undefined && settings.provider === "openrouter") body.session_id = key;

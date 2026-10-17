@@ -8,7 +8,7 @@ const quotes = '"“”„«»「」『』‘';
 export function guessKind(meta: BookMeta, parsed: ParsedBook): BookKind {
   if (guessMode(meta, parsed) === "original") return "reference";
 
-  const { found, numbered, citations } = sectionSignals(parsed);
+  const { found, numbered, hasCitations } = sectionSignals(parsed);
   let paragraphs = 0;
   let withQuotes = 0;
 
@@ -22,7 +22,7 @@ export function guessKind(meta: BookMeta, parsed: ParsedBook): BookKind {
 
   let score = found;
 
-  if (citations) score += 1;
+  if (hasCitations) score += 1;
   if (numbered >= 3) score += 1;
   if (paragraphs >= 50 && withQuotes / paragraphs < 0.05) score += 1;
 

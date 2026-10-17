@@ -28,7 +28,7 @@ export function App() {
         <Route path="/book/:id" element={null} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <LibraryRoute hidden={bookId !== undefined} />
+      <LibraryRoute isHidden={bookId !== undefined} />
       {bookId !== undefined && <ReaderRoute key={bookId} bookId={bookId} />}
       <ServiceWorkerUpdate />
     </>

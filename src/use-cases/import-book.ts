@@ -109,7 +109,7 @@ export function addBook(
         yield* store.putParsed(id, result.parsed);
 
         // The figure job reuses this text instead of reading every page again.
-        if (!result.scanned) {
+        if (!result.isScanned) {
           yield* store.putPages(
             id,
             pages.map((read) => read.text),
@@ -118,9 +118,9 @@ export function addBook(
 
         const ready = new BookMeta({
           ...meta,
-          parseState: result.scanned ? "scanned" : "ready",
+          parseState: result.isScanned ? "scanned" : "ready",
           charCount: result.parsed.charCount,
-          figures: result.scanned ? "none" : "pending",
+          figures: result.isScanned ? "none" : "pending",
         });
 
         yield* store.putMeta(ready);

@@ -111,7 +111,7 @@ export function useBookKind(
 ): {
   readonly guessed: ReturnType<typeof guessMode>;
   readonly kind: ReturnType<typeof guessKind>;
-  readonly epub: boolean;
+  readonly isEpub: boolean;
   readonly isTouring: boolean;
   readonly tourSteps: ReturnType<typeof readerTourSteps>;
 } {
@@ -125,11 +125,11 @@ export function useBookKind(
   );
   const kind = prefs.kind ?? guessedKind;
   // An EPUB has no pages to show, so it always reads in reader mode.
-  const epub = data?.meta.format === "epub";
+  const isEpub = data?.meta.format === "epub";
   const isTouring = (tour ?? 0) < TOUR_VERSION;
   const tourSteps = useMemo(readerTourSteps, []);
 
-  return { guessed, kind, epub, isTouring, tourSteps };
+  return { guessed, kind, isEpub, isTouring, tourSteps };
 }
 
 export function useSummaryView({
@@ -221,12 +221,12 @@ export function useSummaryView({
 
 export function useReaderMode({
   data,
-  epub,
+  isEpub,
   prefs,
   guessed,
 }: {
   readonly data: LoadedBook | null;
-  readonly epub: boolean;
+  readonly isEpub: boolean;
   readonly prefs: Partial<BookPrefs>;
   readonly guessed: ReturnType<typeof guessMode>;
 }): {
@@ -235,7 +235,7 @@ export function useReaderMode({
   readonly pendingBooks: ReadonlyArray<BookMeta>;
   readonly startPage: number;
 } {
-  const mode: ReaderMode = epub ? "reader" : (prefs.mode ?? guessed);
+  const mode: ReaderMode = isEpub ? "reader" : (prefs.mode ?? guessed);
   // Figures only show in the reader view, so the job pauses while the original pages show.
   const showsPages = mode === "original" || data?.meta.parseState === "scanned";
   const pendingBooks = useMemo(

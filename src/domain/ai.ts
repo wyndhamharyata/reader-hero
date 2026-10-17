@@ -89,10 +89,10 @@ export const AiMessage = Schema.Struct({
 });
 export type AiMessage = typeof AiMessage.Type;
 
-// `cache` ends a prefix the provider may keep. A provider that bills cache writes keeps only marked prefixes.
+// `hasCache` ends a prefix the provider may keep. A provider that bills cache writes keeps only marked prefixes.
 export interface PromptPart {
   readonly text: string;
-  readonly cache?: boolean;
+  readonly hasCache?: boolean;
 }
 
 // The parts join with nothing between them, so a split prompt sends the same text as one string.

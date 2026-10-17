@@ -53,10 +53,10 @@ function sectionName(text: string): string {
 export function sectionSignals(parsed: ParsedBook): {
   readonly found: number;
   readonly numbered: number;
-  readonly citations: boolean;
+  readonly hasCitations: boolean;
 } {
   const found = new Set<string>();
-  let citations = false;
+  let hasCitations = false;
   let numbered = 0;
 
   for (const block of parsed.blocks) {
@@ -77,12 +77,12 @@ export function sectionSignals(parsed: ParsedBook): {
       const text = block.text.toLowerCase();
 
       if (text.includes("doi.org") || text.includes("doi:") || text.includes("arxiv")) {
-        citations = true;
+        hasCitations = true;
       }
     }
   }
 
-  return { found: found.size, numbered, citations };
+  return { found: found.size, numbered, hasCitations };
 }
 
 // Papers, reports, slides, and forms work better as their pages. Novels and long prose reflow well.
@@ -93,12 +93,12 @@ export function guessMode(meta: BookMeta, parsed: ParsedBook): ReaderMode {
 
   if (perPage < 700) return "original";
 
-  const { found, numbered, citations } = sectionSignals(parsed);
+  const { found, numbered, hasCitations } = sectionSignals(parsed);
 
   // Assignments, handouts, forms, and letters are short. 10 pages or fewer settles it alone.
   let score = found;
 
-  if (citations) score += 1;
+  if (hasCitations) score += 1;
   if (numbered >= 3) score += 1;
 
   if (parsed.pageCount <= 10) score += 3;

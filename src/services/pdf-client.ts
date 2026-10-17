@@ -91,7 +91,7 @@ const encodeInWorker = (
     width: number;
     height: number;
     maxDim: number;
-    source: ImageBitmap | { bytes: Uint8ClampedArray; alpha: boolean };
+    source: ImageBitmap | { bytes: Uint8ClampedArray; hasAlpha: boolean };
   },
   transfer: Transferable[],
 ): Effect.Effect<Blob | null> =>
@@ -150,13 +150,13 @@ const encodeImage = (
 
     if (!(data instanceof Uint8ClampedArray || data instanceof Uint8Array)) return null;
 
-    const alpha = image.kind === lib.ImageKind.RGBA_32BPP;
+    const hasAlpha = image.kind === lib.ImageKind.RGBA_32BPP;
 
-    if (!alpha && image.kind !== lib.ImageKind.RGB_24BPP) return null;
+    if (!hasAlpha && image.kind !== lib.ImageKind.RGB_24BPP) return null;
 
     const bytes = Uint8ClampedArray.from(data);
 
-    return yield* encodeInWorker({ width, height, maxDim, source: { bytes, alpha } }, [
+    return yield* encodeInWorker({ width, height, maxDim, source: { bytes, hasAlpha } }, [
       bytes.buffer,
     ]);
   });
@@ -460,8 +460,8 @@ export class PdfClient extends Context.Service<
             const task = pageProxy.render({ canvas, canvasContext: context, viewport });
 
             signal.addEventListener("abort", () => task.cancel());
-            
-return task.promise;
+
+            return task.promise;
           },
           catch: pdfFailure,
         });

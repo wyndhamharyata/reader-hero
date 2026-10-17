@@ -44,7 +44,7 @@ describe("extractPages and assembleExtract", () => {
       assembleExtract(handle, Array.from(pages)).pipe(Effect.provide(stubLayer)),
     );
 
-    expect(result.scanned).toBe(false);
+    expect(result.isScanned).toBe(false);
     expect(result.parsed.blocks.some((block) => block.kind === "image")).toBe(false);
     expect(result.parsed.charCount).toBeGreaterThan(0);
   });

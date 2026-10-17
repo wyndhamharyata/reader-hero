@@ -14,12 +14,12 @@ export interface ParseProgress {
 
 export interface PageRead extends ParseProgress {
   readonly text: PageText;
-  readonly failed?: boolean;
+  readonly hasFailed?: boolean;
 }
 
 export interface ExtractResult {
   readonly parsed: ParsedBook;
-  readonly scanned: boolean;
+  readonly isScanned: boolean;
 }
 
 const READ_CONCURRENCY = 2;
@@ -41,7 +41,7 @@ export function extractPages(handle: PdfHandle): Stream.Stream<PageRead, PdfFail
                 page,
                 total,
                 text: { page, width: 0, height: 0, items: [] },
-                failed: true,
+                hasFailed: true,
               })),
             ),
           { concurrency: READ_CONCURRENCY },
@@ -60,7 +60,7 @@ export function assembleExtract(
     const total = pdf.pageCount(handle);
 
     // Most pages unreadable is a broken file, which must not pass for a scanned book.
-    if (pages.filter((page) => page.failed === true).length * 2 > total) {
+    if (pages.filter((page) => page.hasFailed === true).length * 2 > total) {
       return yield* new PdfFailure({ reason: "corrupt", message: "Most pages could not be read" });
     }
 
@@ -73,6 +73,6 @@ export function assembleExtract(
       outline,
     );
 
-    return { parsed, scanned };
+    return { parsed, isScanned: scanned };
   }).pipe(Effect.ensuring(PdfClient.use((pdf) => pdf.release(handle))));
 }

@@ -33,13 +33,13 @@ export function saveReadingProgress(
 // Finished puts the position at the end. Unmarked, it returns to `place`: a toggle loses nothing.
 export function setBookFinished(
   bookId: string,
-  finished: boolean,
+  isFinished: boolean,
   place: ReadingProgress | null,
 ): Effect.Effect<void, StorageFailure, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
 
-    if (!finished) {
+    if (!isFinished) {
       yield* store.putProgress(
         bookId,
         new ReadingProgress({

@@ -618,11 +618,11 @@ export function summaryFollowUp(
       .complete(
         settings,
         // The summary and the thread so far come back with the next question, so both are worth a cache write.
-        [{ text: system, cache: true }],
+        [{ text: system, hasCache: true }],
         [
           ...summary.thread.map((message, index) =>
             index === summary.thread.length - 1
-              ? { role: message.role, content: [{ text: message.content, cache: true }] }
+              ? { role: message.role, content: [{ text: message.content, hasCache: true }] }
               : message,
           ),
           { role: "user", content: question },

@@ -73,9 +73,9 @@ function parseBook(
 
     const next = new BookMeta({
       ...stored,
-      parseState: result.scanned ? "scanned" : "ready",
+      parseState: result.isScanned ? "scanned" : "ready",
       charCount: result.parsed.charCount,
-      figures: result.scanned ? "none" : "pending",
+      figures: result.isScanned ? "none" : "pending",
     });
 
     yield* store.putMeta(next);

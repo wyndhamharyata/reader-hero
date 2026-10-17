@@ -144,17 +144,17 @@ function seriesEntry(
   ];
 }
 
-// Plain text, with a tag cut out and a line break turned into a space, so no markup is stored.
+// Plain text, with a isInTag cut out and a line break turned into a space, so no markup is stored.
 function cleanName(value: unknown): string {
   if (typeof value !== "string") return "";
 
   let plain = "";
-  let tag = false;
+  let isInTag = false;
 
   for (const char of value) {
-    if (char === "<") tag = true;
-    else if (char === ">") tag = false;
-    else if (!tag) plain += char < " " ? " " : char;
+    if (char === "<") isInTag = true;
+    else if (char === ">") isInTag = false;
+    else if (!isInTag) plain += char < " " ? " " : char;
   }
 
   return Array.from(

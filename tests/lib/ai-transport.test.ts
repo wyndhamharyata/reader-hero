@@ -17,7 +17,7 @@ const settingsFor = (provider: AiProvider, model: string, reasoningOff?: boolean
 const system = "You summarise one chapter.";
 const split: ReadonlyArray<PromptPart> = [
   { text: "Book: Salt Memory.\n" },
-  { text: "Text:\nThe tide came in.", cache: true },
+  { text: "Text:\nThe tide came in.", hasCache: true },
   { text: "\nPrevious summary: none." },
 ];
 const sent = (provider: AiProvider, model: string) =>
@@ -139,7 +139,7 @@ describe("request per provider", () => {
   it("given Anthropic with more than 4 marks, keeps the latest 4", () => {
     const marks: ReadonlyArray<PromptPart> = ["a", "b", "c", "d", "e"].map((text) => ({
       text,
-      cache: true,
+      hasCache: true,
     }));
     const { body } = requestOf(settingsFor("anthropic", "claude-haiku-5-5"), system, [
       { role: "user", content: marks },

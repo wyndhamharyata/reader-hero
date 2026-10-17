@@ -563,11 +563,11 @@ describe("summaryFollowUp", () => {
     );
 
     expect(sent[0]?.system).toEqual([
-      { text: expect.stringContaining("Summary so far:"), cache: true },
+      { text: expect.stringContaining("Summary so far:"), hasCache: true },
     ]);
     expect(sent[0]?.messages).toEqual([
       { role: "user", content: "Who is Jim?" },
-      { role: "assistant", content: [{ text: "The narrator.", cache: true }] },
+      { role: "assistant", content: [{ text: "The narrator.", hasCache: true }] },
       { role: "user", content: "And Silver?" },
     ]);
   });

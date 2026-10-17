@@ -67,7 +67,7 @@ export function SummarySheet({
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [tab, setTab] = useState<"chapters" | "names">("chapters");
   const [consentPending, setConsentPending] = useState<"start" | "ask" | null>(null);
-  const [discardPending, setDiscardPending] = useState(false);
+  const [isDiscardPending, setDiscardPending] = useState(false);
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
@@ -274,7 +274,7 @@ export function SummarySheet({
             if (then === "ask") ask(allowed);
             else onStart(allowed);
           }}
-          discardPending={discardPending}
+          isDiscardPending={isDiscardPending}
           onKeep={() => setDiscardPending(false)}
           onDiscard={() => {
             setDiscardPending(false);
@@ -282,7 +282,7 @@ export function SummarySheet({
           }}
           error={error}
           onRetry={start}
-          run={run !== null}
+          isRunning={run !== null}
           onStop={onStop}
           action={action}
           onStart={start}

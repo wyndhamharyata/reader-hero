@@ -57,7 +57,7 @@ export class SummaryJobs extends Context.Service<
       // The series run that holds a book, so the book's own job never appends to the same record.
       const held = new Map<string, string>();
       // Set before the other runs stop, so none starts again in the pause before the rebuild holds its books.
-      let rebuilding = false;
+      let isRebuilding = false;
       // Taken before the first yield, so two starts at once cannot both pass the check and run twice.
       const starting = new Set<string>();
 
@@ -81,7 +81,7 @@ export class SummaryJobs extends Context.Service<
         Effect.suspend(() => {
           const bookId = input.meta.id;
 
-          if (rebuilding || fibers.has(bookId) || held.has(bookId) || starting.has(bookId)) {
+          if (isRebuilding || fibers.has(bookId) || held.has(bookId) || starting.has(bookId)) {
             return Effect.void;
           }
 
@@ -131,7 +131,7 @@ export class SummaryJobs extends Context.Service<
       ) {
         const key = `series:${series.id}`;
 
-        if (rebuilding || fibers.has(key)) return;
+        if (isRebuilding || fibers.has(key)) return;
 
         const state = yield* stateRef(key);
         const volumes = series.books.map((card) => card.book.id);
@@ -189,14 +189,14 @@ export class SummaryJobs extends Context.Service<
       // A setup stopped early lets go of the flag, or no summary could start until a reload.
       const startRebuild = (settings: AiSettings): Effect.Effect<void> =>
         Effect.suspend(() => {
-          if (rebuilding) return Effect.void;
+          if (isRebuilding) return Effect.void;
 
-          rebuilding = true;
-          
-return launchRebuild(settings).pipe(
+          isRebuilding = true;
+
+          return launchRebuild(settings).pipe(
             Effect.onExit(() =>
               Effect.sync(() => {
-                if (!fibers.has("rebuild")) rebuilding = false;
+                if (!fibers.has("rebuild")) isRebuilding = false;
               }),
             ),
           );
@@ -254,7 +254,7 @@ return launchRebuild(settings).pipe(
           Effect.ensuring(
             Effect.gen(function* () {
               fibers.delete(key);
-              rebuilding = false;
+              isRebuilding = false;
               for (const id of mine) if (held.get(id) === key) held.delete(id);
 
               if (shown !== undefined) {

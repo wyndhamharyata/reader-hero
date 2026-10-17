@@ -5,7 +5,7 @@ onmessage = async (event: MessageEvent) => {
     width: number;
     height: number;
     maxDim: number;
-    source: ImageBitmap | { bytes: Uint8ClampedArray<ArrayBuffer>; alpha: boolean };
+    source: ImageBitmap | { bytes: Uint8ClampedArray<ArrayBuffer>; hasAlpha: boolean };
   };
   let blob: Blob | null = null;
 
@@ -30,7 +30,7 @@ onmessage = async (event: MessageEvent) => {
         const expected = request.width * request.height * 4;
         let rgba = source.bytes;
 
-        if (!source.alpha || rgba.length !== expected) {
+        if (!source.hasAlpha || rgba.length !== expected) {
           rgba = new Uint8ClampedArray(expected);
 
           let at = 0;

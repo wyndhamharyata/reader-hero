@@ -86,8 +86,9 @@ export function SeriesSheet({
     return () => stopFiber(fiber);
   }, [volumes]);
 
-  const loaded = volumes !== null && volumes.every((volume) => summaries.has(volume.card.book.id));
-  const { rows, action, status } = loaded
+  const isLoaded =
+    volumes !== null && volumes.every((volume) => summaries.has(volume.card.book.id));
+  const { rows, action, status } = isLoaded
     ? describeSeries(volumes, summaries, state.run)
     : { rows: [], action: null, status: null };
   // The rows follow the order that was read, so a scope line never goes to another book.
@@ -328,8 +329,8 @@ function hasSummary(summary: Summary | null): boolean {
   );
 }
 
-function rowStyleFor(current: boolean, color: number): CSSProperties | undefined {
-  if (!current) return undefined;
+function rowStyleFor(isCurrent: boolean, color: number): CSSProperties | undefined {
+  if (!isCurrent) return undefined;
 
   return {
     backgroundColor: `color-mix(in oklab, oklch(var(--tray) ${color}) 40%, var(--color-base-100))`,

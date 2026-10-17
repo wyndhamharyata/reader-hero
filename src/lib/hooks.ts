@@ -329,7 +329,7 @@ export interface SummaryState {
 }
 
 export function useSummary(bookId: string): SummaryState & {
-  readonly loaded: boolean;
+  readonly isLoaded: boolean;
   readonly start: (input: SummaryInput, settings: AiSettings) => void;
   readonly stop: () => void;
   readonly discard: () => void;
@@ -339,12 +339,12 @@ export function useSummary(bookId: string): SummaryState & {
 } {
   const [summary, setSummary] = useState<Summary | null>(null);
   // False until the stored summary is read, so nothing takes "none yet" for "none".
-  const [loaded, setLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [job, setJob] = useState<JobState>({ run: null, error: null });
 
   useEffect(() => {
     setSummary(null);
-    setLoaded(false);
+    setIsLoaded(false);
     setJob({ run: null, error: null });
 
     const fiber = forkApp(
@@ -358,7 +358,7 @@ export function useSummary(bookId: string): SummaryState & {
               Stream.runForEach((next) =>
                 Effect.sync(() => {
                   setSummary(next);
-                  setLoaded(true);
+                  setIsLoaded(true);
                 }),
               ),
             ),
@@ -452,7 +452,7 @@ export function useSummary(bookId: string): SummaryState & {
 
   return {
     summary,
-    loaded,
+    isLoaded,
     run: job.run,
     error: job.error,
     start,

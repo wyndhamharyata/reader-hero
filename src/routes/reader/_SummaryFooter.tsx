@@ -13,12 +13,12 @@ export function SummaryFooter({
   settings,
   onCancelConsent,
   onAllowConsent,
-  discardPending,
+  isDiscardPending,
   onKeep,
   onDiscard,
   error,
   onRetry,
-  run,
+  isRunning,
   onStop,
   action,
   onStart,
@@ -41,12 +41,12 @@ export function SummaryFooter({
   readonly settings: AiSettings | null;
   readonly onCancelConsent: () => void;
   readonly onAllowConsent: () => void;
-  readonly discardPending: boolean;
+  readonly isDiscardPending: boolean;
   readonly onKeep: () => void;
   readonly onDiscard: () => void;
   readonly error: string | null;
   readonly onRetry: () => void;
-  readonly run: boolean;
+  readonly isRunning: boolean;
   readonly onStop: () => void;
   readonly action: string | null;
   readonly onStart: () => void;
@@ -75,7 +75,7 @@ export function SummaryFooter({
     );
   }
 
-  if (discardPending) {
+  if (isDiscardPending) {
     return (
       <div className={`mt-3 flex items-center justify-between gap-3 ${text}`}>
         <span>The summary is removed. Summarising starts again from the first {unit}.</span>
@@ -97,7 +97,7 @@ export function SummaryFooter({
         error={error}
         onRetry={onRetry}
         hasProvider={settings !== null}
-        isRunning={run}
+        isRunning={isRunning}
         onStop={onStop}
         action={action}
         onStart={onStart}
@@ -110,7 +110,7 @@ export function SummaryFooter({
         onAsk={onAsk}
         hasProvider={settings !== null}
         hasSummary={hasSummary}
-        isRunning={run}
+        isRunning={isRunning}
         isAsking={isAsking}
       />
       <SummaryControls
@@ -119,7 +119,7 @@ export function SummaryFooter({
         onKind={onKind}
         copied={copied}
         hasSummary={hasSummary}
-        isRunning={run}
+        isRunning={isRunning}
         onDiscard={onDiscardClick}
         onClose={onClose}
       />

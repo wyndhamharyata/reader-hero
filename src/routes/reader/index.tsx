@@ -83,7 +83,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [isSearchOpen, setSearchOpen] = useState(false);
-  const [rebuilding, setRebuilding] = useState(false);
+  const [isRebuilding, setRebuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [reported, setReported] = useState<number | null>(null);
   // The summary follows the furthest block, so going back over earlier pages asks for nothing.
@@ -92,7 +92,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const { ai, putAi } = useAiSettings();
   const {
     summary,
-    loaded: summaryLoaded,
+    isLoaded: summaryLoaded,
     run,
     error: summaryError,
     start,
@@ -120,8 +120,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   const data = state.status === "done" ? state.value : null;
   // After the book shows, so the lookup does not slow its open.
-  const loaded = data !== null;
-  const { series, seriesId, seriesJob, reloadSeries } = useBookSeries(bookId, loaded);
+  const isLoaded = data !== null;
+  const { series, seriesId, seriesJob, reloadSeries } = useBookSeries(bookId, isLoaded);
 
   // The saved place until a view reports one, so the original view opens at the saved page.
   const position = reported ?? data?.progress?.blockIndex ?? 0;
@@ -152,7 +152,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     lineHeight: bookSettings.lineHeight,
   });
 
-  const { guessed, kind, epub, isTouring, tourSteps } = useBookKind(
+  const { guessed, kind, isEpub, isTouring, tourSteps } = useBookKind(
     data,
     prefs,
     settings.readerTour,
@@ -248,14 +248,14 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   // A PDF may switch to the original view, so its page renderer loads its scripts at startup.
   useEffect(() => {
-    if (data === null || epub) return;
+    if (data === null || isEpub) return;
 
     void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
-  }, [data, epub]);
+  }, [data, isEpub]);
 
   const { mode, showsPages, pendingBooks, startPage } = useReaderMode({
     data,
-    epub,
+    isEpub,
     prefs,
     guessed,
   });
@@ -414,7 +414,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         )}
 
         {loadError !== null && (
-          <LoadError error={loadError} title={title} rebuilding={rebuilding} onRebuild={rebuild} />
+          <LoadError
+            error={loadError}
+            title={title}
+            isRebuilding={isRebuilding}
+            onRebuild={rebuild}
+          />
         )}
 
         {data !== null && (
@@ -473,7 +478,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         onSelect={selectToc}
         chapterList={chapterList}
         setSummarySheet={setSummarySheet}
-        epub={epub}
+        isEpub={isEpub}
         toggleMode={toggleMode}
         changeSettings={changeSettings}
         closeToc={closeToc}

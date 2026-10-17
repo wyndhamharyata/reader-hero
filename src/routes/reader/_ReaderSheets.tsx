@@ -28,7 +28,7 @@ export function ReaderSheets({
   onSelect,
   chapterList,
   setSummarySheet,
-  epub,
+  isEpub,
   toggleMode,
   changeSettings,
   closeToc,
@@ -58,13 +58,13 @@ export function ReaderSheets({
   readonly series: Shelf["series"][number] | null;
   readonly seriesJob: JobState;
   readonly reloadSeries: () => void;
-  readonly setSeriesOpen: (open: boolean) => void;
+  readonly setSeriesOpen: (isOpen: boolean) => void;
   readonly seriesId: string | null;
   readonly lines: ReadonlyMap<number, string>;
   readonly onSelect: (blockIndex: number) => void;
   readonly chapterList: ReadonlyArray<Chapter>;
   readonly setSummarySheet: (value: { openAt: number | null } | null) => void;
-  readonly epub: boolean;
+  readonly isEpub: boolean;
   readonly toggleMode: () => void;
   readonly changeSettings: (patch: Partial<ReaderSettings>) => void;
   readonly closeToc: () => void;
@@ -80,7 +80,7 @@ export function ReaderSheets({
   readonly addName: (entry: { name: string; note: string; chapter: number }) => void;
   readonly editName: (name: string, next: { name: string; note: string } | null) => void;
   readonly putAi: (next: AiSettings | null) => void;
-  readonly setTocOpen: (open: boolean) => void;
+  readonly setTocOpen: (isOpen: boolean) => void;
   readonly isSeriesOpen: boolean;
   readonly bookId: string;
 }): ReactElement {
@@ -116,7 +116,7 @@ export function ReaderSheets({
 
           setSummarySheet({ openAt: index === -1 ? null : index });
         }}
-        onToggleMode={epub ? undefined : toggleMode}
+        onToggleMode={isEpub ? undefined : toggleMode}
         onSettingsChange={changeSettings}
         onClose={closeToc}
       />

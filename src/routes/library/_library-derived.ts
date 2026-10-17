@@ -24,39 +24,39 @@ export function loadedLibrary(state: {
 }
 
 export function showsTour({
-  hidden,
+  isHidden,
   status,
   tour,
   steps,
 }: {
-  readonly hidden: boolean;
+  readonly isHidden: boolean;
   readonly status: string;
   readonly tour: number | undefined;
   readonly steps: ReadonlyArray<unknown>;
 }): boolean {
-  return !hidden && status !== "loading" && (tour ?? 0) < TOUR_VERSION && steps.length > 0;
+  return !isHidden && status !== "loading" && (tour ?? 0) < TOUR_VERSION && steps.length > 0;
 }
 
 export function booksToShow(
-  hidden: boolean,
+  isHidden: boolean,
   books: ReadonlyArray<BookMeta>,
 ): ReadonlyArray<BookMeta> {
-  return hidden ? [] : books;
+  return isHidden ? [] : books;
 }
 
-export function actionLabelFor(busy: boolean): string {
-  return busy ? "Working…" : "Add book";
+export function actionLabelFor(isBusy: boolean): string {
+  return isBusy ? "Working…" : "Add book";
 }
 
 export function columnsFor(
   isGrid: boolean,
-  wide: { readonly sm: boolean; readonly md: boolean },
+  wide: { readonly isSm: boolean; readonly isMd: boolean },
 ): number {
-  if (isGrid) return wide.md ? 5 : wide.sm ? 3 : 2;
+  if (isGrid) return wide.isMd ? 5 : wide.isSm ? 3 : 2;
 
-  return wide.md ? 2 : 1;
+  return wide.isMd ? 2 : 1;
 }
 
-export function hiddenClass(hidden: boolean): string {
-  return hidden ? "invisible" : "";
+export function hiddenClass(isHidden: boolean): string {
+  return isHidden ? "invisible" : "";
 }

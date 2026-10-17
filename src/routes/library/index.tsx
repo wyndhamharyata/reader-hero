@@ -66,7 +66,7 @@ import { ViewToggle } from "./_ViewToggle";
 const showInstallHint = isIosBrowser && !isInstalled;
 
 // `hidden` while a book is open over it, which keeps its state and pauses its background jobs.
-export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
+export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement {
   const { state, reload } = useAppEffect(
     Effect.gen(function* () {
       const store = yield* BookStore;
@@ -110,8 +110,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   // Reset changes no book and no setting, so a new round starts the run after it.
   const [groupingRound, setGroupingRound] = useState(0);
   const {
-    busy,
-    importing,
+    isBusy,
+    isImporting,
     progress,
     message,
     setMessage,
@@ -156,32 +156,32 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const { books, estimate, reading, series } = loadedLibrary(state);
   const steps = tourSteps({ hasBooks: books.length > 0, needsInstall: showInstallHint });
   const isTouring = showsTour({
-    hidden,
+    isHidden,
     status: state.status,
     tour: settings.tour,
     steps,
   });
 
-  useFigureJobs(booksToShow(hidden, books));
+  useFigureJobs(booksToShow(isHidden, books));
 
   // Back from a book, the shelf reads again, so its statuses show the reading just done.
-  const wasHidden = useRef(hidden);
+  const wasHidden = useRef(isHidden);
 
   useEffect(() => {
-    if (wasHidden.current && !hidden) reload();
-    wasHidden.current = hidden;
-  }, [hidden, reload]);
+    if (wasHidden.current && !isHidden) reload();
+    wasHidden.current = isHidden;
+  }, [isHidden, reload]);
 
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
   const bookIds = books.map((book) => book.id).join(" ");
 
   useEffect(() => {
-    if (hidden || bookIds === "") return;
+    if (isHidden || bookIds === "") return;
 
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
 
     return () => stopFiber(fiber);
-  }, [hidden, bookIds]);
+  }, [isHidden, bookIds]);
 
   // A finished parse starts a run, but none starts during an import, so its books group together.
   const groupable = books
@@ -190,7 +190,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     .join(" ");
 
   useEffect(() => {
-    if (hidden || busy || groupable === "" || !navigator.onLine) return;
+    if (isHidden || isBusy || groupable === "" || !navigator.onLine) return;
     if (groupingFailed?.ai === ai && groupingFailed.books === groupable) return;
 
     const fiber = forkApp(
@@ -212,7 +212,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     );
 
     return () => stopFiber(fiber);
-  }, [hidden, busy, groupable, ai, groupingFailed, groupingRound]);
+  }, [isHidden, isBusy, groupable, ai, groupingFailed, groupingRound]);
 
   // A book's text waits for its font, so the reading fonts load with the library.
   useEffect(() => {
@@ -224,14 +224,14 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
   const figuresBusy = books.some((book) => book.figuresPending);
 
   useEffect(() => {
-    if (hidden || !hasPdf || figuresBusy) return;
+    if (isHidden || !hasPdf || figuresBusy) return;
 
     const timer = window.setTimeout(() => {
       void runApp(Effect.flatMap(PageRenderer, (renderer) => renderer.warm()));
     }, 2000);
 
     return () => window.clearTimeout(timer);
-  }, [hidden, hasPdf, figuresBusy]);
+  }, [isHidden, hasPdf, figuresBusy]);
 
   useEffect(() => {
     const program = importInboxOnce().pipe(
@@ -257,7 +257,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
             (update) =>
               update.kind === "meta" ||
               update.kind === "series" ||
-              (update.kind === "progress" && !hidden),
+              (update.kind === "progress" && !isHidden),
           ),
           Stream.runForEach(() => Effect.sync(() => reload())),
         );
@@ -265,9 +265,9 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     );
 
     return () => stopFiber(fiber);
-  }, [hidden, reload]);
+  }, [isHidden, reload]);
 
-  const actionLabel = actionLabelFor(busy);
+  const actionLabel = actionLabelFor(isBusy);
   const isGrid = settings.libraryView === "grid";
   const shelf = useMemo(
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort, series),
@@ -300,14 +300,14 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   // The grid's breakpoints: 2 columns, 3 from sm, 5 from md. A list has 1, or 2 from md.
   const [wide, setWide] = useState(() => ({
-    sm: window.matchMedia("(width >= 40rem)").matches,
-    md: window.matchMedia("(width >= 48rem)").matches,
+    isSm: window.matchMedia("(width >= 40rem)").matches,
+    isMd: window.matchMedia("(width >= 48rem)").matches,
   }));
 
   useEffect(() => {
     const sm = window.matchMedia("(width >= 40rem)");
     const md = window.matchMedia("(width >= 48rem)");
-    const follow = (): void => setWide({ sm: sm.matches, md: md.matches });
+    const follow = (): void => setWide({ isSm: sm.matches, isMd: md.matches });
 
     sm.addEventListener("change", follow);
     md.addEventListener("change", follow);
@@ -390,37 +390,37 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
 
   // A file the app was opened with imports like a choice from the picker, then opens. One it holds opens at once.
   const [launched, setLaunched] = useState<string | null>(null);
-  const launch = useRef({ importFiles, hidden });
+  const launch = useRef({ importFiles, isHidden });
 
   useEffect(() => {
-    launch.current = { importFiles, hidden };
+    launch.current = { importFiles, isHidden };
   });
   useEffect(() => {
     onLaunchFiles((files) => {
       if (files.length === 0) return;
       // Back to the shelf by a history step, so the import shows and the new book is one step from it.
-      if (launch.current.hidden) slideTo(navigate, "/", "out");
+      if (launch.current.isHidden) slideTo(navigate, "/", "out");
       launch.current.importFiles(files, (ids) => setLaunched(ids[0] ?? null));
     });
   }, [navigate]);
   // Opened once the shelf shows, so the step back to it cannot land after the book and undo it.
   useEffect(() => {
-    if (launched === null || hidden) return;
+    if (launched === null || isHidden) return;
 
     setLaunched(null);
     slideTo(navigate, `/book/${launched}`, "in");
-  }, [launched, hidden, navigate]);
+  }, [launched, isHidden, navigate]);
 
   const opened = useRef<string | null>(null);
 
   useEffect(() => {
-    if (hidden) opened.current = pathname;
-  }, [hidden, pathname]);
+    if (isHidden) opened.current = pathname;
+  }, [isHidden, pathname]);
   useLayoutEffect(() => {
     const box = scrollRef.current;
     const index = cards.findIndex((card) => `/book/${card.book.id}` === opened.current);
 
-    if (hidden || box === null || index === -1) return;
+    if (isHidden || box === null || index === -1) return;
 
     const card = box.querySelector(`a[href="${opened.current}"]`)?.getBoundingClientRect();
     const view = box.getBoundingClientRect();
@@ -430,10 +430,10 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     // The first row goes up with the header above it.
     if (index < columns) box.scrollTo({ top: 0 });
     else virtualizer.scrollToIndex(Math.floor(index / columns), { align: "start" });
-  }, [hidden, cards, columns, virtualizer]);
+  }, [isHidden, cards, columns, virtualizer]);
   // Until the reader moves the shelf themselves.
   useEffect(() => {
-    if (hidden) return;
+    if (isHidden) return;
 
     const release = (): void => {
       opened.current = null;
@@ -445,7 +445,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
       for (const type of ["pointerdown", "wheel", "keydown"])
         window.removeEventListener(type, release);
     };
-  }, [hidden]);
+  }, [isHidden]);
 
   const clearFilters = (): void => setFilters(emptyFilters);
   const clearAll = (): void => {
@@ -489,9 +489,9 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
     <main
       ref={rootRef}
       // When the keyboard closes, the column grows back at about the keyboard's pace.
-      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hiddenClass(hidden)}`}
-      inert={hidden}
-      aria-hidden={hidden}
+      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hiddenClass(isHidden)}`}
+      inert={isHidden}
+      aria-hidden={isHidden}
     >
       <div
         ref={scrollRef}
@@ -520,7 +520,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
                 type="button"
                 className="btn btn-primary btn-sm"
                 onClick={pickFiles}
-                disabled={busy}
+                disabled={isBusy}
                 data-tour="import"
               >
                 <PlusIcon className="size-4" />
@@ -616,7 +616,7 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
             type="button"
             className="btn flex-1 btn-primary"
             onClick={pickFiles}
-            disabled={busy}
+            disabled={isBusy}
             data-tour="import"
           >
             {actionLabel}
@@ -757,8 +757,8 @@ export function LibraryRoute({ hidden }: { hidden: boolean }): ReactElement {
         />
       )}
 
-      {busy && (
-        <ProgressPanel progress={progress} onCancel={importing ? cancelImport : undefined} />
+      {isBusy && (
+        <ProgressPanel progress={progress} onCancel={isImporting ? cancelImport : undefined} />
       )}
     </main>
   );

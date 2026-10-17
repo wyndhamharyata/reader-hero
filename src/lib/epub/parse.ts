@@ -17,7 +17,7 @@ export interface EpubBook {
   readonly cover: EpubBook["images"][number] | null;
 }
 
-type Style = { readonly bold?: boolean; readonly italic?: boolean };
+type Style = { readonly isBold?: boolean; readonly isItalic?: boolean };
 
 const blockNames = new Set([
   "address",
@@ -74,8 +74,8 @@ function resolve(dir: string, href: string): string {
 
 // Two consumers (stylesheet rules and style attributes) share this parser.
 function readStyle(declarations: string): Style {
-  let bold: boolean | undefined;
-  let italic: boolean | undefined;
+  let isBold: boolean | undefined;
+  let isItalic: boolean | undefined;
 
   for (const declaration of declarations.split(";")) {
     const colon = declaration.indexOf(":");
@@ -89,14 +89,14 @@ function readStyle(declarations: string): Style {
       .trim()
       .toLowerCase();
 
-    if (property === "font-style") italic = value === "italic" || value === "oblique";
+    if (property === "font-style") isItalic = value === "italic" || value === "oblique";
 
     if (property === "font-weight") {
-      bold = value === "bold" || value === "bolder" || Number(value) >= 600;
+      isBold = value === "bold" || value === "bolder" || Number(value) >= 600;
     }
   }
 
-  return { bold, italic };
+  return { isBold, isItalic };
 }
 
 function hasDrm(
@@ -183,7 +183,7 @@ function readClassStyles(
 
       const style = readStyle(rule.slice(open + 1));
 
-      if (style.bold === undefined && style.italic === undefined) continue;
+      if (style.isBold === undefined && style.isItalic === undefined) continue;
 
       // The text after the last "{" drops an enclosing "@media … {".
       const head = rule.slice(0, open);
@@ -437,11 +437,11 @@ function appendText(node: Node, style: Style, state: ChapterState): void {
     }
   }
 
-  if (state.text.length > from && style.bold === true) {
+  if (state.text.length > from && style.isBold === true) {
     state.marks.push({ start: from, end: state.text.length, style: "bold" });
   }
 
-  if (state.text.length > from && style.italic === true) {
+  if (state.text.length > from && style.isItalic === true) {
     state.marks.push({ start: from, end: state.text.length, style: "italic" });
   }
 }
@@ -511,19 +511,19 @@ function elementStyle(
   style: Style,
   classStyles: ReadonlyMap<string, Style>,
 ): Style {
-  let bold = style.bold === true || element.localName === "b" || element.localName === "strong";
-  let italic = style.italic === true || italicNames.has(element.localName);
+  let isBold = style.isBold === true || element.localName === "b" || element.localName === "strong";
+  let isItalic = style.isItalic === true || italicNames.has(element.localName);
 
   for (const className of (element.getAttribute("class") ?? "").split(" ")) {
     const own = classStyles.get(className);
 
-    bold = own?.bold ?? bold;
-    italic = own?.italic ?? italic;
+    isBold = own?.isBold ?? isBold;
+    isItalic = own?.isItalic ?? isItalic;
   }
 
   const inline = readStyle(element.getAttribute("style") ?? "");
 
-  return { bold: inline.bold ?? bold, italic: inline.italic ?? italic };
+  return { isBold: inline.isBold ?? isBold, isItalic: inline.isItalic ?? isItalic };
 }
 
 function buildToc(

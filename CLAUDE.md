@@ -200,6 +200,8 @@ code around it. Words such as `no longer`, `used to`, `previously`, `older build
 - Use `min` and `max` for limits. Use `first` and `last` for a range that includes both ends.
 - One thing has one name everywhere. The code, the store and the UI all say "book" and "page".
   A name the platform or a library owns keeps its spelling.
+- A stored field keeps its stored key, so `autoSummary`, `linesInContents`, `seriesGrouping` and
+  `reasoningOff` keep their names.
 
 ## 5. A number carries its unit.
 
