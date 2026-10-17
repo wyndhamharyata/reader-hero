@@ -8,6 +8,7 @@ import {
   type PDFDocumentProxy,
   type RenderTask,
 } from "pdfjs-dist";
+import { pageSearchText, searchForm } from "@/lib/find-text";
 import type { PageLink, PageTextContent } from "@/services/page-renderer";
 
 GlobalWorkerOptions.workerSrc = "/worker/pdf.worker.shimmed.min.mjs";
@@ -256,6 +257,7 @@ onmessage = async (event: MessageEvent) => {
     | RenderMessage
     | { type: "links"; requestId: number; id: number; page: number }
     | { type: "text"; requestId: number; id: number; page: number }
+    | { type: "find"; requestId: number; id: number; pages: number[]; query: string }
     | { type: "cancel"; requestId: number }
     | { type: "close"; id: number };
   try {
@@ -288,6 +290,17 @@ onmessage = async (event: MessageEvent) => {
     }
     const opened = documents.get(message.id);
     if (opened === undefined) throw new Error("Document is closed");
+    if (message.type === "find") {
+      const wanted = searchForm(message.query).trim();
+      const found: number[] = [];
+      for (const number of message.pages) {
+        const content = await (await opened.document.getPage(number)).getTextContent();
+        const runs = content.items.filter((item) => "str" in item);
+        if (pageSearchText(runs).includes(wanted)) found.push(number);
+      }
+      postMessage({ type: "found", requestId: message.requestId, pages: found });
+      return;
+    }
     if (message.type === "render") {
       rendering.add(message.requestId);
       try {

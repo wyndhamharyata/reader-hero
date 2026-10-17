@@ -150,6 +150,8 @@ export function OriginalView({
   const virtualizer = useVirtualizer({
     count: sizes.length,
     getScrollElement: () => containerRef.current,
+    // Not inside the scroll event: a synchronous render of the list there competes with the scroll itself.
+    useFlushSync: false,
     // From each page's own size; each drawn page is then measured, so a wrong guess cannot leave a gap.
     estimateSize: (index) => {
       const size = sizes[index];
@@ -224,6 +226,7 @@ export function OriginalView({
       height: container.clientHeight,
     };
     const next = new Map<number, Detail>();
+    const visible = new Map<number, PageArea>();
     for (const item of virtualizer.getVirtualItems()) {
       const size = known[item.index];
       if (size === undefined || item.size === 0) continue;
@@ -237,6 +240,12 @@ export function OriginalView({
       // No sharper than the whole-page bitmap already is, so no area is worth drawing.
       if (scale <= pageRenderScale(size, latest.current.width, ratio) * 1.15) continue;
       let area = { left, top: top - item.start, width: right - left, height: bottom - top };
+      visible.set(size.page, {
+        left: area.left / shownWidth,
+        top: area.top / item.size,
+        width: area.width / shownWidth,
+        height: area.height / item.size,
+      });
       for (const margin of DETAIL_MARGINS) {
         const x = Math.max(0, left - margin * view.width);
         const y = Math.max(0, top - item.start - margin * view.height);
@@ -262,7 +271,27 @@ export function OriginalView({
         },
       });
     }
-    setDetails(next);
+    // An area drawn at this scale that still covers the screen stays, so a short pan draws nothing again.
+    setDetails((previous) => {
+      const kept = new Map<number, Detail>();
+      for (const [page, detail] of next) {
+        const old = previous.get(page);
+        const shown = visible.get(page);
+        const covers =
+          old !== undefined &&
+          shown !== undefined &&
+          old.scale === detail.scale &&
+          old.area.left <= shown.left &&
+          old.area.top <= shown.top &&
+          old.area.left + old.area.width >= shown.left + shown.width &&
+          old.area.top + old.area.height >= shown.top + shown.height;
+        kept.set(page, covers ? old : detail);
+      }
+      const same =
+        kept.size === previous.size &&
+        [...kept].every(([page, detail]) => previous.get(page) === detail);
+      return same ? previous : kept;
+    });
   }, [virtualizer]);
   const waitToSettle = useCallback(() => {
     clearTimeout(settle.current);
@@ -384,7 +413,10 @@ export function OriginalView({
       return;
     }
     const moved = held === undefined ? undefined : virtualizer.measurementsCache[held.index];
-    if (moved !== undefined) container.scrollTop = moved.start + part * moved.size;
+    // Only a real move: on iOS, writing scrollTop stops a fling, and size batches land while one runs.
+    const target = moved === undefined ? null : moved.start + part * moved.size;
+    if (target !== null && Math.abs(target - container.scrollTop) >= 1)
+      container.scrollTop = target;
   }, [virtualizer, sizes, width, pageWidth, waitToSettle]);
 
   return (
@@ -464,6 +496,7 @@ export function OriginalView({
 
       {doc !== null && searching && blocks !== null && (
         <PageSearch
+          doc={doc}
           blocks={blocks}
           currentPage={current}
           onGo={jumpTo}

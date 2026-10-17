@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import type { PageSize } from "@/domain/book";
 import { PdfFailure } from "@/domain/errors";
+import { findPages } from "@/lib/find-text";
 import { PageRenderer, type PageLink, type RenderedDocument } from "@/services/page-renderer";
 
 // Paints one page: the worker renders a bitmap and the canvas adopts it without a copy.
@@ -91,5 +92,21 @@ export function renderPageDetail(
       return yield* new PdfFailure({ reason: "unknown", message: "Canvas has no bitmap renderer" });
     }
     adopter.transferFromImageBitmap(bitmap);
+  });
+}
+
+// The parsed text names the pages that may match; the worker keeps those whose own text does, as the text layer marks.
+export function searchPages(
+  doc: RenderedDocument,
+  blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>,
+  query: string,
+): Effect.Effect<ReadonlyArray<number>, never, PageRenderer> {
+  return Effect.gen(function* () {
+    const candidates = findPages(blocks, query);
+    if (candidates.length === 0) return [];
+    const renderer = yield* PageRenderer;
+    return yield* renderer
+      .find(doc, candidates, query)
+      .pipe(Effect.orElseSucceed(() => candidates));
   });
 }

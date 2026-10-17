@@ -110,6 +110,12 @@ export class PageRenderer extends Context.Service<
     ): Effect.Effect<ImageBitmap, PdfFailure>;
     links(doc: RenderedDocument, page: number): Effect.Effect<ReadonlyArray<PageLink>, PdfFailure>;
     text(doc: RenderedDocument, page: number): Effect.Effect<PageTextContent, PdfFailure>;
+    // Of `pages`, those whose own text holds the query.
+    find(
+      doc: RenderedDocument,
+      pages: ReadonlyArray<number>,
+      query: string,
+    ): Effect.Effect<ReadonlyArray<number>, PdfFailure>;
     close(doc: RenderedDocument): Effect.Effect<void>;
   }
 >()("reader-hero/PageRenderer") {
@@ -146,6 +152,11 @@ export class PageRenderer extends Context.Service<
         Effect.map(
           request({ type: "text", id: doc.id, page }, [], null),
           (reply) => reply.text as PageTextContent,
+        ),
+      find: (doc, pages, query) =>
+        Effect.map(
+          request({ type: "find", id: doc.id, pages, query }, [], null),
+          (reply) => reply.pages as ReadonlyArray<number>,
         ),
       close: (doc) =>
         Effect.sync(() => {

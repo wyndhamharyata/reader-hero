@@ -1,8 +1,12 @@
-import { useState, type ReactElement } from "react";
+import { Effect } from "effect";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from "@/components/icons";
-import { findPages } from "@/lib/find-text";
+import { forkApp, stopFiber, type Job } from "@/lib/hooks";
+import type { RenderedDocument } from "@/services/page-renderer";
+import { searchPages } from "@/use-cases/render-page";
 
 interface Props {
+  doc: RenderedDocument;
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }>;
   currentPage: number;
   onGo: (page: number) => void;
@@ -11,21 +15,46 @@ interface Props {
 }
 
 // Searches on Enter, not on each key, so a slow phone goes through the book's text once per search.
-export function PageSearch({ blocks, currentPage, onGo, onQuery, onClose }: Props): ReactElement {
+export function PageSearch({
+  doc,
+  blocks,
+  currentPage,
+  onGo,
+  onQuery,
+  onClose,
+}: Props): ReactElement {
   const [value, setValue] = useState("");
   const [pages, setPages] = useState<ReadonlyArray<number> | null>(null);
   const [index, setIndex] = useState(0);
+  const [searching, setSearching] = useState(false);
+  const job = useRef<Job | null>(null);
+  useEffect(
+    () => () => {
+      if (job.current !== null) stopFiber(job.current);
+    },
+    [],
+  );
 
   const search = (): void => {
-    const found = findPages(blocks, value);
-    // The first match at or after the page being read, as a reader's find goes forward from here.
-    const ahead = found.findIndex((page) => page >= currentPage);
-    const start = ahead === -1 ? 0 : ahead;
-    setPages(found);
-    setIndex(start);
-    onQuery(value);
-    const page = found[start];
-    if (page !== undefined) onGo(page);
+    if (job.current !== null) stopFiber(job.current);
+    setSearching(true);
+    job.current = forkApp(
+      searchPages(doc, blocks, value).pipe(
+        Effect.tap((found) =>
+          Effect.sync(() => {
+            setSearching(false);
+            // The first match at or after the page being read, as a reader's find goes forward from here.
+            const ahead = found.findIndex((page) => page >= currentPage);
+            const start = ahead === -1 ? 0 : ahead;
+            setPages(found);
+            setIndex(start);
+            onQuery(value);
+            const page = found[start];
+            if (page !== undefined) onGo(page);
+          }),
+        ),
+      ),
+    );
   };
 
   const step = (by: 1 | -1): void => {
@@ -41,8 +70,9 @@ export function PageSearch({ blocks, currentPage, onGo, onQuery, onClose }: Prop
     onClose();
   };
 
-  const count =
-    pages === null
+  const count = searching
+    ? "Searching…"
+    : pages === null
       ? null
       : pages.length === 0
         ? "No matches"
