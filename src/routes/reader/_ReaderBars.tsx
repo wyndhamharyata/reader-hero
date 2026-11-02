@@ -56,8 +56,17 @@ export function ReaderBars({
               aria-label={tool.panel === "more" ? "More" : undefined}
               onClick={() => onPanel(tool.panel)}
             >
-              <ToolIcon panel={tool.panel} />
-              {tool.panel !== "more" && tool.label}
+              {tool.panel === "look" ? (
+                // One run of text, so "Aa" and "Look" share a baseline.
+                <span>
+                  <span className="aa-inline">Aa</span> Look
+                </span>
+              ) : (
+                <>
+                  <ToolIcon panel={tool.panel} />
+                  {tool.panel !== "more" && tool.label}
+                </>
+              )}
             </button>
           ))}
         </div>

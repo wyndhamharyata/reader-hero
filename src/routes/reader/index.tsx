@@ -52,8 +52,7 @@ type OpenPanel =
   | { readonly kind: "none" }
   | { readonly kind: "contents"; readonly tab: ContentsTab }
   | { readonly kind: "summary"; readonly openAt: number | null }
-  | { readonly kind: "look" }
-  | { readonly kind: "more" };
+  | { readonly kind: "look" };
 
 const noPanel: OpenPanel = { kind: "none" };
 
@@ -109,7 +108,7 @@ function ReaderMessage({ message }: { readonly message: string | null }): ReactE
 
 // The panels that dock beside the page on a desktop. The More menu is a popover.
 function docksBeside(panel: OpenPanel): boolean {
-  return panel.kind !== "none" && panel.kind !== "more";
+  return panel.kind !== "none";
 }
 
 export function ReaderRoute({ bookId }: { bookId: string }) {
@@ -147,6 +146,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const [showChrome, setChrome] = useState(isFirstOpen);
   const firstTurnHides = useRef(isFirstOpen);
   const [panel, setPanel] = useState<OpenPanel>(noPanel);
+  const [isMenuOpen, setMenuOpen] = useState(false);
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
   const [find, setFind] = useState<BookFind | null>(null);
@@ -207,7 +207,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const isSearching = find !== null || pageQuery !== null;
 
   useReaderKeys({
-    isEnabled: panel.kind === "none",
+    isEnabled: panel.kind === "none" && !isMenuOpen,
     isSearchOpen: isSearching,
     setSearchOpen: () => {
       setFind(null);
@@ -487,7 +487,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             if (next === "contents") setPanel({ kind: "contents", tab: "chapters" });
             if (next === "summary") openSummary(null);
             if (next === "look") setPanel({ kind: "look" });
-            if (next === "more") setPanel({ kind: "more" });
+            // A menu over the page, so a panel open beside it stays open.
+            if (next === "more") setMenuOpen(true);
           }}
         />
 
@@ -527,13 +528,13 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         <LookPanel settings={bookSettings} onChange={changeSettings} onClose={closePanel} />
       )}
 
-      {panel.kind === "more" && (
+      {isMenuOpen && (
         <MorePanel
           mode={mode}
           isEpub={isEpub}
           onToggleMode={toggleMode}
           onDetails={() => bookDetails.dispatchEvent(new CustomEvent("open", { detail: bookId }))}
-          onClose={closePanel}
+          onClose={() => setMenuOpen(false)}
         />
       )}
 

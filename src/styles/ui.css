@@ -848,6 +848,19 @@
       serif;
   }
 
+  .aa-inline {
+    font:
+      700 17px/1 "Literata Variable",
+      serif;
+  }
+
+  /* Docked, the panel takes the right edge, so the menu opens under its key beside it. */
+  @media (width >= 70rem) {
+    .reader.is-docked .panel.compact {
+      right: calc(var(--panel-width) + 16px);
+    }
+  }
+
   .page-badge {
     position: absolute;
     left: 50%;
