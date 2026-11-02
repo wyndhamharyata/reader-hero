@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { PlusIcon } from "@/components/icons";
 
-// An empty slipcase. Dragged files light its mouth and hold the pale book halfway in.
+// An empty slipcase and a book that would rather be in it. Dragged files light the mouth and the book bounces in it.
 export function EmptyShelf({
   isDropping,
   isBusy,
@@ -17,7 +17,11 @@ export function EmptyShelf({
     >
       <div className="case" aria-hidden="true">
         <div className="shadow" />
-        <div className="ghost" />
+        <div className="ghost">
+          <div className="page deep" />
+          <div className="page near" />
+          <div className="cover" />
+        </div>
         <div className="body">
           <div className="mouth" />
         </div>

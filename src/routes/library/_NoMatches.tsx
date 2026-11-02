@@ -42,6 +42,7 @@ export function NoMatches({
           <span className="spine struck h-[124px]" style={{ "--hue": 30 } as CSSProperties} />
           <span className="spine tipping h-[118px]" style={{ "--hue": 159 } as CSSProperties} />
           <span className="space" />
+          <span className="slip" />
         </div>
         <div className="ledge" />
       </div>

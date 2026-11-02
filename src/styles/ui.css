@@ -1280,7 +1280,7 @@
     height: calc(var(--ch) + var(--gh) * 0.75);
   }
 
-  /* One timeline, so the book coming down and the case's squash fall on the same frame. */
+  /* One timeline, so the book coming down and the case's jolt fall on the same frame. */
   .case {
     --enter: 1700ms;
     --peek: 5200ms;
@@ -1306,7 +1306,7 @@
     }
   }
 
-  /* Behind the case, so the part inside it is hidden by the case's face. */
+  /* Behind the case, so the part inside it is hidden by the case's face. The block is rigid, the cover and pages swing. */
   .case .ghost {
     position: absolute;
     left: calc((var(--cw) - var(--gw)) / 2);
@@ -1314,17 +1314,12 @@
     width: var(--gw);
     height: var(--gh);
     border-radius: 2px 4px 4px 2px;
-    /* A spine shade, and two lines where a title would go, so it reads as a book and not a card. */
-    background:
-      linear-gradient(90deg, oklch(0% 0 0 / 0.14), oklch(100% 0 0 / 0.3) 6%, transparent 12%),
-      linear-gradient(var(--line), var(--line)) 50% 22% / 56% 4px no-repeat,
-      linear-gradient(var(--line), var(--line)) 50% 30% / 36% 4px no-repeat,
-      var(--fibre),
-      oklch(98% 0.008 85);
+    background: var(--fibre), oklch(95% 0.01 85);
     box-shadow:
       0 0 0 1px oklch(0% 0 0 / 0.12),
       0 4px 10px -4px oklch(0% 0 0 / 0.3);
-    opacity: 0.9;
+    opacity: 0.92;
+    perspective: 420px;
     transform-origin: 50% 100%;
     animation:
       ghost-toss var(--enter) backwards,
@@ -1332,7 +1327,49 @@
     transition: opacity 240ms;
   }
 
-  [data-theme="rhdark"] .case .ghost {
+  .case .ghost > * {
+    position: absolute;
+    inset: 0;
+    border-radius: 2px 4px 4px 2px;
+    transform-origin: 0 50%;
+    animation:
+      leaf-toss var(--enter) var(--lag, 0ms) backwards,
+      leaf-peek var(--peek) calc(var(--enter) + var(--lag, 0ms)) infinite;
+  }
+
+  /* Paper lags the board it is bound to, and lags further the deeper it lies. */
+  .case .page {
+    background:
+      linear-gradient(90deg, oklch(0% 0 0 / 0.1), transparent 18%), var(--fibre),
+      oklch(97% 0.008 85);
+    box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.08);
+  }
+
+  .case .page.deep {
+    --lag: 90ms;
+  }
+
+  .case .page.near {
+    --lag: 45ms;
+  }
+
+  /* A spine shade, and two lines where a title would go, so it reads as a book and not a card. */
+  .case .cover {
+    background:
+      linear-gradient(90deg, oklch(0% 0 0 / 0.14), oklch(100% 0 0 / 0.3) 6%, transparent 12%),
+      linear-gradient(var(--line), var(--line)) 50% 22% / 56% 4px no-repeat,
+      linear-gradient(var(--line), var(--line)) 50% 30% / 36% 4px no-repeat,
+      var(--fibre),
+      oklch(98% 0.008 85);
+    box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.12);
+  }
+
+  [data-theme="rhdark"] .case .ghost,
+  [data-theme="rhdark"] .case .page {
+    background: var(--grain), oklch(40% 0.01 85);
+  }
+
+  [data-theme="rhdark"] .case .cover {
     background:
       linear-gradient(90deg, oklch(0% 0 0 / 0.3), oklch(100% 0 0 / 0.08) 6%, transparent 12%),
       linear-gradient(var(--line), var(--line)) 50% 22% / 56% 4px no-repeat,
@@ -1395,7 +1432,14 @@
 
   .is-dropping .case .ghost {
     animation: ghost-eager 820ms infinite;
-    opacity: 0.95;
+    opacity: 1;
+  }
+
+  .is-dropping .case .ghost > * {
+    animation: leaf-eager 820ms var(--lag, 0ms) infinite;
+  }
+
+  .is-dropping .case .cover {
     background:
       linear-gradient(90deg, oklch(0% 0 0 / 0.14), oklch(100% 0 0 / 0.3) 6%, transparent 12%),
       var(--fibre), var(--green-wash);
@@ -1420,8 +1464,9 @@
   }
 
   .gap-shelf .spines {
-    --fall: 1900ms;
+    --fall: 2300ms;
     --fall-delay: 350ms;
+    position: relative;
     display: flex;
     align-items: flex-end;
     gap: 3px;
@@ -1490,6 +1535,21 @@
     transform-origin: 0 100%;
     transform: rotate(-8deg);
     animation: tip var(--fall) var(--fall-delay) backwards;
+  }
+
+  /* A slip of paper shaken out by the blow, which flutters down and lies on the shelf. */
+  .slip {
+    position: absolute;
+    left: 74px;
+    bottom: 96px;
+    width: 16px;
+    height: 22px;
+    border-radius: 1px;
+    background: var(--fibre), oklch(97% 0.01 85);
+    box-shadow: 0 0 0 0.5px oklch(0% 0 0 / 0.25);
+    transform-origin: 50% 100%;
+    transform: translate(64px, 94px) perspective(160px) rotateX(82deg);
+    animation: slip-fall 1500ms calc(var(--fall-delay) + var(--fall) * 0.4) both;
   }
 
   /* The books it hits take the blow in turn, each a little later and a little less. */
@@ -1653,47 +1713,53 @@
   }
 }
 
-/* The case falls in, squashes as it hits, hops once, then settles. A book is tossed in on an arc and the case takes its weight. */
+/* A hard case does not squash: it falls on a corner, slams flat, hops and rocks. The book is tossed in on an arc, pages flapping. */
 @keyframes case-drop {
   0% {
     opacity: 0;
-    transform: translateY(-120px) scale(0.9, 1.12);
+    transform: translateY(-200px) rotate(-16deg);
     animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
   }
   4% {
     opacity: 1;
   }
-  20% {
-    transform: scale(1.16, 0.8);
-    animation-timing-function: ease-out;
-  }
-  28% {
-    transform: translateY(-18px) scale(0.94, 1.08) rotate(-2deg);
+  17% {
+    transform: rotate(-7deg);
     animation-timing-function: ease-in;
   }
-  35% {
-    transform: scale(1.07, 0.92) rotate(1deg);
+  22% {
+    transform: none;
     animation-timing-function: ease-out;
   }
-  41% {
-    transform: scale(0.98, 1.02);
+  29% {
+    transform: translateY(-34px) rotate(5deg);
+    animation-timing-function: ease-in;
   }
-  46%,
-  66% {
+  36% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  40% {
+    transform: translateY(-8px) rotate(-2deg);
+    animation-timing-function: ease-in;
+  }
+  44%,
+  67% {
     transform: none;
     animation-timing-function: ease-out;
   }
   70% {
-    transform: scale(1.09, 0.87);
+    transform: translateY(6px) rotate(-2.5deg);
     animation-timing-function: ease-in-out;
   }
-  77% {
-    transform: scale(0.97, 1.04);
+  76% {
+    transform: translateY(-5px) rotate(1.5deg);
+    animation-timing-function: ease-in-out;
   }
-  83% {
-    transform: scale(1.02, 0.98);
+  82% {
+    transform: rotate(-0.5deg);
   }
-  89%,
+  88%,
   100% {
     transform: none;
   }
@@ -1701,31 +1767,38 @@
 
 @keyframes case-shadow {
   0% {
-    opacity: 0.15;
-    transform: scale(0.35);
+    opacity: 0;
+    transform: scale(0.2);
     animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
   }
-  20% {
+  17% {
     opacity: 1;
-    transform: scale(1.25, 1);
+    transform: scale(0.95, 1);
+  }
+  22% {
+    transform: scale(1.15, 1.2);
     animation-timing-function: ease-out;
   }
-  28% {
-    opacity: 0.7;
-    transform: scale(0.85);
+  29% {
+    opacity: 0.55;
+    transform: scale(0.75);
     animation-timing-function: ease-in;
   }
-  35% {
+  36% {
+    opacity: 1;
     transform: scale(1.08, 1);
   }
-  46%,
-  66% {
+  40% {
+    transform: scale(0.93);
+  }
+  44%,
+  67% {
     transform: none;
   }
   70% {
-    transform: scale(1.1, 1);
+    transform: scale(1.06, 1);
   }
-  83% {
+  82% {
     transform: none;
   }
 }
@@ -1734,32 +1807,148 @@
   0%,
   46% {
     opacity: 0;
-    transform: translate(-70%, -150%) rotate(-24deg) scale(0.9);
+    transform: translate(-160%, -80%) rotate(-80deg);
     animation-timing-function: ease-out;
   }
-  52% {
-    opacity: 0.9;
-    transform: translate(-50%, -175%) rotate(-18deg);
+  51% {
+    opacity: 0.92;
+    transform: translate(-110%, -130%) rotate(-48deg);
     animation-timing-function: ease-in-out;
   }
   57% {
-    transform: translate(-34%, -182%) rotate(-11deg);
+    transform: translate(-46%, -160%) rotate(-14deg);
+    animation-timing-function: ease-in-out;
+  }
+  61% {
+    transform: translate(-20%, -150%) rotate(6deg);
     animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
   }
   68% {
-    transform: translate(0, 18%) scale(0.92, 1.12);
+    transform: translateY(30%);
     animation-timing-function: ease-out;
   }
-  74% {
-    transform: translateY(-14%) rotate(-3deg) scale(1.04, 0.96);
+  73% {
+    transform: translateY(-26%) rotate(-5deg);
     animation-timing-function: ease-in;
   }
-  80% {
-    transform: translateY(4%) rotate(1.5deg) scale(0.98, 1.02);
+  79% {
+    transform: translateY(8%) rotate(2deg);
     animation-timing-function: ease-out;
   }
-  86% {
-    transform: translateY(-4%) rotate(-0.5deg);
+  85% {
+    transform: translateY(-7%) rotate(-1deg);
+    animation-timing-function: ease-in;
+  }
+  91%,
+  100% {
+    transform: none;
+  }
+}
+
+/* The cover and pages swing open in the air and slap shut as the book drops in. */
+@keyframes leaf-toss {
+  0%,
+  49% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  53% {
+    transform: rotateY(-65deg);
+    animation-timing-function: ease-in-out;
+  }
+  57% {
+    transform: rotateY(-28deg);
+    animation-timing-function: ease-in-out;
+  }
+  61% {
+    transform: rotateY(-80deg);
+    animation-timing-function: ease-in;
+  }
+  68% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  72% {
+    transform: rotateY(-22deg);
+    animation-timing-function: ease-in;
+  }
+  77% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  81% {
+    transform: rotateY(-6deg);
+  }
+  85%,
+  100% {
+    transform: none;
+  }
+}
+
+/* Now and then the book sinks to gather itself, leaps clear of the case, looks round with its pages fluttering, and dives back. */
+@keyframes ghost-peek {
+  0%,
+  52% {
+    transform: none;
+    animation-timing-function: ease-in-out;
+  }
+  58% {
+    transform: translateY(16%);
+    animation-timing-function: ease-out;
+  }
+  66% {
+    transform: translateY(-62%) rotate(-12deg);
+    animation-timing-function: ease-in-out;
+  }
+  72% {
+    transform: translateY(-72%) rotate(9deg);
+    animation-timing-function: ease-in-out;
+  }
+  76% {
+    transform: translateY(-66%) rotate(-5deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  84% {
+    transform: translateY(20%);
+    animation-timing-function: ease-out;
+  }
+  89% {
+    transform: translateY(-16%) rotate(3deg);
+    animation-timing-function: ease-in;
+  }
+  93% {
+    transform: translateY(4%) rotate(-1deg);
+  }
+  97%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes leaf-peek {
+  0%,
+  62% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  67% {
+    transform: rotateY(-55deg);
+    animation-timing-function: ease-in-out;
+  }
+  71% {
+    transform: rotateY(-18deg);
+    animation-timing-function: ease-in-out;
+  }
+  76% {
+    transform: rotateY(-70deg);
+    animation-timing-function: ease-in;
+  }
+  84% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  88% {
+    transform: rotateY(-14deg);
   }
   92%,
   100% {
@@ -1767,149 +1956,148 @@
   }
 }
 
-/* Now and then the book crouches, pops up to look round, and drops back in. */
-@keyframes ghost-peek {
-  0%,
-  55% {
-    transform: none;
-    animation-timing-function: ease-in-out;
-  }
-  62% {
-    transform: translateY(10%) scale(1.06, 0.93);
-    animation-timing-function: ease-out;
-  }
-  70% {
-    transform: translateY(-46%) rotate(-6deg) scale(0.95, 1.08);
-    animation-timing-function: ease-in-out;
-  }
-  77% {
-    transform: translateY(-52%) rotate(5deg);
-    animation-timing-function: ease-in-out;
-  }
-  82% {
-    transform: translateY(-48%) rotate(-2deg);
-    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
-  }
-  89% {
-    transform: translateY(8%) scale(1.05, 0.94);
-    animation-timing-function: ease-out;
-  }
-  94% {
-    transform: translateY(-3%) scale(0.99, 1.01);
-  }
-  100% {
-    transform: none;
-  }
-}
-
 @keyframes case-bump {
   0%,
-  58%,
-  66%,
-  85%,
+  56%,
+  62%,
+  84%,
   100% {
     transform: none;
     animation-timing-function: ease-out;
   }
-  62% {
-    transform: scale(1.03, 0.97);
+  58% {
+    transform: translateY(4px);
   }
-  89% {
-    transform: scale(1.07, 0.91);
+  86% {
+    transform: translateY(6px) rotate(2deg);
     animation-timing-function: ease-in-out;
   }
-  94% {
-    transform: scale(0.98, 1.03);
+  90% {
+    transform: translateY(-5px) rotate(-1.5deg);
+    animation-timing-function: ease-in-out;
+  }
+  95% {
+    transform: rotate(0.5deg);
   }
 }
 
-/* Over a dragged file the book hops in the mouth, eager to be filled. */
+/* Over a dragged file the book bounces in the mouth, cover flapping, eager to be filled. */
 @keyframes ghost-eager {
   0%,
   100% {
-    transform: translateY(18%);
+    transform: translateY(16%);
     animation-timing-function: ease-in;
   }
   25% {
-    transform: translateY(26%) scale(1.05, 0.94);
+    transform: translateY(26%);
     animation-timing-function: ease-out;
   }
   60% {
-    transform: translateY(-10%) rotate(-3deg) scale(0.96, 1.06);
+    transform: translateY(-38%) rotate(-6deg);
     animation-timing-function: ease-in;
   }
 }
 
-/* It teeters, falls with gravity onto its neighbour, squashes along its length, and bounces to rest. */
+@keyframes leaf-eager {
+  0%,
+  35%,
+  100% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  62% {
+    transform: rotateY(-50deg);
+    animation-timing-function: ease-in;
+  }
+}
+
+/* It rocks on its foot twice, tips past the point of no return, crashes onto its neighbour and bounces to rest. Books are hard, so nothing bends. */
 @keyframes tip {
   0% {
     transform: none;
+    animation-timing-function: ease-out;
+  }
+  7% {
+    transform: rotate(-4deg);
+    animation-timing-function: ease-in;
+  }
+  13% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  15% {
+    transform: rotate(-0.8deg);
+    animation-timing-function: ease-in;
+  }
+  17% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  26% {
+    transform: rotate(-5deg);
     animation-timing-function: ease-in-out;
   }
-  10% {
-    transform: rotate(3deg);
-    animation-timing-function: ease-in-out;
-  }
-  20% {
-    transform: rotate(-1.5deg);
-    animation-timing-function: ease-in-out;
-  }
-  28% {
-    transform: rotate(1.5deg);
+  32% {
+    transform: rotate(-3.5deg);
     animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
   }
-  46% {
-    transform: rotate(-8deg) scaleY(0.94);
-    animation-timing-function: ease-out;
-  }
-  54% {
-    transform: rotate(-4deg) scaleY(1.03);
-    animation-timing-function: ease-in;
-  }
-  61% {
-    transform: rotate(-8deg) scaleY(0.97);
-    animation-timing-function: ease-out;
-  }
-  67% {
-    transform: rotate(-5.8deg);
-    animation-timing-function: ease-in;
-  }
-  72% {
+  42% {
     transform: rotate(-8deg);
     animation-timing-function: ease-out;
   }
-  76% {
-    transform: rotate(-7.1deg);
+  49% {
+    transform: rotate(-2.5deg);
     animation-timing-function: ease-in;
   }
-  80%,
+  56% {
+    transform: rotate(-8deg);
+    animation-timing-function: ease-out;
+  }
+  61% {
+    transform: rotate(-5deg);
+    animation-timing-function: ease-in;
+  }
+  65% {
+    transform: rotate(-8deg);
+    animation-timing-function: ease-out;
+  }
+  68% {
+    transform: rotate(-6.9deg);
+    animation-timing-function: ease-in;
+  }
+  71%,
   100% {
     transform: rotate(-8deg);
   }
 }
 
+/* Pushed at the top, it rocks back on its foot and claps down again, twice. */
 @keyframes struck {
   0%,
-  46% {
+  42% {
     transform: none;
     animation-timing-function: ease-out;
   }
-  52% {
-    transform: rotate(-4deg);
-    animation-timing-function: ease-in-out;
+  47% {
+    transform: rotate(-7deg);
+    animation-timing-function: ease-in;
   }
-  60% {
-    transform: rotate(1.6deg);
-    animation-timing-function: ease-in-out;
+  53% {
+    transform: none;
+    animation-timing-function: ease-out;
   }
-  68% {
-    transform: rotate(-0.9deg);
-    animation-timing-function: ease-in-out;
+  57% {
+    transform: rotate(-2.5deg);
+    animation-timing-function: ease-in;
   }
-  75% {
-    transform: rotate(0.3deg);
+  61% {
+    transform: none;
+    animation-timing-function: ease-out;
   }
-  82%,
+  63% {
+    transform: rotate(-0.6deg);
+  }
+  65%,
   100% {
     transform: none;
   }
@@ -1917,24 +2105,63 @@
 
 @keyframes nudged {
   0%,
-  51% {
+  46% {
     transform: none;
     animation-timing-function: ease-out;
   }
-  57% {
-    transform: rotate(-1.8deg);
-    animation-timing-function: ease-in-out;
+  50% {
+    transform: rotate(-3.5deg);
+    animation-timing-function: ease-in;
   }
-  65% {
-    transform: rotate(0.8deg);
-    animation-timing-function: ease-in-out;
+  55% {
+    transform: none;
+    animation-timing-function: ease-out;
   }
-  73% {
-    transform: rotate(-0.3deg);
+  58% {
+    transform: rotate(-1deg);
+    animation-timing-function: ease-in;
   }
-  80%,
+  61%,
   100% {
     transform: none;
+  }
+}
+
+/* Paper falls like a leaf: it rocks side to side, flipping edge-on, losing height on each swing, and lies down flat. */
+@keyframes slip-fall {
+  0% {
+    opacity: 0;
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  8% {
+    opacity: 1;
+    transform: translate(8px, -26px) perspective(160px) rotate(-18deg);
+    animation-timing-function: ease-in-out;
+  }
+  24% {
+    transform: translate(30px, 6px) perspective(160px) rotate(32deg) rotateX(45deg);
+    animation-timing-function: ease-in-out;
+  }
+  40% {
+    transform: translate(18px, 34px) perspective(160px) rotate(-26deg) rotateX(-30deg);
+    animation-timing-function: ease-in-out;
+  }
+  56% {
+    transform: translate(48px, 58px) perspective(160px) rotate(22deg) rotateX(50deg);
+    animation-timing-function: ease-in-out;
+  }
+  72% {
+    transform: translate(40px, 78px) perspective(160px) rotate(-14deg) rotateX(-20deg);
+    animation-timing-function: ease-in-out;
+  }
+  86% {
+    transform: translate(60px, 92px) perspective(160px) rotate(6deg) rotateX(60deg);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(64px, 94px) perspective(160px) rotateX(82deg);
   }
 }
 
@@ -1958,6 +2185,8 @@
 
   .ribbon,
   .case .ghost,
+  .case .ghost > *,
+  .slip,
   .case .body,
   .case .shadow,
   .spine,
