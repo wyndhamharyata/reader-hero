@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
 import { Panel } from "@/components/Panel";
+import { prefersLessMotion } from "@/lib/open-book";
 import type { ReaderFont, ReaderSettings, ReaderTheme, TextAlign } from "@/domain/book";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 
@@ -36,6 +37,20 @@ const MAX_LINE_HEIGHT = 2.0;
 const warmthRestMs = 150;
 // Within this of neutral the thumb snaps to it, so neutral is easy to find again.
 const neutralCatch = 0.05;
+
+// The whole screen cross-fades to the other theme, then the choice saves.
+function crossFadeTo(theme: ReaderTheme): void {
+  const apply = (): void => {
+    document.documentElement.dataset.theme = theme;
+  };
+
+  if ("startViewTransition" in document && !prefersLessMotion()) {
+    void document.startViewTransition(apply);
+    return;
+  }
+
+  apply();
+}
 
 // One decimal, so repeated 0.1 steps do not drift (1.6 + 0.1 is 1.7000000000000002).
 function stepLineHeight(lineHeight: number, by: number): number {
@@ -187,7 +202,10 @@ export function LookPanel({
             className={`grid h-16 flex-1 place-items-center rounded-[10px] font-serif text-lg font-semibold shadow-[0_0_0_1px_oklch(0%_0_0/0.12),0_2px_0_oklch(0%_0_0/0.12),0_4px_8px_-3px_oklch(0%_0_0/0.3)] aria-pressed:shadow-[0_0_0_2px_var(--surface),0_0_0_4px_var(--green)] ${theme.className}`}
             aria-label={theme.label}
             aria-pressed={settings.theme === theme.value}
-            onClick={() => onChange({ theme: theme.value })}
+            onClick={() => {
+              crossFadeTo(theme.value);
+              onChange({ theme: theme.value });
+            }}
           >
             Aa
           </button>

@@ -349,7 +349,16 @@ function AddControls({
         <PlusIcon className="icon" />
         Add book
       </button>
-      {isDropping && <div className="dropzone">Drop to add</div>}
+      {isDropping && (
+        <div className="dropzone">
+          <div className="flex flex-col items-center">
+            <span className="key green mb-3.5 size-18 rounded-[20px]">
+              <PlusIcon className="size-7.5" />
+            </span>
+            Drop to add
+          </div>
+        </div>
+      )}
     </>
   );
 }
