@@ -73,6 +73,45 @@
   --ledge-bottom: oklch(30% 0.03 60);
 }
 
+/* Light with the lamp turned down: the papers dim, the inks hold, nothing changes hue. */
+[data-theme="rhdim"] {
+  --bg: oklch(80% calc(0.005 + var(--tint) * 0.025) var(--tint-hue));
+  --surface: oklch(87% calc(0.004 + var(--tint) * 0.015) var(--tint-hue));
+  --sunk: oklch(76% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --line: oklch(71% calc(0.007 + var(--tint) * 0.034) var(--tint-hue));
+  --ink: oklch(22% calc(0.012 + var(--tint) * 0.025) var(--tint-hue));
+  --ink-soft: oklch(38% calc(0.012 + var(--tint) * 0.02) var(--tint-hue));
+  --page: oklch(85% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --page-ink: oklch(22% 0.012 70);
+  --green: oklch(40% 0.1 159);
+  --green-deep: oklch(30% 0.08 159);
+  --green-wash: oklch(80% 0.04 159);
+  --key-top: oklch(88% calc(0.003 + var(--tint) * 0.012) var(--tint-hue));
+  --key-bottom: oklch(81% calc(0.007 + var(--tint) * 0.02) var(--tint-hue));
+  --key-skirt: oklch(64% calc(0.01 + var(--tint) * 0.02) var(--tint-hue));
+  --key-light: oklch(100% 0 0 / 0.4);
+  --tray-l: 76%;
+  --mark: oklch(86% 0.008 85);
+  --ledge-top: oklch(66% 0.03 75);
+  --ledge-bottom: oklch(57% 0.04 65);
+}
+
+/* A lamp over the shelf. Only on a wide screen, where the corners are far from any words. */
+@media (width >= 64rem) {
+  [data-theme="rhdim"] .desk {
+    background-image: radial-gradient(
+      ellipse 70% 85% at 50% 30%,
+      transparent 50%,
+      oklch(0% 0 0 / 0.22)
+    );
+  }
+}
+
+/* A white cover, scan or figure would glow on the dimmed paper. */
+[data-theme="rhdim"] :is(.cover > img, .reader img) {
+  filter: brightness(0.86);
+}
+
 /* Tailwind gives a button the arrow cursor. Here everything that acts on a click shows the hand. */
 @layer base {
   button:not(:disabled),
@@ -1818,6 +1857,10 @@
 ::highlight(find) {
   background: oklch(88% 0.12 95);
   color: inherit;
+}
+
+[data-theme="rhdim"] ::highlight(find) {
+  background: oklch(78% 0.12 95);
 }
 
 [data-theme="rhdark"] ::highlight(find) {

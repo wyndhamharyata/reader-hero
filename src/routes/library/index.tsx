@@ -897,7 +897,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   return (
     // A fixed column with its own scroll box, so the window never scrolls. Hidden, it keeps its layout.
     <main
-      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-(--bg) text-(--ink) ${hiddenClass(isHidden)}`}
+      className={`desk fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-(--bg) text-(--ink) ${hiddenClass(isHidden)}`}
       inert={isHidden}
       aria-hidden={isHidden}
     >

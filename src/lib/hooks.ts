@@ -8,7 +8,7 @@ import {
   type DependencyList,
 } from "react";
 import { Summary, type AiSettings, type UsageTally } from "@/domain/ai";
-import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings } from "@/domain/book";
+import { DEFAULT_SETTINGS, type BookMeta, ReaderSettings, type ReaderTheme } from "@/domain/book";
 import { UnexpectedFailure } from "@/domain/errors";
 import { runtime, type AppServices } from "@/runtime";
 import { FigureJobs } from "@/services/figure-jobs";
@@ -46,6 +46,13 @@ export function forkApp(effect: Effect.Effect<unknown, unknown, AppServices>): J
 export function stopFiber(fiber: Job): void {
   runtime.runFork(Fiber.interrupt(fiber));
 }
+
+// Each theme's --bg at neutral warmth, as the hex a status bar takes.
+const statusBar: Record<ReaderTheme, string> = {
+  rhlight: "#f6f5f2",
+  rhdim: "#bfbeba",
+  rhdark: "#151411",
+};
 
 // Mounted covers share one read and one object URL for each book image.
 const bookImages = new Map<
@@ -229,6 +236,11 @@ export function useSettings(): {
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.style.setProperty("--temperature", String(settings.temperature));
+
+    // The status bar takes the chosen theme, not the device's.
+    for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
+      meta.setAttribute("content", statusBar[settings.theme]);
+    }
   }, [settings.theme, settings.temperature]);
 
   const update = useCallback((patch: Partial<ReaderSettings>) => {

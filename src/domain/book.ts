@@ -160,9 +160,9 @@ export class ReadingProgress extends Schema.Class<ReadingProgress>(
 }) {}
 
 // Sepia gave way to the temperature setting. A stored sepia choice opens as light.
-export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdark"]).pipe(
+export const ReaderTheme = Schema.Literals(["rhlight", "rhsepia", "rhdim", "rhdark"]).pipe(
   Schema.decodeTo(
-    Schema.Literals(["rhlight", "rhdark"]),
+    Schema.Literals(["rhlight", "rhdim", "rhdark"]),
     SchemaTransformation.transform({
       decode: (theme) => (theme === "rhsepia" ? "rhlight" : theme),
       encode: (theme) => theme,

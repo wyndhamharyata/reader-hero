@@ -9,6 +9,11 @@ const themes: ReadonlyArray<{ value: ReaderTheme; label: string; className: stri
     className: "bg-[oklch(98%_0.008_85)] [background-image:var(--fibre)] text-[#2a2620]",
   },
   {
+    value: "rhdim",
+    label: "Dim",
+    className: "bg-[oklch(85%_0.005_85)] [background-image:var(--fibre)] text-[#2a2620]",
+  },
+  {
     value: "rhdark",
     label: "Dark",
     className: "bg-[oklch(19%_0.006_85)] [background-image:var(--grain)] text-[#e6e1d8]",

@@ -134,7 +134,7 @@ export function ContentsPanel({
                     )}
                     <span className="mt-0.5 block font-serif text-[15px] leading-normal text-(--ink-soft)">
                       {snippet.before}
-                      <mark className="rounded-sm bg-[oklch(88%_0.12_95)] px-0.5 text-(--ink) in-data-[theme=rhdark]:bg-[oklch(48%_0.1_95)]">
+                      <mark className="rounded-sm bg-[oklch(88%_0.12_95)] px-0.5 text-(--ink) in-data-[theme=rhdark]:bg-[oklch(48%_0.1_95)] in-data-[theme=rhdim]:bg-[oklch(78%_0.12_95)]">
                         {snippet.match}
                       </mark>
                       {snippet.after}
