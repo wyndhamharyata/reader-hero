@@ -166,6 +166,8 @@ export function SettingsSheet({
 
               update({ seriesGrouping: isOn });
               saveToggles({ seriesGrouping: isOn });
+              // Turned on, the model groups every book again, so its series match the library as it is now.
+              if (isOn && ai !== null) onReset();
             }}
           />
         </div>
@@ -182,6 +184,7 @@ export function SettingsSheet({
               setGroupingConsent(false);
               update({ seriesGrouping: true });
               saveToggles({ seriesGrouping: true }, Date.now());
+              onReset();
             }}
           />
         </div>
