@@ -1,0 +1,1512 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reader Hero redesign mockup</title>
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/literata/wght.css">
+<link rel="stylesheet" href="../node_modules/@fontsource-variable/atkinson-hyperlegible-next/wght.css">
+<style>
+/* Harness */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #2b2d2c; color: #e9ebe9; font: 13px/1.4 "Atkinson Hyperlegible Next Variable", system-ui, sans-serif; overflow: hidden; display: flex; flex-direction: column; }
+.harness { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; padding: 10px 16px; background: #1e201f; border-bottom: 1px solid #3a3d3b; }
+.harness b { font-weight: 700; margin-right: 6px; }
+.harness .group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.harness button { font: inherit; color: #cfd3d0; background: #303331; border: 1px solid #444845; border-radius: 6px; padding: 4px 9px; cursor: pointer; }
+.harness button.on { background: #3f6b55; border-color: #5c9277; color: #fff; }
+.stage { display: flex; gap: 24px; justify-content: center; align-items: flex-start; padding: 20px; flex: 1; min-height: 0; overflow: auto; }
+.notes { width: 260px; flex: none; color: #b9beba; font-size: 12.5px; }
+.notes h2 { font-size: 13px; color: #fff; margin: 0 0 6px; }
+.notes ul { margin: 0 0 14px; padding-left: 16px; }
+.notes li { margin-bottom: 5px; }
+.notes .note { display: none; }
+.frame { flex: none; border-radius: 34px; padding: 10px; background: #111; box-shadow: 0 30px 60px -20px #000; }
+.frame[data-device="desktop"] { border-radius: 12px; padding: 6px; }
+.frame[data-device="tablet"] { border-radius: 28px; padding: 12px; }
+
+/* Textures: static SVG noise tiles, painted once */
+:root {
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.03 .5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --cloth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9 .06' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .2 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* App tokens */
+.app {
+  --bg: oklch(97% 0.004 95);
+  --surface: oklch(99.2% 0.003 95);
+  --sunk: oklch(93.5% 0.006 95);
+  --line: oklch(89% 0.007 95);
+  --ink: oklch(24% 0.012 95);
+  --ink-soft: oklch(47% 0.012 95);
+  --green: oklch(45% 0.1 159);
+  --green-deep: oklch(33% 0.08 159);
+  --green-wash: oklch(93% 0.035 159);
+  --key-top: oklch(99.5% 0.003 95);
+  --key-bottom: oklch(93.5% 0.007 95);
+  --key-skirt: oklch(80% 0.01 95);
+  --key-ink: var(--ink);
+  --page: oklch(98.2% 0.007 85);
+  --page-ink: oklch(23% 0.012 70);
+  --scrim: oklch(20% 0.01 95 / 0.32);
+  --red: oklch(52% 0.17 27);
+  --tray: oklch(90% 0.045 159);
+  --shadow-panel: 0 1px 0 oklch(0% 0 0 / 0.06), 0 24px 48px -16px oklch(0% 0 0 / 0.35);
+}
+.app[data-theme="dark"] {
+  --bg: oklch(19% 0.006 95);
+  --surface: oklch(22.5% 0.006 95);
+  --sunk: oklch(16% 0.006 95);
+  --line: oklch(31% 0.007 95);
+  --ink: oklch(93% 0.006 95);
+  --ink-soft: oklch(72% 0.008 95);
+  --green: oklch(62% 0.11 159);
+  --green-deep: oklch(45% 0.09 159);
+  --green-wash: oklch(30% 0.05 159);
+  --key-top: oklch(36% 0.006 95);
+  --key-bottom: oklch(29% 0.006 95);
+  --key-skirt: oklch(12% 0.004 95);
+  --page: oklch(17% 0.006 85);
+  --page-ink: oklch(86% 0.012 85);
+  --scrim: oklch(0% 0 0 / 0.5);
+  --red: oklch(66% 0.16 27);
+  --tray: oklch(29% 0.05 159);
+}
+
+.app { position: relative; overflow: hidden; container: app / inline-size; background: var(--bg); color: var(--ink); font: 15px/1.45 "Atkinson Hyperlegible Next Variable", system-ui, sans-serif; border-radius: 26px; }
+.frame[data-device="desktop"] .app { border-radius: 7px; }
+.frame[data-device="tablet"] .app { border-radius: 18px; }
+.app button { font: inherit; color: inherit; }
+.app h1, .app h2, .app h3, .app p { margin: 0; }
+.mark path { fill: none; stroke-width: 12; stroke-linejoin: round; stroke-linecap: round; }
+.icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+/* Keycaps: lit from above, a solid skirt that collapses on press */
+.key {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; flex-shrink: 0;
+  min-height: 44px; min-width: 44px; padding: 0 16px; border: 0; border-radius: 12px; cursor: pointer;
+  color: var(--key-ink); font-weight: 650;
+  background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom));
+  box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.75), inset 0 -2px 0 oklch(0% 0 0 / 0.06), 0 0 0 1px oklch(0% 0 0 / 0.07), 0 3px 0 var(--key-skirt), 0 4px 8px -2px oklch(0% 0 0 / 0.25);
+  transform: translateY(0); transition: transform 60ms, box-shadow 60ms;
+}
+.app[data-theme="dark"] .key { box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.12), inset 0 -2px 0 oklch(0% 0 0 / 0.2), 0 0 0 1px oklch(0% 0 0 / 0.4), 0 3px 0 var(--key-skirt), 0 4px 8px -2px oklch(0% 0 0 / 0.6); }
+.key:active, .key.latched {
+  transform: translateY(3px);
+  box-shadow: inset 0 2px 4px oklch(0% 0 0 / 0.18), 0 0 0 1px oklch(0% 0 0 / 0.08), 0 0 0 var(--key-skirt);
+}
+.key.green { color: oklch(98% 0.01 159); background: var(--grain), radial-gradient(120% 90% at 50% 0, oklch(100% 0 0 / 0.22), transparent 60%), linear-gradient(180deg, oklch(52% 0.11 159), oklch(43% 0.1 159)); --key-skirt: var(--green-deep); }
+.key.round { border-radius: 999px; padding: 0; }
+.key.small { min-height: 36px; min-width: 36px; padding: 0 12px; font-size: 14px; border-radius: 10px; }
+.key.danger { color: var(--red); }
+.latch-row { display: inline-flex; gap: 6px; padding: 5px; border-radius: 15px; background: var(--sunk); box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14); }
+.latch-row .key { min-height: 36px; padding: 0 14px; border-radius: 10px; font-size: 14px; }
+.latch-row .key:not(.latched) { background: transparent; box-shadow: none; color: var(--ink-soft); }
+.latch-row .key.latched { background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.6), 0 1px 0 oklch(0% 0 0 / 0.08), 0 2px 4px -1px oklch(0% 0 0 / 0.2); transform: none; color: var(--ink); }
+.count { color: var(--ink-soft); font-weight: 500; margin-left: 2px; }
+
+/* Switch: a recessed slot with a keycap knob */
+.switch { width: 52px; height: 32px; border-radius: 999px; flex: none; position: relative; background: var(--sunk); box-shadow: inset 0 2px 4px oklch(0% 0 0 / 0.2); cursor: pointer; border: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.7), 0 2px 0 var(--key-skirt), 0 3px 5px oklch(0% 0 0 / 0.25); transition: left 120ms; }
+.switch.on { background: var(--grain), linear-gradient(180deg, oklch(43% 0.1 159), oklch(50% 0.11 159)); }
+.switch.on::after { left: 23px; }
+
+/* Fader: a groove with a keycap thumb */
+.fader { position: relative; height: 32px; flex: 1; }
+.fader .groove { position: absolute; left: 0; right: 0; top: 12px; height: 8px; border-radius: 99px; background: var(--sunk); box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.3); }
+.fader.temperature .groove { background: linear-gradient(90deg, oklch(70% 0.1 245), oklch(92% 0.01 95) 50%, oklch(72% 0.13 55)); }
+.fader .thumb { position: absolute; top: 2px; width: 22px; height: 28px; margin-left: -11px; border-radius: 7px; background: var(--grain), repeating-linear-gradient(90deg, transparent 0 7px, oklch(0% 0 0 / 0.12) 7px 8px, transparent 8px 9px), linear-gradient(180deg, var(--key-top), var(--key-bottom)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.7), 0 2px 0 var(--key-skirt), 0 3px 6px oklch(0% 0 0 / 0.3); }
+
+/* Book objects */
+.book { position: relative; display: block; cursor: pointer; }
+.cover { position: relative; aspect-ratio: 2 / 3; border-radius: 2px 5px 5px 2px; overflow: hidden; color: #fff;
+  background: linear-gradient(160deg, var(--c1), var(--c2));
+  box-shadow: 2px 0 0 -1px oklch(96% 0.01 85), 3px 0 0 -1px oklch(82% 0.015 85), 4px 0 0 -2px oklch(96% 0.01 85), 5px 0 0 -2px oklch(80% 0.015 85), 0 0 0 0.5px oklch(0% 0 0 / 0.18), 0 1px 1px oklch(0% 0 0 / 0.2), 0 10px 18px -8px oklch(0% 0 0 / 0.5); }
+.cover::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 12px; z-index: 2; background: linear-gradient(90deg, oklch(0% 0 0 / 0.32), oklch(100% 0 0 / 0.22) 26%, oklch(0% 0 0 / 0.12) 55%, transparent); }
+.cover::after { content: ""; position: absolute; inset: 0; z-index: 1; background: var(--fibre), linear-gradient(115deg, oklch(100% 0 0 / 0.16), transparent 38%); }
+.book .edge { display: none; }
+.book { container-type: inline-size; }
+.cover .art { position: absolute; inset: 0; padding: 14% 12% 10% 16%; display: flex; flex-direction: column; justify-content: space-between; z-index: 1; }
+.cover .art .t { font: 700 clamp(9px, 10.5cqi, 15px)/1.12 "Literata Variable", Georgia, serif; text-wrap: balance; }
+.cover .art .a { font: 600 clamp(7px, 8cqi, 10px)/1.2 "Atkinson Hyperlegible Next Variable", sans-serif; opacity: 0.85; letter-spacing: 0.04em; }
+.cover { container-type: inline-size; }
+.cover.pdf { color: #333; background: oklch(99% 0.003 95); }
+.cover.pdf .art { padding: 12% 12% 10% 16%; justify-content: flex-start; gap: 6%; }
+.cover.pdf .art .t { color: #1b1b1b; font-size: clamp(8px, 10cqi, 13px); }
+.cover.pdf .art .lines { flex: 1; background: repeating-linear-gradient(180deg, oklch(70% 0 0) 0 1px, transparent 1px 5px); opacity: 0.55; }
+.ribbon { position: absolute; top: -3px; right: 14%; width: 11%; min-width: 9px; height: 26%; z-index: 3; filter: drop-shadow(0 1px 1px oklch(0% 0 0 / 0.35)); }
+.ribbon::before { content: ""; position: absolute; inset: 0; background: var(--grain), linear-gradient(180deg, oklch(50% 0.13 25), oklch(42% 0.13 25)); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); }
+.stamp { position: absolute; right: 6px; top: calc(150cqi - 28px); z-index: 3; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--green); color: #fff; box-shadow: 0 0 0 2px oklch(100% 0 0 / 0.85), 0 2px 4px oklch(0% 0 0 / 0.3); }
+.stamp .icon { width: 13px; height: 13px; stroke-width: 3; }
+.book .title { margin-top: 10px; font-weight: 700; font-size: 13.5px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.book .author { color: var(--ink-soft); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.book .percent { color: var(--ink-soft); font-size: 12.5px; }
+
+/* Series slipcase: a fanned stack with a count tab */
+.slipcase .stack { position: relative; }
+.slipcase .stack .cover:nth-child(1) { position: absolute; inset: 0; transform-origin: 0 100%; transform: translateY(-7%) rotate(3deg); filter: brightness(0.82); }
+.slipcase .stack .cover:nth-child(2) { position: absolute; inset: 0; transform-origin: 0 100%; transform: translateY(-3.5%) rotate(1.5deg); filter: brightness(0.9); }
+.slipcase .stack .cover:nth-child(3) { position: relative; }
+.slipcase .tab { position: absolute; z-index: 4; left: 8px; top: -14px; padding: 3px 9px 6px; border-radius: 7px 7px 2px 2px; color: #fff; font-weight: 750; font-size: 12px; background: var(--cloth), linear-gradient(180deg, oklch(52% 0.11 159), oklch(42% 0.1 159)); box-shadow: 0 1px 0 var(--green-deep), 0 3px 6px oklch(0% 0 0 / 0.35); }
+.slipcase[data-open="on"] .stack { transform: translateY(-6px); transition: transform 280ms cubic-bezier(.2,.8,.2,1); }
+.tray { grid-column: 1 / -1; display: none; padding: 20px 18px 18px; border-radius: 16px; background: var(--cloth), var(--tray); box-shadow: inset 0 3px 8px oklch(0% 0 0 / 0.2), inset 0 0 0 1px oklch(from var(--green) l c h / 0.3); }
+.app[data-series="open"] .tray { display: block; animation: tray-in 280ms cubic-bezier(.2,.8,.2,1); }
+@keyframes tray-in { from { opacity: 0; transform: translateY(-8px); } }
+.tray .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.tray .head h3 { font-size: 16px; }
+.tray .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 18px 14px; }
+.tray .num { display: none; }
+
+/* Library */
+.library { position: absolute; inset: 0; overflow: auto; padding-bottom: 110px; }
+.lib-head { display: flex; align-items: center; gap: 10px; padding: 18px 16px 10px; }
+.logo { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.logo svg { height: 40px; width: auto; }
+.mark text { font: 800 138px "Atkinson Hyperlegible Next Variable", sans-serif; letter-spacing: -4px; }
+.search-field { display: none; align-items: center; gap: 8px; height: 44px; padding: 0 14px; width: 280px; border-radius: 12px; background: var(--sunk); box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14); color: var(--ink-soft); }
+.continue { margin: 6px 16px 18px; padding: 16px; display: flex; gap: 18px; align-items: center; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 0 oklch(0% 0 0 / 0.03); }
+.continue .book { width: 84px; flex: none; }
+.continue .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.continue h2 { font: 700 19px/1.2 "Literata Variable", Georgia, serif; }
+.continue .chapter { color: var(--ink-soft); font-size: 13.5px; }
+.progress { height: 6px; border-radius: 99px; background: var(--sunk); box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.2); overflow: hidden; margin: 8px 0 10px; }
+.progress span { display: block; height: 100%; background: var(--green); border-radius: 99px; }
+.filters { display: flex; align-items: center; gap: 10px; padding: 0 16px 18px; }
+.filters .sort { margin-left: auto; }
+.filters .latch-row { flex: 1; }
+.filters .latch-row .key { flex: 1; padding: 0 10px; }
+.filters .sort.key { padding: 0; }
+.shelf { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; gap: 24px 18px; padding: 4px 22px 24px 18px; }
+.install { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: 14px; border: 1px dashed var(--line); color: var(--ink-soft); font-size: 13.5px; }
+.install p { flex: 1; }
+.fab { position: absolute; right: 16px; bottom: 26px; z-index: 5; padding: 0 20px; min-height: 52px; border-radius: 16px; font-size: 16px; }
+.desk-only { display: none !important; }
+
+@container app (min-width: 600px) {
+  .lib-head { padding: 24px 32px 14px; }
+  .continue { margin: 8px 32px 24px; padding: 20px; max-width: 560px; }
+  .continue .book { width: 104px; }
+  .filters { padding: 0 32px 22px; }
+  .filters .latch-row, .filters .latch-row .key { flex: none; }
+  .filters .latch-row .key { padding: 0 14px; }
+  .shelf { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 30px 26px; padding: 4px 36px 32px 32px; }
+  .fab, .phone-only { display: none !important; }
+  .desk-only { display: inline-flex !important; }
+  .search-field.desk-only { display: flex !important; }
+}
+@container app (min-width: 1100px) {
+  .library-inner { max-width: 1180px; margin: 0 auto; }
+  .shelf { grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); }
+  .continue-wrap { display: flex; gap: 16px; padding: 0 32px; }
+  .continue-wrap .continue { margin: 8px 0 24px; flex: 1; }
+  .continue.second { display: flex !important; }
+}
+.continue.second { display: none; }
+
+/* Panels: bottom sheet on phone, side panel on tablet, docked on desktop */
+.scrim { position: absolute; inset: 0; z-index: 20; background: var(--scrim); display: none; }
+.panel { position: absolute; z-index: 21; left: 0; right: 0; bottom: 0; max-height: 88%; display: none; flex-direction: column; background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-panel); animation: sheet-up 220ms cubic-bezier(.2,.8,.2,1); }
+.panel .grab { width: 40px; height: 5px; border-radius: 9px; background: var(--line); margin: 8px auto 0; flex: none; }
+.panel-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px 12px 20px; flex: none; }
+.panel-head h2 { font-size: 18px; margin-right: auto; }
+.panel-body { overflow: auto; padding: 6px 20px 20px; flex: 1; }
+.panel-foot { flex: none; padding: 12px 16px 18px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes panel-in { from { transform: translateX(100%); } }
+@container app (min-width: 600px) {
+  .panel { left: auto; top: 0; right: 0; bottom: 0; width: 400px; max-height: none; border-radius: 0; animation-name: panel-in; border-left: 1px solid var(--line); }
+  .panel .grab { display: none; }
+  .panel-head { padding: 18px 16px 14px 24px; }
+  .panel-body { padding: 6px 24px 24px; }
+}
+
+.app[data-view="library"][data-sheet="book"] :is(.scrim.lib, #book-sheet),
+.app[data-view="library"][data-sheet="delete"] :is(.scrim.lib, #book-sheet),
+.app[data-view="library"][data-sheet="settings"] :is(.scrim.lib, #settings-sheet) { display: flex; }
+.app[data-view="library"] .scrim.lib { display: none; }
+.app[data-view="library"]:not([data-sheet="none"]) .scrim.lib { display: block; }
+
+/* Rows */
+.rows { display: flex; flex-direction: column; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+.rows + .rows, h3 + .rows { margin-top: 10px; }
+.row-item { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 8px 14px 8px 16px; border: 0; background: none; text-align: left; width: 100%; cursor: pointer; }
+.row-item + .row-item { border-top: 1px solid var(--line); }
+.row-item .label { flex: 1; font-weight: 550; }
+.row-item .value { color: var(--ink-soft); font-size: 14px; }
+.row-item.danger .label { color: var(--red); }
+.app .section-title { font-size: 15px; font-weight: 750; margin: 22px 0 0 4px; }
+.chev { color: var(--ink-soft); }
+
+/* Book sheet */
+.book-head { display: flex; gap: 18px; align-items: flex-end; padding: 6px 0 18px; }
+.book-head .book { width: 96px; flex: none; }
+.book-head h2 { font: 700 21px/1.2 "Literata Variable", Georgia, serif; }
+.book-head .meta { color: var(--ink-soft); font-size: 13.5px; margin-top: 4px; }
+.confirm { display: none; padding: 16px; border-radius: 14px; border: 1px solid oklch(from var(--red) l c h / 0.4); background: oklch(from var(--red) l c h / 0.06); margin-top: 10px; }
+.confirm p { font-weight: 650; margin-bottom: 12px; }
+.confirm .buttons { display: flex; gap: 10px; justify-content: flex-end; }
+.app[data-sheet="delete"] .confirm { display: block; }
+.app[data-sheet="delete"] .delete-row { display: none; }
+
+/* Reader */
+.reader { position: absolute; inset: 0; display: none; background: var(--page); }
+.app[data-view="reader"] .reader { display: block; }
+.app[data-view="reader"] .library, .app[data-view="reader"] .fab { display: none; }
+.pagearea { position: absolute; inset: 0; overflow: auto; cursor: pointer; }
+.page { max-width: 34em; margin: 0 auto; padding: 64px 26px 120px; color: var(--page-ink); font: 19px/1.66 "Literata Variable", Georgia, serif; }
+.page .ch-num { text-align: center; font-size: 14px; letter-spacing: 0.08em; color: oklch(from var(--page-ink) l c h / 0.6); }
+.page h1 { text-align: center; font-size: 26px; font-weight: 600; margin: 6px 0 36px; }
+.page p { margin: 0; text-indent: 1.4em; }
+.page p.first { text-indent: 0; }
+.page p.first::first-letter { font-size: 3.1em; float: left; line-height: 0.86; padding: 0.06em 0.08em 0 0; font-weight: 600; color: var(--green); }
+
+.bar { position: absolute; left: 0; right: 0; z-index: 10; display: none; background: var(--surface); }
+.app[data-bars="on"] .bar { display: flex; }
+.topbar { top: 0; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); box-shadow: 0 6px 16px -10px oklch(0% 0 0 / 0.25); }
+.topbar .title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bottombar { bottom: 0; flex-direction: column; gap: 12px; padding: 14px 16px 22px; border-top: 1px solid var(--line); box-shadow: 0 -6px 16px -10px oklch(0% 0 0 / 0.25); }
+.scrub { display: flex; align-items: center; gap: 12px; }
+.scrub .track { position: relative; flex: 1; height: 6px; border-radius: 99px; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), var(--line) calc(10% - 2px) 10%), var(--sunk); box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.2); }
+.scrub .track span { position: absolute; inset: 0 auto 0 0; width: 38%; border-radius: 99px; background: var(--green); }
+.scrub .track i { position: absolute; left: 38%; top: 50%; width: 18px; height: 22px; margin: -11px 0 0 -9px; border-radius: 6px; background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.7), 0 2px 0 var(--key-skirt), 0 3px 6px oklch(0% 0 0 / 0.3); }
+.scrub .pct { font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.tools { display: flex; justify-content: space-between; gap: 8px; }
+.tools .key { flex: 1; flex-direction: column; gap: 2px; min-height: 56px; padding: 6px 4px; font-size: 12px; font-weight: 650; border-radius: 14px; }
+.top-tools { display: none; gap: 8px; }
+@container app (min-width: 600px) {
+  .bottombar .tools { display: none; }
+  .bottombar { padding: 14px 32px 18px; }
+  .top-tools { display: flex; }
+  .top-tools .key { min-height: 40px; font-size: 14px; }
+  .topbar { padding: 10px 16px; }
+}
+.aa { font: 700 17px/1 "Literata Variable", serif; }
+
+.app[data-view="reader"]:not([data-panel="none"]) .scrim.read { display: block; }
+.app:is([data-panel="look"], [data-panel="look-more"]) .scrim.read { background: transparent; }
+.app[data-panel="look"] #look, .app[data-panel="look-more"] #look-more, .app[data-panel="contents"] #contents,
+.app[data-panel="summary"] #summary, .app[data-panel="setup"] #setup, .app[data-panel="more"] #more { display: flex; }
+@container app (min-width: 1100px) {
+  .app[data-view="reader"]:not([data-panel="none"]):not([data-panel="more"]) .scrim.read { display: none; }
+  .app[data-view="reader"]:not([data-panel="none"]):not([data-panel="more"]) :is(.pagearea, .bar) { right: 400px; }
+  .reader .panel { box-shadow: none; }
+}
+
+/* More menu: a small popover */
+#more { max-height: none; }
+@container app (min-width: 600px) {
+  #more { top: 62px; right: 16px; bottom: auto; width: 260px; border-radius: 16px; border: 1px solid var(--line); box-shadow: var(--shadow-panel); animation: fade 140ms ease-out; }
+}
+@keyframes fade { from { opacity: 0; } }
+.planned { outline: 2px dashed oklch(65% 0.12 70); outline-offset: -3px; border-radius: 10px; }
+
+/* Look panel */
+.look-grid { display: flex; flex-direction: column; gap: 18px; }
+.swatches { display: flex; gap: 10px; }
+.app .swatch { flex: 1; height: 64px; border-radius: 10px; display: grid; place-items: center; font: 600 18px "Literata Variable", serif; cursor: pointer; border: 0; position: relative;
+  box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.12), 0 2px 0 oklch(0% 0 0 / 0.12), 0 4px 8px -3px oklch(0% 0 0 / 0.3); }
+.swatch.paper { background: var(--fibre), oklch(98% 0.008 85); color: #2a2620; }
+.swatch.ink { background: var(--grain), oklch(19% 0.006 85); color: #e6e1d8; }
+.swatch.latched { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--green), 0 4px 8px -3px oklch(0% 0 0 / 0.3); }
+.ctl { display: flex; align-items: center; gap: 12px; }
+.ctl .name { width: 92px; flex: none; font-weight: 600; font-size: 14px; color: var(--ink-soft); }
+.stepper { display: flex; align-items: center; gap: 10px; }
+.stepper output { min-width: 34px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fonts { display: flex; gap: 8px; }
+.fonts .key { flex: 1; flex-direction: column; gap: 0; min-height: 58px; font-size: 11.5px; font-weight: 600; }
+.fonts .key b { font-size: 20px; font-weight: 600; line-height: 1.1; }
+
+/* Contents */
+.toc { display: flex; flex-direction: column; }
+.toc-item { display: flex; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+.toc-item:first-child { border-top: 0; }
+.toc-item .n { width: 28px; flex: none; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.toc-item .t { font-weight: 600; }
+.toc-item .s { color: var(--ink-soft); font-size: 13.5px; margin-top: 2px; }
+.toc-item.current { margin: 0 -10px; padding: 12px 14px; border-radius: 12px; background: var(--green-wash); border-top-color: transparent; }
+.toc-item.current + .toc-item { border-top-color: transparent; }
+.toc-item.dim .t { color: var(--ink-soft); font-weight: 500; }
+
+/* Summary */
+.tabs { margin: 0 20px 12px; }
+@container app (min-width: 600px) { .tabs { margin: 0 24px 14px; } }
+.sum { font: 16px/1.6 "Literata Variable", Georgia, serif; }
+.sum h3 { font: 700 15px/1.3 "Atkinson Hyperlegible Next Variable", sans-serif; margin: 18px 0 4px; }
+.before { border-radius: 14px; background: var(--grain), var(--sunk); box-shadow: inset 0 2px 5px oklch(0% 0 0 / 0.12); padding: 14px; }
+.before summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; font: 700 15px "Atkinson Hyperlegible Next Variable", sans-serif; }
+.before summary::-webkit-details-marker { display: none; }
+.before .vol { display: flex; gap: 12px; margin-top: 12px; }
+.before .vol .book { width: 44px; flex: none; }
+.before .vol .cover .art { display: none; }
+.here { display: flex; align-items: center; gap: 10px; margin: 20px 0 4px; color: var(--green); font: 700 13px "Atkinson Hyperlegible Next Variable", sans-serif; }
+.here::before, .here::after { content: ""; flex: 1; border-top: 2px dashed var(--green); }
+.qa { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; font: 15px/1.5 "Atkinson Hyperlegible Next Variable", sans-serif; }
+.qa .q { align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: 16px 16px 4px 16px; background: var(--green-wash); font-weight: 600; }
+.qa .a { max-width: 92%; }
+.ask { display: flex; gap: 8px; }
+.ask .field { flex: 1; display: flex; align-items: center; height: 44px; padding: 0 14px; border-radius: 12px; background: var(--sunk); box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14); color: var(--ink-soft); }
+.status { display: flex; align-items: center; gap: 12px; }
+.status .progress { flex: 1; margin: 0; }
+.status .what { font-size: 13.5px; color: var(--ink-soft); }
+.sum-done, .sum-empty, .sum-running { display: none; }
+.app[data-summary="done"] .sum-done, .app[data-summary="empty"] .sum-empty, .app[data-summary="running"] .sum-running { display: flex; }
+.app[data-summary="done"] .sum-body-done, .app[data-summary="running"] .sum-body-done { display: block; }
+.app[data-summary="empty"] .sum-body-done { display: none; }
+.app[data-summary="empty"] .sum-body-empty { display: block; }
+.sum-body-empty { display: none; }
+.ghost { opacity: 0.45; }
+.ghost .bar-line { height: 10px; border-radius: 6px; background: var(--line); margin: 8px 0; }
+.empty-center { text-align: center; padding: 18px 0 8px; font: 600 16px "Atkinson Hyperlegible Next Variable", sans-serif; }
+
+/* Setup */
+.providers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.providers .key { min-height: 52px; font-size: 13.5px; padding: 0 6px; }
+.field-label { font-weight: 650; font-size: 14px; margin: 18px 0 6px 2px; display: block; }
+.input { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 6px 0 14px; border-radius: 12px; background: var(--sunk); box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14); font-family: ui-monospace, monospace; font-size: 14px; }
+.input span { flex: 1; }
+.consent { margin-top: 20px; padding: 14px 16px; border-radius: 12px; background: var(--fibre), oklch(from var(--green-wash) l c h); font-size: 14px; line-height: 1.5; border: 1px solid oklch(from var(--green) l c h / 0.25); }
+.ok { color: var(--green); font-weight: 700; font-size: 13.5px; }
+
+/* Settings */
+.usage { height: 10px; border-radius: 99px; background: var(--sunk); box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.2); overflow: hidden; flex: 1; }
+.usage span { display: block; height: 100%; width: 3%; min-width: 8px; background: var(--green); }
+
+/* Empty library, adding, drop */
+.empty { display: none; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 0 0 60px; text-align: center; }
+.empty h2 { font: 700 22px "Literata Variable", Georgia, serif; margin-top: 30px; }
+.app[data-shelf="empty"] .empty { display: flex; }
+.app[data-shelf="empty"] .library-inner { min-height: 100%; display: flex; flex-direction: column; }
+.app[data-shelf="empty"] .library { padding-bottom: 0; }
+.when-drop { display: none; }
+.app[data-drop="on"] .when-drop { display: inline; }
+.app[data-drop="on"] .when-idle { display: none; }
+.app[data-shelf="empty"][data-drop="on"] .dropzone { display: none; }
+.scene { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.openbook { position: relative; width: min(78%, 360px); aspect-ratio: 1.6; perspective: 1400px; z-index: 1; margin-bottom: -2px; }
+.openbook .board { position: absolute; inset: 6% -3% -3% -3%; border-radius: 5px; background: var(--cloth), linear-gradient(180deg, oklch(45% 0.1 159), oklch(36% 0.09 159)); box-shadow: 0 1px 0 oklch(28% 0.07 159), 0 14px 18px -10px oklch(0% 0 0 / 0.55); }
+.openbook .leaf { position: absolute; top: 0; bottom: 0; width: 50%; background: oklch(98% 0.008 85); }
+.openbook .leaf::before { content: ""; position: absolute; inset: 16% 14% 14%; background: repeating-linear-gradient(180deg, oklch(78% 0.012 85) 0 1.5px, transparent 1.5px 11px); opacity: 0.7; }
+.openbook .left { left: 0; border-radius: 6px 2px 2px 6px; box-shadow: inset -18px 0 22px -14px oklch(0% 0 0 / 0.28); }
+.openbook .right, .openbook .turning, .openbook .lifting { right: 0; border-radius: 2px 6px 6px 2px; box-shadow: inset 18px 0 22px -14px oklch(0% 0 0 / 0.22); transform-origin: 0 50%; }
+.openbook .turning { animation: turn-once 1.1s cubic-bezier(.45, .05, .3, 1) 1.2s both; }
+.openbook .lifting { opacity: 0; }
+.app[data-drop="on"] .openbook .lifting { opacity: 1; transform: rotateY(-58deg); box-shadow: -10px 0 18px -8px oklch(0% 0 0 / 0.3); transition: transform 300ms var(--spring), opacity 100ms; }
+.spine-ribbon { position: absolute; left: calc(50% - 6px); top: 82%; width: 12px; height: 34%; z-index: 3; transform-origin: 50% 0; animation: sway 6s ease-in-out infinite; filter: drop-shadow(0 1px 1px oklch(0% 0 0 / 0.35)); }
+.spine-ribbon::before { content: ""; position: absolute; inset: 0; background: var(--grain), linear-gradient(180deg, oklch(50% 0.13 25), oklch(42% 0.13 25)); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%); }
+.ledge { width: 100%; height: 14px; background: var(--cloth), linear-gradient(180deg, oklch(80% 0.03 75), oklch(70% 0.04 65)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.5), 0 12px 18px -8px oklch(0% 0 0 / 0.3); transition: background 200ms, box-shadow 200ms; }
+.app[data-theme="dark"] .ledge { background: var(--cloth), linear-gradient(180deg, oklch(38% 0.025 70), oklch(30% 0.03 60)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.12), 0 12px 18px -8px oklch(0% 0 0 / 0.6); }
+.app[data-drop="on"] .ledge { background: var(--cloth), linear-gradient(180deg, oklch(70% 0.12 159), oklch(55% 0.12 159)); box-shadow: 0 0 0 3px oklch(from var(--green) l c h / 0.3), 0 0 28px oklch(from var(--green) l c h / 0.6); }
+@keyframes turn-once { from { transform: rotateY(0); filter: brightness(1); } 50% { filter: brightness(0.86); } to { transform: rotateY(-180deg); filter: brightness(1); } }
+.app[data-shelf="empty"] :is(.continue-wrap, .filters, .shelf, .fab) { display: none !important; }
+.adding-strip { display: none; align-items: center; gap: 12px; margin: 0 16px 18px; padding: 12px 12px 12px 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.adding-strip .what { flex: 1; min-width: 0; font-size: 14px; }
+.adding-strip .what b { display: block; }
+.adding-strip .what span { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.adding-strip .progress { margin: 6px 0 0; }
+@container app (min-width: 600px) { .adding-strip { margin: 0 32px 22px; max-width: 560px; } }
+.book.placeholder { display: none; }
+.app[data-shelf="adding"] .book.placeholder { display: block; }
+.app[data-shelf="adding"] .adding-strip { display: flex; }
+.placeholder > .cover:not(.landed) { background: var(--grain), var(--sunk); box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.14); border: 2px dashed var(--line); }
+.placeholder > .cover:not(.landed)::before, .placeholder > .cover:not(.landed)::after { display: none; }
+.placeholder .fill { position: absolute; left: 0; right: 0; bottom: 0; height: 40%; background: linear-gradient(180deg, oklch(from var(--green) l c h / 0.12), oklch(from var(--green) l c h / 0.3)); }
+.dropzone { position: absolute; inset: 12px; z-index: 30; display: none; place-items: center; border-radius: 20px; border: 3px dashed var(--green); background: oklch(from var(--green-wash) l c h / 0.88); color: var(--green-deep); font: 700 22px "Literata Variable", serif; }
+.app[data-theme="dark"] .dropzone { color: var(--ink); }
+.dropzone .key { pointer-events: none; min-width: 72px; min-height: 72px; border-radius: 20px; margin-bottom: 14px; }
+.dropzone > div { display: flex; flex-direction: column; align-items: center; }
+.app[data-drop="on"] .dropzone { display: grid; }
+
+/* Series editor */
+.app[data-view="library"][data-sheet="series-edit"] :is(.scrim.lib, #series-edit) { display: flex; }
+.series-head { display: flex; gap: 22px; align-items: center; padding: 8px 0 6px; }
+.series-head .book { width: 76px; flex: none; }
+.series-head .book .tab { left: 6px; }
+.series-head .grow { flex: 1; min-width: 0; }
+.text-input { display: flex; align-items: center; min-height: 46px; padding: 0 14px; border-radius: 12px; background: var(--sunk); box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14); font-weight: 650; }
+.text-input.area { align-items: flex-start; min-height: 96px; padding: 12px 14px; font-weight: 400; line-height: 1.5; }
+.cloths { display: flex; gap: 10px; flex-wrap: wrap; }
+.cloth { width: 40px; height: 40px; border-radius: 10px; border: 0; cursor: pointer; background: var(--cloth), linear-gradient(180deg, oklch(from var(--c) calc(l + 0.06) c h), var(--c)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.25), 0 2px 0 oklch(from var(--c) calc(l - 0.12) c h), 0 3px 6px oklch(0% 0 0 / 0.25); }
+.cloth.sel { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink), 0 3px 6px oklch(0% 0 0 / 0.25); }
+.vol-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 10px; }
+.vol-row + .vol-row { border-top: 1px solid var(--line); }
+.vol-row .book { width: 32px; flex: none; }
+.vol-row .book .cover .art { display: none; }
+.vol-row .name { flex: 1; min-width: 0; font-weight: 600; }
+.grip { cursor: grab; color: var(--ink-soft); padding: 0 4px; font-size: 18px; letter-spacing: -3px; }
+
+/* Original pages */
+.pdfpages { display: none; flex-direction: column; align-items: center; gap: 22px; padding: 70px 16px 110px; background: var(--grain), var(--sunk); min-height: 100%; }
+.app[data-book="pdf"] .pdfpages { display: flex; }
+.app[data-book="pdf"] .page { display: none; }
+.sheet { position: relative; width: min(100%, 620px); aspect-ratio: 8.5 / 11; background: oklch(99.5% 0.002 95); padding: 9% 10%; display: flex; flex-direction: column; gap: 2.4%; box-shadow: 0 0 0 0.5px oklch(0% 0 0 / 0.15), 0 1px 2px oklch(0% 0 0 / 0.15), 0 14px 24px -12px oklch(0% 0 0 / 0.45); }
+.app[data-theme="dark"] .sheet { filter: brightness(0.86); }
+.sheet .h { font: 700 clamp(11px, 3.6cqi, 22px) "Literata Variable", serif; color: #1a1a1a; }
+.sheet { container-type: inline-size; }
+.sheet .l { height: 1.1cqi; min-height: 3px; background: oklch(78% 0 0); border-radius: 2px; }
+.sheet .fig { flex: 0 0 26%; border: 1px solid oklch(80% 0 0); background: repeating-linear-gradient(135deg, transparent 0 8px, oklch(94% 0 0) 8px 9px); }
+.page-badge { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9; display: none; padding: 6px 12px; border-radius: 99px; font-size: 13px; font-weight: 650; color: var(--ink); background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 4px 10px -4px oklch(0% 0 0 / 0.3); }
+.app[data-book="pdf"][data-bars="off"] .page-badge { display: block; }
+.t-pdf, .only-pdf { display: none; }
+.app[data-book="pdf"] .t-pdf, .app[data-book="pdf"] .only-pdf { display: inline; }
+.app[data-book="pdf"] .t-epub, .app[data-book="pdf"] .only-epub { display: none; }
+.app[data-book="pdf"] .row-item.only-pdf { display: flex; }
+
+/* Search and find */
+.search-input { display: flex; align-items: center; gap: 8px; height: 46px; padding: 0 6px 0 14px; border-radius: 12px; background: var(--sunk); box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14); margin-bottom: 8px; }
+.search-input span { flex: 1; font-weight: 600; }
+.hits-count { color: var(--ink-soft); font-size: 13.5px; margin: 6px 2px 4px; }
+.hit { display: block; padding: 12px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+.hit .where { font-weight: 650; font-size: 13.5px; }
+.hit .snip { font: 15px/1.5 "Literata Variable", serif; color: var(--ink-soft); margin-top: 2px; }
+mark { background: oklch(88% 0.12 95); color: inherit; border-radius: 3px; padding: 0 2px; }
+.app[data-theme="dark"] mark { background: oklch(48% 0.1 95); }
+.toc-pane, .search-pane { display: none; }
+.app[data-toctab="chapters"] .toc-pane, .app[data-toctab="search"] .search-pane { display: block; }
+.findbar { position: absolute; top: 0; left: 0; right: 0; z-index: 12; display: none; align-items: center; gap: 8px; padding: 10px 12px; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 6px 16px -10px oklch(0% 0 0 / 0.25); }
+.findbar .q { flex: 1; min-width: 0; font-weight: 650; }
+.findbar .n { color: var(--ink-soft); font-variant-numeric: tabular-nums; font-size: 14px; }
+.app[data-find="on"] .findbar { display: flex; }
+.app[data-find="on"] .topbar { display: none; }
+.page mark { display: none; }
+.page .plain { display: inline; }
+.app[data-find="on"] .page mark { display: inline; }
+.app[data-find="on"] .page .plain { display: none; }
+
+/* Characters */
+.sum-chapters, .sum-characters, .sum-edit { display: none; }
+.app[data-sumtab="chapters"] .sum-chapters, .app[data-sumtab="characters"] .sum-characters, .app[data-sumtab="edit"] .sum-edit { display: block; }
+.app[data-sumtab="characters"] .foot-chapters, .app[data-sumtab="edit"] .foot-chapters,
+.app[data-sumtab="chapters"] .foot-characters, .app[data-sumtab="edit"] .foot-characters,
+.app[data-sumtab="chapters"] .foot-edit, .app[data-sumtab="characters"] .foot-edit { display: none !important; }
+.app[data-sumtab="edit"] :is(#summary .tabs, #summary .head-main) { display: none; }
+.app:not([data-sumtab="edit"]) #summary .head-edit { display: none; }
+.name-row { display: flex; gap: 12px; align-items: flex-start; padding: 14px 4px; border-top: 1px solid var(--line); cursor: pointer; }
+.name-row:first-child { border-top: 0; }
+.name-row .who { flex: 1; }
+.name-row b { display: block; font: 700 15px "Atkinson Hyperlegible Next Variable", sans-serif; margin-bottom: 2px; }
+.name-row.new b::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: oklch(70% 0.14 70); margin-left: 8px; vertical-align: middle; }
+.foot-row { display: flex; gap: 10px; }
+.foot-row .key { flex: 1; }
+
+/* Action rows and danger keys */
+.key.danger-outline { width: 100%; margin-top: 28px; color: var(--red); outline: 1.5px solid oklch(from var(--red) l c h / 0.45); outline-offset: -1.5px; }
+.rebuild-confirm, .rebuild-running { display: none !important; }
+.app[data-rebuild="idle"] .rebuild-idle, .app[data-rebuild="confirm"] .rebuild-confirm, .app[data-rebuild="running"] .rebuild-running { display: flex !important; }
+.app:not([data-rebuild="idle"]) .rebuild-idle { display: none; }
+.rebuild-confirm { flex-wrap: wrap; }
+.rebuild-confirm .label { flex-basis: 100%; }
+.rebuild-confirm .buttons { display: flex; gap: 8px; margin-left: auto; }
+.rebuild-running .progress { flex: 1; margin: 0; }
+#book-sheet .stamp { display: none; }
+.app[data-finished="on"] #book-sheet .stamp { display: grid; animation: stamp-in 320ms var(--spring); }
+.app[data-finished="on"] #book-sheet .cover { animation: thump 320ms ease-out; }
+#book-sheet .ribbon { transition: opacity 200ms; }
+.app[data-finished="on"] #book-sheet .ribbon { opacity: 0; }
+
+/* Continue card depth: the cover leans, the page edge thickens with progress */
+@property --p { syntax: "<number>"; inherits: true; initial-value: 0; }
+.book3d { transform: perspective(700px) rotateY(26deg); container-type: normal; transition: --p 700ms var(--ease-out) 200ms; }
+.book3d .cover { box-shadow: 0 0 0 0.5px oklch(0% 0 0 / 0.2), -8px 12px 16px -8px oklch(0% 0 0 / 0.45); }
+.book3d .fore { position: absolute; top: 1px; bottom: 1px; left: calc(100% - 1px); width: calc(4px + var(--p) * 12px); clip-path: polygon(0 0, 100% 5%, 100% 95%, 0 100%); background: linear-gradient(90deg, oklch(0% 0 0 / 0.04), oklch(0% 0 0 / 0.2)), repeating-linear-gradient(90deg, oklch(97% 0.01 85) 0 1px, oklch(84% 0.015 85) 1px 2px); }
+
+/* Motion */
+.app { --spring: cubic-bezier(.34, 1.56, .64, 1); --ease-out: cubic-bezier(.2, .8, .2, 1); --sheet-ease: cubic-bezier(.3, 1.2, .4, 1); }
+.key { transition: transform 220ms var(--spring), box-shadow 220ms var(--spring); }
+.key:active { transition-duration: 60ms; transition-timing-function: ease-out; }
+.switch::after { transition: left 260ms var(--spring); }
+
+.ribbon { transform-origin: 50% 0; animation: sway 6s ease-in-out infinite; }
+.shelf > .book:nth-child(2n) .ribbon, .tray .book:nth-child(2n) .ribbon { animation-duration: 7s; animation-delay: -2.1s; }
+.shelf > .book:nth-child(3n) .ribbon { animation-delay: -4.3s; }
+.continue .ribbon { animation-delay: -1.2s; }
+@keyframes sway { 0%, 100% { transform: rotate(-1.6deg); } 50% { transform: rotate(1.8deg); } }
+
+.book::before { content: ""; position: absolute; z-index: 5; left: 0; top: 0; width: 100%; aspect-ratio: 2 / 3; pointer-events: none; border-radius: 2px 5px 5px 2px; background: linear-gradient(115deg, transparent 38%, oklch(100% 0 0 / 0.3) 50%, transparent 62%) 160% 0 / 260% 100% no-repeat; }
+.book:has(> .cover.pdf)::before, .book.placeholder::before, .book3d::before { display: none; }
+@media (hover: hover) {
+  .shelf .book, .tray .book { transition: transform 240ms var(--spring); }
+  .shelf .book:not(.placeholder):hover, .tray .book:hover { transform: translateY(-4px); }
+  .book:hover::before { animation: sheen 900ms ease-out; }
+}
+.shelf .book:active, .tray .book:active { transform: scale(0.97); transition-duration: 80ms; }
+@keyframes sheen { from { background-position: 160% 0; } to { background-position: -60% 0; } }
+
+.placeholder > .cover:not(.landed) .fill { animation: fill-rise 1.6s var(--ease-out) backwards; }
+.placeholder > .cover.landed { position: absolute; left: 0; top: 0; width: 100%; z-index: 2; animation: drop-in 560ms var(--spring) 1.8s backwards; }
+@keyframes fill-rise { from { height: 0; } }
+@keyframes drop-in { from { opacity: 0; transform: translateY(-46px) rotate(-7deg); } 60% { opacity: 1; } }
+.placeholder:not(:first-child) > .cover .fill { display: none; }
+
+.stripes span, .sum-running .progress span, .adding-strip .progress span { background-image: linear-gradient(45deg, oklch(100% 0 0 / 0.2) 25%, transparent 25% 50%, oklch(100% 0 0 / 0.2) 50% 75%, transparent 75%); background-size: 14px 14px; animation: stripes 700ms linear infinite; }
+.stripes { height: 6px; border-radius: 99px; background: var(--sunk); box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.2); overflow: hidden; }
+.stripes span { display: block; height: 100%; border-radius: 99px; background-color: var(--green); transition: width 300ms var(--ease-out); }
+@keyframes stripes { from { background-position: 14px 0; } }
+
+.bar { display: flex; visibility: hidden; transition: transform 140ms ease-in, visibility 0s linear 140ms, right 300ms var(--ease-out); }
+.topbar { transform: translateY(-105%); }
+.bottombar { transform: translateY(105%); }
+.app[data-bars="on"] .bar { visibility: visible; transform: none; transition: transform 180ms var(--ease-out), visibility 0s, right 300ms var(--ease-out); }
+.findbar { display: flex; visibility: hidden; transform: translateY(-105%); transition: transform 140ms ease-in, visibility 0s linear 140ms; }
+.app[data-find="on"] .findbar { visibility: visible; transform: none; transition: transform 180ms var(--ease-out), visibility 0s; }
+.pagearea { transition: right 300ms var(--ease-out); }
+
+.panel { animation: sheet-up 360ms var(--sheet-ease); }
+.panel::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 40px; background: var(--surface); }
+@container app (min-width: 600px) {
+  .panel { animation-name: panel-in; }
+  .panel::after { top: 0; bottom: 0; left: 100%; right: auto; width: 40px; height: auto; }
+  #more::after { display: none; }
+}
+.panel-body > * { animation: rise 300ms var(--ease-out) backwards; }
+.panel-body > :nth-child(2) { animation-delay: 25ms; }
+.panel-body > :nth-child(3) { animation-delay: 50ms; }
+.panel-body > :nth-child(4) { animation-delay: 75ms; }
+.panel-body > :nth-child(5) { animation-delay: 100ms; }
+.panel-body > :nth-child(n + 6) { animation-delay: 125ms; }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+.scrim { animation: fade 200ms ease-out; }
+
+.app[data-series="open"] .tray .row .book { animation: out-of-case 460ms var(--spring) backwards; }
+.tray .row .book:nth-child(2) { animation-delay: 70ms; }
+.tray .row .book:nth-child(3) { animation-delay: 140ms; }
+.tray .row .book:nth-child(4) { animation-delay: 210ms; }
+@keyframes out-of-case { from { opacity: 0; transform: translate(-28px, -10px) rotate(-6deg); } }
+
+.app.dealing :is(.shelf > .book, .continue) { animation: deal-in 260ms var(--ease-out) backwards; }
+.app.dealing .continue.second { animation-delay: 40ms; }
+.app.dealing .shelf > :nth-child(4) { animation-delay: 30ms; }
+.app.dealing .shelf > :nth-child(5) { animation-delay: 60ms; }
+.app.dealing .shelf > :nth-child(6) { animation-delay: 90ms; }
+.app.dealing .shelf > :nth-child(7) { animation-delay: 120ms; }
+.app.dealing .shelf > :nth-child(8) { animation-delay: 150ms; }
+.app.dealing .shelf > :nth-child(9) { animation-delay: 180ms; }
+.app.dealing .shelf > :nth-child(10) { animation-delay: 210ms; }
+.app.dealing .shelf > :nth-child(11) { animation-delay: 240ms; }
+.app.dealing .shelf > :nth-child(n + 12) { animation-delay: 270ms; }
+@keyframes deal-in { from { opacity: 0; transform: translateY(8px); } }
+
+@keyframes stamp-in { from { opacity: 0; transform: scale(1.6) rotate(-14deg); } 60% { opacity: 1; transform: scale(0.95) rotate(3deg); } }
+@keyframes thump { 50% { transform: translateY(1px); box-shadow: 0 0 0 0.5px oklch(0% 0 0 / 0.18), 0 1px 1px oklch(0% 0 0 / 0.2), 0 6px 10px -6px oklch(0% 0 0 / 0.5); } }
+
+.app[data-summary="running"] .later { display: none; }
+.app[data-summary="running"] .sum-body-done > * { animation: rise 360ms var(--ease-out) backwards; }
+.app[data-summary="running"] .sum-body-done > :nth-child(3), .app[data-summary="running"] .sum-body-done > :nth-child(4) { animation-delay: 120ms; }
+.app[data-summary="running"] .sum-body-done > :nth-child(n + 5) { animation-delay: 240ms; }
+.app[data-summary="done"] .later { animation: rise 400ms var(--ease-out) backwards; }
+.app[data-summary="running"] .streaming::after { content: ""; display: inline-block; width: 0.5em; height: 1.05em; margin-left: 3px; vertical-align: -0.18em; background: var(--green); animation: caret 1s steps(2, jump-none) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+
+.page { font-size: var(--size, 19px); font-family: var(--page-font, "Literata Variable", Georgia, serif); max-width: calc(26em + var(--width, 0.5) * 16em); transition: font-size 160ms ease-out, max-width 200ms ease-out; }
+.app { --warm-tint: oklch(88% 0.09 70); --cool-tint: oklch(88% 0.05 240); }
+.app[data-theme="dark"] { --warm-tint: oklch(30% 0.07 60); --cool-tint: oklch(28% 0.05 250); }
+.reader { background: color-mix(in oklch, color-mix(in oklch, var(--page), var(--warm-tint) calc(var(--warm, 0) * 45%)), var(--cool-tint) calc(var(--cool, 0) * 40%)); }
+.fader { touch-action: none; cursor: pointer; }
+
+.zoomer { position: absolute; z-index: 40; aspect-ratio: auto; margin: 0; pointer-events: none; transform-origin: 0 50%; }
+.zoomer .art .t { font-size: 9cqi; }
+.zoomer .art .a { font-size: 3.6cqi; }
+.continue .progress span { transition: width 700ms var(--ease-out) 200ms; }
+
+/* Reduced motion: no idle, no travel, short fades */
+.app[data-motion="reduced"] *, .app[data-motion="reduced"] *::before, .app[data-motion="reduced"] *::after { animation: none !important; transition-duration: 150ms !important; transition-delay: 0s !important; }
+.app[data-motion="reduced"] .bar, .app[data-motion="reduced"] .findbar { transform: none !important; opacity: 0; transition-property: opacity, visibility !important; }
+.app[data-motion="reduced"][data-bars="on"] .bar, .app[data-motion="reduced"][data-find="on"] .findbar { opacity: 1; }
+.app[data-motion="reduced"] .placeholder > .cover.landed { display: none; }
+
+/* Shape preview in the notes column */
+.icon-tile { width: 96px; height: 96px; border-radius: 22px; display: grid; place-items: center; background: var(--cloth), linear-gradient(180deg, oklch(48% 0.1 159), oklch(38% 0.09 159)); box-shadow: inset 0 1px 0 oklch(100% 0 0 / 0.25), 0 6px 14px -4px #000; margin: 6px 0 16px; }
+.icon-tile svg { width: 56px; }
+</style>
+</head>
+<body>
+
+<div class="harness">
+  <div class="group"><b>Library</b>
+    <button data-preset="view=library,shelf=empty,drop=off,sheet=none,series=closed">Empty</button>
+    <button data-preset="view=library,shelf=empty,drop=on,sheet=none,series=closed">Empty + drop</button>
+    <button data-preset="view=library,shelf=adding,drop=off,sheet=none,series=closed">Adding</button>
+    <button data-preset="view=library,shelf=full,drop=on,sheet=none,series=closed">Drop files</button>
+    <button data-preset="view=library,shelf=full,drop=off,sheet=none,series=closed,deleted=off">Library</button>
+    <button data-preset="view=library,shelf=full,drop=off,sheet=none,series=open">Series open</button>
+    <button data-preset="view=library,shelf=full,drop=off,sheet=series-edit,series=open">Series editor</button>
+    <button data-preset="view=library,shelf=full,drop=off,sheet=book,series=closed">Book sheet</button>
+    <button data-preset="view=library,shelf=full,drop=off,sheet=delete,series=closed">Delete</button>
+    <button data-preset="view=library,shelf=full,drop=off,sheet=settings,series=closed,rebuild=idle">Settings</button>
+  </div>
+  <div class="group"><b>Reader</b>
+    <button data-preset="view=reader,book=epub,find=off,bars=off,panel=none">Reading</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=none">Bars</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=look">Look</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=look-more">Look: more</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=contents,toctab=chapters">Contents</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=contents,toctab=search">Search</button>
+    <button data-preset="view=reader,book=epub,find=on,bars=on,panel=none">Find</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=more">⋯ menu</button>
+    <button data-preset="view=reader,book=pdf,find=off,bars=off,panel=none">Original pages</button>
+  </div>
+  <div class="group"><b>Summary</b>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=summary,summary=done,sumtab=chapters">Chapters</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=summary,summary=empty,sumtab=chapters">Empty</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=summary,summary=running,sumtab=chapters">Running</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=setup">First setup</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=summary,summary=done,sumtab=characters">Characters</button>
+    <button data-preset="view=reader,book=epub,find=off,bars=on,panel=summary,summary=done,sumtab=edit">Character edit</button>
+  </div>
+  <div class="group"><b>Device</b>
+    <button data-preset="device=phone">Phone</button>
+    <button data-preset="device=tablet">Tablet</button>
+    <button data-preset="device=desktop">Desktop</button>
+  </div>
+  <div class="group"><b>Motion</b>
+    <button data-preset="motion=full">Full</button>
+    <button data-preset="motion=reduced">Reduced</button>
+  </div>
+  <div class="group"><b>Theme</b>
+    <button data-preset="theme=light">Light</button>
+    <button data-preset="theme=dark">Dark</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="frame" id="frame">
+    <div class="app" id="app">
+
+      <!-- LIBRARY -->
+      <div class="library">
+        <div class="library-inner">
+          <header class="lib-head">
+            <div class="logo">
+              <svg class="mark wordmark" viewBox="0 0 900 210" role="img" aria-label="Reader Hero"><path d="M125 21V5H5V171H21" stroke="oklch(72% 0.08 159)" /><path d="M141 37V21H21V187H37" stroke="oklch(58% 0.1 159)" /><path d="M157 56V37H37V203H157V184" stroke="var(--green)" /><text x="92" y="172" fill="currentColor">Reader Hero</text></svg>
+            </div>
+            <div class="search-field desk-only"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search books</div>
+            <button class="key phone-only" aria-label="Search books"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+            <button class="key" aria-label="Settings" data-set="sheet=settings"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+            <button class="key green desk-only"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add book</button>
+          </header>
+
+          <section class="empty">
+            <div class="scene">
+              <div class="openbook">
+                <div class="board"></div>
+                <div class="leaf left"></div>
+                <div class="leaf right"></div>
+                <div class="leaf turning"></div>
+                <div class="leaf lifting"></div>
+                <div class="spine-ribbon"></div>
+              </div>
+              <div class="ledge"></div>
+            </div>
+            <h2><span class="when-idle">No books yet</span><span class="when-drop">Drop to add</span></h2>
+            <button class="key green" data-set="shelf=adding"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add book</button>
+          </section>
+
+          <div class="continue-wrap">
+            <section class="continue">
+              <div class="book book3d" id="continue-book" data-open data-title="Anne of Avonlea" style="--p: 0.38">
+                <div class="cover" style="--c1: oklch(62% 0.1 140); --c2: oklch(42% 0.09 160)"><div class="art"><div class="t">Anne of Avonlea</div><div class="a">L. M. MONTGOMERY</div></div></div>
+                <div class="fore"></div>
+                <div class="ribbon"></div>
+              </div>
+              <div class="info">
+                <h2>Anne of Avonlea</h2>
+                <p class="chapter">5 · A Full-fledged Schoolma'am</p>
+                <div class="progress"><span id="continue-bar" style="width: 38%"></span></div>
+                <div><button class="key green small" data-open data-title="Anne of Avonlea"><span>Continue · <span id="continue-pct">38</span>%</span></button></div>
+              </div>
+            </section>
+            <section class="continue second">
+              <div class="book book3d" data-open data-title="Moby-Dick" style="--p: 0.21">
+                <div class="cover" style="--c1: oklch(48% 0.07 250); --c2: oklch(30% 0.06 255)"><div class="art"><div class="t">Moby-Dick</div><div class="a">HERMAN MELVILLE</div></div></div>
+                <div class="fore"></div>
+                <div class="ribbon"></div>
+              </div>
+              <div class="info">
+                <h2>Moby-Dick</h2>
+                <p class="chapter">27 · Knights and Squires</p>
+                <div class="progress"><span style="width: 21%"></span></div>
+                <div><button class="key small">Continue · 21%</button></div>
+              </div>
+            </section>
+          </div>
+
+          <div class="adding-strip">
+            <div class="what"><b>Adding 2 of 5</b><span>The Long Harbour.epub</span><div class="progress"><span style="width: 40%"></span></div></div>
+            <button class="key small" data-set="shelf=full">Cancel</button>
+          </div>
+
+          <div class="filters">
+            <div class="latch-row" role="radiogroup">
+              <button class="key latched">All <span class="count">9</span></button>
+              <button class="key">Reading <span class="count">2</span></button>
+              <button class="key">Finished <span class="count">1</span></button>
+            </div>
+            <button class="key small sort" aria-label="Sort: Recent"><svg class="icon phone-only" viewBox="0 0 24 24"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4"/></svg><span class="desk-only" style="padding-left:12px">Recent</span><svg class="icon desk-only" viewBox="0 0 24 24" style="width:16px;margin-right:10px"><path d="m6 9 6 6 6-6"/></svg></button>
+          </div>
+
+          <section class="shelf">
+            <div class="book placeholder"><div class="cover"><div class="fill"></div></div><div class="cover landed" style="--c1: oklch(52% 0.08 200); --c2: oklch(34% 0.07 215)"><div class="art"><div class="t">The Long Harbour</div><div class="a">R. ASHWORTH</div></div></div><div class="title">The Long Harbour</div></div>
+            <div class="book placeholder"><div class="cover"></div><div class="title">Field Notes on Rivers</div></div>
+            <div class="book slipcase" data-set="series=toggle" id="slipcase">
+              <div class="stack">
+                <div class="cover" style="--c1: oklch(60% 0.12 25); --c2: oklch(42% 0.11 20)"></div>
+                <div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"></div>
+                <div class="cover" style="--c1: oklch(62% 0.1 140); --c2: oklch(42% 0.09 160)"><div class="art"><div class="t">Anne of Avonlea</div><div class="a">L. M. MONTGOMERY</div></div></div>
+                <div class="ribbon"></div>
+              </div>
+              <span class="tab">4</span>
+              <div class="title">Anne of Green Gables</div>
+              <div class="author">2 of 4 read</div>
+            </div>
+            <div class="tray">
+              <div class="head"><h3>Anne of Green Gables</h3><div style="display:flex;gap:8px"><button class="key small" data-set="sheet=series-edit">Edit</button><button class="key small" data-set="series=closed">Close</button></div></div>
+              <div class="row">
+                <div class="book" data-open><div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"><div class="art"><div class="t">Anne of Green Gables</div><div class="a">MONTGOMERY</div></div></div><span class="num">1</span><div class="stamp"><svg class="icon" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></div><div class="edge"></div><div class="title">1. Anne of Green Gables</div></div>
+                <div class="book" data-open data-title="Anne of Avonlea"><div class="cover" style="--c1: oklch(62% 0.1 140); --c2: oklch(42% 0.09 160)"><div class="art"><div class="t">Anne of Avonlea</div><div class="a">MONTGOMERY</div></div></div><span class="num">2</span><div class="ribbon"></div><div class="edge"></div><div class="title">2. Anne of Avonlea</div><div class="percent">38%</div></div>
+                <div class="book" data-open data-new><div class="cover" style="--c1: oklch(58% 0.09 230); --c2: oklch(40% 0.08 240)"><div class="art"><div class="t">Anne of the Island</div><div class="a">MONTGOMERY</div></div></div><span class="num">3</span><div class="edge"></div><div class="title">3. Anne of the Island</div></div>
+                <div class="book" data-open data-new><div class="cover" style="--c1: oklch(60% 0.12 25); --c2: oklch(42% 0.11 20)"><div class="art"><div class="t">Anne's House of Dreams</div><div class="a">MONTGOMERY</div></div></div><span class="num">4</span><div class="edge"></div><div class="title">4. Anne's House of Dreams</div></div>
+              </div>
+            </div>
+            <div class="book" data-id="moby" data-open><div class="cover" style="--c1: oklch(48% 0.07 250); --c2: oklch(30% 0.06 255)"><div class="art"><div class="t">Moby-Dick</div><div class="a">HERMAN MELVILLE</div></div></div><div class="ribbon"></div><div class="edge"></div><div class="title">Moby-Dick</div><div class="author">Herman Melville</div></div>
+            <div class="book" data-open data-pdf><div class="cover pdf"><div class="art"><div class="t">Structure and Interpretation of Computer Programs</div><div class="lines"></div></div></div><div class="edge"></div><div class="title">Structure and Interpretation of Computer Programs</div><div class="author">Abelson, Sussman</div></div>
+            <div class="book" data-open><div class="cover" style="--c1: oklch(78% 0.06 90); --c2: oklch(62% 0.08 75); color: #2b2214"><div class="art"><div class="t">Pride and Prejudice</div><div class="a">JANE AUSTEN</div></div></div><div class="stamp"><svg class="icon" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></div><div class="edge"></div><div class="title">Pride and Prejudice</div><div class="author">Jane Austen</div></div>
+            <div class="book" data-open data-new><div class="cover" style="--c1: oklch(40% 0.1 300); --c2: oklch(26% 0.07 290)"><div class="art"><div class="t">Middlemarch</div><div class="a">GEORGE ELIOT</div></div></div><div class="edge"></div><div class="title">Middlemarch</div><div class="author">George Eliot</div></div>
+            <div class="book" data-open data-new><div class="cover" style="--c1: oklch(30% 0.02 95); --c2: oklch(18% 0.01 95)"><div class="art"><div class="t">Meditations</div><div class="a">MARCUS AURELIUS</div></div></div><div class="edge"></div><div class="title">Meditations</div><div class="author">Marcus Aurelius</div></div>
+            <div class="book" data-open data-pdf data-new><div class="cover pdf"><div class="art"><div class="t">Annual Report 2025</div><div class="lines"></div></div></div><div class="edge"></div><div class="title">Annual Report 2025</div><div class="author">annual-report-2025.pdf</div></div>
+            <div class="book" data-open data-new><div class="cover" style="--c1: oklch(55% 0.13 50); --c2: oklch(38% 0.11 40)"><div class="art"><div class="t">The Count of Monte Cristo</div><div class="a">ALEXANDRE DUMAS</div></div></div><div class="edge"></div><div class="title">The Count of Monte Cristo</div><div class="author">Alexandre Dumas</div></div>
+            <div class="install">
+              <p>Add Reader Hero to your Home Screen so iOS keeps your library offline.</p>
+              <button class="key small" aria-label="Dismiss"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+            </div>
+          </section>
+        </div>
+      </div>
+      <button class="key green fab"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add book</button>
+      <div class="dropzone" data-set="drop=off,shelf=adding"><div><span class="key green"><svg class="icon" viewBox="0 0 24 24" style="width:30px;height:30px"><path d="M12 5v14M5 12h14"/></svg></span>Drop to add</div></div>
+
+      <div class="scrim lib" data-set="sheet=none"></div>
+
+      <!-- Book sheet -->
+      <aside class="panel" id="book-sheet" aria-label="Book">
+        <div class="grab"></div>
+        <div class="panel-head"><h2>Book</h2><button class="key small" data-set="sheet=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <div class="panel-body">
+          <div class="book-head">
+            <div class="book" id="sheet-book"><div class="cover" style="--c1: oklch(48% 0.07 250); --c2: oklch(30% 0.06 255)"><div class="art"><div class="t">Moby-Dick</div><div class="a">HERMAN MELVILLE</div></div></div><div class="ribbon"></div><div class="stamp"><svg class="icon" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></div></div>
+            <div>
+              <h2>Moby-Dick</h2>
+              <p class="meta">Herman Melville</p>
+              <p class="meta">EPUB · 21% · 4.1 MB</p>
+            </div>
+          </div>
+          <button class="key green" style="width:100%" data-open data-title="Moby-Dick">Continue reading</button>
+          <div class="rows" style="margin-top:18px">
+            <div class="row-item"><span class="label">Finished</span><button class="switch" data-set="finished=toggle" data-on="finished=on" aria-label="Finished"></button></div>
+            <button class="row-item"><span class="label">Series</span><span class="value">None</span><span class="chev">›</span></button>
+            <button class="row-item"><span class="label">Cover</span><span class="chev">›</span></button>
+            <div class="row-item"><span class="label">Reader view</span><button class="key small">Rebuild</button></div>
+          </div>
+          <button class="key danger-outline delete-row" data-set="sheet=delete">Delete book</button>
+          <div class="confirm">
+            <p>Delete Moby-Dick and its summary?</p>
+            <div class="buttons"><button class="key small" data-set="sheet=book">Cancel</button><button class="key small danger" data-action="delete">Delete</button></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Settings -->
+      <aside class="panel" id="settings-sheet" aria-label="Settings">
+        <div class="grab"></div>
+        <div class="panel-head"><h2>Settings</h2><button class="key small" data-set="sheet=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <div class="panel-body">
+          <h3 class="section-title" style="margin-top:4px">Summaries</h3>
+          <div class="rows">
+            <button class="row-item"><span class="label">Provider</span><span class="value">Anthropic · claude-sonnet-5-5</span><span class="chev">›</span></button>
+            <div class="row-item"><span class="label">Summarise automatically</span><span class="switch"></span></div>
+            <div class="row-item"><span class="label">Summaries in Contents</span><span class="switch on"></span></div>
+            <div class="row-item"><span class="label">Group books into series</span><span class="switch on"></span></div>
+          </div>
+          <h3 class="section-title">Storage</h3>
+          <div class="rows">
+            <div class="row-item"><span class="label" style="flex:none">54 MB of 19.7 GB</span><div class="usage"><span></span></div></div>
+            <div class="row-item rebuild-idle"><span class="label">Summaries</span><span class="value">12</span><button class="key small" data-set="rebuild=confirm">Rebuild</button></div>
+            <div class="row-item rebuild-confirm"><span class="label">Rebuild 12 summaries? About 140 requests to Anthropic.</span><div class="buttons"><button class="key small" data-set="rebuild=idle">Cancel</button><button class="key small green" data-set="rebuild=running">Rebuild</button></div></div>
+            <div class="row-item rebuild-running"><span class="label" style="flex:none">Summaries</span><div class="progress stripes"><span id="rebuild-bar" style="width:33%"></span></div><span class="value" id="rebuild-count">4 of 12</span><button class="key small" data-set="rebuild=idle">Stop</button></div>
+          </div>
+          <h3 class="section-title">About</h3>
+          <div class="rows">
+            <button class="row-item"><span class="label">Open source licences</span><span class="chev">›</span></button>
+            <div class="row-item"><span class="label">Version</span><span class="value">2.0</span></div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Series editor -->
+      <aside class="panel" id="series-edit" aria-label="Series">
+        <div class="grab"></div>
+        <div class="panel-head"><h2>Series</h2><button class="key small" data-set="sheet=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <div class="panel-body">
+          <div class="series-head">
+            <div class="book slipcase">
+              <div class="stack">
+                <div class="cover" style="--c1: oklch(60% 0.12 25); --c2: oklch(42% 0.11 20)"></div>
+                <div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"></div>
+                <div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"><div class="art"><div class="t">Anne of Green Gables</div></div></div>
+              </div>
+              <span class="tab">4</span>
+            </div>
+            <div class="grow">
+              <label class="field-label" style="margin-top:0">Name</label>
+              <div class="text-input">Anne of Green Gables</div>
+            </div>
+          </div>
+          <label class="field-label">Colour</label>
+          <div class="cloths">
+            <button class="cloth sel" style="--c: oklch(45% 0.1 159)" aria-label="Green"></button>
+            <button class="cloth" style="--c: oklch(45% 0.13 25)" aria-label="Red"></button>
+            <button class="cloth" style="--c: oklch(45% 0.1 250)" aria-label="Blue"></button>
+            <button class="cloth" style="--c: oklch(62% 0.12 80)" aria-label="Ochre"></button>
+            <button class="cloth" style="--c: oklch(40% 0.1 300)" aria-label="Plum"></button>
+            <button class="cloth" style="--c: oklch(32% 0.01 95)" aria-label="Graphite"></button>
+          </div>
+          <div class="rows" style="margin-top:18px">
+            <button class="row-item"><span class="label">Cover</span><span class="value">First book</span><span class="chev">›</span></button>
+          </div>
+          <h3 class="section-title">Books</h3>
+          <div class="rows">
+            <div class="vol-row"><span class="grip" aria-label="Move Anne of Green Gables">⋮⋮</span><div class="book"><div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"><div class="art"></div></div></div><span class="name">1. Anne of Green Gables</span><button class="key small" aria-label="Remove Anne of Green Gables"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+            <div class="vol-row"><span class="grip">⋮⋮</span><div class="book"><div class="cover" style="--c1: oklch(62% 0.1 140); --c2: oklch(42% 0.09 160)"><div class="art"></div></div></div><span class="name">2. Anne of Avonlea</span><button class="key small" aria-label="Remove Anne of Avonlea"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+            <div class="vol-row"><span class="grip">⋮⋮</span><div class="book"><div class="cover" style="--c1: oklch(58% 0.09 230); --c2: oklch(40% 0.08 240)"><div class="art"></div></div></div><span class="name">3. Anne of the Island</span><button class="key small" aria-label="Remove Anne of the Island"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+            <div class="vol-row"><span class="grip">⋮⋮</span><div class="book"><div class="cover" style="--c1: oklch(60% 0.12 25); --c2: oklch(42% 0.11 20)"><div class="art"></div></div></div><span class="name">4. Anne's House of Dreams</span><button class="key small" aria-label="Remove Anne's House of Dreams"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          </div>
+          <button class="key" style="width:100%;margin-top:12px"><svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add book</button>
+          <h3 class="section-title">Suggested</h3>
+          <div class="rows">
+            <div class="vol-row"><div class="book"><div class="cover" style="--c1: oklch(55% 0.08 190); --c2: oklch(38% 0.07 200)"><div class="art"></div></div></div><span class="name">Anne of Windy Poplars</span><button class="key small" aria-label="Add Anne of Windy Poplars"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          </div>
+          <button class="key danger-outline">Delete series</button>
+        </div>
+        <div class="panel-foot"><div class="foot-row"><button class="key" data-set="sheet=none">Cancel</button><button class="key green" data-set="sheet=none">Save</button></div></div>
+      </aside>
+
+      <!-- READER -->
+      <div class="reader">
+        <div class="pagearea">
+          <article class="page">
+            <div class="ch-num">CHAPTER V</div>
+            <h1>A Full-fledged Schoolma'am</h1>
+            <p class="first">That morning Anne turned away from the window with a sigh and went down to breakfast. The day was the first of September, and the school at Avonlea opened on it. She had been dreaming of this hour all summer, and now that it had come she was not at all sure she wanted it.</p>
+            <p>Marilla looked at her across the table and said nothing, which was Marilla's way of saying a great deal. Davy, who had been told twice to eat his porridge, ate it in a manner meant to show that he was being very good and would like the fact noticed.</p>
+            <p>The road to the school ran under the beeches and past the pond, and every step of it was as familiar to Anne as her own hand. Yet this morning it looked new, as if somebody had taken it away in the night and put down a stranger road in its place. She found herself rehearsing the speech she meant to make, and found too that she could not remember the first word of it.</p>
+            <p>There were forty children waiting in the yard. Anne counted them without meaning to, as a person counts the stairs in a dark house, and the number seemed to her enormous.</p>
+            <p>"Good morning," she said, and her voice sounded to her like somebody else's. She thought, for no reason at all, of <mark>Mr. Harrison</mark><span class="plain">Mr. Harrison</span> and his parrot, and very nearly laughed.</p>
+            <p>The laugh did her good. She took the roll from her desk and read the names aloud, one after another, and each child stood when called. Some stood too fast and some too slow. One small boy at the back did not stand at all, but only looked at her with an expression of great and solemn interest, as if she were a new kind of bird.</p>
+            <p>By ten o'clock she had settled the primer class with their slates. By eleven she had found that Anthony Pye did not intend to be settled by anybody. By noon she understood that a schoolroom had a weather of its own, and that the weather of this one was changeable.</p>
+            <p>She ate her lunch under the maple by the gate, where she could see the whole yard at once. Diana had wrapped a slice of cake in a napkin and slipped it into her basket that morning, with a note in her round hand that said only "for courage." Anne ate the cake and kept the note.</p>
+            <p>The afternoon was quieter. A wasp came in at the open window and went out again. The clock on the wall, which had been wrong for eleven years, struck three when it was half past two, and nobody minded. When the last child had gone down the road, Anne sat at her desk in the empty room and listened to the stillness, and found that she was not tired at all, but only very full, the way a cup is full.</p>
+          </article>
+          <div class="pdfpages">
+            <div class="sheet"><div class="h">1.2 Procedures and the Processes They Generate</div><div class="l"></div><div class="l" style="width:92%"></div><div class="l"></div><div class="l" style="width:70%"></div><div class="fig"></div><div class="l"></div><div class="l" style="width:85%"></div><div class="l"></div><div class="l" style="width:60%"></div></div>
+            <div class="sheet"><div class="l"></div><div class="l" style="width:88%"></div><div class="l"></div><div class="l"></div><div class="l" style="width:75%"></div><div class="h" style="margin-top:4%">1.2.1 Linear Recursion and Iteration</div><div class="l"></div><div class="l" style="width:90%"></div></div>
+          </div>
+        </div>
+        <div class="page-badge">Page 34 of 657</div>
+
+        <div class="findbar">
+          <button class="key small" aria-label="Close search" data-set="find=off"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <span class="q">Mr. Harrison</span>
+          <span class="n">2 of 14</span>
+          <button class="key small" aria-label="Previous match"><svg class="icon" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg></button>
+          <button class="key small" aria-label="Next match"><svg class="icon" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+
+        <header class="bar topbar">
+          <button class="key small" aria-label="Back to library" data-set="view=library,sheet=none"><svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+          <span class="title"><span class="t-epub">Anne of Avonlea</span><span class="t-pdf">Structure and Interpretation of Computer Programs</span></span>
+          <div class="top-tools">
+            <button class="key small" data-set="panel=contents"><svg class="icon" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Contents</button>
+            <button class="key small" data-set="panel=summary"><svg class="icon" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>Summary</button>
+            <button class="key small" data-set="panel=look"><span class="aa">Aa</span>Look</button>
+            <button class="key small" aria-label="More" data-set="panel=more"><svg class="icon" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+          </div>
+        </header>
+        <footer class="bar bottombar">
+          <div class="scrub"><div class="track"><span></span><i></i></div><span class="pct">38%</span></div>
+          <div class="tools">
+            <button class="key" data-set="panel=contents"><svg class="icon" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>Contents</button>
+            <button class="key" data-set="panel=summary"><svg class="icon" viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg>Summary</button>
+            <button class="key" data-set="panel=look"><span class="aa">Aa</span>Look</button>
+            <button class="key" data-set="panel=more"><svg class="icon" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>More</button>
+          </div>
+        </footer>
+
+        <div class="scrim read" data-set="panel=none"></div>
+
+        <!-- Look -->
+        <aside class="panel" id="look" aria-label="Look">
+          <div class="grab"></div>
+          <div class="panel-head"><h2>Look</h2><button class="key small" data-set="panel=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          <div class="panel-body look-grid">
+            <div class="swatches">
+              <button class="swatch paper" data-set="theme=light" data-latch="theme=light">Aa</button>
+              <button class="swatch ink" data-set="theme=dark" data-latch="theme=dark">Aa</button>
+            </div>
+            <div class="ctl"><span class="name">Warmth</span><div class="fader temperature" data-fader="warmth"><div class="groove"></div><div class="thumb"></div></div></div>
+            <div class="ctl"><span class="name">Size</span><div class="stepper"><button class="key small" data-set="size=down">A−</button><output id="size-out">19</output><button class="key small" data-set="size=up">A+</button></div></div>
+            <div class="fonts">
+              <button class="key" data-set="font=serif" data-latch="font=serif"><b style="font-family:'Literata Variable',serif">Aa</b>Serif</button>
+              <button class="key" data-set="font=sans" data-latch="font=sans"><b style="font-family:'Atkinson Hyperlegible Next Variable',sans-serif">Aa</b>Sans</button>
+              <button class="key" data-set="font=mono" data-latch="font=mono"><b style="font-family:ui-monospace,monospace">Aa</b>Mono</button>
+            </div>
+            <button class="row-item" style="border:1px solid var(--line);border-radius:14px" data-set="panel=look-more"><span class="label">More</span><span class="chev">›</span></button>
+          </div>
+        </aside>
+
+        <aside class="panel" id="look-more" aria-label="Look">
+          <div class="grab"></div>
+          <div class="panel-head"><button class="key small" data-set="panel=look" aria-label="Back"><svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h2>Look</h2><button class="key small" data-set="panel=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          <div class="panel-body">
+            <div class="rows">
+              <div class="row-item"><span class="label">Line spacing</span><div class="stepper"><button class="key small">−</button><output>1.6</output><button class="key small">+</button></div></div>
+              <div class="row-item"><span class="label">Alignment</span><div class="latch-row"><button class="key latched">Left</button><button class="key">Justify</button></div></div>
+              <div class="row-item"><span class="label" style="flex:none;width:96px">Line width</span><div class="fader" data-fader="width"><div class="groove"></div><div class="thumb"></div></div></div>
+            </div>
+            <div class="rows planned">
+              <div class="row-item"><span class="label">Layout</span><div class="latch-row"><button class="key latched">Scroll</button><button class="key">Pages</button></div></div>
+              <div class="row-item"><span class="label">Margins</span><div class="stepper"><button class="key small">−</button><output>M</output><button class="key small">+</button></div></div>
+              <div class="row-item"><span class="label">Paragraph spacing</span><div class="stepper"><button class="key small">−</button><output>0</output><button class="key small">+</button></div></div>
+              <div class="row-item"><span class="label">Hyphenation</span><span class="switch"></span></div>
+              <div class="row-item"><span class="label" style="flex:none;width:96px">Weight</span><div class="fader" data-fader="weight"><div class="groove"></div><div class="thumb"></div></div></div>
+              <button class="row-item"><span class="label">Fonts</span><span class="value">Literata</span><span class="chev">›</span></button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Contents -->
+        <aside class="panel" id="contents" aria-label="Contents">
+          <div class="grab"></div>
+          <div class="panel-head"><h2>Contents</h2><button class="key small" data-set="panel=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          <div class="tabs latch-row"><button class="key" data-set="toctab=chapters" data-latch="toctab=chapters">Chapters</button><button class="key planned">Marks</button><button class="key" data-set="toctab=search" data-latch="toctab=search">Search</button></div>
+          <div class="panel-body">
+            <div class="search-pane">
+              <div class="search-input"><svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span>Mr. Harrison</span><button class="key small" aria-label="Clear"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+              <p class="hits-count">14 results</p>
+              <div class="hit" data-set="panel=none,find=on"><div class="where">1 · An Irate Neighbor</div><div class="snip">…the gate flung open and <mark>Mr. Harrison</mark> strode across the yard, purple with fury…</div></div>
+              <div class="hit" data-set="panel=none,find=on"><div class="where">3 · Mr. Harrison at Home</div><div class="snip">…<mark>Mr. Harrison</mark> looked at the parrot, and the parrot looked at Anne…</div></div>
+              <div class="hit" data-set="panel=none,find=on"><div class="where">4 · Different Opinions</div><div class="snip">…said that <mark>Mr. Harrison</mark> had been kinder than she ever expected…</div></div>
+              <div class="hit" data-set="panel=none,find=on"><div class="where">5 · A Full-fledged Schoolma'am</div><div class="snip">…for no reason at all, of <mark>Mr. Harrison</mark> and his parrot…</div></div>
+            </div>
+            <div class="toc toc-pane">
+              <div class="toc-item dim"><span class="n"></span><div><div class="t">Front matter</div></div><span class="chev" style="margin-left:auto">›</span></div>
+              <div class="toc-item"><span class="n">1</span><div><div class="t">An Irate Neighbor</div><div class="s">Mr. Harrison storms over about a cow in his oats.</div></div></div>
+              <div class="toc-item"><span class="n">2</span><div><div class="t">Selling in Haste</div><div class="s">Anne sells the wrong cow.</div></div></div>
+              <div class="toc-item"><span class="n">3</span><div><div class="t">Mr. Harrison at Home</div><div class="s">An apology, a parrot and a truce.</div></div></div>
+              <div class="toc-item"><span class="n">4</span><div><div class="t">Different Opinions</div><div class="s">Anne, Gilbert and Diana argue about teaching.</div></div></div>
+              <div class="toc-item current"><span class="n">5</span><div><div class="t">A Full-fledged Schoolma'am</div></div></div>
+              <div class="toc-item"><span class="n">6</span><div><div class="t">All Sorts and Conditions of Men</div></div></div>
+              <div class="toc-item"><span class="n">7</span><div><div class="t">The Pointing of Duty</div></div></div>
+              <div class="toc-item"><span class="n">8</span><div><div class="t">Marilla Adopts Twins</div></div></div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- More -->
+        <aside class="panel" id="more" aria-label="More">
+          <div class="grab"></div>
+          <div class="panel-body" style="padding-top:12px">
+            <div class="rows">
+              <button class="row-item only-pdf"><span class="label">Reader view</span></button>
+              <button class="row-item planned"><span class="label">Read aloud</span></button>
+              <button class="row-item planned"><span class="label">Share</span></button>
+              <button class="row-item"><span class="label">Book details</span><span class="chev">›</span></button>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Summary -->
+        <aside class="panel" id="summary" aria-label="Summary">
+          <div class="grab"></div>
+          <div class="panel-head head-main"><h2>Summary</h2>
+            <button class="key small" aria-label="More"><svg class="icon" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button>
+            <button class="key small" data-set="panel=none" aria-label="Close"><svg class="icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+          <div class="panel-head head-edit"><button class="key small" data-set="sumtab=characters" aria-label="Back"><svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h2>Character</h2></div>
+          <div class="tabs latch-row"><button class="key" data-set="sumtab=chapters" data-latch="sumtab=chapters">Chapters</button><button class="key" data-set="sumtab=characters" data-latch="sumtab=characters">Characters</button></div>
+          <div class="panel-body sum">
+            <div class="sum-characters">
+              <div class="name-row" data-set="sumtab=edit"><div class="who"><b>Anne Shirley</b>Sixteen. The new teacher at the Avonlea school.</div><span class="chev">›</span></div>
+              <div class="name-row" data-set="sumtab=edit"><div class="who"><b>Marilla Cuthbert</b>Raised Anne at Green Gables.</div><span class="chev">›</span></div>
+              <div class="name-row" data-set="sumtab=edit"><div class="who"><b>Mr. Harrison</b>The new neighbour. Owns a rude parrot named Ginger.</div><span class="chev">›</span></div>
+              <div class="name-row" data-set="sumtab=edit"><div class="who"><b>Gilbert Blythe</b>Teaches at White Sands. Anne's old rival, now her friend.</div><span class="chev">›</span></div>
+              <div class="name-row" data-set="sumtab=edit"><div class="who"><b>Diana Barry</b>Anne's closest friend.</div><span class="chev">›</span></div>
+              <div class="name-row new" data-set="sumtab=edit"><div class="who"><b>Ginger</b>Mr. Harrison's parrot.</div><span class="chev">›</span></div>
+            </div>
+            <div class="sum-edit" style="font-family:'Atkinson Hyperlegible Next Variable',sans-serif">
+              <label class="field-label" style="margin-top:4px">Name</label>
+              <div class="text-input">Mr. Harrison</div>
+              <label class="field-label">Note</label>
+              <div class="text-input area">The new neighbour. Owns a rude parrot named Ginger.</div>
+            </div>
+            <div class="sum-chapters">
+            <div class="sum-body-done">
+              <details class="before" open>
+                <summary>Before this book <svg class="icon" viewBox="0 0 24 24" style="margin-left:auto;width:18px"><path d="m6 9 6 6 6-6"/></svg></summary>
+                <div class="vol">
+                  <div class="book"><div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"><div class="art"></div></div></div>
+                  <p><b style="font-family:'Atkinson Hyperlegible Next Variable'">Anne of Green Gables.</b> Matthew and Marilla Cuthbert meant to adopt a boy and got Anne Shirley instead. She wins them over, makes a lifelong friend of Diana Barry and a rival of Gilbert Blythe. After Matthew dies, Anne gives up her scholarship to stay with Marilla, and Gilbert gives her the Avonlea school.</p>
+                </div>
+              </details>
+              <h3>1 · An Irate Neighbor</h3>
+              <p>Anne, now sixteen, is studying Virgil when Mr. Harrison, the new neighbour, storms over. A Jersey cow has got into his oats for the third time. Anne, mortified, chases the cow out.</p>
+              <h3>2 · Selling in Haste</h3>
+              <p>Anne sells the cow to Mr. Shearer while Marilla is away, then finds Marilla's cow still in its pen. She sold Mr. Harrison's.</p>
+              <h3>3 · Mr. Harrison at Home</h3>
+              <p class="streaming">Anne goes to apologise. Mr. Harrison, his rude parrot Ginger and his untidy house turn out kinder than they looked.</p>
+              <h3 class="later">4 · Different Opinions</h3>
+              <p class="later">Anne, Gilbert and Diana talk about how to teach. Anne means never to whip a child.</p>
+              <div class="here later">You are here</div>
+              <h3 class="later">5 · A Full-fledged Schoolma'am, so far</h3>
+              <p class="later">Anne walks to her first day at the Avonlea school and faces forty pupils.</p>
+              <div class="qa later">
+                <div class="q">Why is Mr. Harrison so angry at first?</div>
+                <div class="a">His oats keep getting trampled by a cow he believes is Anne's. He wrote to Marilla twice about it. He does not know yet that Anne sold his own cow by mistake.</div>
+              </div>
+            </div>
+            <div class="sum-body-empty">
+              <div class="ghost">
+                <div class="before"><b style="font-family:'Atkinson Hyperlegible Next Variable'">Before this book</b><div class="vol"><div class="book"><div class="cover" style="--c1: oklch(66% 0.1 80); --c2: oklch(48% 0.1 70)"><div class="art"></div></div></div><div style="flex:1"><div class="bar-line" style="width:90%"></div><div class="bar-line" style="width:70%"></div></div></div></div>
+                <h3>1 · An Irate Neighbor</h3><div class="bar-line" style="width:85%"></div>
+                <h3>2 · Selling in Haste</h3><div class="bar-line" style="width:75%"></div>
+                <h3>3 · Mr. Harrison at Home</h3><div class="bar-line" style="width:80%"></div>
+                <h3>4 · Different Opinions</h3><div class="bar-line" style="width:65%"></div>
+                <div class="here">You are here</div>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="panel-foot">
+            <div class="foot-row foot-characters"><button class="key">Add character</button><button class="key green">Update characters</button></div>
+            <div class="foot-row foot-edit"><button class="key danger" data-set="sumtab=characters">Remove</button><button class="key green" data-set="sumtab=characters">Save</button></div>
+            <div class="foot-chapters" style="display:contents">
+            <div class="status sum-done"><button class="key small">Update to here</button></div>
+            <div class="status sum-running"><div class="progress"><span style="width: 45%"></span></div><span class="what">3 of 6</span><button class="key small" data-set="summary=done">Stop</button></div>
+            <div class="sum-empty" style="flex-direction:column"><div class="empty-center">No summary yet</div><button class="key green" data-set="panel=setup">Summarise up to here</button></div>
+            <div class="ask sum-done"><div class="field">Ask about the book</div><button class="key green round" aria-label="Send"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- First setup, inside the reader -->
+        <aside class="panel" id="setup" aria-label="Choose a provider">
+          <div class="grab"></div>
+          <div class="panel-head"><button class="key small" data-set="panel=summary,summary=empty" aria-label="Back"><svg class="icon" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button><h2>Choose a provider</h2></div>
+          <div class="panel-body">
+            <div class="providers">
+              <button class="key latched">Anthropic</button>
+              <button class="key">OpenAI</button>
+              <button class="key">Gemini</button>
+              <button class="key">DeepSeek</button>
+              <button class="key">OpenRouter</button>
+              <button class="key">More ⌄</button>
+            </div>
+            <label class="field-label">API key</label>
+            <div class="input"><span>sk-ant-…3f9a</span><span class="ok">Valid</span><button class="key small">Paste</button></div>
+            <a href="#" style="display:inline-block;margin:8px 0 0 2px;color:var(--green);font-weight:650;font-size:14px">Get a key from Anthropic</a>
+            <label class="field-label">Model</label>
+            <div class="input"><span>claude-sonnet-5-5</span><button class="key small" aria-label="Show models"><svg class="icon" viewBox="0 0 24 24" style="width:16px"><path d="m6 9 6 6 6-6"/></svg></button></div>
+            <div class="consent">Reader Hero sends this book's text to Anthropic with your key, one chapter at a time. Questions, character updates and series grouping go there too. Nothing else leaves this device.</div>
+          </div>
+          <div class="panel-foot">
+            <button class="key green" data-set="panel=summary,summary=running">Agree and summarise</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <aside class="notes" id="notes">
+    <h2>Mark</h2>
+    <div class="icon-tile"><svg class="mark" viewBox="0 0 196 210" aria-hidden="true"><path d="M125 21V5H5V171H21" stroke="oklch(100% 0 0 / .4)"/><path d="M141 37V21H21V187H37" stroke="oklch(100% 0 0 / .65)"/><path d="M157 56V37H37V203H157V184" stroke="oklch(100% 0 0 / .9)"/><text x="88" y="172" fill="oklch(97% 0.02 90)">R</text></svg></div>
+    <div class="note" data-for="library"><h2>Library</h2><ul>
+      <li>One layout per size, no list/grid toggle. Phone: 3 covers per row. Wider: as many as fit.</li>
+      <li>Continue card for the book in progress. Desktop shows two.</li>
+      <li>Filters: All, Reading, Finished. Sort is one key.</li>
+      <li>Ribbon = in progress. Green stamp = finished.</li>
+      <li>Series is a slipcase with a count tab. Tap it.</li>
+      <li>Tap a cover to open the book. Long-press or right-click opens the book sheet.</li>
+      <li>Never-opened books (Middlemarch, Meditations, Monte Cristo, volumes 3 and 4) swing their cover open the first time. Others zoom.</li>
+      <li>Come back from Anne of Avonlea to see the Continue bar and page edge grow.</li>
+      <li>Book sheet: Finished thumps a stamp on. Delete makes the cover fall and the shelf close up.</li>
+      <li>Storage line moves to Settings.</li>
+    </ul></div>
+    <div class="note" data-for="reader"><h2>Reader</h2><ul>
+      <li>Tap the page to show or hide the bars.</li>
+      <li>Four keys: Contents, Summary, Look, More. Search lives in Contents.</li>
+      <li>Phone: panels are bottom sheets. Tablet: they slide over the page. Desktop: docked, the page moves left.</li>
+      <li>One panel at a time. Never stacked.</li>
+      <li><span style="outline:2px dashed oklch(65% 0.12 70);padding:0 4px;border-radius:4px">Dashed</span> = planned control, not built yet. It shows where future controls go.</li>
+      <li>Selection tools (highlight, look up, ask, share) come later in the text-selection menu.</li>
+      <li>Search lives in Contents for every book. A result closes the panel, marks the match, and swaps the top bar for a find bar.</li>
+      <li>Original pages: paper sheets on a desk. A page badge shows while the bars are hidden. More holds Reader view.</li>
+      <li>Tap the left or right third to turn a page. It slides 120ms, and nudges at the ends. The middle shows the bars.</li>
+      <li>Look changes the page live: size, font, warmth and line width. Drag the faders.</li>
+    </ul></div>
+    <div class="note" data-for="summary"><h2>Summary</h2><ul>
+      <li>Series summary folded in as "Before this book".</li>
+      <li>One job, one Stop. Discard becomes Start over in ⋯ with a confirm.</li>
+      <li>The empty state shows what will be summarised instead of explaining it.</li>
+      <li>No provider? Summarise opens setup in place, with the consent text once. Then the summary runs.</li>
+      <li>Story or document switch moves into ⋯. Its tab names follow it, as today.</li>
+      <li>Before this book starts open in the first chapters and folds later.</li>
+      <li>Characters: only names up to your position, so no spoilers. A dot marks a name you added that the next update will use.</li>
+      <li>Editing a character replaces the list inside the panel, with Back. No sheet on top of a sheet.</li>
+    </ul></div>
+    <div class="note" data-for="always"><h2>Motion</h2><ul>
+      <li>The library and panels are alive. The reading page is still unless you touch it.</li>
+      <li>Idle motion is slow (6 to 7s), small (2deg) and out of step: ribbons sway.</li>
+      <li>Every press answers: keys sink in 60ms and spring back, stamps thump, covers lift on hover.</li>
+      <li>Transitions show where things come from: books grow from their cover, volumes slide out of the slipcase, panels rise with a small spring.</li>
+      <li>Reduced motion: no idle, no travel, 150ms fades.</li>
+    </ul></div>
+    <div class="note" data-for="first"><h2>First run</h2><ul>
+      <li>Empty library: an open book on a ledge. One page turns once on arrival. The ribbon sways. No tour.</li>
+      <li>Dragging files over an empty library lifts a page and lights the ledge.</li>
+      <li>In the first book, the bars start shown and hide on the first page turn. That teaches the tap without any text.</li>
+      <li>Adding: one strip with Cancel. Each book gets an empty slot that fills, then its cover drops in.</li>
+      <li>Desktop and tablet: drag files anywhere on the window.</li>
+    </ul></div>
+    <div class="note" data-for="series"><h2>Series editor</h2><ul>
+      <li>Opened with Edit on an open series, or from a book's Series row.</li>
+      <li>The preview is the real slipcase, so a colour or cover change shows at once.</li>
+      <li>Colours are cloth samples. The colour becomes the slipcase tab.</li>
+      <li>Suggested books come from series grouping. + adds one in its place.</li>
+      <li>Nothing is stored until Save, as today.</li>
+    </ul></div>
+  </aside>
+</div>
+
+<script>
+const app = document.getElementById("app");
+const frame = document.getElementById("frame");
+const pageArea = app.querySelector(".pagearea");
+const sizes = { phone: [390, 844], tablet: [820, 1100], desktop: [1280, 800] };
+const pageFonts = { serif: '"Literata Variable", Georgia, serif', sans: '"Atkinson Hyperlegible Next Variable", sans-serif', mono: "ui-monospace, monospace" };
+const minSizePx = 14;
+const maxSizePx = 30;
+const state = {
+  view: "library", shelf: "full", drop: "off", sheet: "none", series: "closed", deleted: "off", finished: "off", rebuild: "idle",
+  book: "epub", title: "Anne of Avonlea", find: "off", bars: "off", panel: "none", toctab: "chapters", summary: "done", sumtab: "chapters",
+  size: 19, font: "serif", warmth: 0.56, width: 0.5, weight: 0.3, progress: 38,
+  device: "phone", theme: "light", motion: matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduced" : "full",
+};
+const appKeys = ["view", "shelf", "drop", "sheet", "series", "deleted", "finished", "rebuild", "book", "find", "bars", "panel", "toctab", "summary", "sumtab", "theme", "motion"];
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const isReduced = () => state.motion === "reduced";
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function nextValue(key, value) {
+  if (key === "size") return clamp(state.size + (value === "up" ? 1 : -1), minSizePx, maxSizePx);
+  if (value !== "toggle") return value;
+  if (key === "series") return state.series === "open" ? "closed" : "open";
+
+  return state[key] === "on" ? "off" : "on";
+}
+
+function applySet(text) {
+  const before = { ...state };
+  for (const pair of text.split(",")) {
+    const [key, value] = pair.split("=");
+    state[key] = nextValue(key, value);
+  }
+  if (state.view === "reader" && state.panel !== "none") state.bars = "on";
+
+  const canCrossFade = before.theme !== state.theme && document.startViewTransition && !isReduced();
+  if (canCrossFade) document.startViewTransition(() => render(before));
+  else render(before);
+}
+
+function render(before = state) {
+  for (const key of appKeys) app.dataset[key] = state[key];
+  frame.dataset.device = state.device;
+  document.getElementById("slipcase").dataset.open = state.series === "open" ? "on" : "off";
+
+  fitFrame();
+  renderControls();
+  renderReading();
+  renderNotes();
+  restoreDeleted();
+  runRebuild();
+  runSummary();
+  if (before.view === "reader" && state.view === "library") fillProgress(before);
+}
+
+function fitFrame() {
+  const [width, height] = sizes[state.device];
+  const room = document.querySelector(".stage").getBoundingClientRect();
+  app.style.width = `${width}px`;
+  app.style.height = `${height}px`;
+  frame.style.zoom = Math.min(1, (room.height - 60) / height, (room.width - 340) / width);
+}
+
+function renderControls() {
+  for (const button of document.querySelectorAll("[data-preset]")) {
+    const pairs = button.dataset.preset.split(",").map((pair) => pair.split("="));
+    button.classList.toggle("on", pairs.every(([key, value]) => state[key] === value));
+  }
+  for (const element of document.querySelectorAll("[data-latch]")) {
+    const [key, value] = element.dataset.latch.split("=");
+    element.classList.toggle("latched", state[key] === value);
+  }
+  for (const element of document.querySelectorAll("[data-on]")) {
+    const [key, value] = element.dataset.on.split("=");
+    element.classList.toggle("on", state[key] === value);
+  }
+  for (const fader of document.querySelectorAll("[data-fader]")) {
+    fader.querySelector(".thumb").style.left = `${state[fader.dataset.fader] * 100}%`;
+  }
+  document.getElementById("size-out").textContent = state.size;
+}
+
+function renderReading() {
+  const warm = Math.max(0, state.warmth - 0.5) * 2;
+  const cool = Math.max(0, 0.5 - state.warmth) * 2;
+
+  app.style.setProperty("--size", `${state.size}px`);
+  app.style.setProperty("--page-font", pageFonts[state.font]);
+  app.style.setProperty("--width", state.width);
+  app.style.setProperty("--warm", warm);
+  app.style.setProperty("--cool", cool);
+  for (const title of app.querySelectorAll(".t-epub")) title.textContent = state.title;
+  if (state.find === "on") pageArea.scrollTop = app.querySelector(".page mark").offsetTop - pageArea.clientHeight / 2;
+}
+
+function renderNotes() {
+  const isFirstRun = state.shelf !== "full" || state.drop === "on";
+  const libraryTopic = state.sheet === "series-edit" ? "series" : isFirstRun ? "first" : "library";
+  const readerTopic = ["summary", "setup"].includes(state.panel) ? "summary" : "reader";
+  const topic = state.view === "library" ? libraryTopic : readerTopic;
+  for (const note of document.querySelectorAll(".note")) {
+    note.style.display = note.dataset.for === topic || note.dataset.for === "always" ? "block" : "none";
+  }
+}
+
+// The Continue card fills from the old position to the new one after reading.
+function fillProgress(before) {
+  if (before.title !== "Anne of Avonlea") return;
+
+  const bar = document.getElementById("continue-bar");
+  const book = document.getElementById("continue-book");
+  const settleMs = 60;
+  state.progress = Math.min(100, state.progress + 3);
+  setTimeout(() => {
+    bar.style.width = `${state.progress}%`;
+    book.style.setProperty("--p", state.progress / 100);
+    document.getElementById("continue-pct").textContent = state.progress;
+  }, settleMs);
+}
+
+function restoreDeleted() {
+  if (state.deleted !== "off") return;
+
+  const tile = app.querySelector('.shelf [data-id="moby"]');
+  for (const animation of tile.getAnimations()) animation.cancel();
+  tile.style.display = "";
+}
+
+async function deleteBook() {
+  applySet("sheet=none,deleted=on");
+  const tile = app.querySelector('.shelf [data-id="moby"]');
+  if (isReduced()) {
+    tile.style.display = "none";
+    return;
+  }
+
+  const fall = [
+    { transform: "none", opacity: 1 },
+    { transform: "translateY(4px) rotate(8deg)", opacity: 1, offset: 0.35 },
+    { transform: "translateY(70px) rotate(14deg) scale(0.85)", opacity: 0 },
+  ];
+  await tile.animate(fall, { duration: 380, easing: "cubic-bezier(.5, 0, .75, 0)", fill: "forwards" }).finished;
+
+  const scale = app.getBoundingClientRect().width / sizes[state.device][0];
+  const others = [...tile.parentElement.children].filter((element) => element !== tile && element.offsetParent !== null);
+  const boxesBefore = new Map(others.map((element) => [element, element.getBoundingClientRect()]));
+  tile.style.display = "none";
+  for (const element of others) {
+    const was = boxesBefore.get(element);
+    const now = element.getBoundingClientRect();
+    const dx = (was.left - now.left) / scale;
+    const dy = (was.top - now.top) / scale;
+    if (dx === 0 && dy === 0) continue;
+
+    element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 300, easing: "cubic-bezier(.2, .8, .2, 1)" });
+  }
+}
+
+// A cover grows into the page. The first open of a book swings the cover open instead of fading it.
+async function openBook(trigger) {
+  const cover = trigger.querySelector(".cover:not(.landed)") ?? trigger.closest(".continue, .panel").querySelector(".cover");
+  const bookElement = cover.closest(".book");
+  const isNew = bookElement.hasAttribute("data-new");
+  const title = trigger.dataset.title ?? trigger.querySelector(".title").textContent.replace(/^\d+\.\s*/, "");
+  const target = { view: "reader", sheet: "none", book: trigger.hasAttribute("data-pdf") ? "pdf" : "epub", title, find: "off", panel: "none", bars: isNew ? "on" : "off" };
+  if (isReduced()) {
+    Object.assign(state, target);
+    render();
+    return;
+  }
+
+  const appBox = app.getBoundingClientRect();
+  const box = cover.getBoundingClientRect();
+  const percent = (value, total) => `${(value / total) * 100}%`;
+  const start = { left: percent(box.left - appBox.left, appBox.width), top: percent(box.top - appBox.top, appBox.height), width: percent(box.width, appBox.width), height: percent(box.height, appBox.height) };
+  const clone = cover.cloneNode(true);
+  clone.classList.add("zoomer");
+  Object.assign(clone.style, start);
+  app.append(clone);
+  await clone.animate([{ ...start, borderRadius: "2px 5px 5px 2px" }, { left: "0%", top: "0%", width: "100%", height: "100%", borderRadius: "0px" }], { duration: 320, easing: "cubic-bezier(.2, .8, .2, 1)", fill: "forwards" }).finished;
+
+  const before = { ...state };
+  Object.assign(state, target);
+  render(before);
+  if (isNew) pageArea.scrollTop = 0;
+
+  const swing = [{ transform: "perspective(1800px) rotateY(0deg)", opacity: 1 }, { transform: "perspective(1800px) rotateY(-105deg)", opacity: 0.2 }];
+  const reveal = isNew ? clone.animate(swing, { duration: 650, easing: "cubic-bezier(.5, 0, .3, 1)", fill: "forwards" }) : clone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: "forwards" });
+  await reveal.finished;
+  clone.remove();
+  bookElement.removeAttribute("data-new");
+}
+
+function turnPage(direction) {
+  const content = state.book === "pdf" ? app.querySelector(".pdfpages") : app.querySelector(".page");
+  const maxScroll = pageArea.scrollHeight - pageArea.clientHeight;
+  const isAtEnd = direction > 0 ? pageArea.scrollTop >= maxScroll - 1 : pageArea.scrollTop <= 0;
+  if (state.bars === "on") applySet("bars=off");
+  if (isAtEnd) {
+    if (!isReduced()) content.animate([{ transform: "none" }, { transform: `translateY(${-direction * 5}px)` }, { transform: "none" }], { duration: 200, easing: "ease-out" });
+    return;
+  }
+
+  pageArea.scrollTop += direction * pageArea.clientHeight * 0.9;
+  if (!isReduced()) content.animate([{ transform: `translateY(${direction * 18}px)`, opacity: 0.55 }, { transform: "none", opacity: 1 }], { duration: 120, easing: "ease-out" });
+}
+
+let rebuildTimer = null;
+function runRebuild() {
+  if (state.rebuild !== "running") {
+    clearTimeout(rebuildTimer);
+    rebuildTimer = null;
+    return;
+  }
+  if (rebuildTimer !== null) return;
+
+  const total = 12;
+  const stepMs = 500;
+  const holdMs = 2000;
+  let done = 4;
+  const show = () => {
+    document.getElementById("rebuild-count").textContent = `${done} of ${total}`;
+    document.getElementById("rebuild-bar").style.width = `${(done / total) * 100}%`;
+  };
+  const step = () => {
+    done += 1;
+    show();
+    rebuildTimer = done < total ? setTimeout(step, stepMs) : setTimeout(() => applySet("rebuild=idle"), holdMs);
+  };
+  show();
+  rebuildTimer = setTimeout(step, stepMs);
+}
+
+let summaryTimer = null;
+function runSummary() {
+  if (state.summary !== "running") {
+    clearTimeout(summaryTimer);
+    summaryTimer = null;
+    return;
+  }
+  if (summaryTimer !== null) return;
+
+  const writeMs = 6000;
+  summaryTimer = setTimeout(() => applySet("summary=done"), writeMs);
+}
+
+pageArea.addEventListener("click", (event) => {
+  const box = pageArea.getBoundingClientRect();
+  const ratio = (event.clientX - box.left) / box.width;
+  if (ratio < 0.3) return turnPage(-1);
+  if (ratio > 0.7) return turnPage(1);
+
+  applySet("bars=toggle");
+});
+
+for (const fader of document.querySelectorAll("[data-fader]")) {
+  const move = (event) => {
+    const box = fader.getBoundingClientRect();
+    state[fader.dataset.fader] = clamp((event.clientX - box.left) / box.width, 0, 1);
+    render();
+  };
+  fader.addEventListener("pointerdown", (event) => {
+    fader.setPointerCapture(event.pointerId);
+    move(event);
+  });
+  fader.addEventListener("pointermove", (event) => {
+    if (fader.hasPointerCapture(event.pointerId)) move(event);
+  });
+}
+
+// Long-press or right-click on a cover opens the book sheet. A tap opens the book.
+const longPressMs = 480;
+let pressTimer = null;
+let wasLongPress = false;
+app.addEventListener("pointerdown", (event) => {
+  if (event.target.closest(".shelf [data-open], .tray [data-open]") === null) return;
+
+  wasLongPress = false;
+  pressTimer = setTimeout(() => {
+    wasLongPress = true;
+    applySet("sheet=book");
+  }, longPressMs);
+});
+for (const type of ["pointerup", "pointercancel", "pointerleave"]) app.addEventListener(type, () => clearTimeout(pressTimer));
+app.addEventListener("contextmenu", (event) => {
+  if (event.target.closest(".shelf [data-open], .tray [data-open]") === null) return;
+
+  event.preventDefault();
+  clearTimeout(pressTimer);
+  applySet("sheet=book");
+});
+
+document.addEventListener("click", (event) => {
+  if (wasLongPress) {
+    wasLongPress = false;
+    return;
+  }
+
+  const action = event.target.closest("[data-action]");
+  const opener = event.target.closest("[data-open]");
+  const target = event.target.closest("[data-set], [data-preset]");
+  if (action !== null) return deleteBook();
+  if (opener !== null) return openBook(opener);
+  if (target === null) return;
+
+  event.preventDefault();
+  applySet(target.dataset.set ?? target.dataset.preset);
+});
+
+document.fonts.ready.then(() => {
+  for (const svg of document.querySelectorAll(".wordmark")) {
+    const box = svg.querySelector("text").getBBox();
+    svg.setAttribute("viewBox", `0 0 ${Math.ceil(box.x + box.width + 4)} 210`);
+  }
+});
+window.addEventListener("resize", () => render());
+
+const dealMs = 1200;
+app.classList.add("dealing");
+setTimeout(() => app.classList.remove("dealing"), dealMs);
+render();
+</script>
+</body>
+</html>
