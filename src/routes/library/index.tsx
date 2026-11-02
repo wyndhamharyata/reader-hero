@@ -171,7 +171,7 @@ function LibraryHeader({
       </header>
 
       {isSearchOpen && (
-        <div className="rise px-4 pb-3 md:hidden">
+        <div className="px-4 pb-3 md:hidden">
           <SearchField value={query} isFocused onChange={onQuery} />
         </div>
       )}

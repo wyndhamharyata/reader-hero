@@ -650,6 +650,11 @@
     animation-delay: 40ms;
   }
 
+  /* A field that takes the keyboard as it shows. iOS reads its place once, at the focus, to slide it clear of the keyboard, so it must not move then. */
+  .panel-body > .still {
+    animation: none;
+  }
+
   .panel-body > :nth-child(3) {
     animation-delay: 80ms;
   }

@@ -103,7 +103,7 @@ export function ContentsPanel({
       onDismiss={() => dismiss()}
     >
       {tab === "search" ? (
-        <div key="search">
+        <div key="search" className="still">
           <form
             role="search"
             className="field mb-2"
