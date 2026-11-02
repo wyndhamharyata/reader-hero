@@ -1361,6 +1361,80 @@
     clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
   }
 
+  /* No matches: an empty space on the shelf, with the book past it tipped into the space. */
+  .gap-shelf {
+    width: min(80%, 300px);
+  }
+
+  .gap-shelf .spines {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0 18px;
+  }
+
+  .gap-shelf .space {
+    position: relative;
+    flex: 1;
+    align-self: stretch;
+  }
+
+  /* Where the missing books stood. */
+  .gap-shelf .space::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--ledge-bottom);
+    opacity: 0.5;
+  }
+
+  .spine {
+    position: relative;
+    flex: none;
+    width: 22px;
+    border-radius: 3px 3px 1px 1px;
+    background:
+      var(--cloth),
+      linear-gradient(
+        90deg,
+        oklch(34% 0.04 var(--hue)),
+        oklch(45% 0.05 var(--hue)) 40%,
+        oklch(32% 0.04 var(--hue))
+      );
+    box-shadow:
+      inset 0 0 0 1px oklch(0% 0 0 / 0.15),
+      2px 0 4px -2px oklch(0% 0 0 / 0.4);
+  }
+
+  .spine::before,
+  .spine::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    height: 3px;
+    border-radius: 1px;
+    background: oklch(78% 0.1 85 / 0.85);
+  }
+
+  .spine::before {
+    top: 14%;
+  }
+
+  .spine::after {
+    bottom: 14%;
+  }
+
+  .spine.tipping {
+    transform-origin: 0 100%;
+    transform: rotate(-8deg);
+    animation: tip 600ms var(--ease-out) 300ms backwards;
+  }
+
   .ledge {
     width: 100%;
     height: 14px;
@@ -1526,6 +1600,18 @@
   to {
     transform: rotateY(-180deg);
     filter: brightness(1);
+  }
+}
+
+@keyframes tip {
+  from {
+    transform: none;
+  }
+  70% {
+    transform: rotate(-9.5deg);
+  }
+  to {
+    transform: rotate(-8deg);
   }
 }
 

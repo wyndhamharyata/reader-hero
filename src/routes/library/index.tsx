@@ -296,18 +296,22 @@ function ShelfTop({
 
 function ShelfFooter({
   hasNoMatches,
+  query,
+  status,
   showsInstall,
   onClear,
   onDismissInstall,
 }: {
   readonly hasNoMatches: boolean;
+  readonly query: string;
+  readonly status: string | null;
   readonly showsInstall: boolean;
   readonly onClear: () => void;
   readonly onDismissInstall: () => void;
 }): ReactElement {
   return (
     <>
-      {hasNoMatches && <NoMatches onClear={onClear} />}
+      {hasNoMatches && <NoMatches query={query} status={status} onClear={onClear} />}
       {showsInstall && (
         <div className="mx-4 mb-4.5 flex items-center gap-3 rounded-[14px] border border-dashed border-(--line) py-2 pr-2 pl-4 text-[13.5px] text-(--ink-soft) md:mx-8">
           <p className="flex-1">
@@ -937,6 +941,8 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
           <ShelfFooter
             hasNoMatches={shelf.items.length === 0 && books.length > 0}
+            query={query}
+            status={filters.status}
             showsInstall={isInstallHintShown && !isEmpty}
             onClear={() => {
               setQuery("");
