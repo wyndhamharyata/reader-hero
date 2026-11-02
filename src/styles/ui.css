@@ -47,7 +47,8 @@
   --ledge-bottom: oklch(70% 0.04 65);
 }
 
-[data-theme="rhdark"] {
+[data-theme="rhdark"],
+[data-theme="rhdim"] {
   --bg: oklch(19% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
   --surface: oklch(22.5% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
   --sunk: oklch(16% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
@@ -73,16 +74,28 @@
   --ledge-bottom: oklch(30% 0.03 60);
 }
 
-/* Light with the lamp turned down: the papers dim, the inks hold, nothing changes hue. */
+/* A dark desk, and the papers on it lit but dimmed. The inks hold and nothing changes hue. */
 [data-theme="rhdim"] {
-  --bg: oklch(80% calc(0.005 + var(--tint) * 0.025) var(--tint-hue));
+  --bg: oklch(24% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --surface: oklch(30% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --sunk: oklch(20% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --line: oklch(36% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --key-top: oklch(40% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --key-bottom: oklch(33% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --page: oklch(85% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --page-ink: oklch(22% 0.012 70);
+  color-scheme: dark;
+}
+
+/* The sheets are paper on the desk too. */
+[data-theme="rhdim"] .panel {
+  --bg: oklch(82% calc(0.005 + var(--tint) * 0.025) var(--tint-hue));
   --surface: oklch(87% calc(0.004 + var(--tint) * 0.015) var(--tint-hue));
   --sunk: oklch(76% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
   --line: oklch(71% calc(0.007 + var(--tint) * 0.034) var(--tint-hue));
   --ink: oklch(22% calc(0.012 + var(--tint) * 0.025) var(--tint-hue));
   --ink-soft: oklch(38% calc(0.012 + var(--tint) * 0.02) var(--tint-hue));
-  --page: oklch(85% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
-  --page-ink: oklch(22% 0.012 70);
+  --red: oklch(52% 0.17 27);
   --green: oklch(40% 0.1 159);
   --green-deep: oklch(30% 0.08 159);
   --green-wash: oklch(80% 0.04 159);
@@ -90,10 +103,31 @@
   --key-bottom: oklch(81% calc(0.007 + var(--tint) * 0.02) var(--tint-hue));
   --key-skirt: oklch(64% calc(0.01 + var(--tint) * 0.02) var(--tint-hue));
   --key-light: oklch(100% 0 0 / 0.4);
-  --tray-l: 76%;
+  --key-edge: oklch(0% 0 0 / 0.07);
+  --key-drop: oklch(0% 0 0 / 0.25);
   --mark: oklch(86% 0.008 85);
-  --ledge-top: oklch(66% 0.03 75);
-  --ledge-bottom: oklch(57% 0.04 65);
+  color-scheme: light;
+}
+
+/* In the reader the page is the one sheet on the desk. A tight shadow, as a wide glow would blur its edge. */
+[data-theme="rhdim"] .reader {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+[data-theme="rhdim"] .reader-body {
+  background: var(--page);
+  box-shadow:
+    0 1px 3px oklch(0% 0 0 / 0.35),
+    0 8px 24px oklch(0% 0 0 / 0.35);
+}
+
+/* The swatch: a page on the desk. */
+.swatch-dim {
+  background:
+    linear-gradient(oklch(85% 0.006 85), oklch(85% 0.006 85)) center / 62% 72% no-repeat,
+    oklch(24% 0.006 95);
+  color: oklch(22% 0.012 70);
 }
 
 /* A lamp over the shelf. Only on a wide screen, where the corners are far from any words. */
@@ -1504,12 +1538,12 @@
     box-shadow: 0 0 0 1px oklch(0% 0 0 / 0.12);
   }
 
-  [data-theme="rhdark"] .case .ghost,
-  [data-theme="rhdark"] .case .page {
+  :is([data-theme="rhdark"], [data-theme="rhdim"]) .case .ghost,
+  :is([data-theme="rhdark"], [data-theme="rhdim"]) .case .page {
     background: var(--grain), oklch(40% 0.01 85);
   }
 
-  [data-theme="rhdark"] .case .cover {
+  :is([data-theme="rhdark"], [data-theme="rhdim"]) .case .cover {
     background:
       linear-gradient(90deg, oklch(0% 0 0 / 0.3), oklch(100% 0 0 / 0.08) 6%, transparent 12%),
       linear-gradient(var(--line), var(--line)) 50% 22% / 56% 4px no-repeat,

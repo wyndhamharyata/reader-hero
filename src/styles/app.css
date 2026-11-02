@@ -176,12 +176,8 @@
   --tray: 90% 0.05;
 }
 
+[data-theme="rhdark"],
 [data-theme="rhdim"] {
-  --sheet: oklch(calc(87% - var(--tint) * 1%) calc(var(--tint) * 0.015) var(--tint-hue));
-  --tray: 78% 0.05;
-}
-
-[data-theme="rhdark"] {
   --sheet: oklch(17% calc(var(--tint) * 0.025) var(--tint-hue));
   --backdrop: oklch(0% 0 0 / 0.25);
   --tray: 30% 0.045;

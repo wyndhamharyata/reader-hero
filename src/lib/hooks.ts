@@ -50,7 +50,7 @@ export function stopFiber(fiber: Job): void {
 // Each theme's --bg at neutral warmth, as the hex a status bar takes.
 const statusBar: Record<ReaderTheme, string> = {
   rhlight: "#f6f5f2",
-  rhdim: "#bfbeba",
+  rhdim: "#201f1c",
   rhdark: "#151411",
 };
 

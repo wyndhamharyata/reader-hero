@@ -11,7 +11,7 @@ const themes: ReadonlyArray<{ value: ReaderTheme; label: string; className: stri
   {
     value: "rhdim",
     label: "Dim",
-    className: "bg-[oklch(85%_0.005_85)] [background-image:var(--fibre)] text-[#2a2620]",
+    className: "swatch-dim",
   },
   {
     value: "rhdark",
