@@ -26,7 +26,7 @@ import { watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
 import { pendingVolumes } from "@/use-cases/summary";
-import { ContentsPanel, type ContentsTab } from "./_ContentsPanel";
+import { ContentsPanel } from "./_ContentsPanel";
 import { FindBar } from "./_FindBar";
 import { LookPanel } from "./_LookPanel";
 import { MorePanel } from "./_MorePanel";
@@ -50,7 +50,7 @@ const SAVE_DELAY_MS = 400;
 
 type OpenPanel =
   | { readonly kind: "none" }
-  | { readonly kind: "contents"; readonly tab: ContentsTab }
+  | { readonly kind: "contents" }
   | { readonly kind: "summary"; readonly openAt: number | null }
   | { readonly kind: "look" };
 
@@ -217,7 +217,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       setFind(null);
       setPageQuery(null);
     },
-    setTocOpen: () => setPanel({ kind: "contents", tab: "chapters" }),
+    setTocOpen: () => setPanel({ kind: "contents" }),
     navigate,
     fontSize: bookSettings.fontSize,
     lineHeight: bookSettings.lineHeight,
@@ -489,7 +489,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           percent={percentLabel}
           ratio={shown / total}
           onPanel={(next: ReaderPanel) => {
-            if (next === "contents") setPanel({ kind: "contents", tab: "chapters" });
+            if (next === "contents") setPanel({ kind: "contents" });
             if (next === "summary") openSummary(null);
             if (next === "look") setPanel({ kind: "look" });
             // A menu over the page, so a panel open beside it stays open.
@@ -510,7 +510,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           lines={lines}
           canSearch={data.meta.parseState !== "scanned"}
           isOriginal={showsPages}
-          initialTab={panel.tab}
           onSelect={selectToc}
           onLine={(blockIndex) => {
             const index = chapterList.findIndex((chapter) => chapter.start === blockIndex);

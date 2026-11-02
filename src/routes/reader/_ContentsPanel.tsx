@@ -5,13 +5,11 @@ import type { Block, TocEntry } from "@/domain/book";
 import { findInBlocks, maxMatches, snippetOf, type BlockMatch } from "@/lib/find-text";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 
-export type ContentsTab = "chapters" | "search";
-
 function entryAt(toc: ReadonlyArray<TocEntry>, blockIndex: number): number {
   return toc.findLastIndex((entry) => entry.blockIndex <= blockIndex);
 }
 
-// Chapters and the book's search, in one panel. A result closes it and marks the match on the page.
+// Chapters, with the book's search pinned above them. A search swaps the list for its results. A result closes the panel and marks the match on the page.
 export function ContentsPanel({
   toc,
   blocks,
@@ -19,7 +17,6 @@ export function ContentsPanel({
   lines,
   canSearch,
   isOriginal,
-  initialTab,
   onSelect,
   onLine,
   onFind,
@@ -35,7 +32,6 @@ export function ContentsPanel({
   readonly canSearch: boolean;
   // The original pages search page by page, in their own find bar.
   readonly isOriginal: boolean;
-  readonly initialTab: ContentsTab;
   readonly onSelect: (blockIndex: number) => void;
   readonly onLine: (blockIndex: number) => void;
   readonly onFind: (query: string, matches: ReadonlyArray<BlockMatch>, at: number) => void;
@@ -46,7 +42,6 @@ export function ContentsPanel({
   const backdropRef = useRef<HTMLButtonElement>(null);
   const currentRef = useRef<HTMLLIElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
-  const [tab, setTab] = useState<ContentsTab>(canSearch ? initialTab : "chapters");
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState("");
   const matches = useMemo(
@@ -55,9 +50,13 @@ export function ContentsPanel({
   );
   const current = entryAt(toc, position);
 
+  const isSearching = searched !== "";
+
+  // The chapters open at the one being read. Results open at their first.
   useEffect(() => {
-    if (tab === "chapters") currentRef.current?.scrollIntoView({ block: "center" });
-  }, [tab]);
+    if (searched === "") currentRef.current?.scrollIntoView({ block: "center" });
+    else sheetRef.current?.querySelector(".panel-body")?.scrollTo(0, 0);
+  }, [searched]);
 
   const search = (): void => {
     const words = query.trim();
@@ -71,25 +70,33 @@ export function ContentsPanel({
     setSearched(words);
   };
 
-  const tabs = canSearch ? (
-    <div className="panel-tabs latch-row flex" role="group" aria-label="Show">
-      <button
-        type="button"
-        className="key"
-        aria-pressed={tab === "chapters"}
-        onClick={() => setTab("chapters")}
-      >
-        Chapters
-      </button>
-      <button
-        type="button"
-        className="key"
-        aria-pressed={tab === "search"}
-        onClick={() => setTab("search")}
-      >
+  // Above the list, so it stays put while the list scrolls, and still when it takes the keyboard.
+  const searchField = canSearch ? (
+    <form
+      role="search"
+      className="field mx-5 mb-3 w-auto flex-none"
+      onSubmit={(event) => {
+        event.preventDefault();
+        search();
+      }}
+    >
+      <MagnifyingGlassIcon className="icon text-(--ink-soft)" />
+      <input
+        type="search"
+        enterKeyHint="search"
+        placeholder="Search this book"
+        aria-label="Search this book"
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          // Cleared, the chapters come back.
+          if (event.target.value === "") setSearched("");
+        }}
+      />
+      <button type="submit" className="key small" disabled={query.trim() === ""}>
         Search
       </button>
-    </div>
+    </form>
   ) : undefined;
 
   return (
@@ -99,41 +106,16 @@ export function ContentsPanel({
       label="Contents"
       title="Contents"
       docks
-      tabs={tabs}
+      tabs={searchField}
       onDismiss={() => dismiss()}
     >
-      {tab === "search" ? (
-        <div key="search" className="still">
-          <form
-            role="search"
-            className="field mb-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              search();
-            }}
-          >
-            <MagnifyingGlassIcon className="icon text-(--ink-soft)" />
-            <input
-              type="search"
-              enterKeyHint="search"
-              placeholder="Search this book"
-              aria-label="Search this book"
-              // The tab opens for a search, so the field takes the keyboard at once.
-              autoFocus
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-            <button type="submit" className="key small" disabled={query.trim() === ""}>
-              Search
-            </button>
-          </form>
-          {searched !== "" && (
-            <p className="mx-0.5 mt-1.5 mb-1 text-[13.5px] text-(--ink-soft)">
-              {matches.length === 0
-                ? "No matches"
-                : `${matches.length}${matches.length === maxMatches ? "+" : ""} ${matches.length === 1 ? "result" : "results"}`}
-            </p>
-          )}
+      {isSearching ? (
+        <div key="search">
+          <p className="mx-0.5 mb-1 text-[13.5px] text-(--ink-soft)">
+            {matches.length === 0
+              ? `No matches for "${searched}"`
+              : `${matches.length}${matches.length === maxMatches ? "+" : ""} ${matches.length === 1 ? "result" : "results"}`}
+          </p>
           <ul>
             {matches.map((match, at) => {
               const text = blocks[match.index]?.text ?? "";

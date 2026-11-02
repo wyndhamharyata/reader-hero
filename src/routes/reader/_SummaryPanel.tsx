@@ -1,5 +1,12 @@
 import { Effect } from "effect";
-import { useEffect, useRef, useState, type ReactElement, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type RefObject,
+} from "react";
 import { ConsentNote } from "@/components/ConsentNote";
 import { ArrowUpIcon, EllipsisIcon } from "@/components/icons";
 import { Panel } from "@/components/Panel";
@@ -9,6 +16,7 @@ import type { ReaderFont } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
 import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
 import type { Shelf } from "@/lib/shelf";
+import { prefersLessMotion } from "@/lib/open-book";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import type { JobState } from "@/services/summary-jobs";
 import type { Chapter } from "@/use-cases/ai-context";
@@ -57,7 +65,7 @@ function runStatus(
 }
 
 function panelBody(sheet: HTMLElement | null): HTMLElement | null {
-  return sheet?.querySelector<HTMLElement>(".panel-body") ?? null;
+  return sheet?.querySelector<HTMLElement>('[data-pane="chapters"]') ?? null;
 }
 
 function bodyTop(sheet: HTMLElement | null): number {
@@ -67,13 +75,13 @@ function bodyTop(sheet: HTMLElement | null): number {
 // Back from a volume returns to its row. Otherwise the list opens at the chapter being read. Returns the place still held.
 function placeBody(
   body: HTMLElement | null,
-  kind: View["kind"],
+  isShown: boolean,
   place: ListPlace,
   heading: HTMLElement | null,
 ): ListPlace {
-  if (body === null || kind === "volume") return place;
+  if (body === null || !isShown) return place;
 
-  if (kind === "chapters" && place !== null) {
+  if (place !== null) {
     body.scrollTop = place.top;
     body.querySelector<HTMLElement>(`[data-volume="${place.id}"]`)?.focus();
     return null;
@@ -82,6 +90,49 @@ function placeBody(
   if (heading !== null) body.scrollTop = heading.offsetTop - body.offsetTop - 8;
 
   return place;
+}
+
+type Tab = "chapters" | "names";
+
+// The two tabs sit side by side, so a swipe moves between them. The tab switches once the swipe passes halfway.
+function useSwipeTabs(
+  kind: View["kind"],
+  onTab: (tab: Tab) => void,
+): {
+  readonly panesRef: RefObject<HTMLDivElement | null>;
+  readonly onScroll: () => void;
+  readonly show: (tab: Tab) => void;
+} {
+  const panesRef = useRef<HTMLDivElement>(null);
+  const tabAt = (panes: HTMLElement): Tab =>
+    panes.scrollLeft > panes.clientWidth / 2 ? "names" : "chapters";
+
+  // Back from a page of its own, the panes open at the tab that was showing.
+  useLayoutEffect(() => {
+    const panes = panesRef.current;
+
+    if (panes !== null && (kind === "chapters" || kind === "names") && tabAt(panes) !== kind) {
+      panes.scrollLeft = kind === "names" ? panes.clientWidth : 0;
+    }
+  }, [kind]);
+
+  return {
+    panesRef,
+    onScroll: () => {
+      const panes = panesRef.current;
+
+      if (panes !== null && tabAt(panes) !== kind) onTab(tabAt(panes));
+    },
+    show: (tab) => {
+      const panes = panesRef.current;
+
+      // The scroll switches the tab as it passes halfway, as a swipe does.
+      panes?.scrollTo({
+        left: tab === "names" ? panes.clientWidth : 0,
+        behavior: prefersLessMotion() ? "auto" : "smooth",
+      });
+    },
+  };
 }
 
 // How far the run has gone, for the bar. A step that is not a chapter fills the bar.
@@ -167,16 +218,19 @@ export function SummaryPanel({
   const isRunning = run !== null || seriesJob.run !== null;
   const failure = error ?? seriesJob.error;
   const status = runStatus(row, run, series, seriesJob.run);
+  // Either tab: both are in the page, so a swipe between them moves neither list.
+  const isMain = view.kind === "chapters" || view.kind === "names";
+  const swipe = useSwipeTabs(view.kind, (tab) => setView({ kind: tab }));
 
   // Not scrollIntoView, which also scrolls the page under a sliding sheet.
   useEffect(() => {
     listPlace.current = placeBody(
       panelBody(sheetRef.current),
-      view.kind,
+      isMain,
       listPlace.current,
       targetRef.current,
     );
-  }, [openAt, view.kind, run?.chapter]);
+  }, [openAt, isMain, run?.chapter]);
 
   useEffect(
     () => () => {
@@ -317,7 +371,7 @@ export function SummaryPanel({
         type="button"
         className="key"
         aria-pressed={view.kind === "chapters"}
-        onClick={() => setView({ kind: "chapters" })}
+        onClick={() => swipe.show("chapters")}
       >
         {isStory ? "Chapters" : "Sections"}
       </button>
@@ -325,7 +379,7 @@ export function SummaryPanel({
         type="button"
         className="key"
         aria-pressed={view.kind === "names"}
-        onClick={() => setView({ kind: "names" })}
+        onClick={() => swipe.show("names")}
       >
         {namesLabel}
       </button>
@@ -486,29 +540,32 @@ export function SummaryPanel({
       tabs={tabs}
       foot={view.kind === "names" ? namesFoot : chaptersFoot()}
     >
-      <div key={view.kind} data-font={font}>
-        {view.kind === "names" ? (
+      <div ref={swipe.panesRef} className="panes" data-font={font} onScroll={swipe.onScroll}>
+        <div className="pane" data-pane="chapters" inert={view.kind !== "chapters"}>
+          {summary === null && !isRunning ? (
+            <SummaryGhost list={list} target={cover.target} volumes={volumes} />
+          ) : (
+            <SummaryBody
+              summary={summary}
+              chapters={visibleChapters}
+              run={run}
+              list={list}
+              current={current}
+              volumes={volumes}
+              isFirstChapters={cover.target < firstChapters}
+              openAt={openAt}
+              pending={pending}
+              askError={askError}
+              targetRef={targetRef}
+              volumesOpen={volumesOpen}
+              onVolumesOpen={setVolumesOpen}
+              onVolume={openVolume}
+            />
+          )}
+        </div>
+        <div className="pane" inert={view.kind !== "names"}>
           <NameList names={names} summary={summary} namesLabel={namesLabel} onEdit={edit} />
-        ) : summary === null && !isRunning ? (
-          <SummaryGhost list={list} target={cover.target} volumes={volumes} />
-        ) : (
-          <SummaryBody
-            summary={summary}
-            chapters={visibleChapters}
-            run={run}
-            list={list}
-            current={current}
-            volumes={volumes}
-            isFirstChapters={cover.target < firstChapters}
-            openAt={openAt}
-            pending={pending}
-            askError={askError}
-            targetRef={targetRef}
-            volumesOpen={volumesOpen}
-            onVolumesOpen={setVolumesOpen}
-            onVolume={openVolume}
-          />
-        )}
+        </div>
       </div>
     </Panel>
   );

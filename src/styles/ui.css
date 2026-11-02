@@ -647,11 +647,6 @@
     animation-delay: 40ms;
   }
 
-  /* A field that takes the keyboard as it shows. iOS reads its place once, at the focus, to slide it clear of the keyboard, so it must not move then. */
-  .panel-body > .still {
-    animation: none;
-  }
-
   .panel-body > :nth-child(3) {
     animation-delay: 80ms;
   }
@@ -680,6 +675,44 @@
 
   .panel .panel-tabs .key {
     flex: 1;
+  }
+
+  /* Tabs side by side, a swipe apart. Each keeps its own scroll. */
+  .panel-body:has(> .panes) {
+    display: flex;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .panes {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    overflow: auto hidden;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .panes::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pane {
+    flex: 0 0 100%;
+    min-width: 0;
+    padding: 6px 20px 20px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /* With a mouse a sideways scroll is an accident, so the tabs switch only on a click. */
+  @media (hover: hover) and (pointer: fine) {
+    .panes {
+      overflow-x: hidden;
+    }
   }
 
   @media (width >= 48rem) {
