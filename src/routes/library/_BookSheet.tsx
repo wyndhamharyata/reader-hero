@@ -25,7 +25,8 @@ export function BookSheet({
   card: LibraryCard;
   progress: ReadingProgress | null;
   groups: Shelf["series"];
-  onOpen: () => void;
+  // Unset over the reader, where the book is already open.
+  onOpen: (() => void) | undefined;
   // `place` is the position at the sheet's opening, which Finished turned off goes back to.
   onFinished: (id: string, isFinished: boolean, place: ReadingProgress | null) => void;
   // Null takes the book out of its series.
@@ -78,10 +79,12 @@ export function BookSheet({
         hasStamped={hasStamped}
         percent={isFinished ? 1 : (place?.percent ?? 0)}
       />
-      <button type="button" className="key green w-full" onClick={() => dismiss(onOpen)}>
-        {isStarted ? "Continue reading" : "Start reading"}
-      </button>
-      <div className="rows mt-4.5">
+      {onOpen !== undefined && (
+        <button type="button" className="key green mb-4.5 w-full" onClick={() => dismiss(onOpen)}>
+          {isStarted ? "Continue reading" : "Start reading"}
+        </button>
+      )}
+      <div className="rows">
         <div className="row-item">
           <span className="row-label">Finished</span>
           <Switch

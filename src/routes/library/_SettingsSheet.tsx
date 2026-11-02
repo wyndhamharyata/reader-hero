@@ -4,9 +4,10 @@ import { ConsentNote } from "@/components/ConsentNote";
 import { Panel } from "@/components/Panel";
 import { ProviderForm } from "@/components/ProviderForm";
 import { Switch } from "@/components/Switch";
+import { ThemeControls } from "@/components/ThemeControls";
 import { AiSettings, CONSENT_VERSION, hasConsent, providerLabels } from "@/domain/ai";
 import { formatSize } from "@/lib/format";
-import { runApp, useAiSettings, useJob } from "@/lib/hooks";
+import { runApp, useAiSettings, useJob, useSettings } from "@/lib/hooks";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
 import type { StorageEstimate } from "@/services/book-store";
 import { rebuildCost } from "@/use-cases/summary";
@@ -44,6 +45,7 @@ export function SettingsSheet({
   readonly onClose: () => void;
 }): ReactElement | null {
   const { ai, putAi } = useAiSettings();
+  const { settings, update } = useSettings();
   const [view, setView] = useState<"main" | "provider">("main");
   const sheetRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLButtonElement>(null);
@@ -120,6 +122,9 @@ export function SettingsSheet({
       title="Settings"
       onDismiss={() => dismiss()}
     >
+      <h3 className="section-title">Appearance</h3>
+      <ThemeControls settings={settings} onChange={update} />
+
       <h3 className="section-title">Summaries</h3>
       <div className="rows">
         <button type="button" className="row-item" onClick={() => setView("provider")}>

@@ -8,7 +8,13 @@
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --sheet-ease: cubic-bezier(0.3, 1.2, 0.4, 1);
-  --panel-width: 400px;
+  --panel-width: 440px;
+}
+
+@media (width >= 70rem) {
+  :root {
+    --panel-width: 480px;
+  }
 }
 
 /* Warmth tints every neutral, so the whole screen takes the lamp's colour, not only the page. */
@@ -671,6 +677,12 @@
     }
   }
 
+  @media (width >= 70rem) {
+    .panel.wide {
+      width: 520px;
+    }
+  }
+
   /* Docked, the page moves over and stays in reach, so the panel needs no scrim. */
   @media (width >= 70rem) {
     .panel-layer.docks {
@@ -825,9 +837,14 @@
     font-size: 12px;
   }
 
+  /* The same 20px box as an icon, so its label lines up with the other tools' labels. */
   .aa {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    height: 20px;
     font:
-      700 17px/1 "Literata Variable",
+      700 17px/20px "Literata Variable",
       serif;
   }
 
@@ -1084,6 +1101,14 @@
       linear-gradient(90deg, oklch(0% 0 0 / 0.04), oklch(0% 0 0 / 0.2)),
       repeating-linear-gradient(90deg, oklch(97% 0.01 85) 0 1px, oklch(84% 0.015 85) 1px 2px);
     transition: width 700ms var(--ease-out) 200ms;
+  }
+
+  /* The page a book opens to, grown from its cover while the reader loads under it. */
+  .opening-page {
+    position: fixed;
+    z-index: 99;
+    pointer-events: none;
+    background: var(--page);
   }
 
   .zoomer {

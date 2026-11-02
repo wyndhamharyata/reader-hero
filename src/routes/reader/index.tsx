@@ -16,8 +16,7 @@ import { hasConsent } from "@/domain/ai";
 import { BookPrefs, ReaderSettings } from "@/domain/book";
 import { maxMatches, type BlockMatch } from "@/lib/find-text";
 import { formatPercent } from "@/lib/format";
-import { sheetRequest, shelfRecords } from "@/lib/shelf";
-import { slideTo } from "@/lib/slide-to";
+import { bookDetails, shelfRecords } from "@/lib/shelf";
 import { holdWakeLock } from "@/lib/wake-lock";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
@@ -53,7 +52,7 @@ type OpenPanel =
   | { readonly kind: "none" }
   | { readonly kind: "contents"; readonly tab: ContentsTab }
   | { readonly kind: "summary"; readonly openAt: number | null }
-  | { readonly kind: "look"; readonly view: "look" | "more" }
+  | { readonly kind: "look" }
   | { readonly kind: "more" };
 
 const noPanel: OpenPanel = { kind: "none" };
@@ -487,7 +486,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           onPanel={(next: ReaderPanel) => {
             if (next === "contents") setPanel({ kind: "contents", tab: "chapters" });
             if (next === "summary") openSummary(null);
-            if (next === "look") setPanel({ kind: "look", view: "look" });
+            if (next === "look") setPanel({ kind: "look" });
             if (next === "more") setPanel({ kind: "more" });
           }}
         />
@@ -525,13 +524,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       )}
 
       {panel.kind === "look" && (
-        <LookPanel
-          settings={bookSettings}
-          view={panel.view}
-          onView={(view) => setPanel({ kind: "look", view })}
-          onChange={changeSettings}
-          onClose={closePanel}
-        />
+        <LookPanel settings={bookSettings} onChange={changeSettings} onClose={closePanel} />
       )}
 
       {panel.kind === "more" && (
@@ -539,10 +532,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           mode={mode}
           isEpub={isEpub}
           onToggleMode={toggleMode}
-          onDetails={() => {
-            sheetRequest.bookId = bookId;
-            slideTo(navigate, "/", "out");
-          }}
+          onDetails={() => bookDetails.dispatchEvent(new CustomEvent("open", { detail: bookId }))}
           onClose={closePanel}
         />
       )}

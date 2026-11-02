@@ -15,6 +15,7 @@ export function Panel({
   docks = false,
   isClear = false,
   isMenu = false,
+  isWide = false,
   children,
 }: {
   readonly sheetRef: Ref<HTMLElement>;
@@ -33,6 +34,8 @@ export function Panel({
   readonly isClear?: boolean;
   // A short menu: a popover under its key on a wider screen.
   readonly isMenu?: boolean;
+  // A panel of lists, as the series editor, takes more of a desktop's room.
+  readonly isWide?: boolean;
   readonly children: ReactNode;
 }): ReactElement {
   return (
@@ -48,7 +51,7 @@ export function Panel({
         ref={sheetRef}
         role="dialog"
         aria-label={label}
-        className={isMenu ? "panel compact" : "panel"}
+        className={isMenu ? "panel compact" : isWide ? "panel wide" : "panel"}
       >
         <div className="grab" />
         {title !== null && (

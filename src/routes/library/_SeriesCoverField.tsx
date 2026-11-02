@@ -31,7 +31,8 @@ export function SeriesCoverField({
   if (picture !== null || storedCover === "image") values.push("image");
 
   return (
-    <fieldset>
+    // min-w-0: a fieldset is as wide as its widest row by default, which the panel then scrolls sideways.
+    <fieldset className="min-w-0">
       <legend className="field-label">Cover</legend>
       <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pt-1 pb-3 md:-mx-6 md:px-6">
         {values.map((value) => {

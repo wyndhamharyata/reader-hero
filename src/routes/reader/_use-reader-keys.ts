@@ -2,8 +2,11 @@ import { useEffect } from "react";
 import type { NavigateFunction } from "react-router";
 import { slideTo } from "@/lib/slide-to";
 
+// A field takes its own keys. An open panel, as the Book sheet opened over the reader, takes them too.
 function isTypingTarget(event: KeyboardEvent): boolean {
   const target = event.target as HTMLElement | null;
+
+  if (document.querySelector(".panel-layer") !== null) return true;
 
   return (
     target !== null &&

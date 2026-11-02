@@ -3,7 +3,7 @@ import { BookCover } from "@/components/BookCover";
 import { CheckIcon } from "@/components/icons";
 import type { ParseState } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
-import type { LibraryCard } from "@/lib/shelf";
+import { titleInSeries, type LibraryCard } from "@/lib/shelf";
 import { useLongPress } from "@/lib/use-long-press";
 
 const stateLines: Partial<Record<ParseState, string>> = {
@@ -29,6 +29,7 @@ function captionOf(card: LibraryCard, place: number | undefined): string {
 export function BookTile({
   card,
   place,
+  seriesName,
   fill,
   motion,
   onOpen,
@@ -37,6 +38,8 @@ export function BookTile({
   readonly card: LibraryCard;
   // The volume's number, inside a series tray.
   readonly place?: number;
+  // The tray's series, whose name the volume's title need not repeat.
+  readonly seriesName?: string;
   // How far the import has read this book, while it builds.
   readonly fill: number;
   // "drop" for a book that just arrived, "deal" with its delay as the shelf first shows.
@@ -76,7 +79,9 @@ export function BookTile({
         </span>
         <span className="mt-2.5 flex text-[13.5px] leading-tight font-bold">
           {place !== undefined && <span className="shrink-0">{place}.&nbsp;</span>}
-          {card.isClippedAtStart ? (
+          {seriesName !== undefined ? (
+            <span className="line-clamp-2 min-w-0">{titleInSeries(book.title, seriesName)}</span>
+          ) : card.isClippedAtStart ? (
             // A right-to-left box puts the ellipsis at the start. The <bdi> keeps "Vol. 7" in reading order.
             <span className="min-w-0 truncate [direction:rtl]">
               <bdi dir="ltr">{book.title}</bdi>

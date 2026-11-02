@@ -74,11 +74,17 @@ export function LibraryRows({
   readonly events: TileEvents;
 }): ReactElement {
   const gridStyle = { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` };
-  const bookTile = (card: LibraryCard, index: number, place?: number): ReactElement => (
+  const bookTile = (
+    card: LibraryCard,
+    index: number,
+    place?: number,
+    seriesName?: string,
+  ): ReactElement => (
     <BookTile
       key={`book:${card.book.id}`}
       card={card}
       place={place}
+      seriesName={seriesName}
       fill={events.fillOf(card)}
       motion={motionFor(events.isFresh(card.book.id), isDealing, index)}
       onOpen={(cover) => events.onOpen(card, cover)}
@@ -105,10 +111,13 @@ export function LibraryRows({
             {row.kind === "tray" ? (
               <SeriesTray
                 series={row.series}
+                columns={columns}
                 onEdit={() => events.onSeriesActions(row.series)}
                 onClose={() => events.onToggleSeries(row.series.id)}
               >
-                {row.series.books.map((card, index) => bookTile(card, -1, index + 1))}
+                {row.series.books.map((card, index) =>
+                  bookTile(card, -1, index + 1, row.series.name),
+                )}
               </SeriesTray>
             ) : (
               <ul className="grid gap-x-4.5 md:gap-x-6.5" style={gridStyle}>
@@ -150,11 +159,13 @@ function motionFor(
 
 function SeriesTray({
   series,
+  columns,
   onEdit,
   onClose,
   children,
 }: {
   readonly series: SeriesItem;
+  readonly columns: number;
   readonly onEdit: () => void;
   readonly onClose: () => void;
   readonly children: ReadonlyArray<ReactElement>;
@@ -174,7 +185,11 @@ function SeriesTray({
           </button>
         </div>
       </div>
-      <ul className="tray-books grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-x-3.5 gap-y-4.5">
+      {/* The shelf's columns, so a volume reads at the size of a book on the shelf. */}
+      <ul
+        className="tray-books grid gap-x-4.5 gap-y-6 md:gap-x-6.5"
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      >
         {children}
       </ul>
     </section>

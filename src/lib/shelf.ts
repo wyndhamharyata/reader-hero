@@ -18,8 +18,8 @@ export const shelfRecords = new Map<
   }
 >();
 
-// A book whose sheet the library opens when it shows again, asked for from the reader's More menu.
-export const sheetRequest: { bookId: string | null } = { bookId: null };
+// The reader's Book details asks the library, which holds the shelf, to open a book's sheet over the reader.
+export const bookDetails = new EventTarget();
 
 export type FilterGroup = "status" | "length" | "author";
 export type Filters = Readonly<Record<FilterGroup, string | null>>;
@@ -713,4 +713,15 @@ function filterChips({
       }))
       .filter((chip) => chip.count > 0 || chip.isActive),
   }));
+}
+
+// Inside its series, a volume's title without the series name it starts with, so "Vol. 7" shows whole.
+export function titleInSeries(title: string, seriesName: string): string {
+  const name = seriesName.trim();
+
+  if (name === "" || !title.toLocaleLowerCase().startsWith(name.toLocaleLowerCase())) return title;
+
+  const rest = title.slice(name.length).replace(/^[\s:,.\-–—]+/u, "");
+
+  return rest === "" ? title : rest;
 }

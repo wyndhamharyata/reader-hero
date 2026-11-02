@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BookMeta, ReadingProgress, Series } from "@/domain/book";
-import { buildShelf, type Filters } from "@/lib/shelf";
+import { buildShelf, titleInSeries, type Filters } from "@/lib/shelf";
 
 const book = (id: string, title: string, overrides: Partial<BookMeta> = {}): BookMeta =>
   new BookMeta({
@@ -483,5 +483,21 @@ describe("buildShelf", () => {
       ["Harbor Stories", 1],
     ]);
     expect([...shelf.cards.keys()].sort()).toEqual(["1", "10", "2", "20", "30", "7"]);
+  });
+});
+
+describe("titleInSeries", () => {
+  it("given a title that starts with its series name, keeps the rest", () => {
+    expect(
+      titleInSeries(
+        "Mushoku Tensei: Jobless Reincarnation Vol. 7",
+        "mushoku tensei: jobless reincarnation",
+      ),
+    ).toBe("Vol. 7");
+  });
+
+  it("given a title that is only the series name, or another title, keeps the whole title", () => {
+    expect(titleInSeries("The Tide Cycle", "The Tide Cycle")).toBe("The Tide Cycle");
+    expect(titleInSeries("Harbour Lights", "The Tide Cycle")).toBe("Harbour Lights");
   });
 });

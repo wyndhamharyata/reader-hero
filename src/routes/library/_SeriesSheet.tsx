@@ -1,3 +1,4 @@
+import { titleInSeries } from "@/lib/shelf";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactElement } from "react";
 import { BookCover } from "@/components/BookCover";
 import { Bars2Icon, PlusIcon, XMarkIcon } from "@/components/icons";
@@ -118,6 +119,7 @@ export function SeriesSheet({
       <Panel
         sheetRef={sheetRef}
         backdropRef={backdropRef}
+        isWide
         label="Series"
         title="Series"
         onDismiss={() => dismiss()}
@@ -246,12 +248,8 @@ export function SeriesSheet({
                 <span className="book w-8 shrink-0">
                   <BookCover book={card.book} />
                 </span>
-                {/* A series' titles share their start, so the clip goes there and the volume shows. */}
-                <span className="row-label flex">
-                  <span className="shrink-0">{index + 1}.&nbsp;</span>
-                  <span className="min-w-0 truncate [direction:rtl]">
-                    <bdi dir="ltr">{card.book.title}</bdi>
-                  </span>
+                <span className="row-label truncate">
+                  {index + 1}. {titleInSeries(card.book.title, name)}
                 </span>
                 <button
                   type="button"

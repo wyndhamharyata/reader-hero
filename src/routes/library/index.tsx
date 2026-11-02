@@ -1,6 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
 import { CogIcon, MagnifyingGlassIcon, PlusIcon, XMarkIcon } from "@/components/icons";
 import { fontFamily, type LibrarySort, type ParseState } from "@/domain/book";
@@ -20,7 +21,7 @@ import {
   buildShelf,
   emptyFilters,
   shelfRecords,
-  sheetRequest,
+  bookDetails,
   type Filters,
   type LibraryCard,
   type Shelf,
@@ -62,7 +63,7 @@ const dealMs = 1200;
 const freshMs = 900;
 const fallMs = 380;
 const closeUpMs = 300;
-const phoneColumns = 3;
+const phoneColumns = 2;
 const tileGapPx = 26;
 
 const statusFilters: ReadonlyArray<{ value: string | null; label: string }> = [
@@ -71,13 +72,15 @@ const statusFilters: ReadonlyArray<{ value: string | null; label: string }> = [
   { value: "finished", label: "Finished" },
 ];
 
-// Phones show three covers a row. Wider, as many as fit at the tile's least width.
+// A small phone shows two covers a row, a large one three. Wider, as many as fit at the tile's least width.
 function columnsFor(widthPx: number): number {
-  if (!window.matchMedia("(width >= 48rem)").matches) return phoneColumns;
+  if (!window.matchMedia("(width >= 48rem)").matches) {
+    return window.matchMedia("(width >= 30rem)").matches ? 3 : phoneColumns;
+  }
 
-  const tilePx = window.matchMedia("(width >= 70rem)").matches ? 136 : 124;
+  const tilePx = window.matchMedia("(width >= 70rem)").matches ? 160 : 150;
 
-  return Math.max(phoneColumns, Math.floor((widthPx + tileGapPx) / (tilePx + tileGapPx)));
+  return Math.max(3, Math.floor((widthPx + tileGapPx) / (tilePx + tileGapPx)));
 }
 
 function tilePlaces(box: HTMLElement | null): Map<string, DOMRect> {
@@ -195,7 +198,7 @@ function ShelfControls({
     value === null ? cards.length : cards.filter((card) => card.status === value).length;
 
   return (
-    <div className="flex items-center gap-2.5 px-4 pb-4.5 md:px-8 md:pb-5.5">
+    <div className="flex items-center gap-2.5 px-4 pb-8 md:px-8 md:pb-9">
       <div className="latch-row flex-1 md:flex-none" role="group" aria-label="Show">
         {statusFilters.map((entry) => (
           <button
@@ -709,15 +712,23 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     };
   }, [isHidden]);
 
-  // The reader's Book details comes back here, so the sheet opens over the shelf.
+  // The reader's Book details opens the sheet here, over the reader, so the reader stays open.
+  const cards = useRef(shelf.cards);
+
   useEffect(() => {
-    const card = sheetRequest.bookId === null ? undefined : shelf.cards.get(sheetRequest.bookId);
+    cards.current = shelf.cards;
+  });
+  useEffect(() => {
+    const onOpen = (event: Event): void => {
+      const card = cards.current.get((event as CustomEvent<string>).detail);
 
-    if (isHidden || card === undefined) return;
+      if (card !== undefined) setBookActions(card);
+    };
 
-    sheetRequest.bookId = null;
-    setBookActions(card);
-  }, [isHidden, shelf.cards]);
+    bookDetails.addEventListener("open", onOpen);
+
+    return () => bookDetails.removeEventListener("open", onOpen);
+  }, []);
 
   const opened = useRef<string | null>(null);
 
@@ -797,7 +808,8 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       .finished.then(finish);
   };
   const isEmpty = isLoaded && books.length === 0;
-  const isShelfPlain = query.trim() === "" && filters.status === null;
+  // Under every filter too, so the tabs below it never move under a finger.
+  const isShelfPlain = query.trim() === "";
   const events: TileEvents = {
     onOpen: open,
     onBookActions: setBookActions,
@@ -813,6 +825,48 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     },
     isFresh: (id) => fresh.has(id),
   };
+
+  const sheets = (
+    <>
+      {bookActions !== null && (
+        <BookSheet
+          card={bookActions}
+          progress={reading.get(bookActions.book.id) ?? null}
+          groups={shelf.series}
+          onOpen={isHidden ? undefined : () => openFromShelf(bookActions)}
+          onFinished={setFinished}
+          onSeries={setSeries}
+          onEditSeries={setSeriesEdit}
+          onRemove={(id) => {
+            if (!isHidden) {
+              removeWithFall(id);
+              return;
+            }
+
+            // The reader of a deleted book has nothing to show, so it closes first.
+            slideTo(navigate, "/", "out");
+            remove(id);
+          }}
+          onReparse={reparse}
+          onCover={setCover}
+          onResetCover={resetCover}
+          onClose={() => setBookActions(null)}
+        />
+      )}
+
+      {seriesEdit !== null && (
+        <SeriesSheet
+          series={seriesEdit}
+          stored={series.find((record) => record.id === seriesEdit.id)}
+          cards={shelf.cards}
+          groups={shelf.series}
+          onSave={editSeries}
+          onRemove={removeSeries}
+          onClose={() => setSeriesEdit(null)}
+        />
+      )}
+    </>
+  );
 
   return (
     // A fixed column with its own scroll box, so the window never scrolls. Hidden, it keeps its layout.
@@ -930,34 +984,8 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
       {licencesOpen && <LicencesSheet onClose={() => setLicencesOpen(false)} />}
 
-      {bookActions !== null && (
-        <BookSheet
-          card={bookActions}
-          progress={reading.get(bookActions.book.id) ?? null}
-          groups={shelf.series}
-          onOpen={() => openFromShelf(bookActions)}
-          onFinished={setFinished}
-          onSeries={setSeries}
-          onEditSeries={setSeriesEdit}
-          onRemove={removeWithFall}
-          onReparse={reparse}
-          onCover={setCover}
-          onResetCover={resetCover}
-          onClose={() => setBookActions(null)}
-        />
-      )}
-
-      {seriesEdit !== null && (
-        <SeriesSheet
-          series={seriesEdit}
-          stored={series.find((record) => record.id === seriesEdit.id)}
-          cards={shelf.cards}
-          groups={shelf.series}
-          onSave={editSeries}
-          onRemove={removeSeries}
-          onClose={() => setSeriesEdit(null)}
-        />
-      )}
+      {/* The shelf is hidden under an open book, so a sheet asked for from the reader goes over it. */}
+      {isHidden ? createPortal(sheets, document.body) : sheets}
     </main>
   );
 }
