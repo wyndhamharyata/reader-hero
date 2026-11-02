@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">
+  <filter id="r" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency=".06" numOctaves="4" seed="8" stitchTiles="stitch"/>
+    <feDiffuseLighting surfaceScale="1.6" lighting-color="#fff">
+      <feDistantLight azimuth="235" elevation="58"/>
+    </feDiffuseLighting>
+    <feColorMatrix type="saturate" values="0"/>
+  </filter>
+  <filter id="w" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency=".6 .015" numOctaves="2" seed="2" stitchTiles="stitch" result="warp"/>
+    <feTurbulence type="fractalNoise" baseFrequency=".015 .6" numOctaves="2" seed="5" stitchTiles="stitch" result="weft"/>
+    <feBlend in="warp" in2="weft" mode="multiply" result="weave"/>
+    <feTurbulence type="fractalNoise" baseFrequency=".02" numOctaves="2" seed="4" stitchTiles="stitch" result="bend"/>
+    <feDisplacementMap in="weave" in2="bend" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+    <feColorMatrix type="saturate" values="0"/>
+  </filter>
+  <rect width="100%" height="100%" filter="url(#r)" opacity=".2"/>
+  <rect width="100%" height="100%" filter="url(#w)" opacity=".1"/>
+</svg>

@@ -4,7 +4,7 @@
   /* Noise tiles as PNG, decoded once and shared. An SVG noise renders again for every element that shows it. */
   --grain: url("./textures/grain.png");
   --fibre: url("./textures/fibre.png");
-  --coarse: url("./textures/coarse.svg");
+  --paper: url("./textures/paper.svg");
   --mottle: url("./textures/mottle.svg");
   --cloth: url("./textures/cloth.png");
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -129,8 +129,8 @@
 
 /* Thicker strokes keep more of their darkness when an astigmatic eye blurs them. */
 [data-theme="rhdim"] .reader-body {
-  /* Tiles of two sizes, so the paper does not visibly repeat. */
-  background: var(--coarse), var(--mottle), var(--page);
+  /* Paper: a soft relief and a bent weave, with a broad unevenness in tiles of another size so it does not visibly repeat. */
+  background: var(--paper), var(--mottle), var(--page);
   font-weight: 450;
   box-shadow:
     0 1px 3px oklch(0% 0 0 / 0.35),

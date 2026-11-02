@@ -3,10 +3,5 @@
     <feTurbulence type="fractalNoise" baseFrequency=".006" numOctaves="2" seed="3" stitchTiles="stitch"/>
     <feColorMatrix type="saturate" values="0"/>
   </filter>
-  <filter id="m" color-interpolation-filters="sRGB">
-    <feTurbulence type="fractalNoise" baseFrequency=".025" numOctaves="3" seed="11" stitchTiles="stitch"/>
-    <feColorMatrix type="saturate" values="0"/>
-  </filter>
   <rect width="100%" height="100%" filter="url(#b)" opacity=".11"/>
-  <rect width="100%" height="100%" filter="url(#m)" opacity=".09"/>
 </svg>
