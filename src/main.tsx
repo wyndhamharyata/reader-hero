@@ -12,6 +12,8 @@ import "@fontsource-variable/atkinson-hyperlegible-mono/wght-italic.css";
 import "@/styles/app.css";
 import "@/styles/text-layer.css";
 
+// Less than this between the screen and the visible part is no keyboard.
+const keyboardMinPx = 150;
 const container = document.getElementById("root");
 if (container === null) throw new Error("Root element is missing");
 
@@ -26,6 +28,27 @@ if (isInstalled && window.location.pathname === "/") {
   } catch {
     // Without storage the launch opens the library.
   }
+}
+
+// iOS keeps a fixed sheet under the keyboard, mostly for a field focused as the sheet slides in, so sheets fit the part still showing.
+const view = window.visualViewport;
+
+if (view !== null) {
+  const fit = (): void => {
+    const root = document.documentElement.style;
+
+    if (window.innerHeight - view.height < keyboardMinPx) {
+      root.removeProperty("--view-top");
+      root.removeProperty("--view-height");
+      return;
+    }
+
+    root.setProperty("--view-top", `${view.offsetTop}px`);
+    root.setProperty("--view-height", `${view.height}px`);
+  };
+
+  view.addEventListener("resize", fit);
+  view.addEventListener("scroll", fit);
 }
 
 createRoot(container).render(
