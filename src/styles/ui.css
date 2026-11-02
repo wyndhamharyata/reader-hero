@@ -558,9 +558,6 @@
   .panel-layer {
     position: fixed;
     inset: 0;
-    top: var(--view-top, 0px);
-    bottom: auto;
-    height: var(--view-height, 100%);
     z-index: 50;
     display: flex;
     flex-direction: column;
