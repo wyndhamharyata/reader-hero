@@ -1,7 +1,7 @@
 import { flushSync } from "react-dom";
 import type { NavigateFunction } from "react-router";
 
-const travelMs = 380;
+const travelMs = 470;
 // The page fills the screen before the cover arrives, so the reader loads under it during the travel.
 const coverMs = 260;
 const swingMs = 520;
@@ -58,13 +58,33 @@ export function openBook(
   const scale = Math.max(1, Math.min(maxScale, sharpScale, (innerHeight * 0.55) / box.height));
   const dx = innerWidth / 2 - box.left - (box.width * scale) / 2;
   const dy = innerHeight / 2 - (box.top + box.height / 2);
-  const lifted = `perspective(1100px) translate(${dx}px, ${dy}px) scale(${scale})`;
+  // One list of functions in every frame, so each part eases on its own and none falls back to a matrix.
+  const at = (x: number, y: number, size: number, tilt: number, turn: number): string =>
+    `perspective(1100px) translate(${x}px, ${y}px) scale(${size}) rotate(${tilt}deg) rotateY(${turn}deg)`;
+  const lifted = at(dx, dy, scale, 0, 0);
+  // Pressed down a hair first, then up before across, so it travels on an arc, and its tilt trails and swings past.
   const travel = clone.animate(
     [
-      { transform: "perspective(1100px)", filter: "drop-shadow(0 2px 3px rgb(0 0 0 / 0.25))" },
+      {
+        transform: at(0, 0, 1, 0, 0),
+        filter: "drop-shadow(0 2px 3px rgb(0 0 0 / 0.25))",
+        easing: "ease-out",
+      },
+      {
+        transform: at(0, 3, 0.97, 0, 0),
+        filter: "drop-shadow(0 1px 2px rgb(0 0 0 / 0.3))",
+        offset: 0.13,
+        easing: "ease-in-out",
+      },
+      {
+        transform: at(dx * 0.4, dy * 0.78, (1 + scale) / 2, -4, 16),
+        offset: 0.55,
+        easing: "ease-out",
+      },
+      { transform: at(dx, dy, scale, 1.2, -4), offset: 0.84, easing: "ease-in-out" },
       { transform: lifted, filter: "drop-shadow(0 22px 26px rgb(0 0 0 / 0.38))" },
     ],
-    { duration: travelMs, easing: ease, fill: "forwards" },
+    { duration: travelMs, fill: "forwards" },
   );
 
   const grow = page.animate(

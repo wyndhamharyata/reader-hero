@@ -47,7 +47,7 @@ export function NoMatches({
           ))}
         </div>
         <div className="slide">
-          <div className="tray">
+          <div className="bin">
             {Array.from({ length: cardCount }, (_, index) => (
               <span key={index} className="file" style={{ "--i": index } as CSSProperties} />
             ))}

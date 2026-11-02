@@ -60,9 +60,9 @@ function isInstallHintDismissed(): boolean {
   }
 }
 const dealMs = 1200;
-const freshMs = 900;
-const fallMs = 380;
-const closeUpMs = 300;
+const freshMs = 1000;
+const fallMs = 620;
+const closeUpMs = 380;
 const phoneColumns = 2;
 const tileGapPx = 26;
 
@@ -626,7 +626,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     const before = flipFrom.current;
 
     flipFrom.current = null;
-    if (before === null) return;
+    if (before === null || prefersLessMotion()) return;
 
     for (const [id, now] of tilePlaces(scrollRef.current)) {
       const was = before.get(id);
@@ -638,10 +638,17 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
       if (element === null || element === undefined || (dx === 0 && dy === 0)) continue;
 
-      element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
-        duration: closeUpMs,
-        easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-      });
+      // Slid along the shelf: a hard book runs a few pixels past and stops dead.
+      const past = `translate(${-Math.sign(dx) * 3}px, ${-Math.sign(dy) * 3}px)`;
+
+      element.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px)`, easing: "cubic-bezier(0.3, 0, 0.2, 1)" },
+          { transform: past, offset: 0.8, easing: "ease-out" },
+          { transform: "none" },
+        ],
+        { duration: closeUpMs },
+      );
     }
   }, [rows]);
 
@@ -797,19 +804,25 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       return;
     }
 
+    // Lifted, tipped off its foot, and dropped. It fades only once clear of the shelf.
     const fall = [
-      { transform: "none", opacity: 1 },
-      { transform: "translateY(4px) rotate(8deg)", opacity: 1, offset: 0.35 },
-      { transform: "translateY(70px) rotate(14deg) scale(0.85)", opacity: 0 },
+      { transform: "none", easing: "ease-out" },
+      { transform: "translateY(-12px) rotate(-4deg)", offset: 0.2, easing: "ease-in-out" },
+      {
+        transform: "translateY(-8px) rotate(12deg)",
+        offset: 0.38,
+        easing: "cubic-bezier(0.55, 0, 1, 0.45)",
+      },
+      { transform: "translate(30px, 160px) rotate(52deg)", opacity: 1, offset: 0.82 },
+      { transform: "translate(40px, 220px) rotate(64deg)", opacity: 0 },
     ];
 
-    void tile
-      .animate(fall, {
-        duration: fallMs,
-        easing: "cubic-bezier(0.5, 0, 0.75, 0)",
-        fill: "forwards",
-      })
-      .finished.then(finish);
+    Object.assign((tile as HTMLElement).style, {
+      position: "relative",
+      zIndex: "5",
+      transformOrigin: "100% 100%",
+    });
+    void tile.animate(fall, { duration: fallMs, fill: "forwards" }).finished.then(finish);
   };
   const isEmpty = isLoaded && books.length === 0;
   // Under every filter too, so the tabs below it never move under a finger.

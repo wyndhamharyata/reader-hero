@@ -52,7 +52,7 @@ export function BookTile({
   const bookClass = book.format === "epub" ? "book glossy" : "book";
   const caption = captionOf(card, place);
   const motionStyle: CSSProperties | undefined =
-    motion === null ? undefined : { animationDelay: `${motion.delayMs}ms` };
+    motion === null ? undefined : ({ "--delay": `${motion.delayMs}ms` } as CSSProperties);
 
   return (
     <li data-book-id={book.id} className={motion?.name} style={motionStyle}>

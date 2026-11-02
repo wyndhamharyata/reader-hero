@@ -612,23 +612,23 @@
   }
 
   .panel-body > * {
-    animation: rise 300ms var(--ease-out) backwards;
+    animation: rise 440ms var(--spring) backwards;
   }
 
   .panel-body > :nth-child(2) {
-    animation-delay: 25ms;
+    animation-delay: 40ms;
   }
 
   .panel-body > :nth-child(3) {
-    animation-delay: 50ms;
+    animation-delay: 80ms;
   }
 
   .panel-body > :nth-child(4) {
-    animation-delay: 75ms;
+    animation-delay: 120ms;
   }
 
   .panel-body > :nth-child(n + 5) {
-    animation-delay: 100ms;
+    animation-delay: 160ms;
   }
 
   .panel-foot {
@@ -1060,7 +1060,23 @@
   }
 
   .stamp.thump {
-    animation: stamp-in 320ms var(--spring);
+    animation: stamp-in 560ms;
+  }
+
+  /* Ink pressed out round the stamp, and the cover takes the blow. */
+  .stamp.thump::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 50%;
+    background: var(--green);
+    opacity: 0;
+    animation: stamp-ink 560ms;
+  }
+
+  .book:has(> .stamp.thump) {
+    animation: stamp-jolt 560ms;
   }
 
   /* A glossy jacket catches the light on hover. Paper covers do not. */
@@ -1159,6 +1175,7 @@
     position: absolute;
     inset: 0;
     transform-origin: 0 100%;
+    transition: transform 380ms var(--spring);
   }
 
   .slipcase .fan > .far {
@@ -1184,8 +1201,20 @@
     background: oklch(0% 0 0 / 0.1);
   }
 
+  /* The case hops as it opens, and the covers behind fan wider a beat later. */
   .slipcase[aria-expanded="true"] .fan {
     transform: translateY(-6px);
+    animation: case-hop 520ms;
+  }
+
+  .slipcase[aria-expanded="true"] .fan > .far {
+    transform: translateY(-9%) rotate(6deg);
+    transition-delay: 90ms;
+  }
+
+  .slipcase[aria-expanded="true"] .fan > .near {
+    transform: translateY(-4.5%) rotate(3deg);
+    transition-delay: 45ms;
   }
 
   .slipcase .index-tab {
@@ -1214,10 +1243,6 @@
     box-shadow:
       inset 0 3px 8px oklch(0% 0 0 / 0.2),
       inset 0 0 0 1px oklch(55% 0.1 var(--hue, 159) / 0.3);
-  }
-
-  .tray-books > .unpack {
-    animation: out-of-case 460ms var(--spring) backwards;
   }
 
   /* A swatch of book cloth in the series colour. */
@@ -1567,7 +1592,7 @@
   }
 
   /* The drawer's inside, seen from above as it comes out. */
-  .catalog .tray {
+  .catalog .bin {
     position: absolute;
     left: 2px;
     right: 2px;
@@ -1656,15 +1681,43 @@
   }
 
   .rise {
-    animation: rise 360ms var(--ease-out) backwards;
-  }
-
-  .drop {
-    animation: drop-in 560ms var(--spring) backwards;
+    animation: rise 420ms var(--spring) backwards;
   }
 
   .deal {
-    animation: deal-in 260ms var(--ease-out) backwards;
+    animation: deal-in 420ms var(--spring) backwards;
+  }
+
+  /* On the shelf the cover moves and the words under it only fade, so the type never flies about. */
+  li.deal,
+  li.drop,
+  li.unpack {
+    animation: fade-in 160ms var(--delay, 0ms) backwards;
+  }
+
+  li.deal .book,
+  li.drop .book,
+  li.unpack .book {
+    transform-origin: 50% 100%;
+    animation: book-land 560ms var(--delay, 0ms) backwards;
+  }
+
+  li.deal:nth-child(even) {
+    --tilt: -1;
+  }
+
+  li.deal:nth-child(3n) {
+    --tilt: 0.6;
+  }
+
+  li.drop .book {
+    animation-name: book-drop;
+    animation-duration: 820ms;
+  }
+
+  li.unpack .book {
+    animation-name: out-of-case;
+    animation-duration: 460ms;
   }
 }
 
@@ -1701,13 +1754,20 @@
   }
 }
 
+/* Cloth: the tail lags the swing, so the ribbon bends a little each way. */
 @keyframes sway {
   0%,
   100% {
-    transform: rotate(-1.6deg);
+    transform: rotate(-2.4deg) skewX(0deg);
+  }
+  25% {
+    transform: rotate(0deg) skewX(2deg);
   }
   50% {
-    transform: rotate(1.8deg);
+    transform: rotate(2.6deg) skewX(0deg);
+  }
+  75% {
+    transform: rotate(0deg) skewX(-2deg);
   }
 }
 
@@ -1723,42 +1783,191 @@
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(16px);
   }
 }
 
 @keyframes deal-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(18px);
   }
 }
 
+/* Books are hard. Each drops onto the shelf, hits on a corner, claps flat and rocks out. The lift keeps the low corner on the shelf. */
+@keyframes book-land {
+  0% {
+    transform: translateY(-56px) rotate(calc(var(--tilt, 1) * -7deg));
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  48% {
+    transform: translateY(-5px) rotate(calc(var(--tilt, 1) * -4deg));
+    animation-timing-function: ease-in;
+  }
+  62% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  75% {
+    transform: translateY(-2px) rotate(calc(var(--tilt, 1) * 1.5deg));
+    animation-timing-function: ease-in-out;
+  }
+  88% {
+    transform: rotate(calc(var(--tilt, 1) * -0.4deg));
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* A new book falls from high up, tumbling, and hits hard. */
+@keyframes book-drop {
+  0% {
+    transform: translateY(-180px) rotate(-16deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  40% {
+    transform: translateY(-8px) rotate(-6deg);
+    animation-timing-function: ease-in;
+  }
+  50% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  61% {
+    transform: translateY(-4px) rotate(3deg);
+    animation-timing-function: ease-in-out;
+  }
+  72% {
+    transform: translateY(-1px) rotate(-1.4deg);
+    animation-timing-function: ease-in-out;
+  }
+  82% {
+    transform: rotate(0.5deg);
+  }
+  90%,
+  100% {
+    transform: none;
+  }
+}
+
+/* Out of the series case: a short tug back in, then out on an arc, and a rock to rest. */
 @keyframes out-of-case {
-  from {
-    opacity: 0;
-    transform: translate(-28px, -10px) rotate(-6deg);
+  0% {
+    transform: translate(-14px, -10px) rotate(-4deg);
+    animation-timing-function: ease-in-out;
+  }
+  12% {
+    transform: translate(-17px, -12px) rotate(-4.5deg);
+    animation-timing-function: ease-out;
+  }
+  50% {
+    transform: translate(2px, -6px) rotate(1.5deg);
+    animation-timing-function: ease-in;
+  }
+  68% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  84% {
+    transform: rotate(0.6deg);
+  }
+  100% {
+    transform: none;
   }
 }
 
+/* A rubber stamp: brought down from above, struck, hops on the rebound and rocks still. It never squashes. */
 @keyframes stamp-in {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(1.6) rotate(-14deg);
+    transform: translateY(-14px) scale(1.8) rotate(-20deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  10% {
+    opacity: 1;
+  }
+  44% {
+    transform: rotate(-3deg);
+    animation-timing-function: ease-out;
   }
   60% {
-    opacity: 1;
-    transform: scale(0.95) rotate(3deg);
+    transform: translateY(-2px) scale(1.12) rotate(5deg);
+    animation-timing-function: ease-in;
+  }
+  74% {
+    transform: rotate(-1.5deg);
+    animation-timing-function: ease-in-out;
+  }
+  87% {
+    transform: rotate(0.5deg);
+  }
+  100% {
+    transform: none;
   }
 }
 
-@keyframes drop-in {
-  from {
+@keyframes stamp-ink {
+  0%,
+  43% {
     opacity: 0;
-    transform: translateY(-46px) rotate(-7deg);
+    transform: none;
+  }
+  44% {
+    opacity: 0.55;
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.1);
+  }
+}
+
+@keyframes stamp-jolt {
+  0%,
+  44% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  50% {
+    transform: translateY(2px);
+    animation-timing-function: ease-in-out;
   }
   60% {
-    opacity: 1;
+    transform: translateY(-1px);
+  }
+  70%,
+  100% {
+    transform: none;
+  }
+}
+
+/* The case dips, hops clear, and comes down rocking. Rigid, so it tilts and never bends. */
+@keyframes case-hop {
+  0% {
+    transform: none;
+    animation-timing-function: ease-in-out;
+  }
+  14% {
+    transform: translateY(2px);
+    animation-timing-function: ease-out;
+  }
+  42% {
+    transform: translateY(-18px) rotate(-2.5deg);
+    animation-timing-function: ease-in;
+  }
+  62% {
+    transform: translateY(-6px) rotate(1deg);
+    animation-timing-function: ease-out;
+  }
+  76% {
+    transform: translateY(-9px) rotate(-0.6deg);
+    animation-timing-function: ease-in;
+  }
+  88%,
+  100% {
+    transform: translateY(-6px);
   }
 }
 
@@ -2242,10 +2451,9 @@
   .ribbon,
   .case .ghost,
   .case .ghost > *,
-  .slip,
   .case .body,
   .case .shadow,
-  .spine,
+  .catalog *,
   .caret::after,
   .meter.stripes > span {
     animation: none !important;

@@ -40,7 +40,7 @@ export function SeriesTile({
   const [near, far] = series.books.filter((card) => card.book.id !== front?.id).slice(0, 2);
   const style = { "--hue": series.color } as CSSProperties;
   const motionStyle: CSSProperties | undefined =
-    motion === null ? undefined : { animationDelay: `${motion.delayMs}ms` };
+    motion === null ? undefined : ({ "--delay": `${motion.delayMs}ms` } as CSSProperties);
 
   return (
     <li data-series-root={series.id} className={motion?.name} style={motionStyle}>

@@ -43,9 +43,9 @@ export function rowKey(row: ShelfRow | undefined, index: number): string {
   return first?.kind === "series" ? `series:${first.id}` : `book:${first?.card.book.id ?? index}`;
 }
 
-const dealStepMs = 30;
+const dealStepMs = 40;
 // The tray's first row slides out of the case, as many volumes as the width shows. The rows under it are there at once.
-const unpackStepMs = 30;
+const unpackStepMs = 35;
 const lastDealt = 9;
 
 export interface TileEvents {
