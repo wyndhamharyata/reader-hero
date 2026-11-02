@@ -479,6 +479,34 @@
     color: var(--ink-soft);
   }
 
+  /* An earlier volume in the summary: a short recap that opens in full. */
+  .volume-row {
+    display: flex;
+    gap: 12px;
+    width: calc(100% + 16px);
+    margin: 6px -8px 0;
+    padding: 8px;
+    border-radius: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 150ms;
+  }
+
+  .volume-row:active {
+    background: oklch(0% 0 0 / 0.06);
+  }
+
+  @media (hover: hover) {
+    .volume-row:hover {
+      background: oklch(0% 0 0 / 0.04);
+    }
+  }
+
+  [data-theme="rhdark"] .volume-row:active,
+  [data-theme="rhdark"] .volume-row:hover {
+    background: oklch(100% 0 0 / 0.05);
+  }
+
   .section-title {
     margin: 22px 0 8px 4px;
     font-size: 15px;

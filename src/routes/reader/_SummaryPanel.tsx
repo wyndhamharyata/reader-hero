@@ -22,7 +22,13 @@ import {
 import { CopyButton } from "./_CopyButton";
 import { NameList, type NameEntry } from "./_NameList";
 import { summaryView } from "./_summary-derived";
-import { SummaryBody, SummaryGhost, useEarlierVolumes } from "./_SummaryBody";
+import {
+  SummaryBody,
+  SummaryGhost,
+  useEarlierVolumes,
+  VolumeRecap,
+  type EarlierVolume,
+} from "./_SummaryBody";
 
 // Within these chapters, the earlier books' summary opens by itself.
 const firstChapters = 3;
@@ -31,7 +37,52 @@ type View =
   | { readonly kind: "chapters" }
   | { readonly kind: "names" }
   | { readonly kind: "edit"; readonly entry: NameEntry | null }
-  | { readonly kind: "setup" };
+  | { readonly kind: "setup" }
+  | { readonly kind: "volume"; readonly id: string };
+
+type ListPlace = { readonly id: string; readonly top: number } | null;
+
+// The book's own run, or the series run with the earlier volume it is writing.
+function runStatus(
+  row: string,
+  run: SummaryRun | null,
+  series: Shelf["series"][number] | null,
+  seriesRun: SummaryRun | null,
+): string {
+  if (run !== null) return row;
+
+  const writing = series?.books.find((card) => card.book.id === seriesRun?.book);
+
+  return `Before this book · ${writing?.book.title ?? "starting"}`;
+}
+
+function panelBody(sheet: HTMLElement | null): HTMLElement | null {
+  return sheet?.querySelector<HTMLElement>(".panel-body") ?? null;
+}
+
+function bodyTop(sheet: HTMLElement | null): number {
+  return panelBody(sheet)?.scrollTop ?? 0;
+}
+
+// Back from a volume returns to its row. Otherwise the list opens at the chapter being read. Returns the place still held.
+function placeBody(
+  body: HTMLElement | null,
+  kind: View["kind"],
+  place: ListPlace,
+  heading: HTMLElement | null,
+): ListPlace {
+  if (body === null || kind === "volume") return place;
+
+  if (kind === "chapters" && place !== null) {
+    body.scrollTop = place.top;
+    body.querySelector<HTMLElement>(`[data-volume="${place.id}"]`)?.focus();
+    return null;
+  }
+
+  if (heading !== null) body.scrollTop = heading.offsetTop - body.offsetTop - 8;
+
+  return place;
+}
 
 // How far the run has gone, for the bar. A step that is not a chapter fills the bar.
 function runRatio(run: SummaryRun | null): number {
@@ -97,6 +148,9 @@ export function SummaryPanel({
   const [draft, setDraft] = useState<NameEntry>({ name: "", note: "" });
   const job = useRef<Job | null>(null);
   const targetRef = useRef<HTMLHeadingElement>(null);
+  // Where the list was when a volume opened, so Back returns to that row.
+  const listPlace = useRef<ListPlace>(null);
+  const [volumesOpen, setVolumesOpen] = useState<boolean | null>(null);
   const { summary, run, error } = state;
   const isStory = input.kind === "story";
   const { visibleChapters, names, unit, namesLabel, current, copied } = summaryView({
@@ -112,17 +166,16 @@ export function SummaryPanel({
   const volumes = useEarlierVolumes(series, bookId, seriesJob.run);
   const isRunning = run !== null || seriesJob.run !== null;
   const failure = error ?? seriesJob.error;
-  const writing = series?.books.find((card) => card.book.id === seriesJob.run?.book);
-  const status = run !== null ? row : `Before this book · ${writing?.book.title ?? "starting"}`;
+  const status = runStatus(row, run, series, seriesJob.run);
 
   // Not scrollIntoView, which also scrolls the page under a sliding sheet.
   useEffect(() => {
-    const heading = targetRef.current;
-    const body = heading?.closest<HTMLElement>(".panel-body");
-
-    if (heading === null || body === null || body === undefined) return;
-
-    body.scrollTop = heading.offsetTop - body.offsetTop - 8;
+    listPlace.current = placeBody(
+      panelBody(sheetRef.current),
+      view.kind,
+      listPlace.current,
+      targetRef.current,
+    );
   }, [openAt, view.kind, run?.chapter]);
 
   useEffect(
@@ -225,6 +278,22 @@ export function SummaryPanel({
       />
     );
   }
+
+  if (view.kind === "volume") {
+    return (
+      <VolumePanel
+        {...panelProps}
+        volume={volumes.find((entry) => entry.card.book.id === view.id)}
+        font={font}
+        onBack={() => setView({ kind: "chapters" })}
+      />
+    );
+  }
+
+  const openVolume = (id: string): void => {
+    listPlace.current = { id, top: bodyTop(sheetRef.current) };
+    setView({ kind: "volume", id });
+  };
 
   const edit = (entry: NameEntry | null): void => {
     setDraft(entry ?? { name: "", note: "" });
@@ -435,6 +504,9 @@ export function SummaryPanel({
             pending={pending}
             askError={askError}
             targetRef={targetRef}
+            volumesOpen={volumesOpen}
+            onVolumesOpen={setVolumesOpen}
+            onVolume={openVolume}
           />
         )}
       </div>
@@ -507,6 +579,29 @@ function SummaryMenu({
 }
 
 // One character or term at a time, in place of the list, with Back. No sheet over a sheet.
+function VolumePanel({
+  volume,
+  font,
+  onBack,
+  ...panelProps
+}: {
+  readonly sheetRef: RefObject<HTMLElement | null>;
+  readonly backdropRef: RefObject<HTMLButtonElement | null>;
+  readonly docks: boolean;
+  readonly onDismiss: () => void;
+  readonly volume: EarlierVolume | undefined;
+  readonly font: ReaderFont;
+  readonly onBack: () => void;
+}): ReactElement {
+  const title = volume?.title ?? "";
+
+  return (
+    <Panel {...panelProps} label={title} title={title} onBack={onBack}>
+      <div data-font={font}>{volume !== undefined && <VolumeRecap volume={volume} />}</div>
+    </Panel>
+  );
+}
+
 function NameEditPanel({
   sheetRef,
   backdropRef,

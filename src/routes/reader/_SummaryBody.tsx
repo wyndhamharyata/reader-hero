@@ -4,7 +4,7 @@ import { BookCover } from "@/components/BookCover";
 import { ChevronDownIcon } from "@/components/icons";
 import type { Summary } from "@/domain/ai";
 import { forkApp, stopFiber } from "@/lib/hooks";
-import type { LibraryCard, Shelf } from "@/lib/shelf";
+import { titleInSeries, type LibraryCard, type Shelf } from "@/lib/shelf";
 import { SummaryStore } from "@/services/summary-store";
 import type { Chapter } from "@/use-cases/ai-context";
 import type { SummaryRun } from "@/use-cases/summary";
@@ -13,6 +13,8 @@ const ghostChapters = 6;
 
 export interface EarlierVolume {
   readonly card: LibraryCard;
+  // Without the series name, which the block already gives: "Vol. 2".
+  readonly title: string;
   readonly text: string | null;
 }
 
@@ -60,26 +62,33 @@ export function useEarlierVolumes(
 
     return {
       card,
+      title: titleInSeries(card.book.title, series?.name ?? ""),
       text: isWriting ? seriesRun.text : (paragraphs.get(card.book.id) ?? null),
     };
   });
 }
 
-// Open in the first chapters, where the earlier books matter most. Folded later.
+// Open in the first chapters, where the earlier books matter most. The panel holds the reader's choice across a visit to a volume.
 function BeforeThisBook({
   volumes,
   isOpenAtFirst,
+  openChoice,
+  onOpenChoice,
+  onVolume,
 }: {
   readonly volumes: ReadonlyArray<EarlierVolume>;
   readonly isOpenAtFirst: boolean;
+  readonly openChoice: boolean | null;
+  readonly onOpenChoice: (isOpen: boolean) => void;
+  readonly onVolume: (id: string) => void;
 }): ReactElement {
-  const [isOpen, setOpen] = useState(isOpenAtFirst);
+  const isOpen = openChoice ?? isOpenAtFirst;
 
   return (
     <details
       className="mb-2 rounded-[14px] bg-(--sunk) [background-image:var(--grain)] p-3.5 shadow-[inset_0_2px_5px_oklch(0%_0_0/0.12)]"
       open={isOpen}
-      onToggle={(event) => setOpen(event.currentTarget.open)}
+      onToggle={(event) => onOpenChoice(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2.5 font-sans text-[15px] font-bold [&::-webkit-details-marker]:hidden">
         Before this book
@@ -87,15 +96,27 @@ function BeforeThisBook({
           className={`icon ml-auto size-4.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
         />
       </summary>
-      {volumes.map(({ card, text }) => (
-        <div key={card.book.id} className="mt-3 flex gap-3">
+      {volumes.map(({ card, title, text }) => (
+        <button
+          key={card.book.id}
+          type="button"
+          data-volume={card.book.id}
+          aria-label={title}
+          className="volume-row"
+          onClick={() => onVolume(card.book.id)}
+        >
           <span className="book w-11 shrink-0">
             <BookCover book={card.book} />
           </span>
-          <p className={text === null ? "text-(--ink-soft)" : undefined}>
-            <b className="font-sans">{card.book.title}.</b> {text ?? "Not summarised yet."}
-          </p>
-        </div>
+          <span
+            className={`line-clamp-3 min-w-0 flex-1 md:line-clamp-4 ${text === null ? "text-(--ink-soft)" : ""}`}
+          >
+            <b className="font-sans">{title}.</b> {text ?? "Not summarised yet."}
+          </span>
+          <span className="chev self-center text-(--ink-soft)" aria-hidden="true">
+            ›
+          </span>
+        </button>
       ))}
     </details>
   );
@@ -122,6 +143,9 @@ export function SummaryBody({
   pending,
   askError,
   targetRef,
+  volumesOpen,
+  onVolumesOpen,
+  onVolume,
 }: {
   readonly summary: Summary | null;
   readonly chapters: ReadonlyArray<{ readonly heading: string; readonly paragraph: string }>;
@@ -134,6 +158,9 @@ export function SummaryBody({
   readonly pending: string | null;
   readonly askError: string | null;
   readonly targetRef: RefObject<HTMLHeadingElement | null>;
+  readonly volumesOpen: boolean | null;
+  readonly onVolumesOpen: (isOpen: boolean) => void;
+  readonly onVolume: (id: string) => void;
 }): ReactElement {
   const entries: Array<{ key: string; heading: string; text: string; isWriting: boolean }> =
     chapters.map((chapter, index) => ({
@@ -156,7 +183,15 @@ export function SummaryBody({
 
   return (
     <div className="text-base leading-relaxed [&>section:first-child>h3]:mt-1">
-      {volumes.length > 0 && <BeforeThisBook volumes={volumes} isOpenAtFirst={isFirstChapters} />}
+      {volumes.length > 0 && (
+        <BeforeThisBook
+          volumes={volumes}
+          isOpenAtFirst={isFirstChapters}
+          openChoice={volumesOpen}
+          onOpenChoice={onVolumesOpen}
+          onVolume={onVolume}
+        />
+      )}
       {entries.map((entry, index) => (
         <section key={entry.key} className="rise">
           <h3
@@ -245,6 +280,20 @@ export function SummaryGhost({
         </div>
       ))}
       <YouAreHere />
+    </div>
+  );
+}
+
+// One earlier volume's recap in full, at reading size.
+export function VolumeRecap({ volume }: { readonly volume: EarlierVolume }): ReactElement {
+  return (
+    <div className="mx-auto max-w-[62ch] text-[17px] leading-relaxed">
+      <span className="book mx-auto mt-2 mb-5 block w-24">
+        <BookCover book={volume.card.book} />
+      </span>
+      <p className={`whitespace-pre-wrap ${volume.text === null ? "text-(--ink-soft)" : ""}`}>
+        {volume.text ?? "Not summarised yet."}
+      </p>
     </div>
   );
 }
