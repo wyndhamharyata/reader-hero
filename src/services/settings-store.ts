@@ -60,6 +60,7 @@ export class SettingsStore extends Context.Service<
           textWidth: patch.textWidth ?? current.textWidth,
           textAlign: patch.textAlign ?? current.textAlign,
           temperature: patch.temperature ?? current.temperature,
+          seriesGrouping: patch.seriesGrouping ?? current.seriesGrouping,
           tour: patch.tour ?? current.tour,
           readerTour: patch.readerTour ?? current.readerTour,
         });

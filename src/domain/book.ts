@@ -204,6 +204,8 @@ export class ReaderSettings extends Schema.Class<ReaderSettings>(
   textAlign: TextAlign.pipe(Schema.withDecodingDefaultKey(Effect.succeed<TextAlign>("left"))),
   // -1 is the coolest, 0 neutral, 1 the warmest.
   temperature: Schema.Number.pipe(Schema.withDecodingDefaultKey(Effect.succeed(0))),
+  // Grouping by title and file works with no provider. With one, the model's grouping follows it too.
+  seriesGrouping: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
   tour: Schema.optional(Schema.Int),
   readerTour: Schema.optional(Schema.Int),
 }) {}
@@ -238,6 +240,7 @@ export const DEFAULT_SETTINGS = new ReaderSettings({
   textWidth: 65,
   textAlign: "left",
   temperature: 0,
+  seriesGrouping: false,
 });
 
 export type PageSize = Omit<PageText, "items" | "links">;

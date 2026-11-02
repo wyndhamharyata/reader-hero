@@ -191,7 +191,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const { series, seriesId, seriesJob, reloadSeries } = useBookSeries(
     bookId,
     isLoaded,
-    ai?.seriesGrouping === true,
+    settings.seriesGrouping,
   );
 
   // The saved place until a view reports one, so the original view opens at the saved page.
@@ -285,7 +285,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
     // Read again, so the statuses include this visit's reading and a first open counts as started.
     const program = Effect.gen(function* () {
-      const series = yield* findBookSeries(bookId, ai?.seriesGrouping === true);
+      const series = yield* findBookSeries(bookId, settings.seriesGrouping);
 
       if (series === null) return;
       if ((yield* pendingVolumes(series, opening ? bookId : undefined)) === 0) return;
@@ -304,6 +304,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     summary,
     readingCover.target,
     isFinished,
+    settings.seriesGrouping,
   ]);
 
   // A PDF may switch to the original view, so its page renderer loads its scripts at startup.

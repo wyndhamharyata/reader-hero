@@ -12,7 +12,7 @@ import {
   relayedProviders,
 } from "@/domain/ai";
 import type { ModelInfo } from "@/lib/ai-transport";
-import { runApp, useUsage } from "@/lib/hooks";
+import { runApp, useSettings, useUsage } from "@/lib/hooks";
 import { AiClient } from "@/services/ai-client";
 
 // Where a reader makes a key, so the form points the way instead of sending them to search.
@@ -75,6 +75,7 @@ export function ProviderForm({
   const [relayNotice, setRelayNotice] = useState<AiProvider | null>(null);
   const [consentPending, setConsentPending] = useState(false);
   const usage = useUsage();
+  const { settings } = useSettings();
 
   const draft = (consentedAt?: number, consentVersion?: number): AiSettings =>
     new AiSettings({
@@ -91,7 +92,7 @@ export function ProviderForm({
       consentVersion,
       linesInContents: ai?.linesInContents ?? true,
       autoSummary: ai?.autoSummary ?? false,
-      seriesGrouping: ai?.seriesGrouping ?? false,
+      seriesGrouping: settings.seriesGrouping,
     });
 
   const pick = (next: AiProvider): void => {
@@ -150,7 +151,7 @@ export function ProviderForm({
       provider === ai?.provider && (provider !== "compatible" || baseUrl.trim() === ai.baseUrl);
 
     // Series grouping sends with no tap, so the note for the current text shows before it goes on.
-    if (ai?.seriesGrouping === true && !(isSame && hasConsent(ai))) {
+    if (settings.seriesGrouping && !(isSame && hasConsent(ai))) {
       setConsentPending(true);
       return;
     }

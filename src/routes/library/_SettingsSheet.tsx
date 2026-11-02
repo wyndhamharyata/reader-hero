@@ -155,21 +155,21 @@ export function SettingsSheet({
         <div className="row-item">
           <span className="row-label">Group books into series</span>
           <Switch
-            isOn={toggles.seriesGrouping}
+            isOn={settings.seriesGrouping}
             label="Group books into series"
-            isDisabled={ai === null}
             onChange={(isOn) => {
-              // Grouping sends with no tap, so the note for the current text shows before it goes on.
-              if (isOn && !hasConsent(ai)) {
+              // With a provider, grouping sends with no tap, so the note for the current text shows before it goes on.
+              if (isOn && ai !== null && !hasConsent(ai)) {
                 setGroupingConsent(true);
                 return;
               }
 
+              update({ seriesGrouping: isOn });
               saveToggles({ seriesGrouping: isOn });
             }}
           />
         </div>
-        {toggles.seriesGrouping && (
+        {settings.seriesGrouping && ai !== null && (
           <GroupingStatus grouping={grouping} onRetry={onRetry} onReset={onReset} />
         )}
       </div>
@@ -180,6 +180,7 @@ export function SettingsSheet({
             onCancel={() => setGroupingConsent(false)}
             onAllow={() => {
               setGroupingConsent(false);
+              update({ seriesGrouping: true });
               saveToggles({ seriesGrouping: true }, Date.now());
             }}
           />

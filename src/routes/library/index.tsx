@@ -571,9 +571,9 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
         filters,
         settings.librarySort,
         series,
-        ai?.seriesGrouping === true,
+        settings.seriesGrouping,
       ),
-    [books, reading, query, filters, settings.librarySort, series, ai?.seriesGrouping],
+    [books, reading, query, filters, settings.librarySort, series, settings.seriesGrouping],
   );
 
   // The list's width sets the columns, so a tile keeps its size as the window grows.
