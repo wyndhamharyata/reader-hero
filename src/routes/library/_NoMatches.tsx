@@ -1,6 +1,9 @@
 import type { CSSProperties, ReactElement } from "react";
 
 const longestQuery = 24;
+const slotCount = 9;
+const openSlot = 4;
+const cardCount = 5;
 
 const statusNames: Record<string, { readonly alone: string; readonly within: string }> = {
   reading: { alone: "Nothing you're reading", within: "Reading" },
@@ -22,7 +25,7 @@ export function noMatchesText(
   return { heading: `Nothing for "${shown}" in ${names.within}`, action: "Clear both" };
 }
 
-// An empty space on the shelf: the books that went left the last one leaning on its neighbour.
+// A card catalogue cabinet: one drawer pulled open, and its cards riffled through for the search.
 export function NoMatches({
   query,
   status,
@@ -36,15 +39,23 @@ export function NoMatches({
 
   return (
     <section className="flex flex-col items-center px-4 pt-6 pb-10 text-center">
-      <div className="gap-shelf" aria-hidden="true">
-        <div className="spines">
-          <span className="spine nudged h-[112px]" style={{ "--hue": 250 } as CSSProperties} />
-          <span className="spine struck h-[124px]" style={{ "--hue": 30 } as CSSProperties} />
-          <span className="spine tipping h-[118px]" style={{ "--hue": 159 } as CSSProperties} />
-          <span className="space" />
-          <span className="slip" />
+      <div className="catalog" aria-hidden="true">
+        <div className="floor" />
+        <div className="cabinet">
+          {Array.from({ length: slotCount }, (_, index) => (
+            <span key={index} className={index === openSlot ? "slot hollow" : "slot"} />
+          ))}
         </div>
-        <div className="ledge" />
+        <div className="slide">
+          <div className="tray">
+            {Array.from({ length: cardCount }, (_, index) => (
+              <span key={index} className="file" style={{ "--i": index } as CSSProperties} />
+            ))}
+          </div>
+          <div className="front">
+            <span className="ring" />
+          </div>
+        </div>
       </div>
       <h2 className="mt-8 font-serif text-xl font-bold break-words">{heading}</h2>
       <button type="button" className="key mt-6" onClick={onClear}>
