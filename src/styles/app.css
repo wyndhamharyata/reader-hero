@@ -309,7 +309,7 @@ body {
 
 /* A jump from Contents or a link keeps the same room above as an open does. */
 [data-block] {
-  scroll-margin-top: 64px;
+  scroll-margin-top: 80px;
 }
 
 .reader-heading {

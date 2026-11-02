@@ -247,10 +247,11 @@ export function SeriesSheet({
                   <BookCover book={card.book} />
                 </span>
                 {/* A series' titles share their start, so the clip goes there and the volume shows. */}
-                <span className="row-label truncate [direction:rtl]">
-                  <bdi dir="ltr">
-                    {index + 1}. {card.book.title}
-                  </bdi>
+                <span className="row-label flex">
+                  <span className="shrink-0">{index + 1}.&nbsp;</span>
+                  <span className="min-w-0 truncate [direction:rtl]">
+                    <bdi dir="ltr">{card.book.title}</bdi>
+                  </span>
                 </span>
                 <button
                   type="button"

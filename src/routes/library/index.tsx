@@ -35,7 +35,7 @@ import { isBuilding } from "./_BookTile";
 import { ContinueCard } from "./_ContinueCard";
 import { EmptyShelf } from "./_EmptyShelf";
 import { booksToShow, hiddenClass, loadedLibrary } from "./_library-derived";
-import { LibraryRows, shelfRows, type ShelfRow, type TileEvents } from "./_LibraryRows";
+import { LibraryRows, rowKey, shelfRows, type ShelfRow, type TileEvents } from "./_LibraryRows";
 import { LicencesSheet } from "./_LicencesSheet";
 import { Logo } from "./_Logo";
 import { NoMatches } from "./_NoMatches";
@@ -48,6 +48,16 @@ import { useLibraryActions } from "./_use-library-actions";
 import { useSeriesGrouping } from "./_use-series-grouping";
 
 const showInstallHint = isIosBrowser && !isInstalled;
+const installHintKey = "install-hint-dismissed";
+
+// Without storage the hint shows each time, which costs only a tap.
+function isInstallHintDismissed(): boolean {
+  try {
+    return localStorage.getItem(installHintKey) !== null;
+  } catch {
+    return false;
+  }
+}
 const dealMs = 1200;
 const freshMs = 900;
 const fallMs = 380;
@@ -285,18 +295,30 @@ function ShelfFooter({
   hasNoMatches,
   showsInstall,
   onClear,
+  onDismissInstall,
 }: {
   readonly hasNoMatches: boolean;
   readonly showsInstall: boolean;
   readonly onClear: () => void;
+  readonly onDismissInstall: () => void;
 }): ReactElement {
   return (
     <>
       {hasNoMatches && <NoMatches onClear={onClear} />}
       {showsInstall && (
-        <p className="mx-4 mb-4.5 rounded-[14px] border border-dashed border-(--line) px-4 py-3 text-[13.5px] text-(--ink-soft) md:mx-8">
-          Add Reader Hero to your Home Screen so iOS keeps your library offline.
-        </p>
+        <div className="mx-4 mb-4.5 flex items-center gap-3 rounded-[14px] border border-dashed border-(--line) py-2 pr-2 pl-4 text-[13.5px] text-(--ink-soft) md:mx-8">
+          <p className="flex-1">
+            Add Reader Hero to your Home Screen so iOS keeps your library offline.
+          </p>
+          <button
+            type="button"
+            className="key small square"
+            aria-label="Dismiss"
+            onClick={onDismissInstall}
+          >
+            <XMarkIcon className="icon size-4" />
+          </button>
+        </div>
       )}
     </>
   );
@@ -397,6 +419,9 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const [isDropping, setDropping] = useState(false);
   const [isDealing, setDealing] = useState(true);
   const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
+  const [isInstallHintShown, setInstallHintShown] = useState(
+    () => showInstallHint && !isInstallHintDismissed(),
+  );
   const input = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -565,6 +590,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     getScrollElement: () => scrollRef.current,
     // A first guess only, as each row is measured once it renders.
     estimateSize: () => 260,
+    getItemKey: (index) => rowKey(rows[index], index),
     overscan: 3,
     scrollMargin: listTop,
   });
@@ -848,10 +874,19 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
           <ShelfFooter
             hasNoMatches={shelf.items.length === 0 && books.length > 0}
-            showsInstall={showInstallHint && !isEmpty}
+            showsInstall={isInstallHintShown && !isEmpty}
             onClear={() => {
               setQuery("");
               setFilters(emptyFilters);
+            }}
+            onDismissInstall={() => {
+              setInstallHintShown(false);
+
+              try {
+                localStorage.setItem(installHintKey, "1");
+              } catch {
+                // Without storage the hint comes back on the next launch.
+              }
             }}
           />
         </div>

@@ -70,30 +70,32 @@ await page.evaluate(async () => {
 });
 await page.waitForFunction(
   () =>
-    document.querySelector('a[href^="/book/"] h2') !== null &&
+    document.querySelector("[data-book-id] img") !== null &&
     !document.body.innerText.includes("Rendering figures"),
   null,
   { timeout: 180_000 },
 );
-// A first launch shows the tours, whose shield takes the clicks.
-await page.click('button:has-text("Skip")', { timeout: 2000 }).catch(() => {});
-await page.click('a[href^="/book/"] h2');
+await page.click("[data-book-id] button");
 await page.waitForSelector("[data-block]");
-await page.click('button:has-text("Skip")', { timeout: 3000 }).catch(() => {});
 // Reading time before the switch, as in the full benchmark, so the warm-up has run.
 await page.waitForTimeout(3000);
-await page.click('button[aria-label="Menu"]');
+if ((await page.locator(".topbar.is-hidden").count()) > 0) {
+  const size = page.viewportSize();
+  await page.mouse.click(size.width / 2, size.height / 2);
+  await page.waitForSelector(".topbar:not(.is-hidden)");
+}
+await page
+  .locator('.bar button:has-text("More"):visible, .bar button[aria-label="More"]:visible')
+  .first()
+  .click();
 await page.waitForSelector('button:has-text("Original view")');
 // The sheet animates in for 240 ms. The timed click must not wait on that.
 await page.waitForTimeout(400);
 const t0 = Date.now();
 await page.click('button:has-text("Original view")');
-await page.click('button[aria-label="Close"]');
-await page.waitForFunction(
-  () => document.querySelector("canvas[data-painted]") !== null,
-  null,
-  { timeout: 60_000 },
-);
+await page.waitForFunction(() => document.querySelector("canvas[data-painted]") !== null, null, {
+  timeout: 60_000,
+});
 const firstPageMs = Date.now() - t0;
 await page.waitForTimeout(1500);
 const cpu = cpuSeconds();
@@ -103,7 +105,7 @@ if (process.env.SAMPLE) {
   await page.waitForTimeout(300);
 }
 const result = await page.evaluate(async () => {
-  const container = document.querySelector("[data-scroller].bg-base-300");
+  const container = document.querySelector("[data-scroller]");
   // What one canvas size change costs: in WebKit it lays out every page wrapper again.
   const probeCanvas = document.querySelector("canvas[data-painted]");
   void container.offsetHeight;

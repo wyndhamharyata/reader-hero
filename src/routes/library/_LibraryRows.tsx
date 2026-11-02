@@ -33,6 +33,16 @@ export function shelfRows(
   return rows;
 }
 
+// By content, not place, so an opened tray does not hand its height to the rows after it.
+export function rowKey(row: ShelfRow | undefined, index: number): string {
+  if (row === undefined) return `${index}`;
+  if (row.kind === "tray") return `tray:${row.series.id}`;
+
+  const first = row.items[0];
+
+  return first?.kind === "series" ? `series:${first.id}` : `book:${first?.card.book.id ?? index}`;
+}
+
 const dealStepMs = 30;
 const lastDealt = 9;
 

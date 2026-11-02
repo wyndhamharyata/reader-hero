@@ -241,7 +241,7 @@ async function run(layoutName, layout) {
         break;
       }
       const warning = await page.evaluate(
-        () => document.querySelector(".alert-warning")?.textContent ?? null,
+        () => document.querySelector(".notice.warn")?.textContent ?? null,
       );
       if (warning !== null) {
         result.importError = warning.slice(0, 160);
@@ -267,11 +267,9 @@ async function run(layoutName, layout) {
       window.__t0 = performance.now();
       window.__watch(() => document.querySelector("[data-block]") !== null);
     });
-    // A first launch shows the tours, whose shield takes the clicks.
-    await page.click('button:has-text("Skip")', { timeout: 2000 }).catch(() => undefined);
-    await page.click('a[href^="/book/"] h2');
+    // The open includes the cover's 320 ms zoom, as a reader sees it.
+    await page.click("[data-book-id] button");
     await page.waitForFunction(() => window.__ready !== null);
-    await page.click('button:has-text("Skip")', { timeout: 2000 }).catch(() => undefined);
     const readerOpenMs = await page.evaluate(() => Math.round(window.__ready - window.__t0));
     await sleep(1500);
     const blockCount = await page.evaluate(() => document.querySelectorAll("[data-block]").length);
@@ -322,7 +320,15 @@ async function run(layoutName, layout) {
     );
 
     // 6. Original mode: time to the first page, then a fast scroll down and back.
-    await page.click('button[aria-label="Menu"]');
+    if ((await page.locator(".topbar.is-hidden").count()) > 0) {
+      const size = page.viewportSize();
+      await page.mouse.click(size.width / 2, size.height / 2);
+      await page.waitForSelector(".topbar:not(.is-hidden)");
+    }
+    await page
+      .locator('.bar button:has-text("More"):visible, .bar button[aria-label="More"]:visible')
+      .first()
+      .click();
     await page.waitForSelector('button:has-text("Original view")');
     // The sheet animates in for 240 ms. The timed click must not wait on that.
     await page.waitForTimeout(400);
@@ -345,7 +351,6 @@ async function run(layoutName, layout) {
       });
     });
     await page.click('button:has-text("Original view")');
-    await page.click('button[aria-label="Close"]');
     await page
       .waitForFunction(() => window.__ready !== null, null, { timeout: 5_000 })
       .catch(() => undefined);
@@ -366,7 +371,7 @@ async function run(layoutName, layout) {
     cpu = cpuSeconds();
     const originalScroll = await withTimeout(
       page.evaluate(async () => {
-        const container = document.querySelector("[data-scroller].bg-base-300");
+        const container = document.querySelector("[data-scroller]");
         window.__startSampler();
         for (let i = 0; i < 15; i += 1) {
           container.scrollTop += 4000;
@@ -468,19 +473,8 @@ async function run(layoutName, layout) {
       await page.waitForTimeout(1000);
       result.series = { books: 200, series: 10, cycles: 10, runs: [] };
 
-      for (const view of ["list", "grid"]) {
-        const viewLabel = view === "list" ? "List view" : "Grid view";
-        await page.getByRole("button", { name: viewLabel }).click();
-        await page.waitForFunction(
-          (label) =>
-            [...document.querySelectorAll("button[aria-label]")].some(
-              (button) =>
-                button.getAttribute("aria-label") === label &&
-                button.getAttribute("aria-pressed") === "true",
-            ),
-          viewLabel,
-        );
-
+      // The shelf has one view, the grid.
+      for (const view of ["grid"]) {
         for (const position of ["top", "middle"]) {
           await page.evaluate((where) => {
             const scroll = document.querySelector("[data-library-scroll]");
@@ -530,7 +524,7 @@ async function run(layoutName, layout) {
               const waitFor = async (expanded) => {
                 const deadline = performance.now() + 10000;
                 while (performance.now() < deadline) {
-                  const toggle = findRoot()?.querySelector("[data-series-toggle]");
+                  const toggle = findRoot()?.querySelector("button.slipcase");
                   if (toggle?.getAttribute("aria-expanded") === String(expanded)) {
                     // The fade of an opened series takes 150ms.
                     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -543,12 +537,12 @@ async function run(layoutName, layout) {
 
               window.__startSampler();
               for (let cycle = 0; cycle < 10; cycle += 1) {
-                const toggle = findRoot()?.querySelector("[data-series-toggle]");
+                const toggle = findRoot()?.querySelector("button.slipcase");
                 if (toggle === null || toggle === undefined)
                   throw new Error("series toggle missing");
                 toggle.click();
                 await waitFor(true);
-                const expanded = findRoot()?.querySelector("[data-series-toggle]");
+                const expanded = findRoot()?.querySelector("button.slipcase");
                 if (expanded === null || expanded === undefined) {
                   throw new Error("expanded series toggle missing");
                 }

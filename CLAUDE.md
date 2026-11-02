@@ -61,8 +61,10 @@ src/
   workers/       Web Workers: pdf-render (the original view's pages, links, text and search, on
                  its own pdf.js document) and encode-image (figures to JPEG)
   routes/        library/ and reader/, each a directory with its own components
-  components/    Shared components: icons, tour art, theme controls, the update toast
-  styles/        The app's CSS and the original view's text layer rules from pdf.js
+  components/    Shared components: icons, the panel, the switch, the book cover, the provider form,
+                 the consent note, the update toast
+  styles/        The design system (ui.css: tokens, keycaps, switches, faders, rows, panels, book
+                 objects, motion), the app's CSS, and the original view's text layer rules from pdf.js
   worker/        Hono worker and the relay
   sw.ts          Service worker: precache, offline navigation, share target
   runtime.ts     The single ManagedRuntime
@@ -81,7 +83,7 @@ src/
     before, only on a tap or with Automatic summary switched on. Updating the character list
     sends the chapter summaries and the names the reader added or removed. The current
     position sends the part of the chapter read so far.
-  - A question in the Summary sheet sends the summaries, the character list and the thread.
+  - A question in the Summary panel sends the summaries, the character list and the thread.
   - Series grouping sends the title, author, file name and first 200 words of each new book,
     only with Series grouping switched on. Each book goes once: it counts as sent once the
     provider answers. The request also lists the names and book titles of the series that

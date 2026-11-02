@@ -155,7 +155,7 @@ export function SummaryBody({
   const target = openAt === null ? entries.length - 1 : openAt;
 
   return (
-    <div className="text-base leading-relaxed">
+    <div className="text-base leading-relaxed [&>section:first-child>h3]:mt-1">
       {volumes.length > 0 && <BeforeThisBook volumes={volumes} isOpenAtFirst={isFirstChapters} />}
       {entries.map((entry, index) => (
         <section key={entry.key} className="rise">

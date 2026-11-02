@@ -33,7 +33,15 @@ export function MorePanel({
     >
       <div className="rows mt-3 md:mt-0">
         {!isEpub && (
-          <button type="button" className="row-item" onClick={() => dismiss(onToggleMode)}>
+          <button
+            type="button"
+            className="row-item"
+            // The view changes at once, under the menu as it closes.
+            onClick={() => {
+              onToggleMode();
+              dismiss();
+            }}
+          >
             <span className="row-label">{mode === "reader" ? "Original view" : "Reader view"}</span>
           </button>
         )}

@@ -48,7 +48,7 @@ function blockClass(block: Block): string {
 
 const VIEWPORT_FRACTION = 0.9;
 // The reading line is this far down the screen, so a top bar shown over the page never covers it.
-const topRoomPx = 64;
+const topRoomPx = 80;
 const turnMs = 120;
 const turnShiftPx = 18;
 const nudgeMs = 200;
@@ -371,7 +371,7 @@ export const ReaderView = memo(function ReaderView({
       {fontReady && (
         <article
           ref={articleRef}
-          className="reader-body mx-auto max-w-prose overflow-x-clip px-6.5 pt-16 pb-[calc(7.5rem+var(--safe-bottom))] text-(--page-ink) md:max-w-[var(--text-width)]"
+          className="reader-body mx-auto max-w-prose overflow-x-clip px-6.5 pt-20 pb-[calc(7.5rem+var(--safe-bottom))] text-(--page-ink) md:max-w-[var(--text-width)]"
           data-font={settings.font}
           style={
             {
