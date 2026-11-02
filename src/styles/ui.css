@@ -73,6 +73,20 @@
   --ledge-bottom: oklch(30% 0.03 60);
 }
 
+/* Tailwind gives a button the arrow cursor. Here everything that acts on a click shows the hand. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  select:not(:disabled),
+  label:has(> input[type="file"], > select),
+  input[type="range"]:not(:disabled),
+  input[type="radio"] + * {
+    cursor: pointer;
+  }
+}
+
 @layer components {
   .icon {
     width: 20px;
