@@ -1152,6 +1152,16 @@
     z-index: 99;
     pointer-events: none;
     background: var(--page);
+    transform-origin: 0 0;
+  }
+
+  .zoomer-shadow {
+    position: fixed;
+    z-index: 100;
+    border-radius: 2px 5px 5px 2px;
+    pointer-events: none;
+    transform-origin: 0 50%;
+    box-shadow: 0 22px 26px -6px oklch(0% 0 0 / 0.4);
   }
 
   .zoomer {
