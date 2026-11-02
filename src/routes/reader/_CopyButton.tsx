@@ -1,13 +1,10 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { CheckIcon, ClipboardIcon, ExclamationCircleIcon } from "@/components/icons";
 import { forkApp, stopFiber, type Job } from "@/lib/hooks";
 
-interface Props {
-  text: string;
-}
+const settleMs = 1500;
 
-export function CopyButton({ text }: Props): ReactElement {
+export function CopyButton({ text }: { readonly text: string }): ReactElement {
   const [label, setLabel] = useState<"Copy" | "Copied" | "Copy failed">("Copy");
   const job = useRef<Job | null>(null);
 
@@ -28,28 +25,19 @@ export function CopyButton({ text }: Props): ReactElement {
           onFailure: () => "Copy failed" as const,
         }),
         Effect.tap((result) => Effect.sync(() => setLabel(result))),
-        Effect.andThen(Effect.sleep("1500 millis")),
+        Effect.andThen(Effect.sleep(`${settleMs} millis`)),
         Effect.andThen(Effect.sync(() => setLabel("Copy"))),
       ),
     );
   };
 
-  const Icon = { Copy: ClipboardIcon, Copied: CheckIcon, "Copy failed": ExclamationCircleIcon }[
-    label
-  ];
-
   return (
-    <button
-      type="button"
-      className="btn btn-square btn-ghost md:btn-sm"
-      aria-label={label}
-      title={label}
-      disabled={text === ""}
-      onClick={copy}
-    >
-      <Icon className={`size-6 md:size-4 ${label === "Copy failed" ? "text-error" : ""}`} />
-      <span aria-live="polite" className="sr-only">
-        {label === "Copy" ? "" : label}
+    <button type="button" className="row-item" disabled={text === ""} onClick={copy}>
+      <span
+        className={`row-label ${label === "Copy failed" ? "text-(--red)" : ""}`}
+        aria-live="polite"
+      >
+        {label}
       </span>
     </button>
   );

@@ -1,5 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { fontFamily, type Block, type ParsedBook, type ReaderSettings } from "@/domain/book";
+import { prefersLessMotion } from "@/lib/open-book";
 import { useTapFilter } from "@/lib/use-tap-filter";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
@@ -11,6 +12,13 @@ export interface JumpRequest {
   readonly nonce: number;
 }
 
+// A search match: characters `start` to `end` of a block's text.
+export interface FindTarget {
+  readonly index: number;
+  readonly start: number;
+  readonly end: number;
+}
+
 interface Props {
   bookId: string;
   parsed: ParsedBook;
@@ -19,6 +27,8 @@ interface Props {
   jump: JumpRequest | null;
   onPosition: (blockIndex: number) => void;
   onToggleChrome: () => void;
+  onPageTurn: () => void;
+  find: FindTarget | null;
   // The reader's own picture: it opens the book, above the first block.
   hasCustomCover: boolean;
 }
@@ -37,6 +47,68 @@ function blockClass(block: Block): string {
 }
 
 const VIEWPORT_FRACTION = 0.9;
+// The reading line is this far down the screen, so a top bar shown over the page never covers it.
+const topRoomPx = 64;
+const turnMs = 120;
+const turnShiftPx = 18;
+const nudgeMs = 200;
+const nudgePx = 5;
+
+// Instant, then a short slide, so a tap turns a page at once and the eye still sees which way it went.
+function turnPage(container: HTMLElement, direction: 1 | -1): void {
+  const maxScroll = container.scrollHeight - container.clientHeight;
+  const isAtEnd = direction > 0 ? container.scrollTop >= maxScroll - 1 : container.scrollTop <= 0;
+  const isStill = prefersLessMotion();
+
+  if (isAtEnd) {
+    if (isStill) return;
+
+    const nudge = `translateY(${-direction * nudgePx}px)`;
+
+    container.animate([{ transform: "none" }, { transform: nudge }, { transform: "none" }], {
+      duration: nudgeMs,
+      easing: "ease-out",
+    });
+    return;
+  }
+
+  container.scrollTop += direction * container.clientHeight * VIEWPORT_FRACTION;
+  if (isStill) return;
+
+  container.animate(
+    [
+      { transform: `translateY(${direction * turnShiftPx}px)`, opacity: 0.55 },
+      { transform: "none", opacity: 1 },
+    ],
+    { duration: turnMs, easing: "ease-out" },
+  );
+}
+
+// The text nodes of a block, walked to the match's characters, so the mark spans any bold or link inside.
+function rangeOf(block: Element, start: number, end: number): Range | null {
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  let seen = 0;
+  let hasStart = false;
+
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const length = node.textContent?.length ?? 0;
+
+    if (!hasStart && start < seen + length) {
+      range.setStart(node, start - seen);
+      hasStart = true;
+    }
+
+    if (hasStart && end <= seen + length) {
+      range.setEnd(node, end - seen);
+      return range;
+    }
+
+    seen += length;
+  }
+
+  return null;
+}
 
 // Memoised so the parent's per-position renders do not re-map every block of the book.
 export const ReaderView = memo(function ReaderView({
@@ -47,6 +119,8 @@ export const ReaderView = memo(function ReaderView({
   jump,
   onPosition,
   onToggleChrome,
+  onPageTurn,
+  find,
   hasCustomCover,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,7 +169,7 @@ export const ReaderView = memo(function ReaderView({
 
     restoredRef.current = true;
     container.scrollTop +=
-      target.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      target.getBoundingClientRect().top - container.getBoundingClientRect().top - topRoomPx;
   }, [initialBlock, fontReady]);
 
   // A scroll does a binary search, not observers: WebKit recomputes observers on every frame.
@@ -140,7 +214,7 @@ export const ReaderView = memo(function ReaderView({
       if (nodes.length === 0) return;
 
       const top = container.scrollTop;
-      const topIndex = indexAt(top + 8);
+      const topIndex = indexAt(top + topRoomPx + 8);
       const node = nodes[topIndex];
       const nodeTop = tops[topIndex];
 
@@ -198,6 +272,31 @@ export const ReaderView = memo(function ReaderView({
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [jump]);
 
+  // The match goes a third of the way down the screen and takes the find mark.
+  useEffect(() => {
+    const container = containerRef.current;
+    const block = container?.querySelector(`div[data-block="${find?.index}"]`);
+    const range =
+      find === null || block === null || block === undefined
+        ? null
+        : rangeOf(block, find.start, find.end);
+    const highlights = "highlights" in CSS ? CSS.highlights : null;
+
+    if (container === null || range === null) {
+      highlights?.delete("find");
+      return;
+    }
+
+    const top = range.getBoundingClientRect().top - container.getBoundingClientRect().top;
+
+    container.scrollTop += top - container.clientHeight / 3;
+    highlights?.set("find", new Highlight(range));
+
+    return () => {
+      highlights?.delete("find");
+    };
+  }, [find]);
+
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     const container = containerRef.current;
@@ -221,12 +320,9 @@ export const ReaderView = memo(function ReaderView({
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = (event.clientX - rect.left) / rect.width;
 
-    if (ratio < 0.3) {
-      container.scrollBy({ top: -container.clientHeight * VIEWPORT_FRACTION, behavior: "smooth" });
-      return;
-    }
-    if (ratio > 0.7) {
-      container.scrollBy({ top: container.clientHeight * VIEWPORT_FRACTION, behavior: "smooth" });
+    if (ratio < 0.3 || ratio > 0.7) {
+      turnPage(container, ratio < 0.3 ? -1 : 1);
+      onPageTurn();
       return;
     }
 
@@ -275,7 +371,7 @@ export const ReaderView = memo(function ReaderView({
       {fontReady && (
         <article
           ref={articleRef}
-          className="reader-body mx-auto max-w-prose overflow-x-clip px-4 pt-4 pb-[calc(1rem+var(--safe-bottom))] md:max-w-[var(--text-width)]"
+          className="reader-body mx-auto max-w-prose overflow-x-clip px-6.5 pt-16 pb-[calc(7.5rem+var(--safe-bottom))] text-(--page-ink) md:max-w-[var(--text-width)]"
           data-font={settings.font}
           style={
             {

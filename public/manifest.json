@@ -8,8 +8,8 @@
   "display": "standalone",
   "orientation": "portrait",
   "launch_handler": { "client_mode": "focus-existing" },
-  "background_color": "#faf7f2",
-  "theme_color": "#0ba56a",
+  "background_color": "#f6f5f2",
+  "theme_color": "#0a6640",
   "categories": ["books", "education", "productivity"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },

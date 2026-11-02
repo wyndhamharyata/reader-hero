@@ -1,16 +1,18 @@
-import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, useState, type ReactElement } from "react";
-import { PencilIcon } from "@/components/icons";
-import { formatPercent, formatSize } from "@/lib/format";
+import { BookCover } from "@/components/BookCover";
+import { CheckIcon } from "@/components/icons";
+import { Panel } from "@/components/Panel";
+import { Switch } from "@/components/Switch";
 import type { ReadingProgress } from "@/domain/book";
+import { formatPercent, formatSize } from "@/lib/format";
 import type { LibraryCard, Shelf } from "@/lib/shelf";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
-import { BookCover } from "./_BookCover";
 
 export function BookSheet({
   card,
   progress,
   groups,
+  onOpen,
   onFinished,
   onSeries,
   onEditSeries,
@@ -23,6 +25,7 @@ export function BookSheet({
   card: LibraryCard;
   progress: ReadingProgress | null;
   groups: Shelf["series"];
+  onOpen: () => void;
   // `place` is the position at the sheet's opening, which Finished turned off goes back to.
   onFinished: (id: string, isFinished: boolean, place: ReadingProgress | null) => void;
   // Null takes the book out of its series.
@@ -43,78 +46,110 @@ export function BookSheet({
   const backdropRef = useRef<HTMLButtonElement>(null);
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [isFinished, setFinished] = useState(card.status === "finished");
+  // Set by the switch, so the stamp thumps on a change and not when the sheet opens.
+  const [hasStamped, setStamped] = useState(false);
+  const [isConfirming, setConfirming] = useState(false);
   const [place] = useState(progress);
   // The sheet keeps the card it opened with, so Reset follows the choices made in it.
   const [custom, setCustom] = useState(card.book.customCover === true);
-  const pictureInput = useRef<HTMLInputElement>(null);
   // A choice shows until the library reads the store again. From then the stored series shows.
   const [choice, setChoice] = useState<{
     seriesId: string | null;
     groups: Shelf["series"];
   } | null>(null);
-  const current = groups.find((group) =>
-    group.books.some((entry) => entry.book.id === card.book.id),
-  );
+  const { book } = card;
+  const current = groups.find((group) => group.books.some((entry) => entry.book.id === book.id));
   const seriesId =
     choice !== null && choice.groups === groups ? choice.seriesId : (current?.id ?? null);
-  const group = current?.id === seriesId ? current : undefined;
-  const note = isFinished
-    ? "Finished puts the saved position at the end. The Summary and the series summary cover the whole book."
-    : "The Summary and the series summary stop at the furthest position.";
+  const seriesName = groups.find((entry) => entry.id === seriesId)?.name ?? "None";
+  const isStarted = card.status !== "not-started" || isFinished;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end md:items-center md:justify-center">
-      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
-      <aside
-        ref={sheetRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Book"
-        className="relative z-10 flex max-h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-auto md:w-[36rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
-      >
-        <div className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
-        <div className="flex gap-4 md:gap-5">
-          <div className="flex w-28 shrink-0 flex-col items-center gap-1 md:w-36">
+    <Panel
+      sheetRef={sheetRef}
+      backdropRef={backdropRef}
+      label="Book"
+      title="Book"
+      onDismiss={() => dismiss()}
+    >
+      <BookHead
+        card={card}
+        isFinished={isFinished}
+        hasStamped={hasStamped}
+        percent={isFinished ? 1 : (place?.percent ?? 0)}
+      />
+      <button type="button" className="key green w-full" onClick={() => dismiss(onOpen)}>
+        {isStarted ? "Continue reading" : "Start reading"}
+      </button>
+      <div className="rows mt-4.5">
+        <div className="row-item">
+          <span className="row-label">Finished</span>
+          <Switch
+            isOn={isFinished}
+            label="Finished"
+            onChange={(next) => {
+              setFinished(next);
+              setStamped(true);
+              onFinished(book.id, next, place);
+            }}
+          />
+        </div>
+        {/* WebKit runs a select's text under its arrow, so the name shows in the row under a clear select. */}
+        <label className="row-item relative cursor-pointer">
+          <span className="row-label">Series</span>
+          <span className="value">{seriesName}</span>
+          <span className="chev" aria-hidden="true">
+            ›
+          </span>
+          <select
+            className="absolute inset-0 cursor-pointer opacity-0"
+            aria-label="Series"
+            value={seriesId === null ? "none" : `id:${seriesId}`}
+            onChange={(event) => {
+              const value = event.target.value;
+
+              if (value === "new") {
+                dismiss(() => onEditSeries({ id: null, name: "", books: [card] }));
+                return;
+              }
+
+              const next = value === "none" ? null : value.slice(3);
+
+              setChoice({ seriesId: next, groups });
+              onSeries(book.id, next);
+            }}
+          >
+            <option value="none">None</option>
+            {[...groups]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((entry) => (
+                <option key={entry.id} value={`id:${entry.id}`}>
+                  {entry.name}
+                </option>
+              ))}
+            <option value="new">New series</option>
+          </select>
+        </label>
+        <div className="row-item">
+          <span className="row-label">Cover</span>
+          {custom && (
             <button
               type="button"
-              className="group relative w-full overflow-hidden rounded-md shadow-lg ring-1 ring-black/10"
-              aria-label="Change cover"
-              title="Change cover"
-              onClick={() => pictureInput.current?.click()}
+              className="key small"
+              onClick={() => {
+                setCustom(false);
+                onResetCover(book.id);
+              }}
             >
-              <BookCover bookId={card.book.id} rounded="rounded-md" />
-              {/* A shade down the left edge reads as the spine of a printed book. */}
-              <span className="pointer-events-none absolute inset-y-0 left-0 w-2.5 bg-linear-to-r from-black/25 to-transparent" />
-              <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-black/55 py-1.5 text-center text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-                Change cover
-              </span>
+              Reset
             </button>
-            <span className="flex">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => pictureInput.current?.click()}
-              >
-                Change
-              </button>
-              {custom && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    setCustom(false);
-                    onResetCover(card.book.id);
-                  }}
-                >
-                  Reset
-                </button>
-              )}
-            </span>
+          )}
+          <label className="key small has-focus-visible:outline-2 has-focus-visible:outline-(--green)">
+            Change
             <input
-              ref={pictureInput}
               type="file"
               accept="image/*"
-              className="hidden"
+              className="sr-only"
               onChange={(event) => {
                 const picture = event.target.files?.[0];
 
@@ -122,141 +157,91 @@ export function BookSheet({
                 if (picture === undefined) return;
 
                 setCustom(true);
-                onCover(card.book.id, picture);
+                onCover(book.id, picture);
               }}
             />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <p className="text-xs font-medium tracking-wide uppercase opacity-60">Book</p>
-            <div>
-              <h2
-                className="line-clamp-4 text-xl leading-tight font-semibold break-words md:text-2xl"
-                data-font="serif"
-              >
-                {card.book.title}
-              </h2>
-              {card.book.author !== undefined && (
-                <p className="mt-1 text-base opacity-70 md:text-sm">{card.book.author}</p>
-              )}
-            </div>
-            <span className={`${card.badge.className} self-start`}>{card.badge.label}</span>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm md:text-xs">
-              <dt className="opacity-60">Format</dt>
-              <dd>{card.book.format === "epub" ? "EPUB" : "PDF"}</dd>
-              <dt className="opacity-60">Length</dt>
-              {/* An EPUB has no pages, so its count is an estimate. */}
-              <dd>
-                {card.book.format === "epub" ? "~" : ""}
-                {card.book.pageCount} pages
-              </dd>
-              <dt className="opacity-60">Size</dt>
-              <dd>{formatSize(card.book.fileSize)}</dd>
-              <dt className="opacity-60">Added</dt>
-              <dd>
-                {new Date(card.book.addedAt).toLocaleDateString(undefined, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </dd>
-            </dl>
-          </div>
-        </div>
-        <div className="mt-2 divide-y divide-base-content/10 rounded-box bg-base-300">
-          {/* A button, not a switch: it moves the saved position. The sheet stays open, so a second tap undoes it. */}
-          <div className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
-            <span>{isFinished ? "Finished" : `${formatPercent(place?.percent ?? 0)} read`}</span>
-            <button
-              type="button"
-              className="btn md:btn-sm"
-              onClick={() => {
-                setFinished(!isFinished);
-                onFinished(card.book.id, !isFinished, place);
-              }}
-            >
-              {isFinished ? "Mark as not finished" : "Mark as finished"}
-            </button>
-          </div>
-          <label className="flex items-center justify-between gap-3 px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm">
-            <span>Series</span>
-            {/* WebKit runs a select's text under its arrow, so the name shows in a box under a clear select. */}
-            <span className="select relative w-56 min-w-0 text-base md:w-80 md:text-sm md:select-sm">
-              <span className="min-w-0 truncate">
-                {groups.find((entry) => entry.id === seriesId)?.name ?? "None"}
-              </span>
-              <select
-                className="absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0"
-                aria-label="Series"
-                value={seriesId === null ? "none" : `id:${seriesId}`}
-                onChange={(event) => {
-                  const value = event.target.value;
-
-                  if (value === "new") {
-                    dismiss(() => onEditSeries({ id: null, name: "", books: [card] }));
-                    return;
-                  }
-
-                  const next = value === "none" ? null : value.slice(3);
-
-                  setChoice({ seriesId: next, groups });
-                  onSeries(card.book.id, next);
-                }}
-              >
-                <option value="none">None</option>
-                {[...groups]
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((entry) => (
-                    <option key={entry.id} value={`id:${entry.id}`}>
-                      {entry.name}
-                    </option>
-                  ))}
-                <option value="new">New series</option>
-              </select>
-            </span>
           </label>
-          {group !== undefined && (
-            <div className="flex items-center justify-between gap-3 py-1 pr-2 pl-4 text-base md:py-0.5 md:pl-3 md:text-sm">
-              <span>Place</span>
-              <span className="flex items-center gap-1">
-                <span className="opacity-70">
-                  {group.books.findIndex((entry) => entry.book.id === card.book.id) + 1} of{" "}
-                  {group.count}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-square btn-ghost md:btn-sm"
-                  aria-label="Edit series"
-                  title="Edit series"
-                  onClick={() => dismiss(() => onEditSeries(group))}
-                >
-                  <PencilIcon className="size-6 md:size-4" />
-                </button>
-              </span>
-            </div>
-          )}
         </div>
-        <p className="text-base opacity-60 md:text-sm">{note}</p>
-        <div className="mt-1 flex items-center gap-2">
+        <div className="row-item">
+          <span className="row-label">Reader view</span>
           <button
             type="button"
-            className="btn btn-ghost text-error md:btn-sm"
-            onClick={() => dismiss(() => onRemove(card.book.id))}
-          >
-            Delete
-          </button>
-          <span className="flex-1" />
-          <button
-            type="button"
-            className="btn btn-ghost md:btn-sm"
-            onClick={() => dismiss(() => onReparse(card.book.id))}
+            className="key small"
+            onClick={() => dismiss(() => onReparse(book.id))}
           >
             Rebuild
           </button>
-          <button type="button" className="btn md:btn-sm" onClick={() => dismiss()}>
-            Close
-          </button>
         </div>
-      </aside>
+      </div>
+      {isConfirming ? (
+        <div className="confirm">
+          <p>Delete {book.title} and its summary?</p>
+          <div className="buttons">
+            <button type="button" className="key small" onClick={() => setConfirming(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="key small danger"
+              onClick={() => dismiss(() => onRemove(book.id))}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="key danger-outline mt-7 w-full"
+          onClick={() => setConfirming(true)}
+        >
+          Delete book
+        </button>
+      )}
+    </Panel>
+  );
+}
+
+// The cover with its ribbon or stamp, then what the book is.
+function BookHead({
+  card,
+  isFinished,
+  hasStamped,
+  percent,
+}: {
+  readonly card: LibraryCard;
+  readonly isFinished: boolean;
+  readonly hasStamped: boolean;
+  readonly percent: number;
+}): ReactElement {
+  const { book } = card;
+  const isReading = card.status !== "not-started" && !isFinished;
+  const meta = [
+    book.format === "epub" ? "EPUB" : "PDF",
+    formatPercent(percent),
+    formatSize(book.fileSize),
+  ].join(" · ");
+
+  return (
+    <div className="flex items-end gap-4.5 pt-1.5 pb-4.5">
+      <span className="book w-24 shrink-0">
+        <BookCover book={book} />
+        {isReading && <span className="ribbon" />}
+        {isFinished && (
+          <span className={hasStamped ? "stamp thump" : "stamp"}>
+            <CheckIcon className="icon" />
+          </span>
+        )}
+      </span>
+      <div className="min-w-0">
+        <h2 className="line-clamp-4 font-serif text-[21px] leading-tight font-bold break-words">
+          {book.title}
+        </h2>
+        {book.author !== undefined && (
+          <p className="mt-1 text-[13.5px] text-(--ink-soft)">{book.author}</p>
+        )}
+        <p className="mt-1 text-[13.5px] text-(--ink-soft)">{meta}</p>
+      </div>
     </div>
   );
 }

@@ -1,11 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- The R is Montserrat ExtraBold (SIL Open Font License 1.1), converted to outlines. -->
-  <rect width="512" height="512" fill="#0ba56a"/>
-  <g transform="translate(140.4 122.9) scale(0.7006)">
-    <rect x="8" y="8" width="214" height="304" rx="4" fill="#0ba56a" stroke="#fff" stroke-width="16"/>
-    <rect x="38" y="38" width="214" height="304" rx="4" fill="#0ba56a" stroke="#fff" stroke-width="16"/>
-    <rect x="68" y="68" width="214" height="304" fill="#0ba56a"/>
-    <path d="M282 99.4V68H68V372H282V340.6" fill="none" stroke="#fff" stroke-width="16" stroke-linejoin="round"/>
-    <path fill="#fff" d="M208.7 315L155 315L155 125.0L240.0 125.0Q281.8 125.0 304.0 143.9Q326.3 162.7 326.3 195.3L326.3 195.3Q326.3 216.2 316.5 231.5Q306.7 246.9 288.8 255.3L288.8 255.3L330.1 315L272.5 315L238.1 264.5L208.7 264.5L208.7 315ZM208.7 167.3L208.7 223.0L238.6 223.0Q255.4 223.0 263.7 215.7Q272.0 208.3 272.0 195.3L272.0 195.3Q272.0 182.0 263.7 174.7Q255.4 167.3 238.6 167.3L238.6 167.3L208.7 167.3Z"/>
+  <defs>
+    <linearGradient id="cloth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#196e48"/>
+      <stop offset="1" stop-color="#005030"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#cloth)"/>
+  <g transform="translate(140.4 122.9) scale(0.7006)" fill="none" stroke-width="18" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M222 38V8H8V312H38" stroke="#75a891"/>
+    <path d="M252 68V38H38V342H68" stroke="#afccbf"/>
+    <path d="M282 99.4V68H68V372H282V340.6" stroke="#e8f0ed"/>
+    <path fill="#faf5e6" stroke="none" d="M208.7 315L155 315L155 125.0L240.0 125.0Q281.8 125.0 304.0 143.9Q326.3 162.7 326.3 195.3L326.3 195.3Q326.3 216.2 316.5 231.5Q306.7 246.9 288.8 255.3L288.8 255.3L330.1 315L272.5 315L238.1 264.5L208.7 264.5L208.7 315ZM208.7 167.3L208.7 223.0L238.6 223.0Q255.4 223.0 263.7 215.7Q272.0 208.3 272.0 195.3L272.0 195.3Q272.0 182.0 263.7 174.7Q255.4 167.3 238.6 167.3L238.6 167.3L208.7 167.3Z"/>
   </g>
 </svg>

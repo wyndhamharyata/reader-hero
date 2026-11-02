@@ -4,7 +4,6 @@ import type { AiSettings, Summary } from "@/domain/ai";
 import {
   FINISHED_PERCENT,
   ReaderSettings,
-  TOUR_VERSION,
   type BookMeta,
   type BookPrefs,
   type ParsedBook,
@@ -16,17 +15,10 @@ import { forkApp, stopFiber, useAppEffect } from "@/lib/hooks";
 import { guessKind } from "@/lib/guess-kind";
 import { guessMode } from "@/lib/guess-mode";
 import type { Shelf } from "@/lib/shelf";
-import { readerTourSteps } from "@/lib/tour";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
 import { chapters } from "@/use-cases/ai-context";
 import { findBookSeries } from "@/use-cases/series";
-import {
-  coverage,
-  describeSummary,
-  type Coverage,
-  type SummaryInput,
-  type SummaryRun,
-} from "@/use-cases/summary";
+import { coverage, type Coverage, type SummaryInput } from "@/use-cases/summary";
 
 export interface LoadedBook {
   readonly meta: BookMeta;
@@ -54,7 +46,7 @@ export function useBookSeries(
   );
   const series = seriesState.status === "done" ? seriesState.value : null;
   const seriesId = series?.id ?? null;
-  // The series summary's run, kept here so the menu shows Stop while the sheet is closed.
+  // The series summary's run, kept here so the Summary panel shows it as part of its own run.
   const [seriesJob, setSeriesJob] = useState<JobState>({ run: null, error: null });
 
   useEffect(() => {
@@ -90,13 +82,12 @@ export function useBookSettings(
     () =>
       new ReaderSettings({
         ...settings,
-        theme: prefs.theme ?? settings.theme,
+        // Theme and warmth are global for every book, so a book's own stored choice of either is not read.
         font: prefs.font ?? settings.font,
         fontSize: prefs.fontSize ?? settings.fontSize,
         lineHeight: prefs.lineHeight ?? settings.lineHeight,
         textAlign: prefs.textAlign ?? settings.textAlign,
         textWidth: prefs.textWidth ?? settings.textWidth,
-        temperature: prefs.temperature ?? settings.temperature,
       }),
     [settings, prefs],
   );
@@ -107,13 +98,10 @@ export function useBookSettings(
 export function useBookKind(
   data: LoadedBook | null,
   prefs: Partial<BookPrefs>,
-  tour: number | undefined,
 ): {
   readonly guessed: ReturnType<typeof guessMode>;
   readonly kind: ReturnType<typeof guessKind>;
   readonly isEpub: boolean;
-  readonly isTouring: boolean;
-  readonly tourSteps: ReturnType<typeof readerTourSteps>;
 } {
   const guessed = useMemo(
     () => (data === null ? "reader" : guessMode(data.meta, data.parsed)),
@@ -126,17 +114,14 @@ export function useBookKind(
   const kind = prefs.kind ?? guessedKind;
   // An EPUB has no pages to show, so it always reads in reader mode.
   const isEpub = data?.meta.format === "epub";
-  const isTouring = (tour ?? 0) < TOUR_VERSION;
-  const tourSteps = useMemo(readerTourSteps, []);
 
-  return { guessed, kind, isEpub, isTouring, tourSteps };
+  return { guessed, kind, isEpub };
 }
 
 export function useSummaryView({
   data,
   ai,
   summary,
-  run,
   kind,
   position,
   furthest,
@@ -144,7 +129,6 @@ export function useSummaryView({
   readonly data: LoadedBook | null;
   readonly ai: AiSettings | null;
   readonly summary: Summary | null;
-  readonly run: SummaryRun | null;
   readonly kind: ReturnType<typeof guessKind>;
   readonly position: number;
   readonly furthest: number;
@@ -156,7 +140,6 @@ export function useSummaryView({
   readonly readingCover: Coverage;
   readonly summaryInput: SummaryInput | null;
   readonly autoSummaryInput: SummaryInput | null;
-  readonly summaryText: ReturnType<typeof describeSummary>;
   readonly lines: ReadonlyMap<number, string>;
 } {
   const chapterList = useMemo(() => (data === null ? [] : chapters(data.parsed)), [data]);
@@ -186,7 +169,6 @@ export function useSummaryView({
     () => (summaryInput === null ? null : { ...summaryInput, index: readingIndex }),
     [summaryInput, readingIndex],
   );
-  const summaryText = describeSummary(summary, cover, run, kind);
   const lines = useMemo(() => {
     const map = new Map<number, string>();
 
@@ -214,7 +196,6 @@ export function useSummaryView({
     readingCover,
     summaryInput,
     autoSummaryInput,
-    summaryText,
     lines,
   };
 }

@@ -1,6 +1,7 @@
 import { Effect, Option, Schema } from "effect";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { useNavigate } from "react-router";
+import { AiSettings, CONSENT_VERSION } from "@/domain/ai";
 import {
   forkApp,
   runApp,
@@ -12,11 +13,12 @@ import {
   useSummary,
 } from "@/lib/hooks";
 import { hasConsent } from "@/domain/ai";
-import { BookPrefs, ReaderSettings, TOUR_VERSION } from "@/domain/book";
+import { BookPrefs, ReaderSettings } from "@/domain/book";
+import { maxMatches, type BlockMatch } from "@/lib/find-text";
 import { formatPercent } from "@/lib/format";
-import { shelfRecords } from "@/lib/shelf";
+import { sheetRequest, shelfRecords } from "@/lib/shelf";
+import { slideTo } from "@/lib/slide-to";
 import { holdWakeLock } from "@/lib/wake-lock";
-import { Tour } from "@/routes/library/_Tour";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
 import { SummaryJobs } from "@/services/summary-jobs";
@@ -25,10 +27,14 @@ import { watchParsedBook } from "@/use-cases/parse-book";
 import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
 import { pendingVolumes } from "@/use-cases/summary";
-import { ReaderNav } from "./_ReaderNav";
+import { ContentsPanel, type ContentsTab } from "./_ContentsPanel";
+import { FindBar } from "./_FindBar";
+import { LookPanel } from "./_LookPanel";
+import { MorePanel } from "./_MorePanel";
+import { ReaderBars, type ReaderPanel } from "./_ReaderBars";
 import { ReaderBody } from "./_ReaderBody";
 import { ReaderStatus } from "./_ReaderStatus";
-import { ReaderSheets } from "./_ReaderSheets";
+import { SummaryPanel } from "./_SummaryPanel";
 import {
   describePageLabels,
   useBookKind,
@@ -43,13 +49,68 @@ import type { JumpRequest } from "./_ReaderView";
 
 const SAVE_DELAY_MS = 400;
 
-function readerKeysEnabled(
-  isTocOpen: boolean,
-  isSheetOpen: boolean,
-  isSeriesOpen: boolean,
-  tour: number | undefined,
-): boolean {
-  return !isTocOpen && !isSheetOpen && !isSeriesOpen && (tour ?? 0) >= TOUR_VERSION;
+type OpenPanel =
+  | { readonly kind: "none" }
+  | { readonly kind: "contents"; readonly tab: ContentsTab }
+  | { readonly kind: "summary"; readonly openAt: number | null }
+  | { readonly kind: "look"; readonly view: "look" | "more" }
+  | { readonly kind: "more" };
+
+const noPanel: OpenPanel = { kind: "none" };
+
+type BookFind = {
+  readonly query: string;
+  readonly matches: ReadonlyArray<BlockMatch>;
+  readonly at: number;
+};
+
+function matchOf(find: BookFind | null): BlockMatch | null {
+  return find === null ? null : (find.matches[find.at] ?? null);
+}
+
+function stepped(find: BookFind, by: 1 | -1): BookFind {
+  const count = find.matches.length;
+
+  return count === 0 ? find : { ...find, at: (find.at + by + count) % count };
+}
+
+function FindInBook({
+  find,
+  onFind,
+}: {
+  readonly find: BookFind | null;
+  readonly onFind: (find: BookFind | null) => void;
+}): ReactElement | null {
+  if (find === null) return null;
+
+  const count = find.matches.length;
+
+  return (
+    <FindBar
+      query={find.query}
+      count={
+        count === 0 ? "No matches" : `${find.at + 1} of ${count}${count === maxMatches ? "+" : ""}`
+      }
+      hasMatches={count > 0}
+      onStep={(by) => onFind(stepped(find, by))}
+      onClose={() => onFind(null)}
+    />
+  );
+}
+
+function ReaderMessage({ message }: { readonly message: string | null }): ReactElement | null {
+  if (message === null) return null;
+
+  return (
+    <p className="notice warn absolute inset-x-3 bottom-[calc(8rem+var(--safe-bottom))] z-40 md:mx-auto md:max-w-xl">
+      {message}
+    </p>
+  );
+}
+
+// The panels that dock beside the page on a desktop. The More menu is a popover.
+function docksBeside(panel: OpenPanel): boolean {
+  return panel.kind !== "none" && panel.kind !== "more";
 }
 
 export function ReaderRoute({ bookId }: { bookId: string }) {
@@ -82,11 +143,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const loadError = state.status === "error" ? state.error : null;
   const { isRepairing, message, rebuild } = useReaderRepair({ bookId, loadError, reload });
 
-  const [showChrome, setChrome] = useState(true);
-  const [isTocOpen, setTocOpen] = useState(false);
+  // A book's first open shows the bars, so a new reader sees the tools. They go on the first page turn.
+  const isFirstOpen = glance?.progress === null;
+  const [showChrome, setChrome] = useState(isFirstOpen);
+  const firstTurnHides = useRef(isFirstOpen);
+  const [panel, setPanel] = useState<OpenPanel>(noPanel);
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
-  const [isSearchOpen, setSearchOpen] = useState(false);
+  const [find, setFind] = useState<BookFind | null>(null);
+  const [pageQuery, setPageQuery] = useState<string | null>(null);
   const [reported, setReported] = useState<number | null>(null);
   // The summary follows the furthest block, so going back over earlier pages asks for nothing.
   const [furthest, setFurthest] = useState(0);
@@ -100,11 +165,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     start,
     stop,
     discard,
+    startOver,
     addName,
     editName,
   } = useSummary(bookId);
-  const [summarySheet, setSummarySheet] = useState<{ openAt: number | null } | null>(null);
-  const [isSeriesOpen, setSeriesOpen] = useState(false);
+  // A tap of Summarise also writes the earlier books' summary after this one's, as Automatic summary does.
+  const wantsSeries = useRef(false);
 
   const saveTimer = useRef<number | null>(null);
   const pendingSave = useRef<(() => void) | null>(null);
@@ -139,36 +205,24 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   const { prefs, bookSettings } = useBookSettings(settings, data, glance, prefChanges);
 
+  const isSearching = find !== null || pageQuery !== null;
+
   useReaderKeys({
-    isEnabled: readerKeysEnabled(
-      isTocOpen,
-      summarySheet !== null,
-      isSeriesOpen,
-      settings.readerTour,
-    ),
-    isSearchOpen,
-    setSearchOpen,
-    setTocOpen,
+    isEnabled: panel.kind === "none",
+    isSearchOpen: isSearching,
+    setSearchOpen: () => {
+      setFind(null);
+      setPageQuery(null);
+    },
+    setTocOpen: () => setPanel({ kind: "contents", tab: "chapters" }),
     navigate,
     fontSize: bookSettings.fontSize,
     lineHeight: bookSettings.lineHeight,
   });
 
-  const { guessed, kind, isEpub, isTouring, tourSteps } = useBookKind(
-    data,
-    prefs,
-    settings.readerTour,
-  );
-  const {
-    chapterList,
-    isFinished,
-    cover,
-    readingCover,
-    summaryInput,
-    autoSummaryInput,
-    summaryText,
-    lines,
-  } = useSummaryView({ data, ai, summary, run, kind, position, furthest });
+  const { guessed, kind, isEpub } = useBookKind(data, prefs);
+  const { chapterList, isFinished, cover, readingCover, summaryInput, autoSummaryInput, lines } =
+    useSummaryView({ data, ai, summary, kind, position, furthest });
 
   // Once per finished chapter, so Stop and Discard hold until the reader finishes the next one.
   const autoTarget = useRef(-1);
@@ -204,7 +258,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const seriesTarget = useRef(-1);
 
   useEffect(() => {
-    if (!hasConsent(ai) || !ai.autoSummary || seriesId === null) {
+    if (!hasConsent(ai) || !(ai.autoSummary || wantsSeries.current) || seriesId === null) {
       return;
     }
     if (
@@ -221,9 +275,10 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
     if (target <= seriesTarget.current) return;
 
-    const opening = seriesTarget.current === -1;
+    const opening = seriesTarget.current === -1 && !wantsSeries.current;
 
     seriesTarget.current = target;
+    wantsSeries.current = false;
 
     // Read again, so the statuses include this visit's reading and a first open counts as started.
     const program = Effect.gen(function* () {
@@ -264,20 +319,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
   useFigureJobs(pendingBooks, startPage);
 
-  // Runs after useSettings applies the global theme, so this book's own theme wins while it is open.
-  useLayoutEffect(() => {
-    const root = document.documentElement;
-
-    root.dataset.theme = bookSettings.theme;
-    root.style.setProperty("--temperature", String(bookSettings.temperature));
-
-    // The library stays mounted under the book, so it takes the global theme back from here.
-    return () => {
-      root.dataset.theme = settings.theme;
-      root.style.setProperty("--temperature", String(settings.temperature));
-    };
-  }, [bookSettings.theme, bookSettings.temperature, settings.theme, settings.temperature]);
-
   const savePrefs = (changes: Partial<BookPrefs>): void => {
     const next = { ...prefChanges, ...changes };
 
@@ -285,14 +326,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     // The whole visit's changes, so saves that land out of order lose none.
     void runApp(saveBookPrefs(bookId, next).pipe(Effect.ignore));
   };
-  // Saves to this book. A text choice also goes global for new books, but Settings owns the theme.
+  // A text choice saves to this book and goes global for new books. Theme and warmth are global for every book.
   const changeSettings = (patch: Partial<ReaderSettings>): void => {
+    const isLook = patch.theme !== undefined || patch.temperature !== undefined;
     const changes = Schema.decodeUnknownOption(BookPrefs)(
       Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
     );
 
-    if (Option.isSome(changes)) savePrefs(changes.value);
-    if (patch.theme === undefined && patch.temperature === undefined) update(patch);
+    if (!isLook && Option.isSome(changes)) savePrefs(changes.value);
+    update(patch);
   };
 
   // A launch into a book that is gone should not open it again.
@@ -320,6 +362,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   // Stable, or every position change rebuilds the reader's observer over every block.
   const onPosition = useCallback(
     (blockIndex: number) => {
+      // The first move away from the place a first open showed counts as its first page turn.
+      if (firstTurnHides.current && blockIndex !== furthestRef.current) {
+        firstTurnHides.current = false;
+        setChrome(false);
+      }
+
       setReported(blockIndex);
 
       if (blockIndex > furthestRef.current) {
@@ -362,113 +410,184 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   }, []);
 
   const toggleMode = (): void => {
-    setSearchOpen(false);
+    setPageQuery(null);
+    setFind(null);
     // The other view mounts at the place being read, not at the last Contents entry.
     setJump(null);
     savePrefs({ mode: mode === "reader" ? "original" : "reader" });
   };
-  // The search goes through the parsed text, so a scanned book, which has none, has no search.
-  const searchable = showsPages && data?.meta.parseState !== "scanned";
   const toggleChrome = useCallback(() => setChrome((value) => !value), []);
-  const closeToc = () => setTocOpen(false);
+  const hideChrome = useCallback(() => {
+    firstTurnHides.current = false;
+    setChrome(false);
+  }, []);
+  const closePanel = (): void => setPanel(noPanel);
   // Contents goes to the entry in the view showing. It never switches the view.
-  const selectToc = (blockIndex: number) => {
-    setTocOpen(false);
-    setJump({ index: blockIndex, nonce: Date.now() });
+  const selectToc = (blockIndex: number): void => setJump({ index: blockIndex, nonce: Date.now() });
+  const openSummary = (openAt: number | null): void => {
+    reloadSeries();
+    setPanel({ kind: "summary", openAt });
+  };
+  const startSummary = (allowed?: AiSettings): void => {
+    const using = allowed ?? ai;
+
+    if (using === null || summaryInput === null) return;
+
+    wantsSeries.current = true;
+    start(summaryInput, using);
+  };
+  const stopSummary = (): void => {
+    stop();
+
+    if (seriesId !== null) {
+      forkApp(Effect.flatMap(SummaryJobs, (jobs) => jobs.stop(`series:${seriesId}`)));
+    }
   };
 
-  const modeLabel = mode === "reader" ? "Original view" : "Reader view";
-  const contentClass = showChrome
-    ? "h-full pt-[var(--safe-top)] md:pt-[calc(5.5rem+var(--safe-top))]"
-    : "h-full pt-[var(--safe-top)]";
+  const isDocked = docksBeside(panel);
 
   return (
-    <div className="relative h-[var(--app-height)] bg-base-100">
-      <div className={contentClass}>
-        <ReaderStatus
-          status={state.status}
-          error={loadError}
-          isRepairing={isRepairing}
+    <div
+      className={`reader relative h-(--app-height) overflow-hidden bg-(--page) text-(--page-ink) ${isDocked ? "is-docked" : ""}`}
+    >
+      <div className="reader-shift">
+        <div className="h-full">
+          <ReaderStatus
+            status={state.status}
+            error={loadError}
+            isRepairing={isRepairing}
+            title={title}
+            onRebuild={rebuild}
+          />
+
+          {data !== null && (
+            <ReaderBody
+              meta={data.meta}
+              parsed={data.parsed}
+              position={position}
+              onPosition={onPosition}
+              mode={mode}
+              showChrome={showChrome}
+              settings={bookSettings}
+              jump={jump}
+              find={matchOf(find)}
+              pageQuery={pageQuery}
+              onCloseSearch={() => setPageQuery(null)}
+              onToggleChrome={toggleChrome}
+              onPageTurn={hideChrome}
+            />
+          )}
+        </div>
+
+        <ReaderBars
           title={title}
-          onRebuild={rebuild}
+          isShown={showChrome && !isSearching}
+          percent={percentLabel}
+          ratio={shown / total}
+          onPanel={(next: ReaderPanel) => {
+            if (next === "contents") setPanel({ kind: "contents", tab: "chapters" });
+            if (next === "summary") openSummary(null);
+            if (next === "look") setPanel({ kind: "look", view: "look" });
+            if (next === "more") setPanel({ kind: "more" });
+          }}
         />
 
-        {data !== null && (
-          <ReaderBody
-            meta={data.meta}
-            parsed={data.parsed}
-            position={position}
-            onPosition={onPosition}
-            mode={mode}
-            showChrome={showChrome}
-            settings={bookSettings}
-            jump={jump}
-            isSearching={isSearchOpen && searchable}
-            onCloseSearch={() => setSearchOpen(false)}
-            onToggleChrome={toggleChrome}
-          />
-        )}
+        <FindInBook find={find} onFind={setFind} />
+
+        <ReaderMessage message={message} />
       </div>
 
-      <ReaderNav
-        title={title}
-        showChrome={showChrome}
-        percentLabel={percentLabel}
-        position={shown}
-        total={total}
-        onMenu={() => setTocOpen(true)}
-        onSearch={searchable ? () => setSearchOpen(true) : undefined}
-      />
+      {panel.kind === "contents" && data !== null && (
+        <ContentsPanel
+          toc={toc}
+          blocks={data.parsed.blocks}
+          position={position}
+          lines={lines}
+          canSearch={data.meta.parseState !== "scanned"}
+          isOriginal={showsPages}
+          initialTab={panel.tab}
+          onSelect={selectToc}
+          onLine={(blockIndex) => {
+            const index = chapterList.findIndex((chapter) => chapter.start === blockIndex);
 
-      {data !== null && isTouring && (
-        <Tour steps={tourSteps} onDone={() => update({ readerTour: TOUR_VERSION })} />
+            openSummary(index === -1 ? null : index);
+          }}
+          onFind={(query, matches, at) => {
+            setChrome(false);
+            setFind({ query, matches, at });
+          }}
+          onPageSearch={(query) => {
+            setChrome(false);
+            setPageQuery(query);
+          }}
+          onClose={closePanel}
+        />
       )}
 
-      {message !== null && (
-        <div className="absolute inset-x-0 bottom-[calc(7.5rem+var(--safe-bottom))] z-40 px-3 md:bottom-[calc(4rem+var(--safe-bottom))]">
-          <div className="alert py-2 text-sm alert-warning">
-            <span>{message}</span>
-          </div>
-        </div>
+      {panel.kind === "look" && (
+        <LookPanel
+          settings={bookSettings}
+          view={panel.view}
+          onView={(view) => setPanel({ kind: "look", view })}
+          onChange={changeSettings}
+          onClose={closePanel}
+        />
       )}
 
-      <ReaderSheets
-        isTocOpen={isTocOpen}
-        toc={toc}
-        modeLabel={modeLabel}
-        bookSettings={bookSettings}
-        summaryText={summaryText}
-        run={run}
-        stop={stop}
-        series={series}
-        seriesJob={seriesJob}
-        reloadSeries={reloadSeries}
-        setSeriesOpen={setSeriesOpen}
-        seriesId={seriesId}
-        lines={lines}
-        onSelect={selectToc}
-        chapterList={chapterList}
-        setSummarySheet={setSummarySheet}
-        isEpub={isEpub}
-        toggleMode={toggleMode}
-        changeSettings={changeSettings}
-        closeToc={closeToc}
-        summarySheet={summarySheet}
-        summaryInput={summaryInput}
-        cover={cover}
-        ai={ai}
-        summary={summary}
-        summaryError={summaryError}
-        savePrefs={savePrefs}
-        start={start}
-        discard={discard}
-        addName={addName}
-        editName={editName}
-        putAi={putAi}
-        setTocOpen={setTocOpen}
-        isSeriesOpen={isSeriesOpen}
-        bookId={bookId}
-      />
+      {panel.kind === "more" && (
+        <MorePanel
+          mode={mode}
+          isEpub={isEpub}
+          onToggleMode={toggleMode}
+          onDetails={() => {
+            sheetRequest.bookId = bookId;
+            slideTo(navigate, "/", "out");
+          }}
+          onClose={closePanel}
+        />
+      )}
+
+      {panel.kind === "summary" && summaryInput !== null && (
+        <SummaryPanel
+          input={summaryInput}
+          list={chapterList}
+          cover={cover}
+          ai={ai}
+          font={bookSettings.font}
+          state={{ summary, run, error: summaryError }}
+          series={series}
+          seriesJob={seriesJob}
+          bookId={bookId}
+          openAt={panel.openAt}
+          onKind={(next) => savePrefs({ kind: next })}
+          onStart={startSummary}
+          onStop={stopSummary}
+          onStartOver={() => {
+            if (hasConsent(ai) && summaryInput !== null) startOver(summaryInput, ai);
+            else discard();
+          }}
+          onSetup={(next) => {
+            putAi(next);
+            startSummary(next);
+          }}
+          onConsent={() => {
+            if (ai === null) return null;
+
+            const allowed = new AiSettings({
+              ...ai,
+              consentedAt: Date.now(),
+              consentVersion: CONSENT_VERSION,
+            });
+
+            putAi(allowed);
+
+            return allowed;
+          }}
+          onAddName={addName}
+          onEditName={editName}
+          onClose={closePanel}
+        />
+      )}
     </div>
   );
 }

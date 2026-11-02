@@ -1,9 +1,9 @@
-import { SheetBackdrop } from "@/components/SheetBackdrop";
 import { useRef, useState, type ReactElement } from "react";
+import { BookCover } from "@/components/BookCover";
 import { CheckIcon, MagnifyingGlassIcon } from "@/components/icons";
+import { Panel } from "@/components/Panel";
 import type { Shelf } from "@/lib/shelf";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
-import { BookCover } from "./_BookCover";
 
 // Over the Series sheet, so the marked books join its order and are stored only on its Save.
 export function AddToSeries({
@@ -58,96 +58,20 @@ export function AddToSeries({
   ].filter((section) => section.cards.length > 0);
 
   return (
-    <div className="absolute inset-0 z-20 flex flex-col justify-end md:items-center md:justify-center">
-      <SheetBackdrop reference={backdropRef} label="Close" onClose={() => dismiss()} />
-      <aside
-        ref={sheetRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add book"
-        className="relative z-10 flex h-[calc(100%-var(--safe-top)-1rem)] w-full flex-col gap-2 rounded-t-box bg-(--sheet) p-4 pb-[calc(var(--safe-bottom)+0.5rem)] shadow-2xl motion-safe:animate-sheet-up md:mx-auto md:h-[min(40rem,85vh)] md:w-[28rem] md:rounded-box md:pb-4 md:motion-safe:animate-dialog-in"
-      >
-        <div className="mx-auto mb-1 h-1.5 w-10 shrink-0 rounded-full bg-base-300 md:hidden" />
-        <p className="truncate text-xs font-medium tracking-wide uppercase opacity-60">
-          Add to {name.trim() === "" ? "series" : name.trim()}
-        </p>
-        <label className="input w-full shrink-0 text-base md:text-sm md:input-sm">
-          <MagnifyingGlassIcon className="size-5 opacity-50 md:size-4" />
-          <input
-            type="search"
-            className="grow"
-            placeholder="Search title, author…"
-            aria-label="Search books"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
-        <div className="-mx-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1">
-          {sections.length === 0 && (
-            <p className="px-4 pt-2 text-base opacity-70 md:text-sm">No books</p>
-          )}
-          {sections.map((section) => (
-            <section key={section.label}>
-              <p className="mt-2 px-4 text-xs font-medium tracking-wide uppercase opacity-60">
-                {section.label}
-              </p>
-              <ul className="mt-1">
-                {section.cards.map((card) => {
-                  const picked = marked.includes(card.book.id);
-                  const other =
-                    card.seriesId === undefined || card.seriesId === seriesId
-                      ? undefined
-                      : groups.find((group) => group.id === card.seriesId);
-                  const line = [
-                    ...(card.book.author === undefined ? [] : [card.book.author]),
-                    ...(other === undefined
-                      ? []
-                      : [
-                          `${other.name} · ${other.books.findIndex((entry) => entry.book.id === card.book.id) + 1} of ${other.count}`,
-                        ]),
-                  ].join(" · ");
-
-                  return (
-                    <li key={card.book.id} className="px-2">
-                      <button
-                        type="button"
-                        aria-pressed={picked}
-                        className={`flex w-full items-center gap-3 rounded-field px-2 py-1.5 text-left ${picked ? "bg-primary/10" : "hover:bg-base-300"}`}
-                        onClick={() =>
-                          setMarked(
-                            picked
-                              ? marked.filter((id) => id !== card.book.id)
-                              : [...marked, card.book.id],
-                          )
-                        }
-                      >
-                        <div className="w-8 shrink-0">
-                          <BookCover bookId={card.book.id} rounded="rounded-md" />
-                        </div>
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-base font-medium md:text-sm">
-                            {card.book.title}
-                          </span>
-                          {line !== "" && (
-                            <span className="truncate text-base opacity-60 md:text-sm">{line}</span>
-                          )}
-                        </span>
-                        {picked && <CheckIcon className="size-6 shrink-0 text-primary md:size-5" />}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </div>
-        <div className="mt-1 flex shrink-0 gap-2">
-          <button type="button" className="btn btn-ghost md:btn-sm" onClick={() => dismiss()}>
+    <Panel
+      sheetRef={sheetRef}
+      backdropRef={backdropRef}
+      label="Add book"
+      title={`Add to ${name.trim() === "" ? "series" : name.trim()}`}
+      onDismiss={() => dismiss()}
+      foot={
+        <div className="flex gap-2.5">
+          <button type="button" className="key flex-1" onClick={() => dismiss()}>
             Cancel
           </button>
           <button
             type="button"
-            className="btn flex-1 btn-primary md:btn-sm"
+            className="key green flex-1"
             disabled={marked.length === 0}
             onClick={() => dismiss(() => onAdd(marked))}
           >
@@ -156,7 +80,71 @@ export function AddToSeries({
               : `Add ${marked.length} ${marked.length === 1 ? "book" : "books"}`}
           </button>
         </div>
-      </aside>
-    </div>
+      }
+    >
+      <label className="field mb-2">
+        <MagnifyingGlassIcon className="icon text-(--ink-soft)" />
+        <input
+          type="search"
+          placeholder="Search books"
+          aria-label="Search books"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </label>
+      {sections.length === 0 && <p className="pt-2 text-(--ink-soft)">No books</p>}
+      {sections.map((section) => (
+        <section key={section.label}>
+          <h3 className="section-title">{section.label}</h3>
+          <ul className="rows">
+            {section.cards.map((card) => {
+              const picked = marked.includes(card.book.id);
+              const other =
+                card.seriesId === undefined || card.seriesId === seriesId
+                  ? undefined
+                  : groups.find((group) => group.id === card.seriesId);
+              const line = [
+                ...(card.book.author === undefined ? [] : [card.book.author]),
+                ...(other === undefined
+                  ? []
+                  : [
+                      `${other.name} · ${other.books.findIndex((entry) => entry.book.id === card.book.id) + 1} of ${other.count}`,
+                    ]),
+              ].join(" · ");
+
+              return (
+                <li key={card.book.id}>
+                  <button
+                    type="button"
+                    aria-pressed={picked}
+                    className={`row-item gap-3 px-2.5 ${picked ? "bg-(--green-wash)" : ""}`}
+                    onClick={() =>
+                      setMarked(
+                        picked
+                          ? marked.filter((id) => id !== card.book.id)
+                          : [...marked, card.book.id],
+                      )
+                    }
+                  >
+                    <span className="book w-8 shrink-0">
+                      <BookCover book={card.book} />
+                    </span>
+                    <span className="row-label flex min-w-0 flex-col">
+                      <span className="truncate">{card.book.title}</span>
+                      {line !== "" && (
+                        <span className="truncate text-[13.5px] font-normal text-(--ink-soft)">
+                          {line}
+                        </span>
+                      )}
+                    </span>
+                    {picked && <CheckIcon className="icon text-(--green)" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </Panel>
   );
 }

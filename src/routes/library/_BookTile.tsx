@@ -1,71 +1,96 @@
-import type { ReactElement } from "react";
-import { PencilIcon } from "@/components/icons";
-import { SlideLink } from "@/components/SlideLink";
+import type { CSSProperties, ReactElement } from "react";
+import { BookCover } from "@/components/BookCover";
+import { CheckIcon } from "@/components/icons";
+import type { ParseState } from "@/domain/book";
 import { formatPercent } from "@/lib/format";
 import type { LibraryCard } from "@/lib/shelf";
-import { BookCover } from "./_BookCover";
-import { BookTitle } from "./_BookTitle";
-import { TrayPart, type TrayFlags } from "./_TrayPart";
+import { useLongPress } from "@/lib/use-long-press";
 
+const stateLines: Partial<Record<ParseState, string>> = {
+  pending: "Waiting",
+  parsing: "Building reader",
+  failed: "Failed",
+};
+
+export function isBuilding(card: LibraryCard): boolean {
+  return card.book.parseState === "pending" || card.book.parseState === "parsing";
+}
+
+function captionOf(card: LibraryCard, place: number | undefined): string {
+  const state = stateLines[card.book.parseState];
+
+  if (state !== undefined) return state;
+  if (place !== undefined) return card.status === "reading" ? formatPercent(card.percent) : "";
+
+  return card.book.author ?? "";
+}
+
+// A tap opens the book. A hold, a right-click or the menu key opens its sheet.
 export function BookTile({
   card,
+  place,
+  fill,
+  motion,
+  onOpen,
   onActions,
-  isSeriesMember,
-  tray,
 }: {
-  card: LibraryCard;
-  onActions: () => void;
-  isSeriesMember: boolean;
-  tray: TrayFlags | null;
+  readonly card: LibraryCard;
+  // The volume's number, inside a series tray.
+  readonly place?: number;
+  // How far the import has read this book, while it builds.
+  readonly fill: number;
+  // "drop" for a book that just arrived, "deal" with its delay as the shelf first shows.
+  readonly motion: { readonly name: "drop" | "deal"; readonly delayMs: number } | null;
+  readonly onOpen: (cover: Element | null) => void;
+  readonly onActions: () => void;
 }): ReactElement {
-  const { book, badge } = card;
-  const href = `/book/${book.id}`;
+  const press = useLongPress(onActions);
+  const { book, status } = card;
+  const bookClass = book.format === "epub" ? "book glossy" : "book";
+  const caption = captionOf(card, place);
+  const motionStyle: CSSProperties | undefined =
+    motion === null ? undefined : { animationDelay: `${motion.delayMs}ms` };
 
   return (
-    <li
-      className="relative isolate flex min-w-0 flex-col gap-2"
-      data-series-member={isSeriesMember ? card.seriesId : undefined}
-    >
-      <TrayPart flags={tray} />
-      {/* The tile fills its row, so every pencil in a row sits on the same line. */}
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col gap-2">
-        <SlideLink to={href} direction="in" className="relative block">
-          <BookCover bookId={book.id} />
-          <span className={`${badge.className} absolute top-2 left-2`}>{badge.label}</span>
-        </SlideLink>
-        <div className="flex flex-1 items-end gap-1">
-          <SlideLink to={href} direction="in" className="min-w-0 flex-1 self-start">
-            <BookTitle
-              title={book.title}
-              isClippedAtStart={card.isClippedAtStart}
-              size="text-sm"
-              fit="line-clamp-2"
-            />
-            {book.author !== undefined && (
-              <p className="truncate text-xs opacity-70">{book.author}</p>
-            )}
-            {card.series !== undefined && !isSeriesMember && (
-              <p className="truncate text-xs opacity-60">
-                {card.series.name} · {card.series.place} of {card.series.count}
-              </p>
-            )}
-            <p className="text-xs opacity-60">
-              {isSeriesMember && card.series !== undefined
-                ? `${card.series.place} of ${card.series.count} · ${formatPercent(card.percent)}`
-                : formatPercent(card.percent)}
-            </p>
-          </SlideLink>
-          <button
-            type="button"
-            className="btn btn-square btn-ghost btn-xs"
-            aria-label="Edit book"
-            title="Edit book"
-            onClick={onActions}
-          >
-            <PencilIcon className="size-5 md:size-4" />
-          </button>
-        </div>
-      </div>
+    <li data-book-id={book.id} className={motion?.name} style={motionStyle}>
+      <button
+        type="button"
+        className="book-link w-full select-none [-webkit-touch-callout:none]"
+        onClick={(event) => onOpen(event.currentTarget.querySelector(".cover"))}
+        {...press}
+      >
+        <span className={bookClass}>
+          {isBuilding(card) ? (
+            <span className="cover blank">
+              <span className="fill" style={{ height: `${Math.round(fill * 100)}%` }} />
+            </span>
+          ) : (
+            <BookCover book={book} />
+          )}
+          {status === "reading" && <span className="ribbon" />}
+          {status === "finished" && (
+            <span className="stamp" aria-label="Finished">
+              <CheckIcon className="icon" />
+            </span>
+          )}
+        </span>
+        <span className="mt-2.5 flex text-[13.5px] leading-tight font-bold">
+          {place !== undefined && <span className="shrink-0">{place}.&nbsp;</span>}
+          {card.isClippedAtStart ? (
+            // A right-to-left box puts the ellipsis at the start. The <bdi> keeps "Vol. 7" in reading order.
+            <span className="min-w-0 truncate [direction:rtl]">
+              <bdi dir="ltr">{book.title}</bdi>
+            </span>
+          ) : (
+            <span className="line-clamp-2 min-w-0">{book.title}</span>
+          )}
+        </span>
+        <span
+          className={`block truncate text-[12.5px] ${book.parseState === "failed" ? "text-(--red)" : "text-(--ink-soft)"}`}
+        >
+          {caption}
+        </span>
+      </button>
     </li>
   );
 }

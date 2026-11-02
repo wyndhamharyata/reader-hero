@@ -333,6 +333,8 @@ export function useSummary(bookId: string): SummaryState & {
   readonly start: (input: SummaryInput, settings: AiSettings) => void;
   readonly stop: () => void;
   readonly discard: () => void;
+  // The summary goes, then a new one starts from the first chapter, in that order.
+  readonly startOver: (input: SummaryInput, settings: AiSettings) => void;
   readonly addName: (entry: { name: string; note: string; chapter: number }) => void;
   // A new name and note for the entry called `name`, or null to remove it. Both stay through the next merge.
   readonly editName: (name: string, next: { name: string; note: string } | null) => void;
@@ -387,6 +389,20 @@ export function useSummary(bookId: string): SummaryState & {
       }),
     );
   }, [bookId]);
+  const startOver = useCallback(
+    (input: SummaryInput, settings: AiSettings) => {
+      forkApp(
+        Effect.gen(function* () {
+          const jobs = yield* SummaryJobs;
+
+          yield* jobs.stop(bookId);
+          yield* (yield* SummaryStore).remove(bookId);
+          yield* jobs.start(input, settings);
+        }),
+      );
+    },
+    [bookId],
+  );
   const addName = useCallback(
     (entry: { name: string; note: string; chapter: number }) => {
       const key = entry.name.toLowerCase();
@@ -458,6 +474,7 @@ export function useSummary(bookId: string): SummaryState & {
     start,
     stop,
     discard,
+    startOver,
     addName,
     editName,
   };

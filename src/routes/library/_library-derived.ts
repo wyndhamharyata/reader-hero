@@ -1,4 +1,4 @@
-import { TOUR_VERSION, type BookMeta, type ReadingProgress, type Series } from "@/domain/book";
+import type { BookMeta, ReadingProgress, Series } from "@/domain/book";
 import type { AsyncState } from "@/lib/hooks";
 
 export interface LibraryValue {
@@ -21,20 +21,6 @@ export function loadedLibrary(state: AsyncState<LibraryValue, unknown>): Library
   return state.value;
 }
 
-export function showsTour({
-  isHidden,
-  state,
-  tour,
-  steps,
-}: {
-  readonly isHidden: boolean;
-  readonly state: AsyncState<unknown, unknown>;
-  readonly tour: number | undefined;
-  readonly steps: ReadonlyArray<unknown>;
-}): boolean {
-  return !isHidden && state.status !== "loading" && (tour ?? 0) < TOUR_VERSION && steps.length > 0;
-}
-
 export function booksToShow(
   isHidden: boolean,
   books: ReadonlyArray<BookMeta>,
@@ -42,21 +28,6 @@ export function booksToShow(
   return isHidden ? [] : books;
 }
 
-export function actionLabelFor(isBusy: boolean): string {
-  return isBusy ? "Working…" : "Add book";
-}
-
 export function hiddenClass(isHidden: boolean): string {
   return isHidden ? "invisible" : "";
-}
-
-export function columnsFor(
-  isGrid: boolean,
-  wide: { readonly isSm: boolean; readonly isMd: boolean },
-): number {
-  if (!isGrid) return wide.isMd ? 2 : 1;
-  if (wide.isMd) return 5;
-  if (wide.isSm) return 3;
-
-  return 2;
 }

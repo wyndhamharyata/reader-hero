@@ -1,7 +1,5 @@
 import type { ParseState } from "@/domain/book";
 
-export const pageBadge = "badge badge-neutral badge-sm";
-
 export const parseStateBadge: Record<
   ParseState,
   { readonly label: string; readonly className: string }

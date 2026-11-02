@@ -1,43 +1,37 @@
 import type { ReactElement } from "react";
 import type { ParseProgress } from "@/use-cases/extract";
 
-interface Props {
-  progress: ParseProgress | null;
-  onCancel?: () => void;
-}
-
-// Not a blocking overlay. A large import takes minutes. Finished books stay usable meanwhile.
-export function ProgressPanel({ progress, onCancel }: Props): ReactElement {
+// In the page, not over it. A large import takes minutes, and finished books stay usable meanwhile.
+export function ProgressPanel({
+  progress,
+  onCancel,
+}: {
+  readonly progress: ParseProgress | null;
+  readonly onCancel?: () => void;
+}): ReactElement {
   const file = progress?.file;
+  // Only an import can be cancelled. A rebuild runs to its end.
+  const verb = onCancel === undefined ? "Rebuilding" : "Adding";
   const title =
-    file !== undefined && file.count > 1 ? `Adding ${file.index} of ${file.count}` : "Working…";
-  const pages =
-    progress === null
-      ? "Preparing…"
-      : `${progress.step ?? "Page"} ${progress.page} of ${progress.total}`;
-  const detail = file === undefined ? pages : `${file.name} · ${pages}`;
+    file !== undefined && file.count > 1 ? `${verb} ${file.index} of ${file.count}` : verb;
+  const ratio = progress === null ? 0 : progress.page / Math.max(1, progress.total);
 
   return (
-    <div className="fixed inset-x-4 bottom-[calc(var(--safe-bottom)+11rem)] z-40 md:inset-x-auto md:bottom-6 md:left-1/2 md:w-96 md:-translate-x-1/2">
-      <div className="card border border-base-300 bg-base-100 shadow-lg">
-        <div className="card-body gap-2 p-3">
-          <div className="flex items-center gap-2">
-            <span className="loading loading-sm loading-spinner" />
-            <p className="min-w-0 flex-1 truncate text-sm font-medium">{title}</p>
-            {onCancel !== undefined && (
-              <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel}>
-                Cancel
-              </button>
-            )}
-          </div>
-          <p className="truncate text-xs opacity-70">{detail}</p>
-          <progress
-            className="progress w-full progress-primary"
-            value={progress?.page ?? 0}
-            max={progress?.total ?? 1}
-          />
+    <div className="mx-4 mb-4.5 flex items-center gap-3 rounded-[14px] border border-(--line) bg-(--surface) py-3 pr-3 pl-4 md:mx-8 md:mb-5.5 md:max-w-[560px]">
+      <div className="min-w-0 flex-1 text-sm">
+        <b className="block">{title}</b>
+        {file !== undefined && (
+          <span className="block truncate text-(--ink-soft)">{file.name}</span>
+        )}
+        <div className="meter stripes mt-1.5">
+          <span style={{ width: `${Math.round(ratio * 100)}%` }} />
         </div>
       </div>
+      {onCancel !== undefined && (
+        <button type="button" className="key small" onClick={onCancel}>
+          Cancel
+        </button>
+      )}
     </div>
   );
 }

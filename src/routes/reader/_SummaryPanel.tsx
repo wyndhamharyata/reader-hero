@@ -1,0 +1,595 @@
+import { Effect } from "effect";
+import { useEffect, useRef, useState, type ReactElement, type RefObject } from "react";
+import { ConsentNote } from "@/components/ConsentNote";
+import { ArrowUpIcon, EllipsisIcon } from "@/components/icons";
+import { Panel } from "@/components/Panel";
+import { ProviderForm } from "@/components/ProviderForm";
+import { hasConsent, type AiSettings, type BookKind } from "@/domain/ai";
+import type { ReaderFont } from "@/domain/book";
+import { describeAiFailure } from "@/lib/describe-error";
+import { forkApp, stopFiber, type Job, type SummaryState } from "@/lib/hooks";
+import type { Shelf } from "@/lib/shelf";
+import { useBottomSheet } from "@/lib/use-bottom-sheet";
+import type { JobState } from "@/services/summary-jobs";
+import type { Chapter } from "@/use-cases/ai-context";
+import {
+  describeSummary,
+  summaryFollowUp,
+  type Coverage,
+  type SummaryInput,
+  type SummaryRun,
+} from "@/use-cases/summary";
+import { CopyButton } from "./_CopyButton";
+import { NameList, type NameEntry } from "./_NameList";
+import { summaryView } from "./_summary-derived";
+import { SummaryBody, SummaryGhost, useEarlierVolumes } from "./_SummaryBody";
+
+// Within these chapters, the earlier books' summary opens by itself.
+const firstChapters = 3;
+
+type View =
+  | { readonly kind: "chapters" }
+  | { readonly kind: "names" }
+  | { readonly kind: "edit"; readonly entry: NameEntry | null }
+  | { readonly kind: "setup" };
+
+// How far the run has gone, for the bar. A step that is not a chapter fills the bar.
+function runRatio(run: SummaryRun | null): number {
+  if (run === null || run.stage !== "chapter" || run.of === 0) return 1;
+
+  return Math.max(0.04, (run.chapter - 1) / run.of);
+}
+
+// One panel for the book's summary and the earlier books before it: one job, one Stop.
+export function SummaryPanel({
+  input,
+  list,
+  cover,
+  ai,
+  font,
+  state,
+  series,
+  seriesJob,
+  bookId,
+  openAt,
+  onKind,
+  onStart,
+  onStop,
+  onStartOver,
+  onSetup,
+  onConsent,
+  onAddName,
+  onEditName,
+  onClose,
+}: {
+  readonly input: SummaryInput;
+  readonly list: ReadonlyArray<Chapter>;
+  readonly cover: Coverage;
+  // Null with no provider. The stored summary still reads, and Summarise opens the setup.
+  readonly ai: AiSettings | null;
+  readonly font: ReaderFont;
+  readonly state: SummaryState;
+  readonly series: Shelf["series"][number] | null;
+  readonly seriesJob: JobState;
+  readonly bookId: string;
+  // The chapter to open at, from a line in Contents. Null opens at the latest.
+  readonly openAt: number | null;
+  readonly onKind: (kind: BookKind) => void;
+  // Given the consent's settings, so the first run has it.
+  readonly onStart: (settings?: AiSettings) => void;
+  readonly onStop: () => void;
+  readonly onStartOver: () => void;
+  readonly onSetup: (settings: AiSettings) => void;
+  readonly onConsent: () => AiSettings | null;
+  readonly onAddName: (entry: { name: string; note: string; chapter: number }) => void;
+  readonly onEditName: (name: string, next: NameEntry | null) => void;
+  readonly onClose: () => void;
+}): ReactElement {
+  const sheetRef = useRef<HTMLElement>(null);
+  const backdropRef = useRef<HTMLButtonElement>(null);
+  const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
+  const [view, setView] = useState<View>({ kind: "chapters" });
+  const [consentFor, setConsentFor] = useState<"start" | "ask" | null>(null);
+  const [isStartingOver, setStartingOver] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
+  const [askError, setAskError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<NameEntry>({ name: "", note: "" });
+  const job = useRef<Job | null>(null);
+  const targetRef = useRef<HTMLHeadingElement>(null);
+  const { summary, run, error } = state;
+  const isStory = input.kind === "story";
+  const { visibleChapters, names, unit, namesLabel, current, copied } = summaryView({
+    summary,
+    cover,
+    input,
+    run,
+    list,
+    isStory,
+    tab: view.kind === "names" ? "names" : "chapters",
+  });
+  const { row, action } = describeSummary(summary, cover, run, input.kind);
+  const volumes = useEarlierVolumes(series, bookId, seriesJob.run);
+  const isRunning = run !== null || seriesJob.run !== null;
+  const failure = error ?? seriesJob.error;
+  const writing = series?.books.find((card) => card.book.id === seriesJob.run?.book);
+  const status = run !== null ? row : `Before this book · ${writing?.book.title ?? "starting"}`;
+
+  // Not scrollIntoView, which also scrolls the page under a sliding sheet.
+  useEffect(() => {
+    const heading = targetRef.current;
+    const body = heading?.closest<HTMLElement>(".panel-body");
+
+    if (heading === null || body === null || body === undefined) return;
+
+    body.scrollTop = heading.offsetTop - body.offsetTop - 8;
+  }, [openAt, view.kind, run?.chapter]);
+
+  useEffect(
+    () => () => {
+      if (job.current !== null) stopFiber(job.current);
+    },
+    [],
+  );
+
+  const start = (): void => {
+    if (ai === null) {
+      setView({ kind: "setup" });
+      return;
+    }
+    if (!hasConsent(ai)) {
+      setConsentFor("start");
+      return;
+    }
+
+    onStart();
+  };
+
+  // A question sends summaries and names, so it needs consent as a run does.
+  const ask = (allowed: AiSettings | null = ai): void => {
+    const asked = question.trim();
+
+    if (allowed === null || summary === null || asked === "" || isRunning || pending !== null) {
+      return;
+    }
+    if (!hasConsent(allowed)) {
+      setConsentFor("ask");
+      return;
+    }
+
+    setQuestion("");
+    setPending("");
+    setAskError(null);
+    job.current = forkApp(
+      summaryFollowUp(input, allowed, summary, asked, setPending).pipe(
+        Effect.match({
+          onSuccess: () => setPending(null),
+          onFailure: (failed) => {
+            setPending(null);
+            setAskError(describeAiFailure(failed));
+          },
+        }),
+      ),
+    );
+  };
+
+  const close = (): void => {
+    if (job.current !== null) stopFiber(job.current);
+    dismiss();
+  };
+
+  const panelProps = { sheetRef, backdropRef, docks: true, onDismiss: close };
+
+  if (view.kind === "setup") {
+    return (
+      <Panel
+        {...panelProps}
+        label="Choose a provider"
+        title="Choose a provider"
+        onBack={() => setView({ kind: "chapters" })}
+      >
+        <ProviderForm
+          ai={ai}
+          isSetup
+          onSave={(next) => {
+            onSetup(next);
+            setView({ kind: "chapters" });
+          }}
+        />
+      </Panel>
+    );
+  }
+
+  if (view.kind === "edit") {
+    return (
+      <NameEditPanel
+        {...panelProps}
+        entry={view.entry}
+        draft={draft}
+        isStory={isStory}
+        onDraft={setDraft}
+        onBack={() => setView({ kind: "names" })}
+        onSave={(next) => {
+          // Tagged with the chapter being read, where the reader met the entry.
+          const chapter = Math.max(1, Math.min(cover.target + 1, list.length));
+
+          if (view.entry === null) onAddName({ ...next, chapter });
+          else onEditName(view.entry.name, next);
+
+          setView({ kind: "names" });
+        }}
+        onRemove={(name) => {
+          onEditName(name, null);
+          setView({ kind: "names" });
+        }}
+      />
+    );
+  }
+
+  const edit = (entry: NameEntry | null): void => {
+    setDraft(entry ?? { name: "", note: "" });
+    setView({ kind: "edit", entry });
+  };
+
+  const menu = (
+    <SummaryMenu
+      kind={input.kind}
+      copied={copied}
+      isRunning={isRunning}
+      hasSummary={summary !== null}
+      onKind={onKind}
+      onStartOver={() => setStartingOver(true)}
+    />
+  );
+
+  const tabs = (
+    <div className="panel-tabs latch-row flex" role="group" aria-label="Show">
+      <button
+        type="button"
+        className="key"
+        aria-pressed={view.kind === "chapters"}
+        onClick={() => setView({ kind: "chapters" })}
+      >
+        {isStory ? "Chapters" : "Sections"}
+      </button>
+      <button
+        type="button"
+        className="key"
+        aria-pressed={view.kind === "names"}
+        onClick={() => setView({ kind: "names" })}
+      >
+        {namesLabel}
+      </button>
+    </div>
+  );
+
+  const runningFoot = (
+    <div className="flex items-center gap-3">
+      <span className="meter stripes flex-1">
+        <span style={{ width: `${runRatio(run) * 100}%` }} />
+      </span>
+      <span className="max-w-[55%] truncate text-[13.5px] text-(--ink-soft)">{status}</span>
+      <button type="button" className="key small" onClick={onStop}>
+        Stop
+      </button>
+    </div>
+  );
+
+  const chaptersFoot = (): ReactElement => {
+    if (consentFor !== null && ai !== null) {
+      return (
+        <ConsentNote
+          provider={ai.provider}
+          onCancel={() => setConsentFor(null)}
+          onAllow={() => {
+            const then = consentFor;
+            const allowed = onConsent();
+
+            setConsentFor(null);
+            if (allowed === null) return;
+
+            if (then === "ask") ask(allowed);
+            else onStart(allowed);
+          }}
+        />
+      );
+    }
+
+    if (isStartingOver) {
+      return (
+        <div className="confirm mt-0">
+          <p>Start over? The summary goes and begins again from the first {unit}.</p>
+          <div className="buttons">
+            <button type="button" className="key small" onClick={() => setStartingOver(false)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="key small danger"
+              onClick={() => {
+                setStartingOver(false);
+                onStartOver();
+              }}
+            >
+              Start over
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (failure !== null) {
+      return (
+        <div className="flex items-center gap-3">
+          <p className="flex-1 text-sm text-(--red)">{failure}</p>
+          <button type="button" className="key small" onClick={start}>
+            Retry
+          </button>
+        </div>
+      );
+    }
+
+    if (isRunning) return runningFoot;
+
+    if (summary === null) {
+      return (
+        <div className="flex flex-col gap-2.5">
+          <p className="py-1 text-center font-semibold">
+            {action === null ? "Nothing read yet" : "No summary yet"}
+          </p>
+          {action !== null && (
+            <button type="button" className="key green" onClick={start}>
+              Summarise up to here
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {action !== null && (
+          <div>
+            <button type="button" className="key small" onClick={start}>
+              {action}
+            </button>
+          </div>
+        )}
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            ask();
+          }}
+        >
+          <span className="field min-h-11 flex-1">
+            <input
+              type="text"
+              placeholder="Ask about the book"
+              aria-label="Ask about the book"
+              value={question}
+              disabled={pending !== null}
+              onChange={(event) => setQuestion(event.target.value)}
+            />
+          </span>
+          <button
+            type="submit"
+            className="key green round size-11"
+            aria-label="Send"
+            disabled={question.trim() === "" || pending !== null}
+          >
+            <ArrowUpIcon className="icon" />
+          </button>
+        </form>
+      </>
+    );
+  };
+
+  const namesFoot = isRunning ? (
+    runningFoot
+  ) : (
+    <div className="flex gap-2.5">
+      <button
+        type="button"
+        className="key flex-1"
+        disabled={summary === null}
+        onClick={() => edit(null)}
+      >
+        {isStory ? "Add character" : "Add term"}
+      </button>
+      <button
+        type="button"
+        className="key green flex-1"
+        disabled={summary === null}
+        onClick={start}
+      >
+        {isStory ? "Update characters" : "Update terms"}
+      </button>
+    </div>
+  );
+
+  return (
+    <Panel
+      {...panelProps}
+      label="Summary"
+      title="Summary"
+      actions={menu}
+      tabs={tabs}
+      foot={view.kind === "names" ? namesFoot : chaptersFoot()}
+    >
+      <div key={view.kind} data-font={font}>
+        {view.kind === "names" ? (
+          <NameList names={names} summary={summary} namesLabel={namesLabel} onEdit={edit} />
+        ) : summary === null && !isRunning ? (
+          <SummaryGhost list={list} target={cover.target} volumes={volumes} />
+        ) : (
+          <SummaryBody
+            summary={summary}
+            chapters={visibleChapters}
+            run={run}
+            list={list}
+            current={current}
+            volumes={volumes}
+            isFirstChapters={cover.target < firstChapters}
+            openAt={openAt}
+            pending={pending}
+            askError={askError}
+            targetRef={targetRef}
+          />
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+function SummaryMenu({
+  kind,
+  copied,
+  isRunning,
+  hasSummary,
+  onKind,
+  onStartOver,
+}: {
+  readonly kind: BookKind;
+  readonly copied: string;
+  readonly isRunning: boolean;
+  readonly hasSummary: boolean;
+  readonly onKind: (kind: BookKind) => void;
+  readonly onStartOver: () => void;
+}): ReactElement {
+  const [isOpen, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="key small square"
+        aria-label="More"
+        aria-expanded={isOpen}
+        onClick={() => setOpen(!isOpen)}
+      >
+        <EllipsisIcon className="icon" />
+      </button>
+      {isOpen && (
+        <div className="rise absolute top-full right-0 z-10 mt-2 w-60 rounded-2xl border border-(--line) bg-(--surface) p-2 shadow-(--shadow-panel)">
+          <div className="latch-row flex" role="group" aria-label="This book is">
+            {(["story", "reference"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                className="key flex-1"
+                aria-pressed={kind === value}
+                disabled={isRunning}
+                onClick={() => onKind(value)}
+              >
+                {value === "story" ? "Story" : "Document"}
+              </button>
+            ))}
+          </div>
+          <div className="rows mt-2">
+            <CopyButton text={copied} />
+            <button
+              type="button"
+              className="row-item"
+              disabled={!hasSummary || isRunning}
+              onClick={() => {
+                setOpen(false);
+                onStartOver();
+              }}
+            >
+              <span className="row-label text-(--red)">Start over</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One character or term at a time, in place of the list, with Back. No sheet over a sheet.
+function NameEditPanel({
+  sheetRef,
+  backdropRef,
+  docks,
+  onDismiss,
+  entry,
+  draft,
+  isStory,
+  onDraft,
+  onBack,
+  onSave,
+  onRemove,
+}: {
+  readonly sheetRef: RefObject<HTMLElement | null>;
+  readonly backdropRef: RefObject<HTMLButtonElement | null>;
+  readonly docks: boolean;
+  readonly onDismiss: () => void;
+  // Null for a new one.
+  readonly entry: NameEntry | null;
+  readonly draft: NameEntry;
+  readonly isStory: boolean;
+  readonly onDraft: (draft: NameEntry) => void;
+  readonly onBack: () => void;
+  readonly onSave: (next: NameEntry) => void;
+  readonly onRemove: (name: string) => void;
+}): ReactElement {
+  const label = isStory ? "Character" : "Term";
+  const name = draft.name.trim();
+
+  return (
+    <Panel
+      sheetRef={sheetRef}
+      backdropRef={backdropRef}
+      docks={docks}
+      onDismiss={onDismiss}
+      label={label}
+      title={label}
+      onBack={onBack}
+      foot={
+        <div className="flex gap-2.5">
+          {entry !== null && (
+            <button
+              type="button"
+              className="key danger flex-1"
+              onClick={() => onRemove(entry.name)}
+            >
+              Remove
+            </button>
+          )}
+          <button
+            type="button"
+            className="key green flex-1"
+            disabled={name === ""}
+            onClick={() => onSave({ name, note: draft.note.trim() })}
+          >
+            {entry === null ? "Add" : "Save"}
+          </button>
+        </div>
+      }
+    >
+      <label className="field-label mt-1" htmlFor="name-name">
+        Name
+      </label>
+      <span className="field">
+        <input
+          id="name-name"
+          type="text"
+          className="font-semibold"
+          value={draft.name}
+          onChange={(event) => onDraft({ ...draft, name: event.target.value })}
+        />
+      </span>
+      <label className="field-label" htmlFor="name-note">
+        Note
+      </label>
+      <span className="field area">
+        <textarea
+          id="name-note"
+          rows={4}
+          value={draft.note}
+          onChange={(event) => onDraft({ ...draft, note: event.target.value })}
+        />
+      </span>
+    </Panel>
+  );
+}

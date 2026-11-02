@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderMode, ReaderSettings } from "@/domain/book";
 import { OriginalView } from "./_OriginalView";
-import { ReaderView, type JumpRequest } from "./_ReaderView";
+import { ReaderView, type FindTarget, type JumpRequest } from "./_ReaderView";
 
 interface Props {
   meta: BookMeta;
@@ -12,9 +12,12 @@ interface Props {
   showChrome: boolean;
   settings: ReaderSettings;
   jump: JumpRequest | null;
-  isSearching: boolean;
+  find: FindTarget | null;
+  // The words the original view's page search goes to. Null shows no page search.
+  pageQuery: string | null;
   onCloseSearch: () => void;
   onToggleChrome: () => void;
+  onPageTurn: () => void;
 }
 
 export function ReaderBody({
@@ -26,9 +29,11 @@ export function ReaderBody({
   showChrome,
   settings,
   jump,
-  isSearching,
+  find,
+  pageQuery,
   onCloseSearch,
   onToggleChrome,
+  onPageTurn,
 }: Props): ReactElement {
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
@@ -68,6 +73,8 @@ export function ReaderBody({
           jump={jump}
           onPosition={onPosition}
           onToggleChrome={onToggleChrome}
+          onPageTurn={onPageTurn}
+          find={find}
           hasCustomCover={meta.customCover === true}
         />
       )}
@@ -80,7 +87,7 @@ export function ReaderBody({
           showChrome={showChrome}
           jump={pageJump}
           blocks={scanned ? null : parsed.blocks}
-          isSearching={isSearching}
+          pageQuery={pageQuery}
           onCloseSearch={onCloseSearch}
           onPageChange={onOriginalPage}
           onToggleChrome={onToggleChrome}
@@ -88,11 +95,9 @@ export function ReaderBody({
       )}
 
       {scanned && mode === "reader" && (
-        <div className="absolute inset-x-0 top-[calc(0.75rem+var(--safe-top))] z-20 px-3 md:top-[calc(5.5rem+var(--safe-top))]">
-          <div className="alert py-2 text-xs alert-warning">
-            <span>No text layer found. Showing the original pages.</span>
-          </div>
-        </div>
+        <p className="notice warn absolute inset-x-3 top-[calc(0.75rem+var(--safe-top))] z-20 md:mx-auto md:max-w-xl">
+          No text layer found. Showing the original pages.
+        </p>
       )}
     </div>
   );

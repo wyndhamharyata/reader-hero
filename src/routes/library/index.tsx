@@ -2,8 +2,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { CogIcon, FunnelIcon, PlusIcon } from "@/components/icons";
-import { fontFamily, TOUR_VERSION } from "@/domain/book";
+import { CogIcon, MagnifyingGlassIcon, PlusIcon, XMarkIcon } from "@/components/icons";
+import { fontFamily, type LibrarySort, type ParseState } from "@/domain/book";
 import {
   forkApp,
   runApp,
@@ -14,55 +14,323 @@ import {
   useSettings,
 } from "@/lib/hooks";
 import { onLaunchFiles } from "@/lib/launch-files";
+import { openBook, prefersLessMotion } from "@/lib/open-book";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
-import { slideTo } from "@/lib/slide-to";
-import { tourSteps } from "@/lib/tour";
 import {
   buildShelf,
+  emptyFilters,
   shelfRecords,
-  type FilterGroup,
+  sheetRequest,
   type Filters,
   type LibraryCard,
-  emptyFilters,
   type Shelf,
 } from "@/lib/shelf";
+import { slideTo } from "@/lib/slide-to";
 import { BookStore } from "@/services/book-store";
 import { PageRenderer } from "@/services/page-renderer";
-import { ensureCovers, resetBookCover, setBookCover } from "@/use-cases/book-image";
+import { ensureCovers } from "@/use-cases/book-image";
 import { importInboxOnce } from "@/use-cases/import-inbox";
-import { setBookFinished } from "@/use-cases/save-progress";
-import { hideSeries, saveSeries, setBookSeries } from "@/use-cases/series";
-import { describeError } from "@/lib/describe-error";
 import { BookSheet } from "./_BookSheet";
-import { FilterChips } from "./_FilterChips";
-import { FilterSheet } from "./_FilterSheet";
-import { ProgressPanel } from "./_ProgressPanel";
-import { InstallHint } from "./_InstallHint";
-import { LibraryRows } from "./_LibraryRows";
-import {
-  actionLabelFor,
-  booksToShow,
-  columnsFor,
-  hiddenClass,
-  loadedLibrary,
-  showsTour,
-} from "./_library-derived";
-import { useLibraryActions } from "./_use-library-actions";
-import { useSeriesGrouping } from "./_use-series-grouping";
-import { useHideOnScroll, useKeyboardFit, useSearchPanelHeight } from "./_use-library-viewport";
-import { LibraryStatus } from "./_LibraryStatus";
-import { NoMatches } from "./_NoMatches";
+import { isBuilding } from "./_BookTile";
+import { ContinueCard } from "./_ContinueCard";
+import { EmptyShelf } from "./_EmptyShelf";
+import { booksToShow, hiddenClass, loadedLibrary } from "./_library-derived";
+import { LibraryRows, shelfRows, type ShelfRow, type TileEvents } from "./_LibraryRows";
+import { LicencesSheet } from "./_LicencesSheet";
 import { Logo } from "./_Logo";
+import { NoMatches } from "./_NoMatches";
+import { ProgressPanel } from "./_ProgressPanel";
 import { SearchField } from "./_SearchField";
 import { SeriesSheet } from "./_SeriesSheet";
-import { LicencesSheet } from "./_LicencesSheet";
 import { SettingsSheet } from "./_SettingsSheet";
 import { SortMenu } from "./_SortMenu";
-import { StorageUsage } from "./_StorageUsage";
-import { Tour } from "./_Tour";
-import { ViewToggle } from "./_ViewToggle";
+import { useLibraryActions } from "./_use-library-actions";
+import { useSeriesGrouping } from "./_use-series-grouping";
 
 const showInstallHint = isIosBrowser && !isInstalled;
+const dealMs = 1200;
+const freshMs = 900;
+const fallMs = 380;
+const closeUpMs = 300;
+const phoneColumns = 3;
+const tileGapPx = 26;
+
+const statusFilters: ReadonlyArray<{ value: string | null; label: string }> = [
+  { value: null, label: "All" },
+  { value: "reading", label: "Reading" },
+  { value: "finished", label: "Finished" },
+];
+
+// Phones show three covers a row. Wider, as many as fit at the tile's least width.
+function columnsFor(widthPx: number): number {
+  if (!window.matchMedia("(width >= 48rem)").matches) return phoneColumns;
+
+  const tilePx = window.matchMedia("(width >= 70rem)").matches ? 136 : 124;
+
+  return Math.max(phoneColumns, Math.floor((widthPx + tileGapPx) / (tilePx + tileGapPx)));
+}
+
+function tilePlaces(box: HTMLElement | null): Map<string, DOMRect> {
+  const places = new Map<string, DOMRect>();
+
+  for (const element of box?.querySelectorAll<HTMLElement>("[data-book-id], [data-series-root]") ??
+    []) {
+    places.set(
+      element.dataset.bookId ?? element.dataset.seriesRoot ?? "",
+      element.getBoundingClientRect(),
+    );
+  }
+
+  return places;
+}
+
+function rowOf(rows: ReadonlyArray<ShelfRow>, bookId: string): number {
+  return rows.findIndex((row) =>
+    row.kind === "tray"
+      ? row.series.books.some((card) => card.book.id === bookId)
+      : row.items.some((item) => item.kind === "book" && item.card.book.id === bookId),
+  );
+}
+
+// The books being read, the latest first. The card up front shows the first, a wide screen two.
+function continuingCards(
+  shelf: Shelf,
+  reading: ReadonlyMap<string, { readonly updatedAt: number } | null>,
+): ReadonlyArray<LibraryCard> {
+  const updatedAt = (card: LibraryCard): number => reading.get(card.book.id)?.updatedAt ?? 0;
+
+  return [...shelf.cards.values()]
+    .filter((card) => card.status === "reading")
+    .sort((a, b) => updatedAt(b) - updatedAt(a))
+    .slice(0, 2);
+}
+
+function LibraryHeader({
+  query,
+  isBusy,
+  isSearchOpen,
+  onQuery,
+  onSearchOpen,
+  onSettings,
+  onAdd,
+}: {
+  readonly query: string;
+  readonly isBusy: boolean;
+  readonly isSearchOpen: boolean;
+  readonly onQuery: (query: string) => void;
+  readonly onSearchOpen: (isOpen: boolean) => void;
+  readonly onSettings: () => void;
+  readonly onAdd: () => void;
+}): ReactElement {
+  return (
+    <>
+      <header className="flex items-center gap-2.5 px-4 pt-4.5 pb-2.5 md:px-8 md:pt-6 md:pb-3.5">
+        <h1 className="mr-auto">
+          <Logo className="h-10 w-auto" />
+        </h1>
+        <div className="hidden md:block">
+          <SearchField value={query} onChange={onQuery} />
+        </div>
+        <button
+          type="button"
+          className="key square md:hidden"
+          aria-label={isSearchOpen ? "Close search" : "Search books"}
+          aria-pressed={isSearchOpen}
+          onClick={() => {
+            if (isSearchOpen) onQuery("");
+            onSearchOpen(!isSearchOpen);
+          }}
+        >
+          {isSearchOpen ? <XMarkIcon className="icon" /> : <MagnifyingGlassIcon className="icon" />}
+        </button>
+        <button type="button" className="key square" aria-label="Settings" onClick={onSettings}>
+          <CogIcon className="icon" />
+        </button>
+        <button
+          type="button"
+          className="key green hidden md:inline-flex"
+          disabled={isBusy}
+          onClick={onAdd}
+        >
+          <PlusIcon className="icon" />
+          Add book
+        </button>
+      </header>
+
+      {isSearchOpen && (
+        <div className="rise px-4 pb-3 md:hidden">
+          <SearchField value={query} isFocused onChange={onQuery} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// All, Reading and Finished, with their counts, then the sort.
+function ShelfControls({
+  shelf,
+  status,
+  sort,
+  onStatus,
+  onSort,
+}: {
+  readonly shelf: Shelf;
+  readonly status: string | null;
+  readonly sort: LibrarySort;
+  readonly onStatus: (status: string | null) => void;
+  readonly onSort: (sort: LibrarySort) => void;
+}): ReactElement {
+  const cards = [...shelf.cards.values()];
+  const countOf = (value: string | null): number =>
+    value === null ? cards.length : cards.filter((card) => card.status === value).length;
+
+  return (
+    <div className="flex items-center gap-2.5 px-4 pb-4.5 md:px-8 md:pb-5.5">
+      <div className="latch-row flex-1 md:flex-none" role="group" aria-label="Show">
+        {statusFilters.map((entry) => (
+          <button
+            key={entry.label}
+            type="button"
+            className="key flex-1 px-2.5 md:flex-none md:px-3.5"
+            aria-pressed={status === entry.value}
+            onClick={() => onStatus(entry.value)}
+          >
+            {entry.label}
+            <span className="count">{countOf(entry.value)}</span>
+          </button>
+        ))}
+      </div>
+      <SortMenu sort={sort} onChange={onSort} />
+    </div>
+  );
+}
+
+function LibraryNotices({
+  message,
+  hasFailed,
+}: {
+  readonly message: string | null;
+  readonly hasFailed: boolean;
+}): ReactElement {
+  return (
+    <>
+      {message !== null && (
+        <p className="notice warn mx-4 mb-4 whitespace-pre-line md:mx-8">{message}</p>
+      )}
+      {hasFailed && (
+        <p className="notice error mx-4 mb-4 md:mx-8">Your library could not be loaded.</p>
+      )}
+    </>
+  );
+}
+
+// The books being read up front, the import while it runs, then the filters and the sort.
+function ShelfTop({
+  isLoaded,
+  continuing,
+  adding,
+  shelf,
+  status,
+  sort,
+  onOpen,
+  onStatus,
+  onSort,
+}: {
+  readonly isLoaded: boolean;
+  readonly continuing: ReadonlyArray<LibraryCard>;
+  readonly adding: ReactElement | null;
+  readonly shelf: Shelf;
+  readonly status: string | null;
+  readonly sort: LibrarySort;
+  readonly onOpen: (card: LibraryCard, cover: Element | null) => void;
+  readonly onStatus: (status: string | null) => void;
+  readonly onSort: (sort: LibrarySort) => void;
+}): ReactElement {
+  return (
+    <>
+      {continuing.length > 0 && (
+        <div className="flex gap-4 px-4 pt-1.5 pb-4.5 md:px-8 md:pb-6">
+          {continuing.map((card, index) => (
+            <div
+              key={card.book.id}
+              // A second card shows only where there is room for two side by side.
+              className={
+                index === 0 ? "flex min-w-0 flex-1" : "hidden min-w-0 flex-1 min-[70rem]:flex"
+              }
+            >
+              <ContinueCard
+                card={card}
+                isGreen={index === 0}
+                onOpen={(cover) => onOpen(card, cover)}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {adding}
+      {isLoaded && (
+        <ShelfControls
+          shelf={shelf}
+          status={status}
+          sort={sort}
+          onStatus={onStatus}
+          onSort={onSort}
+        />
+      )}
+    </>
+  );
+}
+
+function ShelfFooter({
+  hasNoMatches,
+  showsInstall,
+  onClear,
+}: {
+  readonly hasNoMatches: boolean;
+  readonly showsInstall: boolean;
+  readonly onClear: () => void;
+}): ReactElement {
+  return (
+    <>
+      {hasNoMatches && <NoMatches onClear={onClear} />}
+      {showsInstall && (
+        <p className="mx-4 mb-4.5 rounded-[14px] border border-dashed border-(--line) px-4 py-3 text-[13.5px] text-(--ink-soft) md:mx-8">
+          Add Reader Hero to your Home Screen so iOS keeps your library offline.
+        </p>
+      )}
+    </>
+  );
+}
+
+// The phone's Add book floats in reach of a thumb. Files dragged over a full shelf show where they go.
+function AddControls({
+  hasShelf,
+  isDropping,
+  isBusy,
+  onAdd,
+}: {
+  readonly hasShelf: boolean;
+  readonly isDropping: boolean;
+  readonly isBusy: boolean;
+  readonly onAdd: () => void;
+}): ReactElement | null {
+  if (!hasShelf) return null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="key green fixed right-4 bottom-[calc(var(--safe-bottom)+1.6rem)] z-10 min-h-13 rounded-2xl px-5 text-base md:hidden"
+        disabled={isBusy}
+        onClick={onAdd}
+      >
+        <PlusIcon className="icon" />
+        Add book
+      </button>
+      {isDropping && <div className="dropzone">Drop to add</div>}
+    </>
+  );
+}
 
 // `hidden` while a book is open over it, which keeps its state and pauses its background jobs.
 export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement {
@@ -105,13 +373,15 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     cancelImport,
     remove,
     reparse,
+    setFinished,
+    setSeries,
+    setCover,
+    resetCover,
+    editSeries,
+    removeSeries,
   } = useLibraryActions(reload);
   const [query, setQuery] = useState("");
-  const [mobileSearchAndFiltersVisible, setMobileSearchAndFiltersVisible] = useState(true);
-  const searchPanel = useRef<HTMLDivElement>(null);
-  const searchPanelHeight = useSearchPanelHeight(searchPanel);
-
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isSearchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [licencesOpen, setLicencesOpen] = useState(false);
   const [bookActions, setBookActions] = useState<LibraryCard | null>(null);
@@ -123,30 +393,17 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   } | null>(null);
   // Several can be open, so opening one never moves the books of another.
   const [openSeries, setOpenSeries] = useState<ReadonlySet<string>>(() => new Set());
-  // The series the last tap opened, which alone fades in.
-  const justOpened = useRef<string | null>(null);
-  const [filters, setFilters] = useState<Filters>({
-    status: null,
-    length: null,
-    author: null,
-  });
+  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [isDropping, setDropping] = useState(false);
+  const [isDealing, setDealing] = useState(true);
+  const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
   const input = useRef<HTMLInputElement>(null);
-  const rootRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-
-  useHideOnScroll(scrollRef, setMobileSearchAndFiltersVisible);
-
-  useKeyboardFit(rootRef);
+  const flipFrom = useRef<Map<string, DOMRect> | null>(null);
+  const parseStates = useRef(new Map<string, ParseState>());
 
   const { books, estimate, reading, series } = loadedLibrary(state);
-  const steps = tourSteps({ hasBooks: books.length > 0, needsInstall: showInstallHint });
-  const isTouring = showsTour({
-    isHidden,
-    state,
-    tour: settings.tour,
-    steps,
-  });
 
   useFigureJobs(booksToShow(isHidden, books));
 
@@ -218,7 +475,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
         const store = yield* BookStore;
 
         yield* store.updates().pipe(
-          // A save as the book closes can land after the reread above. While hidden, it waits for it.
+          // A save as the book closes can arrive after the reread above. While hidden, it waits for it.
           Stream.filter(
             (update) =>
               update.kind === "meta" ||
@@ -233,89 +490,61 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     return () => stopFiber(fiber);
   }, [isHidden, reload]);
 
-  const actionLabel = actionLabelFor(isBusy);
-  const isGrid = settings.libraryView === "grid";
+  // The covers deal in once, the first time the shelf shows.
+  const isLoaded = state.status === "done";
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const timer = window.setTimeout(() => setDealing(false), dealMs);
+
+    return () => window.clearTimeout(timer);
+  }, [isLoaded]);
+
+  // A book that finishes building drops its cover onto the shelf.
+  useEffect(() => {
+    const arrived = books.filter((book) => {
+      const before = parseStates.current.get(book.id);
+      const wasBuilding = before === "pending" || before === "parsing";
+
+      return wasBuilding && book.parseState !== "pending" && book.parseState !== "parsing";
+    });
+
+    parseStates.current = new Map(books.map((book) => [book.id, book.parseState]));
+    if (arrived.length > 0) setFresh(new Set(arrived.map((book) => book.id)));
+  }, [books]);
+  useEffect(() => {
+    if (fresh.size === 0) return;
+
+    const timer = window.setTimeout(() => setFresh(new Set()), freshMs);
+
+    return () => window.clearTimeout(timer);
+  }, [fresh]);
+
   const shelf = useMemo(
     () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort, series),
     [books, reading, query, filters, settings.librarySort, series],
   );
-  const { items, trays } = useMemo(() => {
-    const items: Array<
-      Shelf["items"][number] | { readonly kind: "member"; readonly card: LibraryCard }
-    > = [];
-    const trays: Array<{ start: number; end: number; hue: number }> = [];
 
-    for (const item of shelf.items) {
-      items.push(item);
-      if (item.kind !== "series" || !openSeries.has(item.id)) continue;
+  // The list's width sets the columns, so a tile keeps its size as the window grows.
+  const [columns, setColumns] = useState(phoneColumns);
 
-      trays.push({
-        start: items.length - 1,
-        end: items.length - 1 + item.books.length,
-        hue: item.color,
-      });
-      for (const card of item.books) items.push({ kind: "member", card });
-    }
-
-    return { items, trays };
-  }, [shelf, openSeries]);
-  const cards = useMemo(
-    () => items.flatMap((item) => (item.kind === "series" ? [] : [item.card])),
-    [items],
-  );
-
-  // The grid's breakpoints: 2 columns, 3 from sm, 5 from md. A list has 1, or 2 from md.
-  const [wide, setWide] = useState(() => ({
-    isSm: window.matchMedia("(width >= 40rem)").matches,
-    isMd: window.matchMedia("(width >= 48rem)").matches,
-  }));
-
-  useEffect(() => {
-    const sm = window.matchMedia("(width >= 40rem)");
-    const md = window.matchMedia("(width >= 48rem)");
-    const follow = (): void => setWide({ isSm: sm.matches, isMd: md.matches });
-
-    sm.addEventListener("change", follow);
-    md.addEventListener("change", follow);
-
-    return () => {
-      sm.removeEventListener("change", follow);
-      md.removeEventListener("change", follow);
-    };
-  }, []);
-
-  const columns = columnsFor(isGrid, wide);
-  const rows = useMemo(
-    () =>
-      Array.from({ length: Math.ceil(items.length / columns) }, (_, row) =>
-        items.slice(row * columns, (row + 1) * columns),
-      ),
-    [items, columns],
-  );
-
-  // Only a just-opened series fades in. The rest move at once, so the scroll holds.
   useLayoutEffect(() => {
     const list = listRef.current;
-    const opened = justOpened.current;
 
-    justOpened.current = null;
-    if (opened === null || list === null) return;
+    if (list === null) return;
 
-    const root = [...list.querySelectorAll<HTMLElement>("[data-series-root]")].find(
-      (element) => element.dataset.seriesRoot === opened,
-    );
-    const members = [...list.querySelectorAll<HTMLElement>("[data-series-member]")].filter(
-      (element) => element.dataset.seriesMember === opened,
-    );
+    const observer = new ResizeObserver(() => setColumns(columnsFor(list.clientWidth)));
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    observer.observe(list);
 
-    const tray = root?.querySelector<HTMLElement>("[data-tray]");
+    return () => observer.disconnect();
+  }, [isLoaded]);
 
-    for (const element of tray === null || tray === undefined ? members : [tray, ...members]) {
-      element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "ease-out" });
-    }
-  }, [openSeries]);
+  const rows = useMemo(
+    () => shelfRows(shelf.items, columns, openSeries),
+    [shelf.items, columns, openSeries],
+  );
 
   // The header and notices scroll above the rows, so the rows start this far into the scroll box.
   const [listTop, setListTop] = useState(0);
@@ -335,20 +564,44 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     // A first guess only, as each row is measured once it renders.
-    estimateSize: () => (isGrid ? 320 : 132),
+    estimateSize: () => 260,
     overscan: 3,
     scrollMargin: listTop,
   });
 
-  // A row of another view or width has another height, so the measured heights do not match.
+  // A row of another width has another height, so the measured heights do not match.
   useLayoutEffect(() => {
     virtualizer.measure();
-  }, [virtualizer, isGrid, columns]);
+  }, [virtualizer, columns]);
 
   // A new search or filter shows its results from the top.
   useLayoutEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
   }, [query, filters]);
+
+  // A deleted book's neighbours slide into its place.
+  useLayoutEffect(() => {
+    const before = flipFrom.current;
+
+    flipFrom.current = null;
+    if (before === null) return;
+
+    for (const [id, now] of tilePlaces(scrollRef.current)) {
+      const was = before.get(id);
+      const dx = (was?.left ?? now.left) - now.left;
+      const dy = (was?.top ?? now.top) - now.top;
+      const element = scrollRef.current?.querySelector(
+        `[data-book-id="${id}"], [data-series-root="${id}"]`,
+      );
+
+      if (element === null || element === undefined || (dx === 0 && dy === 0)) continue;
+
+      element.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
+        duration: closeUpMs,
+        easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      });
+    }
+  }, [rows]);
 
   // Back from a book the shelf stays, unless the sort moved the book out of view. Then it shows it.
   const { pathname } = useLocation();
@@ -369,7 +622,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       launch.current.importFiles(files, (ids) => setLaunched(ids[0] ?? null));
     });
   }, [navigate]);
-  // Opened once the shelf shows, so the step back to it cannot land after the book and undo it.
+  // Opened once the shelf shows, so the step back to it cannot arrive after the book and undo it.
   useEffect(() => {
     if (launched === null || isHidden) return;
 
@@ -377,26 +630,81 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     slideTo(navigate, `/book/${launched}`, "in");
   }, [launched, isHidden, navigate]);
 
+  // Files dragged over the window go to the import, as a choice from the picker does.
+  useEffect(() => {
+    if (isHidden) return;
+
+    let depth = 0;
+    const hasFiles = (event: DragEvent): boolean =>
+      event.dataTransfer?.types.includes("Files") ?? false;
+    const onEnter = (event: DragEvent): void => {
+      if (!hasFiles(event)) return;
+
+      depth += 1;
+      setDropping(true);
+    };
+    const onOver = (event: DragEvent): void => {
+      if (hasFiles(event)) event.preventDefault();
+    };
+    const onLeave = (event: DragEvent): void => {
+      if (!hasFiles(event)) return;
+
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDropping(false);
+    };
+    const onDrop = (event: DragEvent): void => {
+      if (!hasFiles(event)) return;
+
+      event.preventDefault();
+      depth = 0;
+      setDropping(false);
+      launch.current.importFiles(Array.from(event.dataTransfer?.files ?? []));
+    };
+
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  }, [isHidden]);
+
+  // The reader's Book details comes back here, so the sheet opens over the shelf.
+  useEffect(() => {
+    const card = sheetRequest.bookId === null ? undefined : shelf.cards.get(sheetRequest.bookId);
+
+    if (isHidden || card === undefined) return;
+
+    sheetRequest.bookId = null;
+    setBookActions(card);
+  }, [isHidden, shelf.cards]);
+
   const opened = useRef<string | null>(null);
 
   useEffect(() => {
-    if (isHidden) opened.current = pathname;
+    if (isHidden) opened.current = pathname.slice("/book/".length);
   }, [isHidden, pathname]);
   useLayoutEffect(() => {
     const box = scrollRef.current;
-    const index = cards.findIndex((card) => `/book/${card.book.id}` === opened.current);
+    const bookId = opened.current;
+    const index = bookId === null ? -1 : rowOf(rows, bookId);
 
     if (isHidden || box === null || index === -1) return;
 
-    const card = box.querySelector(`a[href="${opened.current}"]`)?.getBoundingClientRect();
+    const tile = box.querySelector(`[data-book-id="${bookId}"]`)?.getBoundingClientRect();
     const view = box.getBoundingClientRect();
 
-    if (card !== undefined && card.bottom > view.top && card.top < view.bottom) return;
+    if (tile !== undefined && tile.bottom > view.top && tile.top < view.bottom) return;
 
     // The first row goes up with the header above it.
-    if (index < columns) box.scrollTo({ top: 0 });
-    else virtualizer.scrollToIndex(Math.floor(index / columns), { align: "start" });
-  }, [isHidden, cards, columns, virtualizer]);
+    if (index === 0) box.scrollTo({ top: 0 });
+    else virtualizer.scrollToIndex(index, { align: "start" });
+  }, [isHidden, rows, virtualizer]);
   // Until the reader moves the shelf themselves.
   useEffect(() => {
     if (isHidden) return;
@@ -413,49 +721,68 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     };
   }, [isHidden]);
 
-  const clearFilters = (): void => setFilters(emptyFilters);
-  const clearAll = (): void => {
-    setQuery("");
-    clearFilters();
-  };
-  const toggleFilter = (group: FilterGroup, value: string): void =>
-    setFilters((current) => ({ ...current, [group]: current[group] === value ? null : value }));
   const pickFiles = (): void => input.current?.click();
   const toggleSeries = (id: string): void => {
     const next = new Set(openSeries);
 
-    if (next.delete(id)) justOpened.current = null;
-    else {
-      next.add(id);
-      justOpened.current = id;
-    }
-
+    if (!next.delete(id)) next.add(id);
     setOpenSeries(next);
   };
+  const open = (card: LibraryCard, cover: Element | null): void => {
+    const isFirstOpen = (reading.get(card.book.id) ?? null) === null;
 
-  const searchField = <SearchField value={query} onChange={setQuery} />;
-  const filterChips = <FilterChips shelf={shelf} onToggle={toggleFilter} onClear={clearFilters} />;
-  const viewToggle = (
-    <ViewToggle view={settings.libraryView} onChange={(view) => update({ libraryView: view })} />
-  );
-  const settingsButton = (
-    <button
-      type="button"
-      className="btn btn-square btn-ghost md:btn-sm"
-      aria-label="Settings"
-      title="Settings"
-      onClick={() => setSettingsOpen(true)}
-    >
-      <CogIcon className="size-6 md:size-4" />
-    </button>
-  );
+    openBook(navigate, card.book.id, cover, isFirstOpen);
+  };
+  const openFromShelf = (card: LibraryCard): void =>
+    open(card, scrollRef.current?.querySelector(`[data-book-id="${card.book.id}"] .cover`) ?? null);
+  const removeWithFall = (id: string): void => {
+    const tile = scrollRef.current?.querySelector(`[data-book-id="${id}"]`);
+    const finish = (): void => {
+      flipFrom.current = tilePlaces(scrollRef.current);
+      remove(id);
+    };
+
+    if (tile === null || tile === undefined || prefersLessMotion()) {
+      finish();
+      return;
+    }
+
+    const fall = [
+      { transform: "none", opacity: 1 },
+      { transform: "translateY(4px) rotate(8deg)", opacity: 1, offset: 0.35 },
+      { transform: "translateY(70px) rotate(14deg) scale(0.85)", opacity: 0 },
+    ];
+
+    void tile
+      .animate(fall, {
+        duration: fallMs,
+        easing: "cubic-bezier(0.5, 0, 0.75, 0)",
+        fill: "forwards",
+      })
+      .finished.then(finish);
+  };
+  const isEmpty = isLoaded && books.length === 0;
+  const isShelfPlain = query.trim() === "" && filters.status === null;
+  const events: TileEvents = {
+    onOpen: open,
+    onBookActions: setBookActions,
+    onToggleSeries: toggleSeries,
+    onSeriesActions: setSeriesEdit,
+    fillOf: (card) => {
+      const file = progress?.file;
+      const isThisFile = file === undefined || file.name === card.book.fileName;
+
+      if (progress === null || !isBuilding(card) || !isThisFile) return 0;
+
+      return progress.page / Math.max(1, progress.total);
+    },
+    isFresh: (id) => fresh.has(id),
+  };
 
   return (
     // A fixed column with its own scroll box, so the window never scrolls. Hidden, it keeps its layout.
     <main
-      ref={rootRef}
-      // When the keyboard closes, the column grows back at about the keyboard's pace.
-      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-base-100 motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out ${hiddenClass(isHidden)}`}
+      className={`fixed inset-x-0 top-0 flex h-(--app-height) flex-col bg-(--bg) text-(--ink) ${hiddenClass(isHidden)}`}
       inert={isHidden}
       aria-hidden={isHidden}
     >
@@ -466,72 +793,71 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       >
         <div
           // It is 1px taller: iOS bounces the bars on a swipe over a box with nothing to scroll.
-          className="mx-auto flex min-h-[calc(100%+1px)] w-full max-w-2xl flex-col gap-4 p-4 pt-[calc(var(--safe-top)+1.25rem)] md:max-w-5xl"
-          // Room under the last row for the search panel that floats over it on a phone.
-          style={{ paddingBottom: `calc(2rem + ${searchPanelHeight}px)` }}
+          className="mx-auto flex min-h-[calc(100%+1px)] w-full max-w-[1180px] flex-col pt-(--safe-top) pb-[calc(var(--safe-bottom)+6.5rem)] md:pb-8"
         >
-          <header className="flex items-center justify-between gap-3 pt-2">
-            <h1>
-              <Logo className="h-7 w-auto md:h-8" />
-            </h1>
-            <div className="hidden items-center gap-2 md:flex">
-              {searchField}
-              <SortMenu
-                sort={settings.librarySort}
-                onChange={(sort) => update({ librarySort: sort })}
-              />
-              {viewToggle}
-              {settingsButton}
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={pickFiles}
-                disabled={isBusy}
-                data-tour="import"
-              >
-                <PlusIcon className="size-4" />
-                {actionLabel}
-              </button>
-            </div>
-            <div className="md:hidden">{settingsButton}</div>
-          </header>
-
-          <div className="hidden md:block">{filterChips}</div>
-
-          {message !== null && (
-            <div className="alert alert-warning">
-              <span className="whitespace-pre-line">{message}</span>
-            </div>
-          )}
-
-          <InstallHint show={showInstallHint} />
-
-          <LibraryStatus
-            isLoading={state.status === "loading"}
-            hasFailed={state.status === "error"}
-            books={books}
+          <LibraryHeader
+            query={query}
+            isBusy={isBusy}
+            isSearchOpen={isSearchOpen}
+            onQuery={setQuery}
+            onSearchOpen={setSearchOpen}
+            onSettings={() => setSettingsOpen(true)}
+            onAdd={pickFiles}
           />
 
-          <div ref={listRef} className="relative" style={{ height: virtualizer.getTotalSize() }}>
+          <LibraryNotices message={message} hasFailed={state.status === "error"} />
+
+          {isEmpty ? (
+            <EmptyShelf isDropping={isDropping} isBusy={isBusy} onAdd={pickFiles} />
+          ) : (
+            <ShelfTop
+              isLoaded={isLoaded}
+              continuing={isShelfPlain ? continuingCards(shelf, reading) : []}
+              adding={
+                isBusy ? (
+                  <ProgressPanel
+                    progress={progress}
+                    onCancel={isImporting ? cancelImport : undefined}
+                  />
+                ) : null
+              }
+              shelf={shelf}
+              status={filters.status}
+              sort={settings.librarySort}
+              onOpen={open}
+              onStatus={(status) => setFilters({ ...emptyFilters, status })}
+              onSort={(sort) => update({ librarySort: sort })}
+            />
+          )}
+
+          <div
+            ref={listRef}
+            className="relative mx-4.5 mr-5.5 md:mx-8 md:mr-9"
+            style={{ height: virtualizer.getTotalSize() }}
+          >
             <LibraryRows
               virtualizer={virtualizer}
               rows={rows}
               columns={columns}
-              isGrid={isGrid}
               listTop={listTop}
-              trays={trays}
+              isDealing={isDealing}
               openSeries={openSeries}
-              onToggleSeries={toggleSeries}
-              onSeriesActions={setSeriesEdit}
-              onBookActions={setBookActions}
+              events={events}
             />
           </div>
 
-          {items.length === 0 && books.length > 0 && <NoMatches onClear={clearAll} />}
-
-          <StorageUsage estimate={estimate} />
+          <ShelfFooter
+            hasNoMatches={shelf.items.length === 0 && books.length > 0}
+            showsInstall={showInstallHint && !isEmpty}
+            onClear={() => {
+              setQuery("");
+              setFilters(emptyFilters);
+            }}
+          />
         </div>
       </div>
+
+      <AddControls hasShelf={!isEmpty} isDropping={isDropping} isBusy={isBusy} onAdd={pickFiles} />
 
       <input
         ref={input}
@@ -545,65 +871,9 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
         }}
       />
 
-      {/* The panel floats, so the list keeps its size: an iOS scroll box that resizes stutters. */}
-      <div className="group relative z-20 shrink-0 md:hidden">
-        <div
-          ref={searchPanel}
-          className={`absolute inset-x-0 bottom-full border-t border-base-300 bg-base-100 px-4 pt-2 transition-[translate,opacity] duration-200 ease-out motion-reduce:transition-none ${
-            mobileSearchAndFiltersVisible ? "" : "translate-y-full opacity-0"
-          }`}
-          aria-hidden={!mobileSearchAndFiltersVisible}
-          inert={!mobileSearchAndFiltersVisible}
-        >
-          <div className="flex flex-col gap-2 pb-2">
-            {searchField}
-            {filterChips}
-          </div>
-        </div>
-        <div
-          className={`relative flex items-center gap-2 border-t bg-base-100 px-4 pt-2 pb-[calc(var(--safe-bottom)+0.5rem)] transition-colors duration-200 group-has-[input:focus]:pb-2 ${
-            mobileSearchAndFiltersVisible ? "border-transparent" : "border-base-300"
-          }`}
-        >
-          {viewToggle}
-          <button
-            type="button"
-            className="btn relative btn-square"
-            aria-label="Sort and filter"
-            title="Sort and filter"
-            onClick={() => setFiltersOpen(true)}
-          >
-            <FunnelIcon className="size-6" />
-            {shelf.isFiltered && (
-              <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary" />
-            )}
-          </button>
-          <button
-            type="button"
-            className="btn flex-1 btn-primary"
-            onClick={pickFiles}
-            disabled={isBusy}
-            data-tour="import"
-          >
-            {actionLabel}
-          </button>
-        </div>
-      </div>
-
-      <FilterSheet
-        isOpen={filtersOpen}
-        shelf={shelf}
-        sort={settings.librarySort}
-        onSort={(sort) => update({ librarySort: sort })}
-        onToggle={toggleFilter}
-        onClear={clearFilters}
-        onClose={() => setFiltersOpen(false)}
-      />
-
-      {isTouring && <Tour steps={steps} onDone={() => update({ tour: TOUR_VERSION })} />}
-
       <SettingsSheet
         isOpen={settingsOpen}
+        estimate={estimate}
         grouping={grouping}
         onRetry={retryGrouping}
         onReset={resetGrouping}
@@ -619,63 +889,16 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       {bookActions !== null && (
         <BookSheet
           card={bookActions}
-          progress={reading?.get(bookActions.book.id) ?? null}
+          progress={reading.get(bookActions.book.id) ?? null}
           groups={shelf.series}
-          onFinished={(id, finished, place) => {
-            setMessage(null);
-            void runApp(
-              setBookFinished(id, finished, place).pipe(
-                Effect.catchTag("StorageFailure", (error) =>
-                  Effect.sync(() => setMessage(describeError(error, "This book"))),
-                ),
-              ),
-            );
-          }}
-          onSeries={(id, seriesId) => {
-            setMessage(null);
-            void runApp(
-              setBookSeries(id, seriesId).pipe(
-                Effect.catchTag("StorageFailure", (error) =>
-                  Effect.sync(() => setMessage(describeError(error, "This series"))),
-                ),
-              ),
-            );
-          }}
+          onOpen={() => openFromShelf(bookActions)}
+          onFinished={setFinished}
+          onSeries={setSeries}
           onEditSeries={setSeriesEdit}
-          onRemove={remove}
+          onRemove={removeWithFall}
           onReparse={reparse}
-          onCover={(id, picture) => {
-            setMessage(null);
-            void runApp(
-              setBookCover(id, picture).pipe(
-                Effect.flatMap((saved) =>
-                  Effect.sync(() => {
-                    if (!saved)
-                      setMessage(`${picture.name} is not a picture Reader Hero can read.`);
-                  }),
-                ),
-                Effect.catchTags({
-                  BookNotFound: (error) =>
-                    Effect.sync(() => setMessage(describeError(error, "This book"))),
-                  StorageFailure: (error) =>
-                    Effect.sync(() => setMessage(describeError(error, "This cover"))),
-                }),
-              ),
-            );
-          }}
-          onResetCover={(id) => {
-            setMessage(null);
-            void runApp(
-              resetBookCover(id).pipe(
-                Effect.catchTags({
-                  BookNotFound: (error) =>
-                    Effect.sync(() => setMessage(describeError(error, "This book"))),
-                  StorageFailure: (error) =>
-                    Effect.sync(() => setMessage(describeError(error, "This cover"))),
-                }),
-              ),
-            );
-          }}
+          onCover={setCover}
+          onResetCover={resetCover}
           onClose={() => setBookActions(null)}
         />
       )}
@@ -686,32 +909,10 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
           stored={series.find((record) => record.id === seriesEdit.id)}
           cards={shelf.cards}
           groups={shelf.series}
-          onSave={(edit) => {
-            setMessage(null);
-            void runApp(
-              saveSeries(edit).pipe(
-                Effect.catchTag("StorageFailure", (error) =>
-                  Effect.sync(() => setMessage(describeError(error, "This series"))),
-                ),
-              ),
-            );
-          }}
-          onRemove={(id, name) => {
-            setMessage(null);
-            void runApp(
-              hideSeries(id, name).pipe(
-                Effect.catchTag("StorageFailure", (error) =>
-                  Effect.sync(() => setMessage(describeError(error, "This series"))),
-                ),
-              ),
-            );
-          }}
+          onSave={editSeries}
+          onRemove={removeSeries}
           onClose={() => setSeriesEdit(null)}
         />
-      )}
-
-      {isBusy && (
-        <ProgressPanel progress={progress} onCancel={isImporting ? cancelImport : undefined} />
       )}
     </main>
   );

@@ -23,13 +23,11 @@ export function ServiceWorkerUpdate(): ReactElement | null {
   };
 
   return (
-    <div className="toast toast-center toast-bottom z-50">
-      <div className="alert alert-info">
-        <span>A new version is ready.</span>
-        <button type="button" className="btn btn-sm" onClick={reload}>
-          Reload
-        </button>
-      </div>
+    <div className="notice rise fixed inset-x-4 bottom-[calc(var(--safe-bottom)+1.5rem)] z-[70] flex items-center gap-3 shadow-(--shadow-panel) md:inset-x-auto md:left-1/2 md:w-96 md:-translate-x-1/2">
+      <span className="flex-1 font-semibold">A new version is ready</span>
+      <button type="button" className="key small green" onClick={reload}>
+        Reload
+      </button>
     </div>
   );
 }

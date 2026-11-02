@@ -19,13 +19,13 @@ export function LoadError({ error, title, onRebuild }: Props): ReactElement {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-      <p className="opacity-80">{describeError(error, title)}</p>
+      <p className="text-(--ink-soft)">{describeError(error, title)}</p>
       {canRebuild && (
-        <button type="button" className="btn btn-primary" onClick={onRebuild}>
+        <button type="button" className="key green" onClick={onRebuild}>
           Rebuild reader view
         </button>
       )}
-      <SlideLink to="/" direction="out" className="btn btn-ghost btn-sm">
+      <SlideLink to="/" direction="out" className="key small">
         Back to library
       </SlideLink>
     </div>

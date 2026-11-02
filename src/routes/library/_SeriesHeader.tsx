@@ -1,6 +1,6 @@
-import type { ReactElement, RefObject } from "react";
+import type { CSSProperties, ReactElement, RefObject } from "react";
+import { BookCover } from "@/components/BookCover";
 import type { Shelf } from "@/lib/shelf";
-import { BookCover } from "./_BookCover";
 import { SeriesColourField } from "./_SeriesColourField";
 import { SeriesCoverField } from "./_SeriesCoverField";
 
@@ -11,7 +11,6 @@ export function SeriesHeader({
   seriesId,
   name,
   onName,
-  author,
   bookCount,
   shownColor,
   onColor,
@@ -28,7 +27,6 @@ export function SeriesHeader({
   readonly seriesId: string | null;
   readonly name: string;
   readonly onName: (name: string) => void;
-  readonly author: string | undefined;
   readonly bookCount: number;
   readonly shownColor: number | undefined;
   readonly onColor: (hue: number) => void;
@@ -39,59 +37,47 @@ export function SeriesHeader({
   readonly pictureUrl: RefObject<string | null>;
   readonly onPicture: (picture: { readonly file: File; readonly url: string } | null) => void;
 }): ReactElement {
+  const frontBook = front === undefined ? undefined : cards.get(front)?.book;
+  const slipcaseStyle = { "--hue": shownColor ?? 159 } as CSSProperties;
+
   return (
     <>
-      <div className="flex gap-4 md:gap-5">
-        <div className="w-32 shrink-0 md:w-36">
-          <span className="relative block w-full overflow-hidden rounded-md shadow-lg ring-1 ring-black/10">
+      <div className="flex items-center gap-5.5 pt-2 pb-1.5">
+        <span className="slipcase w-19 shrink-0" style={slipcaseStyle}>
+          <span className="book">
             {cover === "image" && picture !== null ? (
-              <img
-                src={picture.url}
-                alt=""
-                className="aspect-[2/3] w-full rounded-md bg-white object-cover object-top"
-              />
-            ) : front !== undefined ? (
-              <BookCover bookId={front} rounded="rounded-md" />
-            ) : (
-              <span className="grid aspect-[2/3] w-full place-items-center rounded-md bg-base-300 text-xs">
-                Auto
+              <span className="cover">
+                <img src={picture.url} alt="" />
               </span>
+            ) : cover === "image" ? (
+              <BookCover book={{ id: `series:${seriesId}`, title: name, format: "epub" }} />
+            ) : frontBook !== undefined ? (
+              <BookCover book={frontBook} />
+            ) : (
+              <span className="cover blank" />
             )}
-            {/* A shade down the left edge reads as the spine of a printed book. */}
-            <span className="pointer-events-none absolute inset-y-0 left-0 w-2.5 bg-linear-to-r from-black/25 to-transparent" />
+            <span className="index-tab">{bookCount}</span>
           </span>
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-2">
-          <p className="text-xs font-medium tracking-wide uppercase opacity-60">Series</p>
-          <input
-            type="text"
-            className="input h-auto w-full shrink-0 px-3 py-1.5 text-lg font-semibold md:text-xl"
-            data-font="serif"
-            placeholder="Name"
-            aria-label="Name"
-            value={name}
-            onChange={(event) => onName(event.target.value)}
-          />
-          {author !== undefined && <p className="text-base opacity-70 md:text-sm">{author}</p>}
-          <p className="text-sm opacity-60 md:text-xs">
-            {bookCount} {bookCount === 1 ? "book" : "books"}
-          </p>
-          <p
-            aria-hidden="true"
-            className="mt-1 text-xs font-medium tracking-wide uppercase opacity-60"
-          >
-            Colour
-          </p>
-          <SeriesColourField shownColor={shownColor} onColor={onColor} />
-        </div>
+        </span>
+        <label className="min-w-0 flex-1">
+          <span className="field-label mt-0">Name</span>
+          <span className="field">
+            <input
+              type="text"
+              className="font-semibold"
+              placeholder="Name"
+              value={name}
+              onChange={(event) => onName(event.target.value)}
+            />
+          </span>
+        </label>
       </div>
-      <p aria-hidden="true" className="text-xs font-medium tracking-wide uppercase opacity-60">
-        Cover
-      </p>
+      <SeriesColourField shownColor={shownColor} onColor={onColor} />
       <SeriesCoverField
         cover={cover}
         picture={picture}
         seriesId={seriesId}
+        name={name}
         ids={ids}
         cards={cards}
         storedCover={storedCover}

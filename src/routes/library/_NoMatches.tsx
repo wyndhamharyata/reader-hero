@@ -1,15 +1,11 @@
 import type { ReactElement } from "react";
 
-interface Props {
-  onClear: () => void;
-}
-
-export function NoMatches({ onClear }: Props): ReactElement {
+export function NoMatches({ onClear }: { readonly onClear: () => void }): ReactElement {
   return (
-    <div className="flex flex-col items-center gap-2 py-8 text-center text-sm">
-      <p className="opacity-70">No books match your search and filters.</p>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={onClear}>
-        Clear all
+    <div className="flex flex-col items-center gap-3 py-8 text-center">
+      <p className="text-(--ink-soft)">No books match</p>
+      <button type="button" className="key small" onClick={onClear}>
+        Show all
       </button>
     </div>
   );

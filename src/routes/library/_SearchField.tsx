@@ -1,21 +1,25 @@
 import type { ReactElement } from "react";
 import { MagnifyingGlassIcon } from "@/components/icons";
 
-interface Props {
-  value: string;
-  onChange: (value: string) => void;
-}
-
-export function SearchField({ value, onChange }: Props): ReactElement {
-  // 16px text on phones: iOS zooms the page into any focused input smaller than that.
+export function SearchField({
+  value,
+  isFocused = false,
+  onChange,
+}: {
+  readonly value: string;
+  readonly isFocused?: boolean;
+  readonly onChange: (value: string) => void;
+}): ReactElement {
   return (
-    <label className="input w-full text-base md:w-64 md:text-sm">
-      <MagnifyingGlassIcon className="size-5 opacity-50 md:size-4" />
+    <label className="field min-h-11 text-(--ink-soft) md:w-70">
+      <MagnifyingGlassIcon className="icon" />
       <input
         type="search"
-        className="grow"
-        placeholder="Search title, author…"
+        className="text-(--ink)"
+        placeholder="Search books"
         aria-label="Search books"
+        // The phone's field opens on a tap of Search, so it takes the keyboard at once.
+        autoFocus={isFocused}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />

@@ -1,0 +1,1509 @@
+/* The skeuomorphism lives in objects: covers, the slipcase, keycaps. The chrome stays flat and neutral. */
+
+:root {
+  /* Static SVG noise tiles, painted once and tiled, so a texture costs no paint per frame. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.03 .5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --cloth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9 .06' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .2 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --sheet-ease: cubic-bezier(0.3, 1.2, 0.4, 1);
+  --panel-width: 400px;
+}
+
+/* Warmth tints every neutral, so the whole screen takes the lamp's colour, not only the page. */
+:root,
+[data-theme="rhlight"] {
+  --bg: oklch(97% calc(0.004 + var(--tint) * 0.025) var(--tint-hue));
+  --surface: oklch(99.2% calc(0.003 + var(--tint) * 0.015) var(--tint-hue));
+  --sunk: oklch(93.5% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --line: oklch(89% calc(0.007 + var(--tint) * 0.034) var(--tint-hue));
+  --ink: oklch(24% calc(0.012 + var(--tint) * 0.025) var(--tint-hue));
+  --ink-soft: oklch(47% calc(0.012 + var(--tint) * 0.02) var(--tint-hue));
+  --page: oklch(98.2% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --page-ink: oklch(23% 0.012 70);
+  --green: oklch(45% 0.1 159);
+  --green-deep: oklch(33% 0.08 159);
+  --green-wash: oklch(93% 0.035 159);
+  --key-top: oklch(99.5% calc(0.003 + var(--tint) * 0.012) var(--tint-hue));
+  --key-bottom: oklch(93.5% calc(0.007 + var(--tint) * 0.02) var(--tint-hue));
+  --key-skirt: oklch(80% calc(0.01 + var(--tint) * 0.02) var(--tint-hue));
+  --key-light: oklch(100% 0 0 / 0.75);
+  --key-edge: oklch(0% 0 0 / 0.07);
+  --key-drop: oklch(0% 0 0 / 0.25);
+  --scrim: oklch(20% 0.01 95 / 0.32);
+  --red: oklch(52% 0.17 27);
+  --tray-l: 90%;
+  --tray-c: 0.045;
+  --shadow-panel: 0 1px 0 oklch(0% 0 0 / 0.06), 0 24px 48px -16px oklch(0% 0 0 / 0.35);
+  --mark: oklch(97% 0.008 85);
+  --ledge-top: oklch(80% 0.03 75);
+  --ledge-bottom: oklch(70% 0.04 65);
+}
+
+[data-theme="rhdark"] {
+  --bg: oklch(19% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --surface: oklch(22.5% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --sunk: oklch(16% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --line: oklch(31% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --ink: oklch(93% calc(0.006 + var(--tint) * 0.04) var(--tint-hue));
+  --ink-soft: oklch(72% calc(0.008 + var(--tint) * 0.03) var(--tint-hue));
+  --page: oklch(17% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --page-ink: oklch(86% calc(0.012 + var(--tint) * 0.03) 85);
+  --green: oklch(62% 0.11 159);
+  --green-deep: oklch(45% 0.09 159);
+  --green-wash: oklch(30% 0.05 159);
+  --key-top: oklch(36% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --key-bottom: oklch(29% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --key-skirt: oklch(12% 0.004 var(--tint-hue));
+  --key-light: oklch(100% 0 0 / 0.12);
+  --key-edge: oklch(0% 0 0 / 0.4);
+  --key-drop: oklch(0% 0 0 / 0.6);
+  --scrim: oklch(0% 0 0 / 0.5);
+  --red: oklch(66% 0.16 27);
+  --tray-l: 29%;
+  --tray-c: 0.05;
+  --ledge-top: oklch(38% 0.025 70);
+  --ledge-bottom: oklch(30% 0.03 60);
+}
+
+@layer components {
+  .icon {
+    width: 20px;
+    height: 20px;
+    flex: none;
+  }
+
+  /* Keycaps: lit from above, with a solid skirt that collapses on a press. */
+  .key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-shrink: 0;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
+    color: var(--ink);
+    font-weight: 650;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--key-light),
+      inset 0 -2px 0 oklch(0% 0 0 / 0.06),
+      0 0 0 1px var(--key-edge),
+      0 3px 0 var(--key-skirt),
+      0 4px 8px -2px var(--key-drop);
+    transition:
+      transform 220ms var(--spring),
+      box-shadow 220ms var(--spring),
+      opacity 150ms;
+  }
+
+  .key:active,
+  .key[aria-pressed="true"],
+  .key[aria-checked="true"] {
+    transform: translateY(3px);
+    box-shadow:
+      inset 0 2px 4px oklch(0% 0 0 / 0.18),
+      0 0 0 1px var(--key-edge),
+      0 0 0 var(--key-skirt);
+  }
+
+  .key:active {
+    transition-duration: 60ms;
+    transition-timing-function: ease-out;
+  }
+
+  .key:focus-visible,
+  .switch:focus-visible,
+  .row-item:focus-visible,
+  .book-link:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 3px;
+  }
+
+  .key:disabled {
+    cursor: default;
+    opacity: 0.45;
+    transform: none;
+  }
+
+  .key.green {
+    --key-skirt: var(--green-deep);
+    color: oklch(98% 0.01 159);
+    background:
+      var(--grain), radial-gradient(120% 90% at 50% 0, oklch(100% 0 0 / 0.22), transparent 60%),
+      linear-gradient(180deg, oklch(52% 0.11 159), oklch(43% 0.1 159));
+  }
+
+  .key.small {
+    min-height: 36px;
+    min-width: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .key.square {
+    padding: 0;
+  }
+
+  .key.round {
+    padding: 0;
+    border-radius: 999px;
+  }
+
+  .key.danger {
+    color: var(--red);
+  }
+
+  .key.danger-outline {
+    color: var(--red);
+    outline: 1.5px solid oklch(from var(--red) l c h / 0.45);
+    outline-offset: -1.5px;
+  }
+
+  /* Flat until it is the one chosen, so a row of options reads as one control. */
+  .latch-row {
+    display: inline-flex;
+    gap: 6px;
+    padding: 5px;
+    border-radius: 15px;
+    background: var(--sunk);
+    box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14);
+  }
+
+  .latch-row .key {
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .latch-row .key:not([aria-pressed="true"]) {
+    color: var(--ink-soft);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .latch-row .key[aria-pressed="true"] {
+    color: var(--ink);
+    transform: none;
+    background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--key-light),
+      0 1px 0 oklch(0% 0 0 / 0.08),
+      0 2px 4px -1px oklch(0% 0 0 / 0.2);
+  }
+
+  .count {
+    margin-left: 2px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  /* A recessed slot with a keycap knob. */
+  .switch {
+    position: relative;
+    flex: none;
+    width: 52px;
+    height: 32px;
+    border-radius: 999px;
+    cursor: pointer;
+    background: var(--sunk);
+    box-shadow: inset 0 2px 4px oklch(0% 0 0 / 0.2);
+  }
+
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--key-light),
+      0 2px 0 var(--key-skirt),
+      0 3px 5px oklch(0% 0 0 / 0.25);
+    transition: left 260ms var(--spring);
+  }
+
+  .switch[aria-checked="true"] {
+    background: var(--grain), linear-gradient(180deg, oklch(43% 0.1 159), oklch(50% 0.11 159));
+  }
+
+  .switch[aria-checked="true"]::after {
+    left: 23px;
+  }
+
+  .switch:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  /* A native range, so keys and screen readers work. The groove is the track and the thumb a keycap. */
+  .fader {
+    --groove: var(--sunk);
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    touch-action: none;
+  }
+
+  .fader.warmth {
+    --groove: linear-gradient(
+      90deg,
+      oklch(70% 0.1 245),
+      oklch(92% 0.01 95) 50%,
+      oklch(72% 0.13 55)
+    );
+  }
+
+  .fader::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 99px;
+    background: var(--groove);
+    box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.3);
+  }
+
+  .fader::-moz-range-track {
+    height: 8px;
+    border-radius: 99px;
+    background: var(--groove);
+    box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.3);
+  }
+
+  .fader::-webkit-slider-thumb {
+    width: 22px;
+    height: 28px;
+    margin-top: -10px;
+    border: 0;
+    border-radius: 7px;
+    appearance: none;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        transparent 0 7px,
+        oklch(0% 0 0 / 0.12) 7px 8px,
+        transparent 8px 9px
+      ),
+      linear-gradient(180deg, var(--key-top), var(--key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--key-light),
+      0 2px 0 var(--key-skirt),
+      0 3px 6px oklch(0% 0 0 / 0.3);
+  }
+
+  .fader::-moz-range-thumb {
+    width: 22px;
+    height: 28px;
+    border: 0;
+    border-radius: 7px;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        transparent 0 7px,
+        oklch(0% 0 0 / 0.12) 7px 8px,
+        transparent 8px 9px
+      ),
+      linear-gradient(180deg, var(--key-top), var(--key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--key-light),
+      0 2px 0 var(--key-skirt),
+      0 3px 6px oklch(0% 0 0 / 0.3);
+  }
+
+  .fader:focus-visible {
+    outline: none;
+  }
+
+  .fader:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+  }
+
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 46px;
+    width: 100%;
+    padding: 0 6px 0 14px;
+    border-radius: 12px;
+    background: var(--sunk);
+    box-shadow: inset 0 1px 3px oklch(0% 0 0 / 0.14);
+    color: var(--ink);
+  }
+
+  .field:focus-within {
+    outline: 2px solid var(--green);
+    outline-offset: 1px;
+  }
+
+  .field input,
+  .field textarea,
+  .field select {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    outline: none;
+    /* 16px on phones: iOS zooms the page into any focused field smaller than that. */
+    font-size: max(16px, 1em);
+  }
+
+  .field input::placeholder,
+  .field textarea::placeholder {
+    color: var(--ink-soft);
+  }
+
+  .field.area {
+    align-items: stretch;
+    padding: 10px 14px;
+  }
+
+  .meter {
+    height: 6px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: var(--sunk);
+    box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.2);
+  }
+
+  .meter > span {
+    display: block;
+    height: 100%;
+    border-radius: 99px;
+    background-color: var(--green);
+    transition: width 700ms var(--ease-out) 200ms;
+  }
+
+  .meter.stripes > span {
+    transition-duration: 300ms;
+    transition-delay: 0s;
+    background-image: linear-gradient(
+      45deg,
+      oklch(100% 0 0 / 0.2) 25%,
+      transparent 25% 50%,
+      oklch(100% 0 0 / 0.2) 50% 75%,
+      transparent 75%
+    );
+    background-size: 14px 14px;
+    animation: stripes 700ms linear infinite;
+  }
+
+  /* Rows: a chevron goes somewhere, a key does something, a switch is a setting. */
+  .rows {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--bg);
+  }
+
+  .rows + .rows {
+    margin-top: 10px;
+  }
+
+  .row-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 54px;
+    padding: 8px 14px 8px 16px;
+    text-align: left;
+  }
+
+  button.row-item {
+    cursor: pointer;
+  }
+
+  .row-item + .row-item {
+    border-top: 1px solid var(--line);
+  }
+
+  .row-item .row-label {
+    flex: 1;
+    min-width: 0;
+    font-weight: 550;
+  }
+
+  .row-item .value {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ink-soft);
+    font-size: 14px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .row-item .chev {
+    color: var(--ink-soft);
+  }
+
+  .section-title {
+    margin: 22px 0 8px 4px;
+    font-size: 15px;
+    font-weight: 750;
+  }
+
+  .section-title:first-child {
+    margin-top: 4px;
+  }
+
+  .confirm {
+    margin-top: 10px;
+    padding: 16px;
+    border: 1px solid oklch(from var(--red) l c h / 0.4);
+    border-radius: 14px;
+    background: oklch(from var(--red) l c h / 0.06);
+  }
+
+  .confirm p {
+    margin-bottom: 12px;
+    font-weight: 650;
+  }
+
+  .confirm .buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  .notice {
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+    font-size: 14px;
+  }
+
+  .notice.warn {
+    border-color: oklch(70% 0.12 70 / 0.6);
+    background: oklch(from var(--surface) l c h);
+  }
+
+  .notice.error {
+    color: var(--red);
+    border-color: oklch(from var(--red) l c h / 0.4);
+  }
+
+  /* Panels: a bottom sheet on a phone, a side panel on a tablet, docked beside the reader's page on a desktop. */
+  .panel-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--scrim);
+    animation: fade-in 200ms ease-out;
+  }
+
+  .scrim.clear {
+    background: transparent;
+  }
+
+  .panel {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100% - var(--safe-top) - 1rem);
+    padding-bottom: var(--safe-bottom);
+    border-radius: 22px 22px 0 0;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-panel);
+    animation: sheet-up 360ms var(--sheet-ease);
+  }
+
+  /* Under the spring's overshoot, so no line of the page shows below the sheet. */
+  .panel::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: var(--surface);
+  }
+
+  .panel .grab {
+    flex: none;
+    width: 40px;
+    height: 5px;
+    margin: 8px auto 0;
+    border-radius: 9px;
+    background: var(--line);
+  }
+
+  .panel-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px 12px 20px;
+  }
+
+  .panel-head h2 {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-size: 18px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .panel-head .key:first-child {
+    margin-left: -6px;
+  }
+
+  .panel-body {
+    flex: 1;
+    min-height: 0;
+    padding: 6px 20px 20px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .panel-body > * {
+    animation: rise 300ms var(--ease-out) backwards;
+  }
+
+  .panel-body > :nth-child(2) {
+    animation-delay: 25ms;
+  }
+
+  .panel-body > :nth-child(3) {
+    animation-delay: 50ms;
+  }
+
+  .panel-body > :nth-child(4) {
+    animation-delay: 75ms;
+  }
+
+  .panel-body > :nth-child(n + 5) {
+    animation-delay: 100ms;
+  }
+
+  .panel-foot {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 16px 14px;
+    border-top: 1px solid var(--line);
+  }
+
+  .panel .panel-tabs {
+    flex: none;
+    margin: 0 20px 12px;
+  }
+
+  .panel .panel-tabs .key {
+    flex: 1;
+  }
+
+  @media (width >= 48rem) {
+    .panel-layer {
+      flex-direction: row;
+      justify-content: flex-end;
+    }
+
+    .panel {
+      width: var(--panel-width);
+      height: 100%;
+      max-height: none;
+      padding-top: var(--safe-top);
+      border-left: 1px solid var(--line);
+      border-radius: 0;
+      animation-name: slide-in;
+    }
+
+    .panel::after {
+      top: 0;
+      bottom: 0;
+      left: 100%;
+      right: auto;
+      width: 40px;
+      height: auto;
+    }
+
+    .panel .grab {
+      display: none;
+    }
+
+    .panel-head {
+      padding: 18px 16px 14px 24px;
+    }
+
+    .panel-body {
+      padding: 6px 24px 24px;
+    }
+
+    .panel .panel-tabs {
+      margin: 0 24px 14px;
+    }
+  }
+
+  /* Docked, the page moves over and stays in reach, so the panel needs no scrim. */
+  @media (width >= 70rem) {
+    .panel-layer.docks {
+      pointer-events: none;
+    }
+
+    .panel-layer.docks .scrim {
+      display: none;
+    }
+
+    .panel-layer.docks .panel {
+      pointer-events: auto;
+      box-shadow: none;
+    }
+  }
+
+  /* The small More menu: a sheet on a phone, a popover under its key wider up. */
+  @media (width >= 48rem) {
+    .panel.compact {
+      position: absolute;
+      top: calc(var(--safe-top) + 62px);
+      right: 16px;
+      width: 260px;
+      height: auto;
+      padding-top: 0;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      animation: fade-in 140ms ease-out;
+    }
+
+    .panel.compact::after {
+      display: none;
+    }
+
+    .panel.compact .panel-body {
+      padding: 8px;
+    }
+  }
+
+  /* The reader: bars that slide in from their edges, over a page that stays still. */
+  .reader-shift {
+    position: absolute;
+    inset: 0;
+    transition: right 300ms var(--ease-out);
+  }
+
+  @media (width >= 70rem) {
+    .reader.is-docked .reader-shift {
+      right: var(--panel-width);
+    }
+  }
+
+  .bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    display: flex;
+    background: var(--surface);
+    color: var(--ink);
+    transition:
+      transform 180ms var(--ease-out),
+      visibility 0s;
+  }
+
+  .bar.topbar {
+    top: 0;
+    align-items: center;
+    gap: 10px;
+    padding: calc(var(--safe-top) + 10px) 12px 10px;
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 6px 16px -10px oklch(0% 0 0 / 0.25);
+  }
+
+  .bar.bottombar {
+    bottom: 0;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px calc(var(--safe-bottom) + 18px);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 16px -10px oklch(0% 0 0 / 0.25);
+  }
+
+  .bar.is-hidden {
+    visibility: hidden;
+    transition:
+      transform 140ms ease-in,
+      visibility 0s linear 140ms;
+  }
+
+  .topbar.is-hidden {
+    transform: translateY(-105%);
+  }
+
+  .bottombar.is-hidden {
+    transform: translateY(105%);
+  }
+
+  @media (width >= 48rem) {
+    .bar.topbar {
+      padding: calc(var(--safe-top) + 10px) 16px 10px;
+    }
+
+    .bar.bottombar {
+      padding: 14px 32px calc(var(--safe-bottom) + 18px);
+    }
+  }
+
+  .scrub {
+    position: relative;
+    flex: 1;
+    height: 6px;
+    border-radius: 99px;
+    background:
+      repeating-linear-gradient(
+        90deg,
+        transparent 0 calc(10% - 2px),
+        var(--line) calc(10% - 2px) 10%
+      ),
+      var(--sunk);
+    box-shadow: inset 0 1px 2px oklch(0% 0 0 / 0.2);
+  }
+
+  .scrub > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 99px;
+    background: var(--green);
+  }
+
+  .scrub > i {
+    position: absolute;
+    top: 50%;
+    width: 18px;
+    height: 22px;
+    margin: -11px 0 0 -9px;
+    border-radius: 6px;
+    background: var(--grain), linear-gradient(180deg, var(--key-top), var(--key-bottom));
+    box-shadow:
+      inset 0 1px 0 var(--key-light),
+      0 2px 0 var(--key-skirt),
+      0 3px 6px oklch(0% 0 0 / 0.3);
+  }
+
+  .tool-key {
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 56px;
+    padding: 6px 4px;
+    border-radius: 14px;
+    font-size: 12px;
+  }
+
+  .aa {
+    font:
+      700 17px/1 "Literata Variable",
+      serif;
+  }
+
+  .page-badge {
+    position: absolute;
+    left: 50%;
+    bottom: calc(var(--safe-bottom) + 18px);
+    z-index: 9;
+    padding: 6px 12px;
+    border-radius: 99px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 650;
+    background: var(--surface);
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 4px 10px -4px oklch(0% 0 0 / 0.3);
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  /* Book objects: a spine shade, page edges and paper fibre over the cover picture. */
+  .book {
+    position: relative;
+    display: block;
+    min-width: 0;
+    container-type: inline-size;
+  }
+
+  .cover {
+    position: relative;
+    display: block;
+    aspect-ratio: 2 / 3;
+    overflow: hidden;
+    border-radius: 2px 5px 5px 2px;
+    color: #fff;
+    background: linear-gradient(
+      160deg,
+      var(--c1, oklch(48% 0.07 250)),
+      var(--c2, oklch(30% 0.06 255))
+    );
+    box-shadow:
+      2px 0 0 -1px oklch(96% 0.01 85),
+      3px 0 0 -1px oklch(82% 0.015 85),
+      4px 0 0 -2px oklch(96% 0.01 85),
+      5px 0 0 -2px oklch(80% 0.015 85),
+      0 0 0 0.5px oklch(0% 0 0 / 0.18),
+      0 1px 1px oklch(0% 0 0 / 0.2),
+      0 10px 18px -8px oklch(0% 0 0 / 0.5);
+    container-type: inline-size;
+  }
+
+  .cover > img {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top;
+    background: #fff;
+  }
+
+  .cover::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 2;
+    width: 7%;
+    min-width: 5px;
+    background: linear-gradient(
+      90deg,
+      oklch(0% 0 0 / 0.32),
+      oklch(100% 0 0 / 0.22) 26%,
+      oklch(0% 0 0 / 0.12) 55%,
+      transparent
+    );
+  }
+
+  .cover::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: var(--fibre), linear-gradient(115deg, oklch(100% 0 0 / 0.16), transparent 38%);
+  }
+
+  .cover.paper::after {
+    background: linear-gradient(115deg, oklch(100% 0 0 / 0.1), transparent 38%);
+  }
+
+  .cover.blank {
+    background: var(--grain), var(--sunk);
+    box-shadow: inset 0 2px 6px oklch(0% 0 0 / 0.14);
+  }
+
+  .cover.blank::before,
+  .cover.blank::after {
+    display: none;
+  }
+
+  .cover.blank .fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+      180deg,
+      oklch(from var(--green) l c h / 0.12),
+      oklch(from var(--green) l c h / 0.3)
+    );
+    transition: height 300ms var(--ease-out);
+  }
+
+  .cover .art {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 14% 12% 10% 16%;
+  }
+
+  .cover .art .title {
+    font:
+      700 clamp(9px, 10.5cqi, 22px) / 1.12 "Literata Variable",
+      Georgia,
+      serif;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+
+  .cover .art .author {
+    font:
+      600 clamp(7px, 7.5cqi, 13px) / 1.2 "Atkinson Hyperlegible Next Variable",
+      sans-serif;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+
+  .ribbon {
+    position: absolute;
+    top: -3px;
+    right: 14%;
+    z-index: 3;
+    width: 11%;
+    min-width: 9px;
+    aspect-ratio: 1 / 3.6;
+    transform-origin: 50% 0;
+    filter: drop-shadow(0 1px 1px oklch(0% 0 0 / 0.35));
+    animation: sway 6s ease-in-out infinite;
+  }
+
+  .ribbon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--grain), linear-gradient(180deg, oklch(50% 0.13 25), oklch(42% 0.13 25));
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+  }
+
+  .stamp {
+    position: absolute;
+    right: 6px;
+    top: calc(150cqi - 28px);
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    color: #fff;
+    background: var(--green);
+    box-shadow:
+      0 0 0 2px oklch(100% 0 0 / 0.85),
+      0 2px 4px oklch(0% 0 0 / 0.3);
+  }
+
+  .stamp .icon {
+    width: 13px;
+    height: 13px;
+    stroke-width: 3;
+  }
+
+  .stamp.thump {
+    animation: stamp-in 320ms var(--spring);
+  }
+
+  /* A glossy jacket catches the light on hover. Paper covers do not. */
+  .book.glossy::before {
+    content: "";
+    position: absolute;
+    z-index: 5;
+    top: 0;
+    left: 0;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    pointer-events: none;
+    border-radius: 2px 5px 5px 2px;
+    background: linear-gradient(115deg, transparent 38%, oklch(100% 0 0 / 0.3) 50%, transparent 62%)
+      160% 0 / 260% 100% no-repeat;
+  }
+
+  .book-link {
+    display: block;
+    min-width: 0;
+    border-radius: 6px;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .book-link:active .book {
+    transform: scale(0.97);
+    transition-duration: 80ms;
+  }
+
+  @media (hover: hover) {
+    .book-link .book {
+      transition: transform 240ms var(--spring);
+    }
+
+    .book-link:hover .book {
+      transform: translateY(-4px);
+    }
+
+    .book-link:hover .book.glossy::before {
+      animation: sheen 900ms ease-out;
+    }
+  }
+
+  /* The cover leans in its card, and its page edge thickens as the reading goes on. */
+  .book.leaning {
+    transform: perspective(700px) rotateY(26deg);
+    container-type: normal;
+  }
+
+  .book.leaning .cover {
+    box-shadow:
+      0 0 0 0.5px oklch(0% 0 0 / 0.2),
+      -8px 12px 16px -8px oklch(0% 0 0 / 0.45);
+  }
+
+  .book.leaning .fore {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    left: calc(100% - 1px);
+    width: calc(4px + var(--read, 0) * 12px);
+    clip-path: polygon(0 0, 100% 5%, 100% 95%, 0 100%);
+    background:
+      linear-gradient(90deg, oklch(0% 0 0 / 0.04), oklch(0% 0 0 / 0.2)),
+      repeating-linear-gradient(90deg, oklch(97% 0.01 85) 0 1px, oklch(84% 0.015 85) 1px 2px);
+    transition: width 700ms var(--ease-out) 200ms;
+  }
+
+  .zoomer {
+    position: fixed;
+    z-index: 100;
+    margin: 0;
+    aspect-ratio: auto;
+    pointer-events: none;
+    transform-origin: 0 50%;
+  }
+
+  /* A series is a slipcase: a fanned stack with a count tab. */
+  .slipcase .fan {
+    position: relative;
+    display: block;
+    transition: transform 280ms var(--ease-out);
+  }
+
+  .slipcase .fan > .far {
+    position: absolute;
+    inset: 0;
+    transform-origin: 0 100%;
+    transform: translateY(-7%) rotate(3deg);
+    filter: brightness(0.82);
+  }
+
+  .slipcase .fan > .near {
+    position: absolute;
+    inset: 0;
+    transform-origin: 0 100%;
+    transform: translateY(-3.5%) rotate(1.5deg);
+    filter: brightness(0.9);
+  }
+
+  .slipcase[aria-expanded="true"] .fan {
+    transform: translateY(-6px);
+  }
+
+  .slipcase .index-tab {
+    position: absolute;
+    z-index: 4;
+    top: -14px;
+    left: 8px;
+    padding: 3px 9px 6px;
+    border-radius: 7px 7px 2px 2px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 750;
+    background:
+      var(--cloth),
+      linear-gradient(180deg, oklch(52% 0.11 var(--hue, 159)), oklch(42% 0.1 var(--hue, 159)));
+    box-shadow:
+      0 1px 0 oklch(33% 0.08 var(--hue, 159)),
+      0 3px 6px oklch(0% 0 0 / 0.35);
+  }
+
+  .tray {
+    grid-column: 1 / -1;
+    padding: 20px 18px 18px;
+    border-radius: 16px;
+    background: var(--cloth), oklch(var(--tray-l) var(--tray-c) var(--hue, 159));
+    box-shadow:
+      inset 0 3px 8px oklch(0% 0 0 / 0.2),
+      inset 0 0 0 1px oklch(55% 0.1 var(--hue, 159) / 0.3);
+    animation: tray-in 280ms var(--ease-out);
+  }
+
+  .tray-books > * {
+    animation: out-of-case 460ms var(--spring) backwards;
+  }
+
+  .tray-books > :nth-child(2) {
+    animation-delay: 70ms;
+  }
+
+  .tray-books > :nth-child(3) {
+    animation-delay: 140ms;
+  }
+
+  .tray-books > :nth-child(n + 4) {
+    animation-delay: 210ms;
+  }
+
+  /* A swatch of book cloth in the series colour. */
+  .cloth {
+    display: block;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    cursor: pointer;
+    background:
+      var(--cloth), linear-gradient(180deg, oklch(51% 0.1 var(--hue)), oklch(45% 0.1 var(--hue)));
+    box-shadow:
+      inset 0 1px 0 oklch(100% 0 0 / 0.25),
+      0 2px 0 oklch(33% 0.08 var(--hue)),
+      0 3px 6px oklch(0% 0 0 / 0.25);
+  }
+
+  :checked + .cloth {
+    box-shadow:
+      0 0 0 2px var(--surface),
+      0 0 0 4px var(--ink),
+      0 3px 6px oklch(0% 0 0 / 0.25);
+  }
+
+  :focus-visible + .cloth {
+    outline: 2px solid var(--green);
+    outline-offset: 5px;
+  }
+
+  .field-label {
+    display: block;
+    margin: 18px 0 6px 2px;
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  /* The mark: three brackets, graded, the front one round the R. */
+  .mark path {
+    fill: none;
+    stroke-width: 12;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .mark text {
+    font:
+      800 138px "Atkinson Hyperlegible Next Variable",
+      sans-serif;
+    letter-spacing: -4px;
+  }
+
+  /* The empty library: an open book on a ledge. One page turns once, then holds still. */
+  .openbook {
+    position: relative;
+    z-index: 1;
+    width: min(78%, 360px);
+    aspect-ratio: 1.6;
+    margin-bottom: -2px;
+    perspective: 1400px;
+  }
+
+  .openbook .board {
+    position: absolute;
+    inset: 6% -3% -3%;
+    border-radius: 5px;
+    background: var(--cloth), linear-gradient(180deg, oklch(45% 0.1 159), oklch(36% 0.09 159));
+    box-shadow:
+      0 1px 0 oklch(28% 0.07 159),
+      0 14px 18px -10px oklch(0% 0 0 / 0.55);
+  }
+
+  .openbook .leaf {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    background: oklch(98% 0.008 85);
+  }
+
+  .openbook .leaf::before {
+    content: "";
+    position: absolute;
+    inset: 16% 14% 14%;
+    opacity: 0.7;
+    background: repeating-linear-gradient(
+      180deg,
+      oklch(78% 0.012 85) 0 1.5px,
+      transparent 1.5px 11px
+    );
+  }
+
+  .openbook .left {
+    left: 0;
+    border-radius: 6px 2px 2px 6px;
+    box-shadow: inset -18px 0 22px -14px oklch(0% 0 0 / 0.28);
+  }
+
+  .openbook .right,
+  .openbook .turning,
+  .openbook .lifting {
+    right: 0;
+    transform-origin: 0 50%;
+    border-radius: 2px 6px 6px 2px;
+    box-shadow: inset 18px 0 22px -14px oklch(0% 0 0 / 0.22);
+  }
+
+  .openbook .turning {
+    animation: turn-once 1.1s cubic-bezier(0.45, 0.05, 0.3, 1) 1.2s both;
+  }
+
+  .openbook .lifting {
+    opacity: 0;
+  }
+
+  .is-dropping .openbook .lifting {
+    opacity: 1;
+    transform: rotateY(-58deg);
+    box-shadow: -10px 0 18px -8px oklch(0% 0 0 / 0.3);
+    transition:
+      transform 300ms var(--spring),
+      opacity 100ms;
+  }
+
+  .openbook .spine-ribbon {
+    position: absolute;
+    z-index: 3;
+    top: 82%;
+    left: calc(50% - 6px);
+    width: 12px;
+    height: 34%;
+    transform-origin: 50% 0;
+    filter: drop-shadow(0 1px 1px oklch(0% 0 0 / 0.35));
+    animation: sway 6s ease-in-out infinite;
+  }
+
+  .openbook .spine-ribbon::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--grain), linear-gradient(180deg, oklch(50% 0.13 25), oklch(42% 0.13 25));
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  }
+
+  .ledge {
+    width: 100%;
+    height: 14px;
+    background: var(--cloth), linear-gradient(180deg, var(--ledge-top), var(--ledge-bottom));
+    box-shadow:
+      inset 0 1px 0 oklch(100% 0 0 / 0.3),
+      0 12px 18px -8px oklch(0% 0 0 / 0.3);
+    transition:
+      background 200ms,
+      box-shadow 200ms;
+  }
+
+  .is-dropping .ledge {
+    background: var(--cloth), linear-gradient(180deg, oklch(70% 0.12 159), oklch(55% 0.12 159));
+    box-shadow:
+      0 0 0 3px oklch(from var(--green) l c h / 0.3),
+      0 0 28px oklch(from var(--green) l c h / 0.6);
+  }
+
+  .dropzone {
+    position: fixed;
+    inset: 12px;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    border: 3px dashed var(--green);
+    border-radius: 20px;
+    background: oklch(from var(--green-wash) l c h / 0.88);
+    color: var(--ink);
+    font:
+      700 22px "Literata Variable",
+      serif;
+    animation: fade-in 150ms ease-out;
+  }
+
+  .caret::after {
+    content: "";
+    display: inline-block;
+    width: 0.5em;
+    height: 1.05em;
+    margin-left: 3px;
+    vertical-align: -0.18em;
+    background: var(--green);
+    animation: caret 1s steps(2, jump-none) infinite;
+  }
+
+  .rise {
+    animation: rise 360ms var(--ease-out) backwards;
+  }
+
+  .drop {
+    animation: drop-in 560ms var(--spring) backwards;
+  }
+
+  .deal {
+    animation: deal-in 260ms var(--ease-out) backwards;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+::highlight(find) {
+  background: oklch(88% 0.12 95);
+  color: inherit;
+}
+
+[data-theme="rhdark"] ::highlight(find) {
+  background: oklch(48% 0.1 95);
+}
+
+@keyframes stripes {
+  from {
+    background-position: 14px 0;
+  }
+}
+
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-1.6deg);
+  }
+  50% {
+    transform: rotate(1.8deg);
+  }
+}
+
+@keyframes sheen {
+  from {
+    background-position: 160% 0;
+  }
+  to {
+    background-position: -60% 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes tray-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes out-of-case {
+  from {
+    opacity: 0;
+    transform: translate(-28px, -10px) rotate(-6deg);
+  }
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: scale(1.6) rotate(-14deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.95) rotate(3deg);
+  }
+}
+
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-46px) rotate(-7deg);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+
+@keyframes turn-once {
+  from {
+    transform: rotateY(0);
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(0.86);
+  }
+  to {
+    transform: rotateY(-180deg);
+    filter: brightness(1);
+  }
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* No idle motion and no travel. What moved fades in 150ms. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 150ms !important;
+    transition-delay: 0s !important;
+  }
+
+  .ribbon,
+  .openbook .spine-ribbon,
+  .caret::after,
+  .meter.stripes > span {
+    animation: none !important;
+  }
+
+  .panel,
+  .scrim {
+    animation: fade-in 150ms ease-out !important;
+  }
+}

@@ -18,6 +18,9 @@ export const shelfRecords = new Map<
   }
 >();
 
+// A book whose sheet the library opens when it shows again, asked for from the reader's More menu.
+export const sheetRequest: { bookId: string | null } = { bookId: null };
+
 export type FilterGroup = "status" | "length" | "author";
 export type Filters = Readonly<Record<FilterGroup, string | null>>;
 

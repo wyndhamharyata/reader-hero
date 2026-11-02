@@ -1,8 +1,10 @@
 @import "tailwindcss";
+@import "./ui.css";
 
 @theme {
   --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Atkinson Hyperlegible Mono Variable", ui-monospace, monospace;
+  --font-serif: "Literata Variable", Georgia, serif;
   --animate-sheet-up: sheet-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-slide-in: slide-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-fade-in: fade-in 240ms ease-out;
@@ -79,11 +81,11 @@
   prefersdark: false;
   color-scheme: light;
 
-  --color-base-100: oklch(98% calc(var(--tint) * 0.025) var(--tint-hue));
-  --color-base-200: oklch(95% calc(var(--tint) * 0.03) var(--tint-hue));
-  --color-base-300: oklch(90% calc(var(--tint) * 0.034) var(--tint-hue));
-  --color-base-content: oklch(26% calc(var(--tint) * 0.025) var(--tint-hue));
-  --color-primary: oklch(52% 0.13 159);
+  --color-base-100: oklch(97% calc(0.004 + var(--tint) * 0.025) var(--tint-hue));
+  --color-base-200: oklch(93.5% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --color-base-300: oklch(89% calc(0.007 + var(--tint) * 0.034) var(--tint-hue));
+  --color-base-content: oklch(24% calc(0.012 + var(--tint) * 0.025) var(--tint-hue));
+  --color-primary: oklch(45% 0.1 159);
   --color-primary-content: oklch(98% 0.01 159);
   --color-secondary: oklch(60% 0.12 200);
   --color-secondary-content: oklch(98% 0.01 200);
@@ -116,12 +118,12 @@
   prefersdark: true;
   color-scheme: dark;
 
-  --color-base-100: oklch(22% calc(var(--tint) * 0.03) var(--tint-hue));
-  --color-base-200: oklch(27% calc(var(--tint) * 0.03) var(--tint-hue));
-  --color-base-300: oklch(13% calc(var(--tint) * 0.02) var(--tint-hue));
-  --color-base-content: oklch(90% calc(var(--tint) * 0.04) var(--tint-hue));
-  --color-primary: oklch(72% 0.15 159);
-  --color-primary-content: oklch(18% 0.02 159);
+  --color-base-100: oklch(19% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --color-base-200: oklch(16% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --color-base-300: oklch(31% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --color-base-content: oklch(93% calc(0.006 + var(--tint) * 0.04) var(--tint-hue));
+  --color-primary: oklch(62% 0.11 159);
+  --color-primary-content: oklch(16% 0.02 159);
   --color-secondary: oklch(70% 0.12 200);
   --color-secondary-content: oklch(18% 0.02 200);
   --color-accent: oklch(72% 0.13 30);
@@ -159,8 +161,10 @@
 :root,
 [data-theme] {
   --tint: max(var(--temperature), calc(var(--temperature) * -1));
+  /* Neutral is a warm grey (95). Cool goes to blue (250). Warm runs from amber (75) to red. */
   --tint-hue: calc(
-    250 - clamp(0, var(--temperature) * 1000, 1) * (175 + 25 * max(var(--temperature), 0))
+    95 + clamp(0, var(--temperature) * -1000, 1) * 155 - clamp(0, var(--temperature) * 1000, 1) *
+      (20 + 25 * var(--temperature))
   );
 }
 
@@ -301,6 +305,11 @@ body {
 
 [data-font="mono"] {
   font-family: var(--font-mono);
+}
+
+/* A jump from Contents or a link keeps the same room above as an open does. */
+[data-block] {
+  scroll-margin-top: 64px;
 }
 
 .reader-heading {

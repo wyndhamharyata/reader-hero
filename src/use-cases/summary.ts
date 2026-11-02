@@ -997,3 +997,27 @@ export function rebuildBook(
     if (series !== null) yield* summariseSeries(series, id, settings, onProgress, id);
   });
 }
+
+// What a rebuild sends, before it runs: one request per chapter read, then the names, the position and the series paragraph.
+export function rebuildCost(): Effect.Effect<
+  { readonly books: number; readonly requests: number },
+  StorageFailure,
+  BookStore | SummaryStore
+> {
+  return Effect.gen(function* () {
+    const plan = yield* rebuildPlan();
+    let requests = 0;
+
+    for (const { series, card } of plan) {
+      const scope = yield* volumeScope(card);
+
+      if (scope === null) continue;
+
+      const extras = 1 + (scope.cover.current === null ? 0 : 1) + (series === null ? 0 : 1);
+
+      requests += scope.cover.target + extras;
+    }
+
+    return { books: plan.length, requests };
+  });
+}

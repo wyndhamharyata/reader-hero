@@ -163,7 +163,7 @@ export const PdfPage = memo(function PdfPage({
   return (
     <div
       data-page={size.page}
-      className="relative w-full overflow-hidden rounded-box bg-white shadow [contain:layout_paint]"
+      className="relative w-full overflow-hidden rounded-[2px] bg-white shadow-[0_0_0_0.5px_oklch(0%_0_0/0.15),0_1px_2px_oklch(0%_0_0/0.15),0_14px_24px_-12px_oklch(0%_0_0/0.45)] [contain:layout_paint] in-data-[theme=rhdark]:brightness-[0.86]"
       style={
         {
           aspectRatio: `${size.width} / ${size.height}`,

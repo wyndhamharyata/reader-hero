@@ -1,104 +1,172 @@
 import type { Virtualizer } from "@tanstack/react-virtual";
-import type { ReactElement } from "react";
+import type { CSSProperties, ReactElement } from "react";
 import type { LibraryCard, Shelf } from "@/lib/shelf";
-import { BookCard } from "./_BookCard";
 import { BookTile } from "./_BookTile";
-import { SeriesCard } from "./_SeriesCard";
 import { SeriesTile } from "./_SeriesTile";
-import type { TrayFlags } from "./_TrayPart";
 
-export type LibraryRowItem =
-  Shelf["items"][number] | { readonly kind: "member"; readonly card: LibraryCard };
+type ShelfItem = Shelf["items"][number];
+type SeriesItem = Shelf["series"][number];
+
+export type ShelfRow =
+  | { readonly kind: "books"; readonly items: ReadonlyArray<ShelfItem>; readonly first: number }
+  | { readonly kind: "tray"; readonly series: SeriesItem };
+
+// An open series' tray goes under the row that holds its slipcase, across the whole row.
+export function shelfRows(
+  items: ReadonlyArray<ShelfItem>,
+  columns: number,
+  openSeries: ReadonlySet<string>,
+): ReadonlyArray<ShelfRow> {
+  const rows: Array<ShelfRow> = [];
+
+  for (let first = 0; first < items.length; first += columns) {
+    const row = items.slice(first, first + columns);
+
+    rows.push({ kind: "books", items: row, first });
+
+    for (const item of row) {
+      if (item.kind === "series" && openSeries.has(item.id))
+        rows.push({ kind: "tray", series: item });
+    }
+  }
+
+  return rows;
+}
+
+const dealStepMs = 30;
+const lastDealt = 9;
+
+export interface TileEvents {
+  readonly onOpen: (card: LibraryCard, cover: Element | null) => void;
+  readonly onBookActions: (card: LibraryCard) => void;
+  readonly onToggleSeries: (id: string) => void;
+  readonly onSeriesActions: (series: SeriesItem) => void;
+  // How far the import has read a building book, by its id.
+  readonly fillOf: (card: LibraryCard) => number;
+  readonly isFresh: (id: string) => boolean;
+}
 
 export function LibraryRows({
   virtualizer,
   rows,
   columns,
-  isGrid,
   listTop,
-  trays,
+  isDealing,
   openSeries,
-  onToggleSeries,
-  onSeriesActions,
-  onBookActions,
+  events,
 }: {
   readonly virtualizer: Virtualizer<HTMLDivElement, Element>;
-  readonly rows: ReadonlyArray<ReadonlyArray<LibraryRowItem>>;
+  readonly rows: ReadonlyArray<ShelfRow>;
   readonly columns: number;
-  readonly isGrid: boolean;
   readonly listTop: number;
-  readonly trays: ReadonlyArray<{
-    readonly start: number;
-    readonly end: number;
-    readonly hue: number;
-  }>;
+  readonly isDealing: boolean;
   readonly openSeries: ReadonlySet<string>;
-  readonly onToggleSeries: (id: string) => void;
-  readonly onSeriesActions: (series: Shelf["series"][number]) => void;
-  readonly onBookActions: (card: LibraryCard) => void;
+  readonly events: TileEvents;
 }): ReactElement {
+  const gridStyle = { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` };
+  const bookTile = (card: LibraryCard, index: number, place?: number): ReactElement => (
+    <BookTile
+      key={`book:${card.book.id}`}
+      card={card}
+      place={place}
+      fill={events.fillOf(card)}
+      motion={motionFor(events.isFresh(card.book.id), isDealing, index)}
+      onOpen={(cover) => events.onOpen(card, cover)}
+      onActions={() => events.onBookActions(card)}
+    />
+  );
+
   return (
     <>
-      {virtualizer.getVirtualItems().map((row) => (
-        <ul
-          key={row.key}
-          ref={virtualizer.measureElement}
-          data-index={row.index}
-          {...(row.index === 0 ? { "data-tour": "book" } : {})}
-          // Above the next row while a tile's menu is open, so the menu is not under it.
-          className={`absolute inset-x-0 top-0 grid gap-x-3 focus-within:z-10 ${isGrid ? "pb-5" : "pb-3"}`}
-          style={{
-            transform: `translateY(${row.start - listTop}px)`,
-            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-          }}
-        >
-          {rows[row.index]?.map((item, column) => {
-            const itemIndex = row.index * columns + column;
-            const range = trays.find((entry) => entry.start <= itemIndex && itemIndex <= entry.end);
-            const tray: TrayFlags | null =
-              range === undefined
-                ? null
-                : {
-                    index: itemIndex,
-                    start: range.start,
-                    end: range.end,
-                    columns,
-                    rowGap: isGrid ? "1.25rem" : "0.75rem",
-                    hue: range.hue,
-                  };
+      {virtualizer.getVirtualItems().map((virtual) => {
+        const row = rows[virtual.index];
+        const style: CSSProperties = { transform: `translateY(${virtual.start - listTop}px)` };
 
-            if (item.kind === "series") {
-              const props = {
-                series: item,
-                isExpanded: openSeries.has(item.id),
-                onToggle: () => onToggleSeries(item.id),
-                onActions: () => onSeriesActions(item),
-                tray,
-              };
+        if (row === undefined) return null;
 
-              return isGrid ? (
-                <SeriesTile key={`series:${item.id}`} {...props} />
-              ) : (
-                <SeriesCard key={`series:${item.id}`} {...props} />
-              );
-            }
-
-            const isSeriesMember = item.kind === "member";
-            const props = {
-              card: item.card,
-              onActions: () => onBookActions(item.card),
-              isSeriesMember,
-              tray,
-            };
-
-            return isGrid ? (
-              <BookTile key={`book:${item.card.book.id}`} {...props} />
+        return (
+          <div
+            key={virtual.key}
+            ref={virtualizer.measureElement}
+            data-index={virtual.index}
+            className="absolute inset-x-0 top-0 pb-6 md:pb-7.5"
+            style={style}
+          >
+            {row.kind === "tray" ? (
+              <SeriesTray
+                series={row.series}
+                onEdit={() => events.onSeriesActions(row.series)}
+                onClose={() => events.onToggleSeries(row.series.id)}
+              >
+                {row.series.books.map((card, index) => bookTile(card, -1, index + 1))}
+              </SeriesTray>
             ) : (
-              <BookCard key={`book:${item.card.book.id}`} {...props} />
-            );
-          })}
-        </ul>
-      ))}
+              <ul className="grid gap-x-4.5 md:gap-x-6.5" style={gridStyle}>
+                {row.items.map((item, column) => {
+                  const index = row.first + column;
+
+                  if (item.kind === "book") return bookTile(item.card, index);
+
+                  return (
+                    <SeriesTile
+                      key={`series:${item.id}`}
+                      series={item}
+                      isOpen={openSeries.has(item.id)}
+                      motion={motionFor(false, isDealing, index)}
+                      onToggle={() => events.onToggleSeries(item.id)}
+                      onActions={() => events.onSeriesActions(item)}
+                    />
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
     </>
+  );
+}
+
+function motionFor(
+  isFresh: boolean,
+  isDealing: boolean,
+  index: number,
+): { readonly name: "drop" | "deal"; readonly delayMs: number } | null {
+  if (isFresh) return { name: "drop", delayMs: 0 };
+  if (!isDealing || index < 0) return null;
+
+  return { name: "deal", delayMs: Math.min(index, lastDealt) * dealStepMs };
+}
+
+function SeriesTray({
+  series,
+  onEdit,
+  onClose,
+  children,
+}: {
+  readonly series: SeriesItem;
+  readonly onEdit: () => void;
+  readonly onClose: () => void;
+  readonly children: ReadonlyArray<ReactElement>;
+}): ReactElement {
+  const style = { "--hue": series.color } as CSSProperties;
+
+  return (
+    <section className="tray" style={style} aria-label={series.name}>
+      <div className="mb-3.5 flex items-center justify-between gap-2">
+        <h3 className="min-w-0 truncate text-base font-bold">{series.name}</h3>
+        <div className="flex shrink-0 gap-2">
+          <button type="button" className="key small" onClick={onEdit}>
+            Edit
+          </button>
+          <button type="button" className="key small" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+      <ul className="tray-books grid grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-x-3.5 gap-y-4.5">
+        {children}
+      </ul>
+    </section>
   );
 }

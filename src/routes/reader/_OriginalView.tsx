@@ -10,7 +10,6 @@ import {
 } from "react";
 import { SlideLink } from "@/components/SlideLink";
 import type { PageSize } from "@/domain/book";
-import { pageBadge } from "@/lib/badges";
 import { forkApp, stopFiber } from "@/lib/hooks";
 import { usePinch, type PinchPoint } from "@/lib/use-pinch";
 import { useTapFilter } from "@/lib/use-tap-filter";
@@ -38,7 +37,8 @@ interface Props {
   jump: { readonly page: number; readonly nonce: number } | null;
   // Null for a scanned book, which has no text to search.
   blocks: ReadonlyArray<{ readonly text: string; readonly page: number }> | null;
-  isSearching: boolean;
+  // The words from Contents' search. Null shows no find bar.
+  pageQuery: string | null;
   onCloseSearch: () => void;
   onPageChange: (page: number) => void;
   onToggleChrome: () => void;
@@ -51,7 +51,7 @@ export function OriginalView({
   showChrome,
   jump,
   blocks,
-  isSearching,
+  pageQuery,
   onCloseSearch,
   onPageChange,
   onToggleChrome,
@@ -77,6 +77,7 @@ export function OriginalView({
   const listRef = useRef<HTMLDivElement>(null);
   const documentRef = useRef<RenderedDocument | null>(null);
   const didScroll = useRef(false);
+  const isSearching = pageQuery !== null && blocks !== null;
 
   useEffect(() => {
     const markFailed = () => Effect.sync(() => setFailed(true));
@@ -380,24 +381,20 @@ export function OriginalView({
     <div className="relative h-full">
       {failed && (
         <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-          <p className="opacity-80">The original pages could not be read.</p>
-          <SlideLink to="/" direction="out" className="btn btn-ghost btn-sm">
+          <p className="text-(--ink-soft)">The original pages could not be read.</p>
+          <SlideLink to="/" direction="out" className="key small">
             Back to library
           </SlideLink>
         </div>
       )}
 
-      {doc === null && !failed && (
-        <div className="flex h-full items-center justify-center">
-          <span className="loading loading-spinner" />
-        </div>
-      )}
+      {doc === null && !failed && <div className="h-full" />}
 
       {doc !== null && (
         <div
           ref={attachScroller}
           data-scroller
-          className="h-full [touch-action:pan-x_pan-y] overflow-auto overscroll-contain bg-base-300"
+          className="h-full [touch-action:pan-x_pan-y] overflow-auto overscroll-contain bg-(--sunk) [background-image:var(--grain)]"
           onPointerDown={tap.onPointerDown}
           onScroll={onScroll}
           onClick={(event) => {
@@ -405,12 +402,12 @@ export function OriginalView({
           }}
         >
           {/* The column's width at no zoom; the list's own grows with it. */}
-          <div aria-hidden className="mx-auto h-0 max-w-3xl px-2">
+          <div aria-hidden className="mx-auto h-0 max-w-3xl px-4">
             <div ref={measureRef} />
           </div>
           {/* The sides are padding on the column, so a page is exactly as wide as the list. */}
           <div
-            className="mx-auto max-w-3xl px-2 pb-[var(--safe-bottom)]"
+            className="mx-auto max-w-3xl px-4 pt-[calc(var(--safe-top)+3.5rem)] pb-[calc(var(--safe-bottom)+7rem)]"
             style={
               zoom === MIN_ZOOM
                 ? undefined
@@ -435,10 +432,11 @@ export function OriginalView({
         </div>
       )}
 
-      {doc !== null && isSearching && blocks !== null && (
+      {doc !== null && pageQuery !== null && blocks !== null && (
         <PageSearch
           doc={doc}
           blocks={blocks}
+          initialQuery={pageQuery}
           currentPage={current}
           onGo={jumpTo}
           onQuery={setQuery}
@@ -446,12 +444,10 @@ export function OriginalView({
         />
       )}
 
-      {doc !== null && showChrome && !isSearching && (
-        <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex justify-center">
-          <span className={pageBadge}>
-            Page {current} of {pageCount}
-          </span>
-        </div>
+      {doc !== null && !showChrome && !isSearching && (
+        <span className="page-badge">
+          Page {current} of {pageCount}
+        </span>
       )}
     </div>
   );
