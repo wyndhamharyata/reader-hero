@@ -87,6 +87,15 @@
   color-scheme: dark;
 }
 
+/* The reader's bars take Dark's colours. */
+[data-theme="rhdim"] .bar {
+  --surface: oklch(22.5% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
+  --sunk: oklch(16% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --line: oklch(31% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --key-top: oklch(36% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+  --key-bottom: oklch(29% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
+}
+
 /* The sheets are paper on the desk too. */
 [data-theme="rhdim"] .panel {
   --bg: oklch(82% calc(0.005 + var(--tint) * 0.025) var(--tint-hue));
