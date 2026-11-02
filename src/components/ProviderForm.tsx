@@ -355,8 +355,12 @@ function KeyField({
       <span className="field font-mono text-sm">
         <input
           id="provider-key"
-          type="password"
+          // Plain text: a password field brings the browser's password manager, and hides a key that needs checking.
+          type="text"
           autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           placeholder="Paste your key"
           value={apiKey}
           onChange={(event) => onKey(event.target.value)}
