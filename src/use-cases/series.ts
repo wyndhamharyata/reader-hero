@@ -214,6 +214,7 @@ export function setBookSeries(
 // Null for a book alone in its series too, as the library shows that book as a single book.
 export function findBookSeries(
   bookId: string,
+  isGrouping = true,
 ): Effect.Effect<Shelf["series"][number] | null, StorageFailure, BookStore> {
   return Effect.gen(function* () {
     const store = yield* BookStore;
@@ -221,7 +222,7 @@ export function findBookSeries(
       concurrency: "unbounded",
     });
     const none = emptyFilters;
-    const group = buildShelf(books, new Map(), "", none, "added", stored).series.find(
+    const group = buildShelf(books, new Map(), "", none, "added", stored, isGrouping).series.find(
       (entry) => entry.count >= 2 && entry.books.some((card) => card.book.id === bookId),
     );
 

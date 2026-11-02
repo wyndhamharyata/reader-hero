@@ -188,7 +188,11 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const data = state.status === "done" ? state.value : null;
   // After the book shows, so the lookup does not slow its open.
   const isLoaded = data !== null;
-  const { series, seriesId, seriesJob, reloadSeries } = useBookSeries(bookId, isLoaded);
+  const { series, seriesId, seriesJob, reloadSeries } = useBookSeries(
+    bookId,
+    isLoaded,
+    ai?.seriesGrouping === true,
+  );
 
   // The saved place until a view reports one, so the original view opens at the saved page.
   const position = reported ?? data?.progress?.blockIndex ?? 0;
@@ -281,7 +285,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
 
     // Read again, so the statuses include this visit's reading and a first open counts as started.
     const program = Effect.gen(function* () {
-      const series = yield* findBookSeries(bookId);
+      const series = yield* findBookSeries(bookId, ai?.seriesGrouping === true);
 
       if (series === null) return;
       if ((yield* pendingVolumes(series, opening ? bookId : undefined)) === 0) return;

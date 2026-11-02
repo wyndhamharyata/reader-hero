@@ -563,8 +563,17 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   }, [fresh]);
 
   const shelf = useMemo(
-    () => buildShelf(books, reading ?? new Map(), query, filters, settings.librarySort, series),
-    [books, reading, query, filters, settings.librarySort, series],
+    () =>
+      buildShelf(
+        books,
+        reading ?? new Map(),
+        query,
+        filters,
+        settings.librarySort,
+        series,
+        ai?.seriesGrouping === true,
+      ),
+    [books, reading, query, filters, settings.librarySort, series, ai?.seriesGrouping],
   );
 
   // The list's width sets the columns, so a tile keeps its size as the window grows.

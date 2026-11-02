@@ -42,6 +42,29 @@ const other = book("20", "Sesi 13 Algoritma Graf", { pageCount: 40 });
 const books = [...titleSeries, other];
 
 describe("buildShelf", () => {
+  it("given grouping off, groups only the series the reader made", () => {
+    const made = seriesRecord({
+      id: "mine",
+      name: "Mine",
+      books: [{ id: "20" }, { id: "1" }],
+      edited: true,
+    });
+    const guessed = seriesRecord({ id: "guess", name: "Guess", books: [{ id: "2" }, { id: "7" }] });
+    const tagged = book("30", "Tagged", { series: "Tagged series" });
+    const tagged2 = book("31", "Tagged two", { series: "Tagged series" });
+    const shelf = buildShelf(
+      [...books, tagged, tagged2],
+      new Map(),
+      "",
+      none,
+      "title",
+      [made, guessed],
+      false,
+    );
+
+    expect(shelf.series.map((group) => group.name)).toEqual(["Mine"]);
+  });
+
   it("given more than 3 titles opening with the same words, returns one series item and clips their start", () => {
     const shelf = buildShelf(books, new Map(), "", none, "title");
     const group = shelf.items[0];

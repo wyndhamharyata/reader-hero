@@ -136,6 +136,8 @@ export function buildShelf(
   filters: Filters,
   sort: LibrarySort,
   storedSeries: ReadonlyArray<Series> = [],
+  // Off, only series the reader made or edited show. No title, file or model guess groups a book.
+  isGrouping = true,
 ): Shelf {
   const terms = query
     .toLowerCase()
@@ -162,8 +164,11 @@ export function buildShelf(
   const collate = { numeric: true, sensitivity: "base" } as const;
   const titleCompare = (a: string, b: string): number => a.localeCompare(b, undefined, collate);
 
-  collectStoredGroups(state, storedSeries);
-  collectDerivedGroups(state);
+  collectStoredGroups(
+    state,
+    isGrouping ? storedSeries : storedSeries.filter((series) => series.edited === true),
+  );
+  if (isGrouping) collectDerivedGroups(state);
   addTitleClips(state);
   orderGroups(state, titleCompare);
   collectSeriesForBook(state);

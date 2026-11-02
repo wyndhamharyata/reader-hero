@@ -105,7 +105,7 @@ export class SummaryJobs extends Context.Service<
         });
 
         // On a store failure, the book's own Summary runs without the earlier names.
-        const job = findBookSeries(bookId).pipe(
+        const job = findBookSeries(bookId, settings.seriesGrouping).pipe(
           Effect.flatMap((series) => earlierNames(series, input, settings)),
           Effect.orElseSucceed(() => []),
           Effect.flatMap((earlier) =>

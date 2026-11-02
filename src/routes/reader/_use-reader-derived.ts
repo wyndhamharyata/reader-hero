@@ -30,6 +30,7 @@ export interface LoadedBook {
 export function useBookSeries(
   bookId: string,
   isLoaded: boolean,
+  isGrouping: boolean,
 ): {
   readonly series: Shelf["series"][number] | null;
   readonly seriesId: string | null;
@@ -40,9 +41,9 @@ export function useBookSeries(
     Effect.gen(function* () {
       if (!isLoaded) return null;
 
-      return yield* findBookSeries(bookId);
+      return yield* findBookSeries(bookId, isGrouping);
     }),
-    [bookId, isLoaded],
+    [bookId, isLoaded, isGrouping],
   );
   const series = seriesState.status === "done" ? seriesState.value : null;
   const seriesId = series?.id ?? null;
