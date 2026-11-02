@@ -44,6 +44,9 @@ export function rowKey(row: ShelfRow | undefined, index: number): string {
 }
 
 const dealStepMs = 30;
+// Every volume slides out of the case, in order. Past this one they all go together, so a long series opens quickly.
+const lastUnpacked = 12;
+const unpackStepMs = 30;
 const lastDealt = 9;
 
 export interface TileEvents {
@@ -86,7 +89,11 @@ export function LibraryRows({
       place={place}
       seriesName={seriesName}
       fill={events.fillOf(card)}
-      motion={motionFor(events.isFresh(card.book.id), isDealing, index)}
+      motion={
+        place === undefined
+          ? motionFor(events.isFresh(card.book.id), isDealing, index)
+          : { name: "unpack", delayMs: Math.min(place - 1, lastUnpacked) * unpackStepMs }
+      }
       onOpen={(cover) => events.onOpen(card, cover)}
       onActions={() => events.onBookActions(card)}
     />

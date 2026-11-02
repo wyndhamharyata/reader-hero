@@ -43,7 +43,7 @@ export function BookTile({
   // How far the import has read this book, while it builds.
   readonly fill: number;
   // "drop" for a book that just arrived, "deal" with its delay as the shelf first shows.
-  readonly motion: { readonly name: "drop" | "deal"; readonly delayMs: number } | null;
+  readonly motion: { readonly name: "drop" | "deal" | "unpack"; readonly delayMs: number } | null;
   readonly onOpen: (cover: Element | null) => void;
   readonly onActions: () => void;
 }): ReactElement {
