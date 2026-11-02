@@ -5,6 +5,7 @@
   --grain: url("./textures/grain.png");
   --fibre: url("./textures/fibre.png");
   --coarse: url("./textures/coarse.svg");
+  --mottle: url("./textures/mottle.svg");
   --cloth: url("./textures/cloth.png");
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -128,7 +129,8 @@
 
 /* Thicker strokes keep more of their darkness when an astigmatic eye blurs them. */
 [data-theme="rhdim"] .reader-body {
-  background: var(--coarse), var(--page);
+  /* Tiles of two sizes, so the paper does not visibly repeat. */
+  background: var(--coarse), var(--mottle), var(--page);
   font-weight: 450;
   box-shadow:
     0 1px 3px oklch(0% 0 0 / 0.35),
