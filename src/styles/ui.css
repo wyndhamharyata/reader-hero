@@ -119,8 +119,9 @@
 }
 
 /* In the reader the page is the one sheet on the desk. A tight shadow, as a wide glow would blur its edge. */
+/* The sides beside the page take Dark's page colour. */
 [data-theme="rhdim"] .reader {
-  background: var(--bg);
+  background: oklch(17% calc(0.006 + var(--tint) * 0.03) var(--tint-hue));
   color: var(--ink);
 }
 
