@@ -113,7 +113,8 @@ export function LibraryRows({
             key={virtual.key}
             ref={virtualizer.measureElement}
             data-index={virtual.index}
-            className="absolute inset-x-0 top-0 pb-6 md:pb-7.5"
+            // Close over an open tray, so the tray reads as coming out of the case above it.
+            className={`absolute inset-x-0 top-0 ${rows[virtual.index + 1]?.kind === "tray" ? "pb-3" : "pb-6 md:pb-7.5"}`}
             style={style}
           >
             {row.kind === "tray" ? (
