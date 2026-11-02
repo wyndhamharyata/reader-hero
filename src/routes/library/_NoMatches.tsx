@@ -22,7 +22,7 @@ export function noMatchesText(
   return { heading: `Nothing for "${shown}" in ${names.within}`, action: "Clear both" };
 }
 
-// An empty space on the shelf: two books stand, and the one past the space has tipped into it.
+// An empty space on the shelf: the books that went left the last one leaning on its neighbour.
 export function NoMatches({
   query,
   status,
@@ -40,8 +40,8 @@ export function NoMatches({
         <div className="spines">
           <span className="spine h-[112px]" style={{ "--hue": 250 } as CSSProperties} />
           <span className="spine h-[124px]" style={{ "--hue": 30 } as CSSProperties} />
-          <span className="space" />
           <span className="spine tipping h-[118px]" style={{ "--hue": 159 } as CSSProperties} />
+          <span className="space" />
         </div>
         <div className="ledge" />
       </div>

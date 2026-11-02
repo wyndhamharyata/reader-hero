@@ -1361,7 +1361,7 @@
     clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
   }
 
-  /* No matches: an empty space on the shelf, with the book past it tipped into the space. */
+  /* No matches: an empty space on the shelf, the last book leaning on its neighbour. */
   .gap-shelf {
     width: min(80%, 300px);
   }
@@ -1429,10 +1429,12 @@
     bottom: 14%;
   }
 
+  /* Its foot stands off by height x sin(8deg), so its top corner rests on the book before it. */
   .spine.tipping {
+    margin-left: 14px;
     transform-origin: 0 100%;
     transform: rotate(-8deg);
-    animation: tip 600ms var(--ease-out) 300ms backwards;
+    animation: tip 1300ms 300ms backwards;
   }
 
   .ledge {
@@ -1603,15 +1605,36 @@
   }
 }
 
+/* It falls onto its neighbour and bounces back off it, each bounce smaller and quicker. */
 @keyframes tip {
   from {
     transform: none;
+    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
   }
-  70% {
-    transform: rotate(-9.5deg);
-  }
+  38%,
+  58%,
+  73%,
+  84%,
+  92%,
   to {
     transform: rotate(-8deg);
+    animation-timing-function: ease-out;
+  }
+  48% {
+    transform: rotate(-4.5deg);
+    animation-timing-function: ease-in;
+  }
+  66% {
+    transform: rotate(-6.3deg);
+    animation-timing-function: ease-in;
+  }
+  79% {
+    transform: rotate(-7.2deg);
+    animation-timing-function: ease-in;
+  }
+  88% {
+    transform: rotate(-7.7deg);
+    animation-timing-function: ease-in;
   }
 }
 
