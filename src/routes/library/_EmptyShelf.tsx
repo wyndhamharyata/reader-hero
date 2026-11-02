@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { PlusIcon } from "@/components/icons";
 
-// An open book on a ledge. Dragged files lift a page and light the ledge.
+// An empty slipcase. Dragged files light its mouth and hold the pale book halfway in.
 export function EmptyShelf({
   isDropping,
   isBusy,
@@ -15,18 +15,13 @@ export function EmptyShelf({
     <section
       className={`flex flex-1 flex-col items-center justify-center gap-4.5 pb-15 text-center ${isDropping ? "is-dropping" : ""}`}
     >
-      <div className="flex w-full flex-col items-center" aria-hidden="true">
-        <div className="openbook">
-          <div className="board" />
-          <div className="leaf left" />
-          <div className="leaf right" />
-          <div className="leaf turning" />
-          <div className="leaf lifting" />
-          <div className="spine-ribbon" />
+      <div className="case" aria-hidden="true">
+        <div className="ghost" />
+        <div className="body">
+          <div className="mouth" />
         </div>
-        <div className="ledge" />
       </div>
-      <h2 className="mt-7 font-serif text-[22px] font-bold">
+      <h2 className="mt-2 font-serif text-[22px] font-bold">
         {isDropping ? "Drop to add" : "No books yet"}
       </h2>
       <button

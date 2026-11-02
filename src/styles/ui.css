@@ -1269,96 +1269,131 @@
     letter-spacing: -4px;
   }
 
-  /* The empty library: an open book on a ledge. One page turns once, then holds still. */
-  .openbook {
+  /* The empty library: an empty slipcase, and a pale book that sinks into it and rises again. */
+  .case {
+    --cw: 88px;
+    --ch: 116px;
+    --gw: 76px;
+    --gh: 100px;
     position: relative;
-    z-index: 1;
-    width: min(78%, 360px);
-    aspect-ratio: 1.6;
-    margin-bottom: -2px;
-    perspective: 1400px;
+    width: var(--cw);
+    height: calc(var(--ch) + var(--gh) * 0.75);
+    animation: case-in 420ms var(--ease-out) backwards;
   }
 
-  .openbook .board {
+  @media (width >= 48rem) {
+    .case {
+      --cw: 128px;
+      --ch: 168px;
+      --gw: 110px;
+      --gh: 146px;
+    }
+  }
+
+  /* Behind the case, so the part inside it is hidden by the case's face. */
+  .case .ghost {
     position: absolute;
-    inset: 6% -3% -3%;
-    border-radius: 5px;
-    background: var(--cloth), linear-gradient(180deg, oklch(45% 0.1 159), oklch(36% 0.09 159));
+    left: calc((var(--cw) - var(--gw)) / 2);
+    bottom: calc(var(--ch) - var(--gh) * 0.25);
+    width: var(--gw);
+    height: var(--gh);
+    border-radius: 2px 4px 4px 2px;
+    /* A spine shade, and two lines where a title would go, so it reads as a book and not a card. */
+    background:
+      linear-gradient(90deg, oklch(0% 0 0 / 0.14), oklch(100% 0 0 / 0.3) 6%, transparent 12%),
+      linear-gradient(var(--line), var(--line)) 50% 22% / 56% 4px no-repeat,
+      linear-gradient(var(--line), var(--line)) 50% 30% / 36% 4px no-repeat,
+      var(--fibre),
+      oklch(98% 0.008 85);
     box-shadow:
-      0 1px 0 oklch(28% 0.07 159),
-      0 14px 18px -10px oklch(0% 0 0 / 0.55);
+      0 0 0 1px oklch(0% 0 0 / 0.12),
+      0 4px 10px -4px oklch(0% 0 0 / 0.3);
+    opacity: 0.9;
+    animation:
+      ghost-drop 500ms var(--ease-out) 300ms backwards,
+      ghost-sink 6s ease-in-out 800ms infinite;
+    transition:
+      opacity 240ms,
+      transform 240ms var(--ease-out);
   }
 
-  .openbook .leaf {
+  [data-theme="rhdark"] .case .ghost {
+    background:
+      linear-gradient(90deg, oklch(0% 0 0 / 0.3), oklch(100% 0 0 / 0.08) 6%, transparent 12%),
+      linear-gradient(var(--line), var(--line)) 50% 22% / 56% 4px no-repeat,
+      linear-gradient(var(--line), var(--line)) 50% 30% / 36% 4px no-repeat,
+      var(--grain),
+      oklch(36% 0.01 85);
+  }
+
+  .case .body {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: var(--ch);
+    border-radius: 3px 3px 6px 6px;
+    background: var(--cloth), linear-gradient(180deg, oklch(48% 0.1 159), oklch(37% 0.09 159));
+    box-shadow:
+      inset 1px 1px 0 oklch(100% 0 0 / 0.2),
+      inset -1px -1px 0 oklch(0% 0 0 / 0.25),
+      0 14px 18px -10px oklch(0% 0 0 / 0.55);
+    transition: box-shadow 240ms;
+  }
+
+  .case .body::before,
+  .case .body::after {
+    content: "";
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    height: 3px;
+    border-radius: 1px;
+    background: oklch(78% 0.1 85 / 0.85);
+  }
+
+  .case .body::before {
+    bottom: 22%;
+  }
+
+  .case .body::after {
+    bottom: calc(22% - 7px);
+  }
+
+  .case .mouth {
     position: absolute;
     top: 0;
-    bottom: 0;
-    width: 50%;
-    background: oklch(98% 0.008 85);
+    left: 6px;
+    right: 6px;
+    height: 10px;
+    border-radius: 0 0 4px 4px;
+    background: oklch(0% 0 0 / 0.55);
+    box-shadow:
+      inset 0 3px 4px oklch(0% 0 0 / 0.5),
+      inset 0 -1px 0 oklch(97% 0.01 85 / 0.15);
+    transition: box-shadow 240ms;
   }
 
-  .openbook .leaf::before {
-    content: "";
-    position: absolute;
-    inset: 16% 14% 14%;
-    opacity: 0.7;
-    background: repeating-linear-gradient(
-      180deg,
-      oklch(78% 0.012 85) 0 1.5px,
-      transparent 1.5px 11px
-    );
+  .is-dropping .case .ghost {
+    animation: none;
+    opacity: 0.95;
+    background:
+      linear-gradient(90deg, oklch(0% 0 0 / 0.14), oklch(100% 0 0 / 0.3) 6%, transparent 12%),
+      var(--fibre), var(--green-wash);
+    transform: translateY(30%);
   }
 
-  .openbook .left {
-    left: 0;
-    border-radius: 6px 2px 2px 6px;
-    box-shadow: inset -18px 0 22px -14px oklch(0% 0 0 / 0.28);
+  .is-dropping .case .mouth {
+    box-shadow:
+      inset 0 0 10px var(--green),
+      inset 0 0 0 1px oklch(from var(--green) l c h / 0.7);
   }
 
-  .openbook .right,
-  .openbook .turning,
-  .openbook .lifting {
-    right: 0;
-    transform-origin: 0 50%;
-    border-radius: 2px 6px 6px 2px;
-    box-shadow: inset 18px 0 22px -14px oklch(0% 0 0 / 0.22);
-  }
-
-  .openbook .turning {
-    animation: turn-once 1.1s cubic-bezier(0.45, 0.05, 0.3, 1) 1.2s both;
-  }
-
-  .openbook .lifting {
-    opacity: 0;
-  }
-
-  .is-dropping .openbook .lifting {
-    opacity: 1;
-    transform: rotateY(-58deg);
-    box-shadow: -10px 0 18px -8px oklch(0% 0 0 / 0.3);
-    transition:
-      transform 300ms var(--spring),
-      opacity 100ms;
-  }
-
-  .openbook .spine-ribbon {
-    position: absolute;
-    z-index: 3;
-    top: 82%;
-    left: calc(50% - 6px);
-    width: 12px;
-    height: 34%;
-    transform-origin: 50% 0;
-    filter: drop-shadow(0 1px 1px oklch(0% 0 0 / 0.35));
-    animation: sway 6s ease-in-out infinite;
-  }
-
-  .openbook .spine-ribbon::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: var(--grain), linear-gradient(180deg, oklch(50% 0.13 25), oklch(42% 0.13 25));
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  .is-dropping .case .body {
+    box-shadow:
+      inset 1px 1px 0 oklch(100% 0 0 / 0.2),
+      0 0 0 3px oklch(from var(--green) l c h / 0.3),
+      0 0 28px oklch(from var(--green) l c h / 0.6);
   }
 
   /* No matches: an empty space on the shelf, the last book leaning on its neighbour. */
@@ -1447,13 +1482,6 @@
     transition:
       background 200ms,
       box-shadow 200ms;
-  }
-
-  .is-dropping .ledge {
-    background: var(--cloth), linear-gradient(180deg, oklch(70% 0.12 159), oklch(55% 0.12 159));
-    box-shadow:
-      0 0 0 3px oklch(from var(--green) l c h / 0.3),
-      0 0 28px oklch(from var(--green) l c h / 0.6);
   }
 
   .dropzone {
@@ -1591,17 +1619,23 @@
   }
 }
 
-@keyframes turn-once {
+@keyframes case-in {
   from {
-    transform: rotateY(0);
-    filter: brightness(1);
+    opacity: 0;
+    transform: translateY(12px);
   }
+}
+
+@keyframes ghost-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-30%);
+  }
+}
+
+@keyframes ghost-sink {
   50% {
-    filter: brightness(0.86);
-  }
-  to {
-    transform: rotateY(-180deg);
-    filter: brightness(1);
+    transform: translateY(35%);
   }
 }
 
@@ -1657,7 +1691,7 @@
   }
 
   .ribbon,
-  .openbook .spine-ribbon,
+  .case .ghost,
   .caret::after,
   .meter.stripes > span {
     animation: none !important;
