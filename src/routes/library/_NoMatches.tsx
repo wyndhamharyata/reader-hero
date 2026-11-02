@@ -38,8 +38,8 @@ export function NoMatches({
     <section className="flex flex-col items-center px-4 pt-6 pb-10 text-center">
       <div className="gap-shelf" aria-hidden="true">
         <div className="spines">
-          <span className="spine h-[112px]" style={{ "--hue": 250 } as CSSProperties} />
-          <span className="spine h-[124px]" style={{ "--hue": 30 } as CSSProperties} />
+          <span className="spine nudged h-[112px]" style={{ "--hue": 250 } as CSSProperties} />
+          <span className="spine struck h-[124px]" style={{ "--hue": 30 } as CSSProperties} />
           <span className="spine tipping h-[118px]" style={{ "--hue": 159 } as CSSProperties} />
           <span className="space" />
         </div>

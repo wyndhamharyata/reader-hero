@@ -1278,7 +1278,23 @@
     position: relative;
     width: var(--cw);
     height: calc(var(--ch) + var(--gh) * 0.75);
-    animation: case-in 420ms var(--ease-out) backwards;
+  }
+
+  /* One timeline, so the book coming down and the case's squash fall on the same frame. */
+  .case {
+    --enter: 1700ms;
+    --peek: 5200ms;
+  }
+
+  .case .shadow {
+    position: absolute;
+    left: -12%;
+    right: -12%;
+    bottom: -9px;
+    height: 16px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, oklch(0% 0 0 / 0.28), transparent);
+    animation: case-shadow var(--enter) backwards;
   }
 
   @media (width >= 48rem) {
@@ -1309,12 +1325,11 @@
       0 0 0 1px oklch(0% 0 0 / 0.12),
       0 4px 10px -4px oklch(0% 0 0 / 0.3);
     opacity: 0.9;
+    transform-origin: 50% 100%;
     animation:
-      ghost-drop 500ms var(--ease-out) 300ms backwards,
-      ghost-sink 6s ease-in-out 800ms infinite;
-    transition:
-      opacity 240ms,
-      transform 240ms var(--ease-out);
+      ghost-toss var(--enter) backwards,
+      ghost-peek var(--peek) var(--enter) infinite;
+    transition: opacity 240ms;
   }
 
   [data-theme="rhdark"] .case .ghost {
@@ -1338,6 +1353,10 @@
       inset 1px 1px 0 oklch(100% 0 0 / 0.2),
       inset -1px -1px 0 oklch(0% 0 0 / 0.25),
       0 14px 18px -10px oklch(0% 0 0 / 0.55);
+    transform-origin: 50% 100%;
+    animation:
+      case-drop var(--enter) backwards,
+      case-bump var(--peek) var(--enter) infinite;
     transition: box-shadow 240ms;
   }
 
@@ -1375,12 +1394,11 @@
   }
 
   .is-dropping .case .ghost {
-    animation: none;
+    animation: ghost-eager 820ms infinite;
     opacity: 0.95;
     background:
       linear-gradient(90deg, oklch(0% 0 0 / 0.14), oklch(100% 0 0 / 0.3) 6%, transparent 12%),
       var(--fibre), var(--green-wash);
-    transform: translateY(30%);
   }
 
   .is-dropping .case .mouth {
@@ -1402,6 +1420,8 @@
   }
 
   .gap-shelf .spines {
+    --fall: 1900ms;
+    --fall-delay: 350ms;
     display: flex;
     align-items: flex-end;
     gap: 3px;
@@ -1469,7 +1489,21 @@
     margin-left: 14px;
     transform-origin: 0 100%;
     transform: rotate(-8deg);
-    animation: tip 1300ms 300ms backwards;
+    animation: tip var(--fall) var(--fall-delay) backwards;
+  }
+
+  /* The books it hits take the blow in turn, each a little later and a little less. */
+  .spine.struck,
+  .spine.nudged {
+    transform-origin: 0 100%;
+  }
+
+  .spine.struck {
+    animation: struck var(--fall) var(--fall-delay) backwards;
+  }
+
+  .spine.nudged {
+    animation: nudged var(--fall) var(--fall-delay) backwards;
   }
 
   .ledge {
@@ -1619,56 +1653,288 @@
   }
 }
 
-@keyframes case-in {
-  from {
+/* The case falls in, squashes as it hits, hops once, then settles. A book is tossed in on an arc and the case takes its weight. */
+@keyframes case-drop {
+  0% {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(-120px) scale(0.9, 1.12);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
   }
-}
-
-@keyframes ghost-drop {
-  from {
-    opacity: 0;
-    transform: translateY(-30%);
+  4% {
+    opacity: 1;
   }
-}
-
-@keyframes ghost-sink {
-  50% {
-    transform: translateY(35%);
+  20% {
+    transform: scale(1.16, 0.8);
+    animation-timing-function: ease-out;
   }
-}
-
-/* It falls onto its neighbour and bounces back off it, each bounce smaller and quicker. */
-@keyframes tip {
-  from {
+  28% {
+    transform: translateY(-18px) scale(0.94, 1.08) rotate(-2deg);
+    animation-timing-function: ease-in;
+  }
+  35% {
+    transform: scale(1.07, 0.92) rotate(1deg);
+    animation-timing-function: ease-out;
+  }
+  41% {
+    transform: scale(0.98, 1.02);
+  }
+  46%,
+  66% {
     transform: none;
-    animation-timing-function: cubic-bezier(0.5, 0, 0.9, 0.5);
+    animation-timing-function: ease-out;
   }
-  38%,
-  58%,
-  73%,
-  84%,
+  70% {
+    transform: scale(1.09, 0.87);
+    animation-timing-function: ease-in-out;
+  }
+  77% {
+    transform: scale(0.97, 1.04);
+  }
+  83% {
+    transform: scale(1.02, 0.98);
+  }
+  89%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes case-shadow {
+  0% {
+    opacity: 0.15;
+    transform: scale(0.35);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.25, 1);
+    animation-timing-function: ease-out;
+  }
+  28% {
+    opacity: 0.7;
+    transform: scale(0.85);
+    animation-timing-function: ease-in;
+  }
+  35% {
+    transform: scale(1.08, 1);
+  }
+  46%,
+  66% {
+    transform: none;
+  }
+  70% {
+    transform: scale(1.1, 1);
+  }
+  83% {
+    transform: none;
+  }
+}
+
+@keyframes ghost-toss {
+  0%,
+  46% {
+    opacity: 0;
+    transform: translate(-70%, -150%) rotate(-24deg) scale(0.9);
+    animation-timing-function: ease-out;
+  }
+  52% {
+    opacity: 0.9;
+    transform: translate(-50%, -175%) rotate(-18deg);
+    animation-timing-function: ease-in-out;
+  }
+  57% {
+    transform: translate(-34%, -182%) rotate(-11deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  68% {
+    transform: translate(0, 18%) scale(0.92, 1.12);
+    animation-timing-function: ease-out;
+  }
+  74% {
+    transform: translateY(-14%) rotate(-3deg) scale(1.04, 0.96);
+    animation-timing-function: ease-in;
+  }
+  80% {
+    transform: translateY(4%) rotate(1.5deg) scale(0.98, 1.02);
+    animation-timing-function: ease-out;
+  }
+  86% {
+    transform: translateY(-4%) rotate(-0.5deg);
+  }
   92%,
-  to {
+  100% {
+    transform: none;
+  }
+}
+
+/* Now and then the book crouches, pops up to look round, and drops back in. */
+@keyframes ghost-peek {
+  0%,
+  55% {
+    transform: none;
+    animation-timing-function: ease-in-out;
+  }
+  62% {
+    transform: translateY(10%) scale(1.06, 0.93);
+    animation-timing-function: ease-out;
+  }
+  70% {
+    transform: translateY(-46%) rotate(-6deg) scale(0.95, 1.08);
+    animation-timing-function: ease-in-out;
+  }
+  77% {
+    transform: translateY(-52%) rotate(5deg);
+    animation-timing-function: ease-in-out;
+  }
+  82% {
+    transform: translateY(-48%) rotate(-2deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  89% {
+    transform: translateY(8%) scale(1.05, 0.94);
+    animation-timing-function: ease-out;
+  }
+  94% {
+    transform: translateY(-3%) scale(0.99, 1.01);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes case-bump {
+  0%,
+  58%,
+  66%,
+  85%,
+  100% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  62% {
+    transform: scale(1.03, 0.97);
+  }
+  89% {
+    transform: scale(1.07, 0.91);
+    animation-timing-function: ease-in-out;
+  }
+  94% {
+    transform: scale(0.98, 1.03);
+  }
+}
+
+/* Over a dragged file the book hops in the mouth, eager to be filled. */
+@keyframes ghost-eager {
+  0%,
+  100% {
+    transform: translateY(18%);
+    animation-timing-function: ease-in;
+  }
+  25% {
+    transform: translateY(26%) scale(1.05, 0.94);
+    animation-timing-function: ease-out;
+  }
+  60% {
+    transform: translateY(-10%) rotate(-3deg) scale(0.96, 1.06);
+    animation-timing-function: ease-in;
+  }
+}
+
+/* It teeters, falls with gravity onto its neighbour, squashes along its length, and bounces to rest. */
+@keyframes tip {
+  0% {
+    transform: none;
+    animation-timing-function: ease-in-out;
+  }
+  10% {
+    transform: rotate(3deg);
+    animation-timing-function: ease-in-out;
+  }
+  20% {
+    transform: rotate(-1.5deg);
+    animation-timing-function: ease-in-out;
+  }
+  28% {
+    transform: rotate(1.5deg);
+    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45);
+  }
+  46% {
+    transform: rotate(-8deg) scaleY(0.94);
+    animation-timing-function: ease-out;
+  }
+  54% {
+    transform: rotate(-4deg) scaleY(1.03);
+    animation-timing-function: ease-in;
+  }
+  61% {
+    transform: rotate(-8deg) scaleY(0.97);
+    animation-timing-function: ease-out;
+  }
+  67% {
+    transform: rotate(-5.8deg);
+    animation-timing-function: ease-in;
+  }
+  72% {
     transform: rotate(-8deg);
     animation-timing-function: ease-out;
   }
-  48% {
-    transform: rotate(-4.5deg);
+  76% {
+    transform: rotate(-7.1deg);
     animation-timing-function: ease-in;
   }
-  66% {
-    transform: rotate(-6.3deg);
-    animation-timing-function: ease-in;
+  80%,
+  100% {
+    transform: rotate(-8deg);
   }
-  79% {
-    transform: rotate(-7.2deg);
-    animation-timing-function: ease-in;
+}
+
+@keyframes struck {
+  0%,
+  46% {
+    transform: none;
+    animation-timing-function: ease-out;
   }
-  88% {
-    transform: rotate(-7.7deg);
-    animation-timing-function: ease-in;
+  52% {
+    transform: rotate(-4deg);
+    animation-timing-function: ease-in-out;
+  }
+  60% {
+    transform: rotate(1.6deg);
+    animation-timing-function: ease-in-out;
+  }
+  68% {
+    transform: rotate(-0.9deg);
+    animation-timing-function: ease-in-out;
+  }
+  75% {
+    transform: rotate(0.3deg);
+  }
+  82%,
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes nudged {
+  0%,
+  51% {
+    transform: none;
+    animation-timing-function: ease-out;
+  }
+  57% {
+    transform: rotate(-1.8deg);
+    animation-timing-function: ease-in-out;
+  }
+  65% {
+    transform: rotate(0.8deg);
+    animation-timing-function: ease-in-out;
+  }
+  73% {
+    transform: rotate(-0.3deg);
+  }
+  80%,
+  100% {
+    transform: none;
   }
 }
 
@@ -1692,6 +1958,9 @@
 
   .ribbon,
   .case .ghost,
+  .case .body,
+  .case .shadow,
+  .spine,
   .caret::after,
   .meter.stripes > span {
     animation: none !important;

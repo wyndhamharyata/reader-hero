@@ -16,6 +16,7 @@ export function EmptyShelf({
       className={`flex flex-1 flex-col items-center justify-center gap-4.5 pb-15 text-center ${isDropping ? "is-dropping" : ""}`}
     >
       <div className="case" aria-hidden="true">
+        <div className="shadow" />
         <div className="ghost" />
         <div className="body">
           <div className="mouth" />
