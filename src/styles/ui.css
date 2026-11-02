@@ -82,8 +82,8 @@
   --line: oklch(36% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
   --key-top: oklch(40% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
   --key-bottom: oklch(33% calc(0.006 + var(--tint) * 0.02) var(--tint-hue));
-  --page: oklch(85% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
-  --page-ink: oklch(22% 0.012 70);
+  --page: oklch(82% calc(0.007 + var(--tint) * 0.03) var(--tint-hue));
+  --page-ink: oklch(18% 0.012 70);
   color-scheme: dark;
 }
 
@@ -115,8 +115,10 @@
   color: var(--ink);
 }
 
+/* Thicker strokes keep more of their darkness when an astigmatic eye blurs them. */
 [data-theme="rhdim"] .reader-body {
-  background: var(--page);
+  background: var(--grain), var(--page);
+  font-weight: 450;
   box-shadow:
     0 1px 3px oklch(0% 0 0 / 0.35),
     0 8px 24px oklch(0% 0 0 / 0.35);
@@ -125,9 +127,9 @@
 /* The swatch: a page on the desk. */
 .swatch-dim {
   background:
-    linear-gradient(oklch(85% 0.006 85), oklch(85% 0.006 85)) center / 62% 72% no-repeat,
+    linear-gradient(oklch(82% 0.006 85), oklch(82% 0.006 85)) center / 62% 72% no-repeat,
     oklch(24% 0.006 95);
-  color: oklch(22% 0.012 70);
+  color: oklch(18% 0.012 70);
 }
 
 /* A lamp over the shelf. Only on a wide screen, where the corners are far from any words. */
