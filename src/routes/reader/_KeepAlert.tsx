@@ -34,7 +34,7 @@ export function KeepAlert({
   return createPortal(
     <div className="panel-layer">
       <button type="button" className="scrim" aria-label="Keep" onClick={onKeep} />
-      <div role="alertdialog" aria-label="Keep in library" className="ask">
+      <div role="alertdialog" aria-modal="true" aria-label="Keep in library" className="ask">
         <h2 className="line-clamp-3 font-serif text-[19px] leading-tight font-bold break-words">
           Keep in library?
         </h2>

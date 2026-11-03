@@ -116,7 +116,7 @@ export function openBook(
         );
 
   // The reader mounts only once the cover is at rest, and the cover opens only once the reader stops blocking frames, so no motion stalls.
-  void Promise.all([grow.finished, travel.finished, lift.finished])
+  void Promise.allSettled([grow.finished, travel.finished, lift.finished])
     .then(() => {
       flushSync(() => void navigate(to));
 

@@ -206,10 +206,15 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
     setFurthest(furthestRef.current);
   }, [data]);
 
+  const cancelSave = useCallback((): void => {
+    if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    pendingSave.current = null;
+  }, []);
   const { prefs, bookSettings } = useBookSettings(settings, data, glance, prefChanges);
 
   const isSearching = find !== null || pageQuery !== null;
-  const keepFile = useKeepFile(bookId);
+  const keepFile = useKeepFile(bookId, cancelSave);
 
   useReaderKeys({
     isEnabled: panel.kind === "none" && !isMenuOpen,
