@@ -599,6 +599,28 @@ describe("groupSeries, the merge", () => {
     expect(shown(state)[0]?.[1]).toEqual(["b1", "b2", "b3", "b4"]);
   });
 
+  it("given a book another stored series already holds, lists it once", async () => {
+    const state: State = {
+      books: [book("b1", "Beacon at Low Water"), book("b2", "The Quiet Shoal")],
+      series: [
+        record({ id: "a", name: "First", books: [{ id: "b1" }] }),
+        record({ id: "b", name: "Second", books: [{ id: "b1" }, { id: "b2" }] }),
+      ],
+      sent: [],
+    };
+    const { run } = harness(state, (user) =>
+      JSON.stringify({
+        series: [{ name: "Second", books: [{ key: keyOf(user, "Beacon at Low Water") }] }],
+      }),
+    );
+
+    await run();
+
+    expect(state.series.find((entry) => entry.id === "b")?.books.map((entry) => entry.id)).toEqual(
+      ["b1", "b2"],
+    );
+  });
+
   it("given a deleted series, a reset groups the books the EPUB names again without a provider", async () => {
     const named = tide.map((entry, index) =>
       book(entry.id, entry.title, { series: "The Tide Cycle", seriesNumber: index + 1 }),

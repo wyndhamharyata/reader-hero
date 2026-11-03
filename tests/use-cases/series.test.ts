@@ -368,4 +368,22 @@ describe("findBookSeries", () => {
     expect(await run(findBookSeries("b1"), state)).toBeNull();
     expect(await run(findBookSeries("l"), state)).toBeNull();
   });
+
+  it("given grouping off, keeps out a book the file groups under the same name", async () => {
+    const state = {
+      books: [...tide, book("b5", "A Tide Almanac", { series: "The Tide Cycle" })],
+      series: [
+        record({
+          id: "the tide cycle",
+          name: "The Tide Cycle",
+          books: [{ id: "b1" }, { id: "b2" }],
+          edited: true,
+        }),
+      ],
+    };
+
+    const found = await run(findBookSeries("b1", false), state);
+
+    expect(found?.books.map((card) => card.book.id)).toEqual(["b1", "b2"]);
+  });
 });

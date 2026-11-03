@@ -239,7 +239,7 @@ export function findBookSeries(
     );
 
     return (
-      buildShelf(books, new Map(reading), "", none, "added", stored).series.find(
+      buildShelf(books, new Map(reading), "", none, "added", stored, isGrouping).series.find(
         (entry) => entry.id === group.id,
       ) ?? null
     );
