@@ -15,6 +15,23 @@
     <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <title>Reader Hero</title>
+    <script>
+      // The saved theme, before the first paint: Safari's own chrome takes the colour it finds at launch.
+      try {
+        var saved = localStorage.getItem("rh-theme");
+        var colour = saved === "rhdim" ? "#201f1c" : saved === "rhdark" ? "#151411" : null;
+
+        if (colour !== null) {
+          document.documentElement.dataset.theme = saved;
+
+          document.querySelectorAll('meta[name="theme-color"]').forEach(function (meta) {
+            meta.setAttribute("content", colour);
+          });
+        }
+      } catch (error) {
+        // Without storage the launch opens in the light theme.
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

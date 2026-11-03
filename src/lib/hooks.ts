@@ -241,6 +241,13 @@ export function useSettings(): {
     for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
       meta.setAttribute("content", statusBar[settings.theme]);
     }
+
+    // Read by the script in index.html, which gives a launch its theme before this code loads.
+    try {
+      localStorage.setItem("rh-theme", settings.theme);
+    } catch {
+      // Without storage a launch starts light and takes the saved theme a moment later.
+    }
   }, [settings.theme, settings.temperature]);
 
   const update = useCallback((patch: Partial<ReaderSettings>) => {
