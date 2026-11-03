@@ -99,6 +99,9 @@ export class SummaryJobs extends Context.Service<
         const bookId = input.meta.id;
         const state = yield* stateRef(bookId);
 
+        // A rebuild that started while this book waited in starting holds the books itself.
+        if (isRebuilding) return;
+
         yield* SubscriptionRef.set(state, {
           run: { stage: "chapter", chapter: 0, of: 0, text: "" },
           error: null,
@@ -131,7 +134,9 @@ export class SummaryJobs extends Context.Service<
       ) {
         const key = `series:${series.id}`;
 
-        if (isRebuilding || fibers.has(key)) return;
+        if (isRebuilding || fibers.has(key) || starting.has(key)) return;
+
+        starting.add(key);
 
         const state = yield* stateRef(key);
         const volumes = series.books.map((card) => card.book.id);
@@ -173,6 +178,7 @@ export class SummaryJobs extends Context.Service<
           Effect.onInterrupt(() => SubscriptionRef.set(state, { run: null, error: null })),
           Effect.ensuring(
             Effect.gen(function* () {
+              starting.delete(key);
               fibers.delete(key);
               for (const id of volumes) if (held.get(id) === key) held.delete(id);
 
@@ -253,6 +259,7 @@ export class SummaryJobs extends Context.Service<
           Effect.onInterrupt(() => SubscriptionRef.set(state, { run: null, error: null })),
           Effect.ensuring(
             Effect.gen(function* () {
+              starting.delete(key);
               fibers.delete(key);
               isRebuilding = false;
               for (const id of mine) if (held.get(id) === key) held.delete(id);

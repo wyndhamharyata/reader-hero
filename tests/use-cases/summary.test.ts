@@ -189,6 +189,31 @@ describe("chapters", () => {
     ]);
   });
 
+  it("given a short entry between two chapters, keeps its text in the chapter before", () => {
+    const noted = book(
+      [
+        heading("Chapter 1", 1),
+        filler(300, 1),
+        heading("Note", 2),
+        paragraph("A short note.", 2),
+        heading("Chapter 2", 2),
+        filler(300, 2),
+      ],
+      [
+        new TocEntry({ title: "Chapter 1", page: 1, blockIndex: 0, depth: 0 }),
+        new TocEntry({ title: "Note", page: 2, blockIndex: 2, depth: 0 }),
+        new TocEntry({ title: "Chapter 2", page: 2, blockIndex: 4, depth: 0 }),
+      ],
+    );
+
+    expect(chapters(noted).map((chapter) => [chapter.heading, chapter.start, chapter.end])).toEqual(
+      [
+        ["Chapter 1", 0, 4],
+        ["Chapter 2", 4, 6],
+      ],
+    );
+  });
+
   it("given no contents, uses the heading blocks", () => {
     const bare = book(novel.blocks, []);
     expect(chapters(bare).map((chapter) => chapter.heading)).toEqual([
