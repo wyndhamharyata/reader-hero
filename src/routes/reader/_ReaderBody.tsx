@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { BookMeta, ParsedBook, ReaderMode, ReaderSettings } from "@/domain/book";
+import type { Chapter } from "@/use-cases/ai-context";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type FindTarget, type JumpRequest } from "./_ReaderView";
 
 interface Props {
   meta: BookMeta;
   parsed: ParsedBook;
+  // The book's chapters, so the reader mounts only the ones near the place being read.
+  chunks: ReadonlyArray<Chapter>;
   position: number;
   onPosition: (blockIndex: number) => void;
   mode: ReaderMode;
@@ -23,6 +26,7 @@ interface Props {
 export function ReaderBody({
   meta,
   parsed,
+  chunks,
   position,
   onPosition,
   mode,
@@ -68,6 +72,7 @@ export function ReaderBody({
         <ReaderView
           bookId={meta.id}
           parsed={parsed}
+          chunks={chunks}
           settings={settings}
           initialBlock={initialBlock}
           jump={jump}

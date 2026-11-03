@@ -468,6 +468,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
             <ReaderBody
               meta={data.meta}
               parsed={data.parsed}
+              chunks={chapterList}
               position={position}
               onPosition={onPosition}
               mode={mode}
