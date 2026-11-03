@@ -599,6 +599,24 @@ describe("groupSeries, the merge", () => {
     expect(shown(state)[0]?.[1]).toEqual(["b1", "b2", "b3", "b4"]);
   });
 
+  it("given a deleted series, a reset groups the books the EPUB names again without a provider", async () => {
+    const named = tide.map((entry, index) =>
+      book(entry.id, entry.title, { series: "The Tide Cycle", seriesNumber: index + 1 }),
+    );
+    const state: State = { books: named, series: [], sent: [] };
+    const { reset, hide } = harness(state, tideReply);
+
+    expect(shown(state).map(([name]) => name)).toEqual(["The Tide Cycle"]);
+
+    await hide("the tide cycle", "The Tide Cycle");
+    expect(shown(state)).toEqual([]);
+
+    await reset();
+    expect(shown(state).map(([name]) => name)).toEqual(["The Tide Cycle"]);
+    expect(shown(state)[0]?.[1]).toEqual(["b1", "b2", "b3", "b4"]);
+    expect(state.books.every((entry) => entry.series === "The Tide Cycle")).toBe(true);
+  });
+
   it("given a removed series, groups a new book under it again", async () => {
     const state: State = {
       books: [book("h", "Harbor Lights"), book("h2", "Harbor Nights")],
