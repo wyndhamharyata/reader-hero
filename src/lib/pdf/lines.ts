@@ -42,10 +42,23 @@ function linkRangesAt(
   return ranges;
 }
 
+const NONE: ReadonlyArray<number> = [];
+const FOLD = /[ \n\t\r\f]+/g;
+
+// The map is built only for a run a link covers, as mapping every character is most of a parse.
 function appendNormalized(
   text: string,
   value: string,
+  withStarts: boolean,
 ): { readonly text: string; readonly starts: ReadonlyArray<number> } {
+  if (!withStarts) {
+    const folded = value.replace(FOLD, " ");
+    // A space at the start of a run is the one already at the end of the line.
+    const kept = text === "" || text.endsWith(" ") ? folded.replace(/^ /, "") : folded;
+
+    return { text: text + kept, starts: NONE };
+  }
+
   let next = text;
   const starts: Array<number> = [];
 
@@ -83,11 +96,13 @@ function makeLine(
       if (gap > item.fontSize * SPACE_FACTOR && !text.endsWith(" ")) text += " ";
     }
 
-    const appended = appendNormalized(text, item.str);
+    // Only a run a link covers needs the character map.
+    const covered = linkRangesAt(item, links);
+    const appended = appendNormalized(text, item.str, covered.length > 0);
 
     text = appended.text;
 
-    for (const range of linkRangesAt(item, links)) {
+    for (const range of covered) {
       const start = appended.starts[range.start] ?? text.length;
       const end =
         range.end < appended.starts.length

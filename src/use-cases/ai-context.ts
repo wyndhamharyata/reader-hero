@@ -9,6 +9,27 @@ export interface Chapter {
 
 const words = (text: string): number => text.split(" ").length;
 
+// The count words(spanText(...)) gives, without copying the text of every chapter.
+function spanWords(parsed: ParsedBook, start: number, end: number): number {
+  let spaces = 0;
+
+  for (let at = start; at < end; at += 1) {
+    const block = parsed.blocks[at];
+
+    if (block === undefined || block.kind === "image") continue;
+
+    for (
+      let index = block.text.indexOf(" ");
+      index !== -1;
+      index = block.text.indexOf(" ", index + 1)
+    ) {
+      spaces += 1;
+    }
+  }
+
+  return spaces + 1;
+}
+
 export function spanText(parsed: ParsedBook, start: number, end: number): string {
   return parsed.blocks
     .slice(start, end)
@@ -27,7 +48,7 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
         );
   const kept = entries.filter((entry, position) => {
     const end = entries[position + 1]?.at ?? parsed.blocks.length;
-    return words(spanText(parsed, entry.at, end)) >= 200;
+    return spanWords(parsed, entry.at, end) >= 200;
   });
   const spans = kept.length === 0 ? [{ title: "", at: 0 }] : kept;
   const result: Array<Chapter> = [];
@@ -36,7 +57,7 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
     const end =
       (kept.length === 0 ? undefined : entries.find((entry) => entry.at > span.at)?.at) ??
       parsed.blocks.length;
-    const total = words(spanText(parsed, span.at, end));
+    const total = spanWords(parsed, span.at, end);
     const name = (at: number): string => {
       const page = parsed.blocks[at]?.page ?? 1;
 

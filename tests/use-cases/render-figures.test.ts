@@ -187,8 +187,8 @@ describe("renderFigures", () => {
     await Effect.runPromise(renderFigures("b1").pipe(Effect.provide(layer)));
 
     expect(state.checkpoint).toEqual([1]);
-    // The first figures at once, then the finished book. A fresh job has no text to re-publish.
-    expect(state.parsedWrites).toBe(2);
+    // The book is written once, at the end: a short job finishes before the first publish is due.
+    expect(state.parsedWrites).toBe(1);
   });
 
   it("given figures already ready, does nothing", async () => {

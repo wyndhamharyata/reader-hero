@@ -57,6 +57,18 @@ describe("buildLines", () => {
     expect(lines.map((entry) => entry.text)).toEqual(["First", "Second"]);
   });
 
+  it("given runs whose edges are spaces, folds each run of them into one", () => {
+    const lines = buildLines(
+      page(1, [
+        item("Hello ", 0, 100, { width: 30 }),
+        item(" \n world", 30, 100, { width: 60 }),
+        item("\ttabbed", 90, 100, { width: 35 }),
+      ]),
+    );
+
+    expect(lines.map((entry) => entry.text)).toEqual(["Hello world tabbed"]);
+  });
+
   it("given a link box over words, marks their range", () => {
     const linked = {
       ...page(1, [

@@ -91,8 +91,8 @@ export function renderFigures(
           pagesByPage.set(page, { text: entry.text, images: [...entry.images, restored] });
         }
 
-        // Zero, so the first page with figures publishes at once and the reader is not kept waiting.
-        let publishedAt = 0;
+        // The rebuild covers the whole book, so the first one waits 5s to keep it off the open.
+        let publishedAt = Date.now();
         let isUnpublished = false;
         const assemble = () =>
           Effect.map(assembleBook([...pagesByPage.values()], outline), (book) => {
@@ -139,8 +139,8 @@ export function renderFigures(
                 yield* store.putFigureCheckpoint(bookId, [...done]);
                 if (images.length > 0) isUnpublished = true;
 
-                // An open reader reloads the book on each publish, so publish at most every 2s.
-                if (isUnpublished && Date.now() - publishedAt >= 2_000) {
+                // Each publish rebuilds and reloads the whole book, so batches stay 5s apart.
+                if (isUnpublished && Date.now() - publishedAt >= 5_000) {
                   yield* store.putParsed(bookId, yield* assemble());
                   publishedAt = Date.now();
                   isUnpublished = false;
