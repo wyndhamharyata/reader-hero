@@ -904,7 +904,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       <div
         ref={scrollRef}
         data-library-scroll
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none]"
+        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [overflow-anchor:none]"
       >
         <div
           // It is 1px taller: iOS bounces the bars on a swipe over a box with nothing to scroll.
