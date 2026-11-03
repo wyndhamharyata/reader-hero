@@ -162,6 +162,7 @@ export function SummaryBody({
   readonly onVolumesOpen: (isOpen: boolean) => void;
   readonly onVolume: (id: string) => void;
 }): ReactElement {
+  // The chapter being written stands in for its stored copy, as a rebuild writes a chapter that the list holds.
   const entries: Array<{ key: string; heading: string; text: string; isWriting: boolean }> =
     chapters.map((chapter, index) => ({
       key: `${index}`,
@@ -169,11 +170,14 @@ export function SummaryBody({
       text: chapter.paragraph,
       isWriting: false,
     }));
+  const isWriting = run !== null && run.stage === "chapter" && run.chapter > 0;
 
-  if (run !== null && run.stage === "chapter" && run.chapter > 0) {
-    entries.push({
-      key: `${run.chapter - 1}`,
-      heading: list[run.chapter - 1]?.heading ?? "",
+  if (isWriting) {
+    const writing = run.chapter - 1;
+
+    entries.splice(writing, 1, {
+      key: `${writing}`,
+      heading: list[writing]?.heading ?? "",
       text: run.text,
       isWriting: true,
     });

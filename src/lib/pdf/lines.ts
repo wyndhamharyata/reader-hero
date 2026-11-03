@@ -62,7 +62,9 @@ function appendNormalized(
   let next = text;
   const starts: Array<number> = [];
 
-  for (const char of value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index] ?? "";
+
     starts.push(next.length);
 
     if (" \n\t\r\f".includes(char)) {
@@ -145,7 +147,8 @@ function gutterAt(row: ReadonlyArray<RawTextItem>, middle: number): number {
 
     const gap = item.x - end;
 
-    if (index > 0 && gap >= item.fontSize * GUTTER_FACTOR) {
+    // A row with no text yet has no distance to measure.
+    if (Number.isFinite(end) && gap >= item.fontSize * GUTTER_FACTOR) {
       if (end <= middle + GUTTER_MARGIN_PT && item.x >= middle - GUTTER_MARGIN_PT) return index;
     }
 

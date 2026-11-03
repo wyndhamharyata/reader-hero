@@ -60,6 +60,8 @@ export const PdfPage = memo(function PdfPage({
 
     if (canvas === null) return;
 
+    setFailed(false);
+
     const fiber = forkApp(
       renderPdfPage(doc, size.page, canvas, renderScale).pipe(
         Effect.catchTag("PdfFailure", () => Effect.sync(() => setFailed(true))),
@@ -147,6 +149,8 @@ export const PdfPage = memo(function PdfPage({
       stopFiber(fiber);
       textLayer.current?.remove();
       textLayer.current = null;
+      // A layer stopped mid-build never reaches textLayer, so its spans go with the host.
+      host.replaceChildren();
     };
   }, [doc, size.page, hasText, onTextReady]);
 

@@ -86,6 +86,7 @@ export function ReaderBody({
 
       {showOriginal && (
         <OriginalView
+          key={meta.id}
           bookId={meta.id}
           pageCount={meta.pageCount}
           initialPage={currentPage}

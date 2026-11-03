@@ -230,7 +230,7 @@ export function SummaryPanel({
       listPlace.current,
       targetRef.current,
     );
-  }, [openAt, isMain, run?.chapter]);
+  }, [openAt, isMain, run?.chapter, summary]);
 
   useEffect(
     () => () => {
@@ -245,6 +245,8 @@ export function SummaryPanel({
       return;
     }
     if (!hasConsent(ai)) {
+      // The consent note shows under the chapters, so that tab opens first.
+      setView({ kind: "chapters" });
       setConsentFor("start");
       return;
     }

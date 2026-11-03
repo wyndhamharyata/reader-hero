@@ -411,7 +411,7 @@ export function OriginalView({
             style={
               zoom === MIN_ZOOM
                 ? undefined
-                : { width: `calc(${pageWidth}px + 1rem)`, maxWidth: "none" }
+                : { width: `calc(${pageWidth}px + 2rem)`, maxWidth: "none" }
             }
           >
             <PdfPageList
