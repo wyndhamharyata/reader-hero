@@ -1,6 +1,5 @@
 import { Effect, Option, Schema } from "effect";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import { useNavigate } from "react-router";
 import { AiSettings, CONSENT_VERSION } from "@/domain/ai";
 import {
   forkApp,
@@ -27,6 +26,7 @@ import { saveReadingProgress } from "@/use-cases/save-progress";
 import { findBookSeries } from "@/use-cases/series";
 import { pendingVolumes } from "@/use-cases/summary";
 import { ContentsPanel } from "./_ContentsPanel";
+import { KeepAlert } from "./_KeepAlert";
 import { FindBar } from "./_FindBar";
 import { LookPanel } from "./_LookPanel";
 import { MorePanel } from "./_MorePanel";
@@ -42,6 +42,7 @@ import {
   useReaderMode,
   useSummaryView,
 } from "./_use-reader-derived";
+import { useKeepFile } from "./_use-keep-file";
 import { useReaderKeys } from "./_use-reader-keys";
 import { useReaderRepair } from "./_use-reader-repair";
 import type { JumpRequest } from "./_ReaderView";
@@ -112,7 +113,6 @@ function docksBeside(panel: OpenPanel): boolean {
 }
 
 export function ReaderRoute({ bookId }: { bookId: string }) {
-  const navigate = useNavigate();
   const { settings, update } = useSettings();
   // Until the book loads, its first frames take its theme, title and place from the library.
   const [glance] = useState(() => shelfRecords.get(bookId));
@@ -209,6 +209,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const { prefs, bookSettings } = useBookSettings(settings, data, glance, prefChanges);
 
   const isSearching = find !== null || pageQuery !== null;
+  const keepFile = useKeepFile(bookId);
 
   useReaderKeys({
     isEnabled: panel.kind === "none" && !isMenuOpen,
@@ -218,7 +219,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       setPageQuery(null);
     },
     setTocOpen: () => setPanel({ kind: "contents" }),
-    navigate,
+    onBack: keepFile.back,
+    isAsking: keepFile.isAsking,
     fontSize: bookSettings.fontSize,
     lineHeight: bookSettings.lineHeight,
   });
@@ -489,6 +491,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           isShown={showChrome && !isSearching}
           percent={percentLabel}
           ratio={shown / total}
+          onBack={keepFile.back}
           onPanel={(next: ReaderPanel) => {
             if (next === "contents") setPanel({ kind: "contents" });
             if (next === "summary") openSummary(null);
@@ -499,6 +502,13 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
         />
 
         <FindInBook find={find} onFind={setFind} />
+
+        <KeepAlert
+          isOpen={keepFile.isAsking}
+          title={title}
+          onKeep={() => keepFile.answer(true)}
+          onRemove={() => keepFile.answer(false)}
+        />
 
         <ReaderMessage message={message} />
       </div>

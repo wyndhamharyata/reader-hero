@@ -1,6 +1,5 @@
 import type { ReactElement } from "react";
 import { ArrowLeftIcon, DocumentTextIcon, EllipsisIcon, ListBulletIcon } from "@/components/icons";
-import { SlideLink } from "@/components/SlideLink";
 
 export type ReaderPanel = "contents" | "summary" | "look" | "more";
 
@@ -29,12 +28,14 @@ export function ReaderBars({
   isShown,
   percent,
   ratio,
+  onBack,
   onPanel,
 }: {
   readonly title: string;
   readonly isShown: boolean;
   readonly percent: string;
   readonly ratio: number;
+  readonly onBack: () => void;
   readonly onPanel: (panel: ReaderPanel) => void;
 }): ReactElement {
   const hidden = isShown ? "" : " is-hidden";
@@ -43,9 +44,14 @@ export function ReaderBars({
   return (
     <>
       <header className={`bar topbar${hidden}`} inert={!isShown}>
-        <SlideLink to="/" direction="out" className="key small square" aria-label="Back to library">
+        <button
+          type="button"
+          className="key small square"
+          aria-label="Back to library"
+          onClick={onBack}
+        >
           <ArrowLeftIcon className="icon" />
-        </SlideLink>
+        </button>
         <h1 className="min-w-0 flex-1 truncate font-bold">{title}</h1>
         <div className="hidden gap-2 md:flex">
           {tools.map((tool) => (

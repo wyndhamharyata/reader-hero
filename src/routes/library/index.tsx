@@ -15,6 +15,7 @@ import {
   useSettings,
 } from "@/lib/hooks";
 import { onLaunchFiles } from "@/lib/launch-files";
+import { markOpenedFile } from "@/lib/opened-files";
 import { openBook, prefersLessMotion } from "@/lib/open-book";
 import { isInstalled, isIosBrowser } from "@/lib/platform";
 import {
@@ -667,17 +668,22 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
   // A file the app was opened with imports like a choice from the picker, then opens. One it holds opens at once.
   const [launched, setLaunched] = useState<string | null>(null);
-  const launch = useRef({ importFiles, isHidden });
+  const launch = useRef({ importFiles, isHidden, known: new Set<string>() });
 
   useEffect(() => {
-    launch.current = { importFiles, isHidden };
+    launch.current = { importFiles, isHidden, known: new Set(books.map((book) => book.id)) };
   });
   useEffect(() => {
     onLaunchFiles((files) => {
       if (files.length === 0) return;
       // Back to the shelf by a history step, so the import shows and the new book is one step from it.
       if (launch.current.isHidden) slideTo(navigate, "/", "out");
-      launch.current.importFiles(files, (ids) => setLaunched(ids[0] ?? null));
+      launch.current.importFiles(files, (ids) => {
+        // A file the shelf already holds asks nothing when its reader closes.
+        for (const id of ids) if (!launch.current.known.has(id)) markOpenedFile(id);
+
+        setLaunched(ids[0] ?? null);
+      });
     });
   }, [navigate]);
   // Opened once the shelf shows, so the step back to it cannot arrive after the book and undo it.

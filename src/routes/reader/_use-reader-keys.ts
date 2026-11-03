@@ -1,6 +1,4 @@
 import { useEffect } from "react";
-import type { NavigateFunction } from "react-router";
-import { slideTo } from "@/lib/slide-to";
 
 // A field takes its own keys. An open panel, as the Book sheet opened over the reader, takes them too.
 function isTypingTarget(event: KeyboardEvent): boolean {
@@ -19,7 +17,8 @@ export function useReaderKeys({
   isSearchOpen,
   setSearchOpen,
   setTocOpen,
-  navigate,
+  onBack,
+  isAsking,
   fontSize,
   lineHeight,
 }: {
@@ -27,12 +26,13 @@ export function useReaderKeys({
   readonly isSearchOpen: boolean;
   readonly setSearchOpen: (isOpen: boolean) => void;
   readonly setTocOpen: (isOpen: boolean) => void;
-  readonly navigate: NavigateFunction;
+  readonly onBack: () => void;
+  readonly isAsking: boolean;
   readonly fontSize: number;
   readonly lineHeight: number;
 }): void {
   useScrollKeys({ isEnabled, fontSize, lineHeight });
-  useShortcutKeys({ isEnabled, isSearchOpen, setSearchOpen, setTocOpen, navigate });
+  useShortcutKeys({ isEnabled, isSearchOpen, setSearchOpen, setTocOpen, onBack, isAsking });
 }
 
 // Moves are smooth so the eye can follow. A stopped key ends its move.
@@ -175,16 +175,19 @@ function useShortcutKeys({
   isSearchOpen,
   setSearchOpen,
   setTocOpen,
-  navigate,
+  onBack,
+  isAsking,
 }: {
   readonly isEnabled: boolean;
   readonly isSearchOpen: boolean;
   readonly setSearchOpen: (isOpen: boolean) => void;
   readonly setTocOpen: (isOpen: boolean) => void;
-  readonly navigate: NavigateFunction;
+  readonly onBack: () => void;
+  readonly isAsking: boolean;
 }): void {
   useEffect(() => {
-    if (!isEnabled) return;
+    // The keep alert owns Escape while it is open.
+    if (!isEnabled || isAsking) return;
 
     const onKey = (event: KeyboardEvent): void => {
       if (isTypingTarget(event) || event.metaKey || event.altKey) return;
@@ -192,7 +195,7 @@ function useShortcutKeys({
       // Escape closes the search first, as a browser's find does.
       if (event.key === "Escape") {
         if (isSearchOpen) setSearchOpen(false);
-        else if (!event.repeat) slideTo(navigate, "/", "out");
+        else if (!event.repeat) onBack();
 
         event.preventDefault();
         return;
@@ -207,5 +210,5 @@ function useShortcutKeys({
     document.addEventListener("keydown", onKey);
 
     return () => document.removeEventListener("keydown", onKey);
-  }, [isEnabled, isSearchOpen, setSearchOpen, setTocOpen, navigate]);
+  }, [isEnabled, isSearchOpen, setSearchOpen, setTocOpen, onBack, isAsking]);
 }
