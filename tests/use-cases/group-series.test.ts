@@ -7,6 +7,7 @@ import { buildShelf } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
 import { SettingsStore } from "@/services/settings-store";
 import { groupSeries, resetGrouping } from "@/use-cases/group-series";
+import { hideSeries } from "@/use-cases/series";
 import { bookStore } from "../_support/book-store";
 import { plain } from "../_support/prompt";
 
@@ -137,7 +138,9 @@ function harness(state: State, reply: (user: string) => string) {
   const fail = (ai: AiSettings = allowed()) =>
     Effect.runPromise(groupSeries(ai, () => undefined).pipe(Effect.flip, Effect.provide(layer)));
   const reset = () => Effect.runPromise(resetGrouping().pipe(Effect.provide(layer)));
-  return { calls, open, left, run, fail, reset };
+  const hide = (id: string, name: string) =>
+    Effect.runPromise(hideSeries(id, name).pipe(Effect.provide(layer)));
+  return { calls, open, left, run, fail, reset, hide };
 }
 
 const none = { status: null, length: null, author: null } as const;
@@ -579,6 +582,21 @@ describe("groupSeries, the merge", () => {
       { id: "b3", number: 3 },
     ]);
     expect(state.series.filter((series) => series.id !== "the tide cycle")).toEqual(before);
+  });
+
+  it("given a deleted series, a reset groups its books again", async () => {
+    const state: State = { books: tide, series: [], sent: [] };
+    const { run, reset, hide } = harness(state, tideReply);
+
+    await run();
+    expect(shown(state).map(([name]) => name)).toEqual(["The Tide Cycle"]);
+
+    await hide("the tide cycle", "The Tide Cycle");
+    await reset();
+    await run();
+
+    expect(shown(state).map(([name]) => name)).toEqual(["The Tide Cycle"]);
+    expect(shown(state)[0]?.[1]).toEqual(["b1", "b2", "b3", "b4"]);
   });
 
   it("given a removed series, groups a new book under it again", async () => {

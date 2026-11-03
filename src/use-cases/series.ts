@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { Series } from "@/domain/book";
+import { BookMeta, Series } from "@/domain/book";
 import type { StorageFailure } from "@/domain/errors";
 import { shrinkPicture } from "@/lib/picture";
 import { buildShelf, seriesKey, type Shelf, emptyFilters } from "@/lib/shelf";
@@ -150,8 +150,9 @@ export function hideSeries(
   return Effect.gen(function* () {
     const store = yield* BookStore;
     const stored = yield* store.listSeries();
+    const books = yield* store.list();
     const members =
-      buildShelf(yield* store.list(), new Map(), "", emptyFilters, "added", stored)
+      buildShelf(books, new Map(), "", emptyFilters, "added", stored)
         .series.find((group) => group.id === id)
         ?.books.map((card) => card.book.id) ?? [];
     const removed = stored.find((series) => series.id === id)?.removed ?? [];
@@ -166,6 +167,18 @@ export function hideSeries(
         hidden: true,
       }),
     );
+
+    for (const bookId of members) {
+      const book = books.find((entry) => entry.id === bookId);
+
+      // A series the file itself names would keep the book out of the next grouping.
+      if (book === undefined || book.series === undefined) continue;
+      if (seriesKey(book.series) !== seriesKey(id)) continue;
+
+      const { series: _series, seriesNumber: _seriesNumber, ...rest } = book;
+
+      yield* store.putMeta(new BookMeta({ ...rest }));
+    }
   });
 }
 

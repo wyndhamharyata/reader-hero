@@ -54,6 +54,10 @@ const run = async <A>(
         state.reads?.push(id);
         return state.progress?.get(id) ?? null;
       }),
+    putMeta: (meta) =>
+      Effect.sync(() => {
+        state.books = state.books.map((entry) => (entry.id === meta.id ? meta : entry));
+      }),
   });
   return Effect.runPromise(effect.pipe(Effect.provide(layer)));
 };
@@ -243,6 +247,19 @@ describe("saveSeries", () => {
 });
 
 describe("hideSeries", () => {
+  it("given a series the books name themselves, clears that name from each book", async () => {
+    const state = { books: tide, series: [] as Array<Series> };
+
+    await run(hideSeries("the tide cycle", "The Tide Cycle"), state);
+
+    expect(state.books.map((entry) => [entry.id, entry.series, entry.seriesNumber])).toEqual([
+      ["b1", undefined, undefined],
+      ["b2", undefined, undefined],
+      ["b3", undefined, undefined],
+      ["b4", undefined, undefined],
+    ]);
+  });
+
   it("given a series from the EPUB fields, keeps its books out and lets new books start it again", async () => {
     const state = { books: tide, series: [] as Array<Series> };
 
