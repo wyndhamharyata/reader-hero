@@ -149,7 +149,6 @@ export const PdfPage = memo(function PdfPage({
       stopFiber(fiber);
       textLayer.current?.remove();
       textLayer.current = null;
-      // A layer stopped mid-build never reaches textLayer, so its spans go with the host.
       host.replaceChildren();
     };
   }, [doc, size.page, hasText, onTextReady]);

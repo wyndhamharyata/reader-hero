@@ -108,7 +108,6 @@ export function renderFigures(
 
         // Pages nearest the reader first, so the figures about to be read land before the rest.
         const order: number[] = [];
-        // A saved position can point past the last page, and no page past it holds a figure.
         const first = Number.isFinite(startPage)
           ? Math.min(Math.max(1, Math.trunc(startPage)), total)
           : 1;

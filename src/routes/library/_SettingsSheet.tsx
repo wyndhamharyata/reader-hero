@@ -166,7 +166,6 @@ export function SettingsSheet({
 
               update({ seriesGrouping: isOn });
               saveToggles({ seriesGrouping: isOn });
-              // Turned on, the groups are worked out again, so a series the reader deleted is back.
               if (isOn) onReset();
             }}
           />

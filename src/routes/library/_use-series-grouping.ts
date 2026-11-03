@@ -39,7 +39,6 @@ export function useSeriesGrouping({
   } | null>(null);
   // Reset changes no book and no setting, so a new round starts the run after it.
   const [groupingRound, setGroupingRound] = useState(0);
-  // A reset stops this run first, so it cannot write the list the reset cleared.
   const running = useRef<Job | null>(null);
   // A finished parse starts a run, but none starts during an import, so its books group together.
   const groupable = books

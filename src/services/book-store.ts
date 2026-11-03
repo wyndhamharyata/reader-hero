@@ -174,6 +174,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("files").put(blob, id);
           await tx.done;
         });
+        yield* PubSub.publish(updateBus, { kind: "meta", bookId: id });
       });
 
       const getFile = Effect.fn("BookStore.getFile")(function* (id: string) {
@@ -259,9 +260,10 @@ export class BookStore extends Context.Service<
               Stream.fromSubscription(subscription).pipe(
                 Stream.filter(
                   (update) =>
-                    update.kind === "image" &&
-                    update.bookId === bookId &&
-                    update.imageId === imageId,
+                    (update.kind === "image" &&
+                      update.bookId === bookId &&
+                      update.imageId === imageId) ||
+                    (update.kind === "meta" && update.bookId === bookId),
                 ),
                 Stream.mapEffect(() => read),
               ),
@@ -399,6 +401,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("summaries").delete(id);
           await tx.done;
         });
+        yield* PubSub.publish(updateBus, { kind: "meta", bookId: id });
       });
 
       const estimate = Effect.fn("BookStore.estimate")(function* () {
@@ -423,7 +426,12 @@ export class BookStore extends Context.Service<
         const entries = yield* Effect.forEach(rows, (row) =>
           decodeInboxEntry(row).pipe(
             Effect.catch(() =>
-              Effect.as(typeof row.id === "number" ? removeInbox(row.id) : Effect.void, null),
+              Effect.as(
+                typeof row.id === "number"
+                  ? removeInbox(row.id).pipe(Effect.catch(() => Effect.void))
+                  : Effect.void,
+                null,
+              ),
             ),
           ),
         );

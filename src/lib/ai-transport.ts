@@ -188,7 +188,6 @@ function anthropicRequest(
   const blocks = (content: string | ReadonlyArray<PromptPart>) => {
     const parts = marked(content);
 
-    // An empty block is refused, so a prompt of empty parts goes as its plain text.
     if (parts === null || parts.length === 0) return joined(content);
 
     return parts.map((part) => ({

@@ -76,7 +76,7 @@ function deltasOf(data: ReadonlyArray<string>): ReadonlyArray<Delta> {
 
   const parsed = parsePayload(payload);
 
-  if (parsed === undefined) return [];
+  if (parsed === undefined || parsed === null || typeof parsed !== "object") return [];
 
   const failure = failureDelta(parsed);
 

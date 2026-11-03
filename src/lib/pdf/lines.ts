@@ -147,7 +147,6 @@ function gutterAt(row: ReadonlyArray<RawTextItem>, middle: number): number {
 
     const gap = item.x - end;
 
-    // A row with no text yet has no distance to measure.
     if (Number.isFinite(end) && gap >= item.fontSize * GUTTER_FACTOR) {
       if (end <= middle + GUTTER_MARGIN_PT && item.x >= middle - GUTTER_MARGIN_PT) return index;
     }

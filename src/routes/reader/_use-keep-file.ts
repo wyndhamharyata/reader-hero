@@ -18,10 +18,8 @@ export function useKeepFile(
   const navigate = useNavigate();
   const isOpenedFile = useIsOpenedFile(bookId);
   const [isAsking, setAsking] = useState(false);
-  // One tap answers, so a fast second tap does nothing.
   const isAnswered = useRef(false);
 
-  // A back gesture skips the alert, so it counts as keeping the book.
   useEffect(() => {
     if (!isOpenedFile) return;
 
@@ -54,7 +52,6 @@ export function useKeepFile(
       return;
     }
 
-    // A save for a book being removed would write a progress record that outlives it.
     cancelSave();
 
     // Removed before the shelf shows, so it is not seen going.

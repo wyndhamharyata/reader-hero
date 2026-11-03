@@ -46,7 +46,6 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
       : parsed.blocks.flatMap((block, at) =>
           block.kind === "heading" ? [{ title: block.text, at }] : [],
         );
-  // A contents list can hold its entries out of order, and every span reads in page order.
   const ordered = [...entries].sort((a, b) => a.at - b.at);
   const kept = ordered.filter((entry, position) => {
     const end = ordered[position + 1]?.at ?? parsed.blocks.length;
@@ -55,7 +54,6 @@ export function chapters(parsed: ParsedBook): ReadonlyArray<Chapter> {
   const spans = kept.length === 0 ? [{ title: "", at: 0 }] : kept;
   const result: Array<Chapter> = [];
 
-  // A short entry starts no chapter, and its text stays with the chapter before it.
   spans.forEach((span, position) => {
     const end = spans[position + 1]?.at ?? parsed.blocks.length;
     const total = spanWords(parsed, span.at, end);

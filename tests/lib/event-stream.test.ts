@@ -89,6 +89,10 @@ describe("event stream parser", () => {
     expect(collect([`data: ${JSON.stringify(chunk)}\n\n`])).toEqual([{ type: "text", text: "a" }]);
   });
 
+  it("given a null payload, yields nothing", () => {
+    expect(collect([raw("null")])).toEqual([]);
+  });
+
   it("given an OpenAI-style error payload, yields its message", () => {
     expect(
       collect([raw('{"error":{"message":"Rate limit reached for gemini-3.5-flash-lite"}}')]),

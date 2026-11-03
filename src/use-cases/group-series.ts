@@ -104,7 +104,6 @@ function orderedBooks(
 
   // 1000 is above every kept number, so an unnumbered book sorts last.
   for (const book of [...sure].sort((a, b) => (a.number ?? 1000) - (b.number ?? 1000))) {
-    // Another stored series can hold this book, so it is already in the order.
     if (order.some((other) => other.id === book.id)) continue;
 
     const number = book.number;

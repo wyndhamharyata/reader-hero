@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Stream, SubscriptionRef } from "effect";
+import { Context, Effect, Layer, Semaphore, Stream, SubscriptionRef } from "effect";
 import { GroupedBooks, UsageTally, type AiSettings, type AiUsage } from "@/domain/ai";
 import { DEFAULT_SETTINGS, ReaderSettings } from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
@@ -45,32 +45,37 @@ export class SettingsStore extends Context.Service<
             );
 
       const settingsRef = yield* SubscriptionRef.make(initial);
+      const saves = yield* Semaphore.make(1);
 
       const changes = () => SubscriptionRef.changes(settingsRef);
 
       const update = Effect.fn("SettingsStore.update")(function* (patch: Partial<ReaderSettings>) {
-        const current = yield* SubscriptionRef.get(settingsRef);
-        const next = new ReaderSettings({
-          theme: patch.theme ?? current.theme,
-          font: patch.font ?? current.font,
-          fontSize: patch.fontSize ?? current.fontSize,
-          lineHeight: patch.lineHeight ?? current.lineHeight,
-          libraryView: patch.libraryView ?? current.libraryView,
-          librarySort: patch.librarySort ?? current.librarySort,
-          textWidth: patch.textWidth ?? current.textWidth,
-          textAlign: patch.textAlign ?? current.textAlign,
-          temperature: patch.temperature ?? current.temperature,
-          seriesGrouping: patch.seriesGrouping ?? current.seriesGrouping,
-          tour: patch.tour ?? current.tour,
-          readerTour: patch.readerTour ?? current.readerTour,
-        });
+        return yield* saves.withPermit(
+          Effect.gen(function* () {
+            const current = yield* SubscriptionRef.get(settingsRef);
+            const next = new ReaderSettings({
+              theme: patch.theme ?? current.theme,
+              font: patch.font ?? current.font,
+              fontSize: patch.fontSize ?? current.fontSize,
+              lineHeight: patch.lineHeight ?? current.lineHeight,
+              libraryView: patch.libraryView ?? current.libraryView,
+              librarySort: patch.librarySort ?? current.librarySort,
+              textWidth: patch.textWidth ?? current.textWidth,
+              textAlign: patch.textAlign ?? current.textAlign,
+              temperature: patch.temperature ?? current.temperature,
+              seriesGrouping: patch.seriesGrouping ?? current.seriesGrouping,
+              tour: patch.tour ?? current.tour,
+              readerTour: patch.readerTour ?? current.readerTour,
+            });
 
-        // Applied before the save, so a failed write still changes this session.
-        yield* SubscriptionRef.set(settingsRef, next);
-        yield* Effect.tryPromise({
-          try: () => withReaderDb((db) => db.put("settings", next, SETTINGS_KEY)),
-          catch: storageFailure("putSettings"),
-        });
+            // Applied before the save, so a failed write still changes this session.
+            yield* SubscriptionRef.set(settingsRef, next);
+            yield* Effect.tryPromise({
+              try: () => withReaderDb((db) => db.put("settings", next, SETTINGS_KEY)),
+              catch: storageFailure("putSettings"),
+            });
+          }),
+        );
       });
 
       const storedAi = yield* Effect.tryPromise({
@@ -147,24 +152,28 @@ export class SettingsStore extends Context.Service<
       const usageChanges = () => SubscriptionRef.changes(usageRef);
 
       const addUsage = Effect.fn("SettingsStore.addUsage")(function* (key: string, usage: AiUsage) {
-        const next = yield* SubscriptionRef.modify(usageRef, (current) => {
-          const before = current.get(key);
-          const tally = new UsageTally({
-            requests: (before?.requests ?? 0) + 1,
-            input: (before?.input ?? 0) + (usage.input ?? 0),
-            hit: (before?.hit ?? 0) + (usage.hit ?? 0),
-            write: (before?.write ?? 0) + (usage.write ?? 0),
-            output: (before?.output ?? 0) + (usage.output ?? 0),
-            since: before?.since ?? Date.now(),
-          });
+        return yield* saves.withPermit(
+          Effect.gen(function* () {
+            const next = yield* SubscriptionRef.modify(usageRef, (current) => {
+              const before = current.get(key);
+              const tally = new UsageTally({
+                requests: (before?.requests ?? 0) + 1,
+                input: (before?.input ?? 0) + (usage.input ?? 0),
+                hit: (before?.hit ?? 0) + (usage.hit ?? 0),
+                write: (before?.write ?? 0) + (usage.write ?? 0),
+                output: (before?.output ?? 0) + (usage.output ?? 0),
+                since: before?.since ?? Date.now(),
+              });
 
-          return [tally, new Map(current).set(key, tally)];
-        });
+              return [tally, new Map(current).set(key, tally)];
+            });
 
-        yield* Effect.tryPromise({
-          try: () => withReaderDb((db) => db.put("settings", next, `usage:${key}`)),
-          catch: storageFailure("putUsage"),
-        });
+            yield* Effect.tryPromise({
+              try: () => withReaderDb((db) => db.put("settings", next, `usage:${key}`)),
+              catch: storageFailure("putUsage"),
+            });
+          }),
+        );
       });
 
       const resetUsage = Effect.fn("SettingsStore.resetUsage")(function* (key: string) {

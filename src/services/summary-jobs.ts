@@ -99,7 +99,6 @@ export class SummaryJobs extends Context.Service<
         const bookId = input.meta.id;
         const state = yield* stateRef(bookId);
 
-        // A rebuild that started while this book waited in starting holds the books itself.
         if (isRebuilding) return;
 
         yield* SubscriptionRef.set(state, {

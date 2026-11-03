@@ -245,7 +245,6 @@ export function SummaryPanel({
       return;
     }
     if (!hasConsent(ai)) {
-      // The consent note shows under the chapters, so that tab opens first.
       setView({ kind: "chapters" });
       setConsentFor("start");
       return;

@@ -162,7 +162,6 @@ export function SummaryBody({
   readonly onVolumesOpen: (isOpen: boolean) => void;
   readonly onVolume: (id: string) => void;
 }): ReactElement {
-  // The chapter being written stands in for its stored copy, as a rebuild writes a chapter that the list holds.
   const entries: Array<{ key: string; heading: string; text: string; isWriting: boolean }> =
     chapters.map((chapter, index) => ({
       key: `${index}`,

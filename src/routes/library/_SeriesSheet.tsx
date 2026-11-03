@@ -69,7 +69,6 @@ export function SeriesSheet({
   const [announcement, setAnnouncement] = useState("");
   const handles = useRef(new Map<string, HTMLButtonElement>());
   const refocus = useRef<string | null>(null);
-  // The row under the finger at the last move, so a quick lift drops where the finger was.
   const dropTo = useRef(0);
 
   // A row moved by a key goes out of the DOM and comes back, so its handle takes the focus again.

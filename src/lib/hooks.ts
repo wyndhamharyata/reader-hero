@@ -124,7 +124,7 @@ export function useBookImage(
     const entry = shared;
 
     entry.users.add(update);
-    if (entry.url !== null) setImage({ url: entry.url, ratio: entry.ratio });
+    setImage(entry.url === null ? null : { url: entry.url, ratio: entry.ratio });
 
     if (entry.job === null) {
       entry.job = forkApp(
@@ -438,7 +438,10 @@ export function useSummary(bookId: string): SummaryState & {
               return new Summary({
                 ...current,
                 removed,
-                required: [...current.required, entry.name],
+                required: [
+                  ...current.required.filter((name) => name.trim().toLowerCase() !== key),
+                  entry.name,
+                ],
               });
             }
 
@@ -464,10 +467,15 @@ export function useSummary(bookId: string): SummaryState & {
         Effect.flatMap(SummaryStore, (store) =>
           store.update(bookId, (current) => {
             if (current === null) return null;
+
+            const key = name.trim().toLowerCase();
+            const isNamed = (entry: { name: string }): boolean =>
+              entry.name.trim().toLowerCase() === key;
+
             if (next === null) {
               return new Summary({
                 ...current,
-                names: current.names.filter((entry) => entry.name !== name),
+                names: current.names.filter((entry) => !isNamed(entry)),
                 removed: [...current.removed, name],
               });
             }
@@ -475,7 +483,7 @@ export function useSummary(bookId: string): SummaryState & {
             return new Summary({
               ...current,
               names: current.names.map((entry) =>
-                entry.name === name ? { ...entry, ...next, edited: true } : entry,
+                isNamed(entry) ? { ...entry, ...next, edited: true } : entry,
               ),
             });
           }),
