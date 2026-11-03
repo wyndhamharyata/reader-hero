@@ -6,7 +6,7 @@ import { AiFailure, ParsedMissing } from "@/domain/errors";
 import { buildShelf } from "@/lib/shelf";
 import { AiClient } from "@/services/ai-client";
 import { SettingsStore } from "@/services/settings-store";
-import { groupSeries, resetGrouping } from "@/use-cases/group-series";
+import { forgetDeletedSeries, groupSeries, resetGrouping } from "@/use-cases/group-series";
 import { hideSeries } from "@/use-cases/series";
 import { bookStore } from "../_support/book-store";
 import { plain } from "../_support/prompt";
@@ -138,9 +138,10 @@ function harness(state: State, reply: (user: string) => string) {
   const fail = (ai: AiSettings = allowed()) =>
     Effect.runPromise(groupSeries(ai, () => undefined).pipe(Effect.flip, Effect.provide(layer)));
   const reset = () => Effect.runPromise(resetGrouping().pipe(Effect.provide(layer)));
+  const forget = () => Effect.runPromise(forgetDeletedSeries().pipe(Effect.provide(layer)));
   const hide = (id: string, name: string) =>
     Effect.runPromise(hideSeries(id, name).pipe(Effect.provide(layer)));
-  return { calls, open, left, run, fail, reset, hide };
+  return { calls, open, left, run, fail, reset, forget, hide };
 }
 
 const none = { status: null, length: null, author: null } as const;
@@ -616,9 +617,32 @@ describe("groupSeries, the merge", () => {
 
     await run();
 
-    expect(state.series.find((entry) => entry.id === "b")?.books.map((entry) => entry.id)).toEqual(
-      ["b1", "b2"],
-    );
+    expect(state.series.find((entry) => entry.id === "b")?.books.map((entry) => entry.id)).toEqual([
+      "b1",
+      "b2",
+    ]);
+  });
+
+  it("given no provider, turning grouping on forgets a deleted series and keeps the model's", async () => {
+    const state: State = {
+      books: tide,
+      series: [
+        record({
+          id: "the tide cycle",
+          name: "The Tide Cycle",
+          removed: ["b1", "b2", "b3", "b4"],
+          hidden: true,
+        }),
+        record({ id: "saved", name: "Saved", books: [{ id: "b1" }] }),
+      ],
+      sent: ["b1"],
+    };
+    const { forget } = harness(state, tideReply);
+
+    await forget();
+
+    expect(state.series.map((series) => series.id)).toEqual(["saved"]);
+    expect(state.sent).toEqual(["b1"]);
   });
 
   it("given a deleted series, a reset groups the books the EPUB names again without a provider", async () => {

@@ -429,3 +429,16 @@ export function resetGrouping(): Effect.Effect<void, StorageFailure, BookStore |
     }),
   );
 }
+
+// Without a provider nothing builds the model's series again, so only a deleted series comes back.
+export function forgetDeletedSeries(): Effect.Effect<void, StorageFailure, BookStore> {
+  return oneRequest.withPermits(1)(
+    Effect.gen(function* () {
+      const store = yield* BookStore;
+
+      for (const series of yield* store.listSeries()) {
+        if (series.hidden === true) yield* store.removeSeries(series.id);
+      }
+    }),
+  );
+}

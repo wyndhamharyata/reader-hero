@@ -89,11 +89,10 @@ export function useLibraryActions(reload: () => void): {
     const settle = Effect.sync(() => {
       setBusy(false);
       setProgress(null);
+      // Every parse ends with the shelf reading the book again, also a failed one.
+      reload();
     });
-    const program = reparseBook(id, setProgress, setMessage).pipe(
-      Effect.ensuring(settle),
-      Effect.tap(() => Effect.sync(() => reload())),
-    );
+    const program = reparseBook(id, setProgress, setMessage).pipe(Effect.ensuring(settle));
 
     void runApp(program);
   };

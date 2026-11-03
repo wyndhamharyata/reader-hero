@@ -69,6 +69,8 @@ export function SeriesSheet({
   const [announcement, setAnnouncement] = useState("");
   const handles = useRef(new Map<string, HTMLButtonElement>());
   const refocus = useRef<string | null>(null);
+  // The row under the finger at the last move, so a quick lift drops where the finger was.
+  const dropTo = useRef(0);
 
   // A row moved by a key goes out of the DOM and comes back, so its handle takes the focus again.
   useLayoutEffect(() => {
@@ -202,6 +204,7 @@ export function SeriesSheet({
                     if (!event.isPrimary || event.button !== 0) return;
 
                     event.currentTarget.setPointerCapture(event.pointerId);
+                    dropTo.current = index;
                     setDrag({
                       id: card.book.id,
                       from: index,
@@ -222,11 +225,12 @@ export function SeriesSheet({
                       ),
                     );
 
-                    setDrag({ ...drag, dy, to: drag.from + Math.round(dy / drag.height) });
+                    dropTo.current = drag.from + Math.round(dy / drag.height);
+                    setDrag({ ...drag, dy, to: dropTo.current });
                   }}
                   onPointerUp={() => {
                     if (drag === null) return;
-                    if (drag.to !== drag.from) move(drag.from, drag.to);
+                    if (dropTo.current !== drag.from) move(drag.from, dropTo.current);
                     setDrag(null);
                   }}
                   onPointerCancel={() => setDrag(null)}

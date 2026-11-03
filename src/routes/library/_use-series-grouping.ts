@@ -1,10 +1,14 @@
 import { Effect } from "effect";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AiSettings } from "@/domain/ai";
 import type { BookMeta } from "@/domain/book";
 import { describeAiFailure } from "@/lib/describe-error";
-import { forkApp, runApp, stopFiber } from "@/lib/hooks";
-import { groupSeries, resetGrouping as resetSeriesGrouping } from "@/use-cases/group-series";
+import { forkApp, runApp, stopFiber, type Job } from "@/lib/hooks";
+import {
+  forgetDeletedSeries,
+  groupSeries,
+  resetGrouping as resetSeriesGrouping,
+} from "@/use-cases/group-series";
 
 export type Grouping =
   | { readonly left: number }
@@ -35,6 +39,8 @@ export function useSeriesGrouping({
   } | null>(null);
   // Reset changes no book and no setting, so a new round starts the run after it.
   const [groupingRound, setGroupingRound] = useState(0);
+  // A reset stops this run first, so it cannot write the list the reset cleared.
+  const running = useRef<Job | null>(null);
   // A finished parse starts a run, but none starts during an import, so its books group together.
   const groupable = books
     .filter((book) => book.parseState !== "parsing" && book.parseState !== "pending")
@@ -63,7 +69,12 @@ export function useSeriesGrouping({
       ),
     );
 
-    return () => stopFiber(fiber);
+    running.current = fiber;
+
+    return () => {
+      stopFiber(fiber);
+      if (running.current === fiber) running.current = null;
+    };
   }, [isHidden, isBusy, groupable, ai, groupingFailed, groupingRound]);
 
   return {
@@ -71,8 +82,14 @@ export function useSeriesGrouping({
     retry: () => setGroupingFailed(null),
     reset: () => {
       setGrouping(null);
+
+      if (running.current !== null) {
+        stopFiber(running.current);
+        running.current = null;
+      }
+
       void runApp(
-        resetSeriesGrouping().pipe(
+        (ai === null ? forgetDeletedSeries() : resetSeriesGrouping()).pipe(
           Effect.match({
             onSuccess: () => {
               setGroupingFailed(null);
