@@ -209,7 +209,20 @@
     transition:
       transform 220ms var(--spring),
       box-shadow 220ms var(--spring),
+      filter 120ms var(--ease-out),
+      background-color 150ms,
       opacity 150ms;
+  }
+
+  /* A pointer and a keyboard light a key the same way. */
+  .key:focus-visible:not(:active, [aria-pressed="true"], [aria-checked="true"], :disabled) {
+    filter: brightness(1.06);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .key:hover:not(:active, [aria-pressed="true"], [aria-checked="true"], :disabled) {
+      filter: brightness(1.06);
+    }
   }
 
   .key:active,
@@ -305,6 +318,16 @@
     box-shadow: none;
   }
 
+  .latch-row .key:not([aria-pressed="true"]):focus-visible {
+    background: color-mix(in oklch, var(--ink) 6%, transparent);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .latch-row .key:not([aria-pressed="true"]):hover {
+      background: color-mix(in oklch, var(--ink) 6%, transparent);
+    }
+  }
+
   .latch-row .key[aria-pressed="true"] {
     color: var(--ink);
     transform: none;
@@ -348,7 +371,19 @@
       inset 0 1px 0 var(--key-light),
       0 2px 0 var(--key-skirt),
       0 2px 3px oklch(0% 0 0 / 0.22);
-    transition: left 260ms var(--spring);
+    transition:
+      left 260ms var(--spring),
+      filter 120ms var(--ease-out);
+  }
+
+  .switch:focus-visible::after {
+    filter: brightness(1.06);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .switch:hover:not(:disabled)::after {
+      filter: brightness(1.06);
+    }
   }
 
   .switch[aria-checked="true"] {
@@ -547,6 +582,17 @@
 
   button.row-item {
     cursor: pointer;
+    transition: background 150ms;
+  }
+
+  button.row-item:focus-visible {
+    background: color-mix(in oklch, var(--ink) 5%, transparent);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    button.row-item:hover {
+      background: color-mix(in oklch, var(--ink) 5%, transparent);
+    }
   }
 
   .row-item + .row-item {
