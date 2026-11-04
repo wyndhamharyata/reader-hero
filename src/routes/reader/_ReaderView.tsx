@@ -110,7 +110,7 @@ function turnPage(container: HTMLElement, direction: 1 | -1): void {
   );
 }
 
-const slideMs = 200;
+const slideMs = 400;
 // How far the first run of a jump goes, as a share of the screen, before the rest is placed at once.
 const slideShare = 0.6;
 let slideRun = 0;
