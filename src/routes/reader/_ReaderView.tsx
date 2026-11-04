@@ -144,13 +144,41 @@ function slideTo(
   });
 }
 
-// A box's top within the article, which a jump's slide moves as one, so the measure holds during the slide.
-const topIn = (article: HTMLElement, box: Element | Range): number =>
-  box.getBoundingClientRect().top - article.getBoundingClientRect().top;
+// The text's offset from where the scroll puts it, while iOS refuses a scrollTop set as its scroll view moves.
+let holdPx = 0;
+
+// The text moves at once against a change above the block being read, so the page holds with no scrollTop set.
+function hold(content: HTMLElement, delta: number): void {
+  holdPx -= delta;
+  content.style.transform = holdPx === 0 ? "" : `translateY(${holdPx}px)`;
+}
+
+// The scroll takes over the hold when iOS accepts the write, else the text keeps it and a later rest tries again.
+function bake(container: HTMLElement, content: HTMLElement): void {
+  if (holdPx === 0) return;
+
+  const before = container.scrollTop;
+  const maxScroll = container.scrollHeight - container.clientHeight;
+  const to = Math.max(0, Math.min(before - holdPx, maxScroll));
+
+  container.scrollTop = to;
+
+  if (Math.abs(container.scrollTop - to) > 1) {
+    container.scrollTop = before;
+    return;
+  }
+
+  holdPx = 0;
+  content.style.transform = "";
+}
+
+// A box's top within the text, which a jump's slide and a hold move as one, so neither changes the measure.
+const topIn = (content: HTMLElement, box: Element | Range): number =>
+  box.getBoundingClientRect().top - content.getBoundingClientRect().top;
 
 // The scrollTop that puts a block on the reading line, below a top bar shown over the page.
-const placeAt = (article: HTMLElement, node: HTMLElement): number =>
-  topIn(article, node) - topRoomPx;
+const placeAt = (content: HTMLElement, node: HTMLElement): number =>
+  topIn(content, node) + holdPx - topRoomPx;
 
 const isBefore = (a: AnnotationPoint, b: AnnotationPoint): boolean =>
   a.block < b.block || (a.block === b.block && a.offset < b.offset);
@@ -276,6 +304,9 @@ export const ReaderView = memo(function ReaderView({
   const containerRef = useRef<HTMLDivElement>(null);
   const tap = useTapFilter();
   const articleRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  // The scroll handler's rest timer, so a hold the scroll refused tries again once the page is still.
+  const stillRef = useRef(() => {});
   // Every block's top edge in content coordinates, read once per layout change.
   const blocksRef = useRef<{ nodes: HTMLElement[]; tops: number[] }>({ nodes: [], tops: [] });
   const anchorRef = useRef<{ element: Element; offset: number } | null>(null);
@@ -337,6 +368,11 @@ export const ReaderView = memo(function ReaderView({
     };
   }, [fontSpec, fontReady]);
 
+  // A new reader starts with its text where the scroll puts it, whatever the one before it held.
+  useLayoutEffect(() => {
+    holdPx = 0;
+  }, []);
+
   // Before paint, so no frame shows the top. Only the first open, as figures arriving later must not move it.
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -355,39 +391,45 @@ export const ReaderView = memo(function ReaderView({
   // Every mounted block's top, for the binary search a scroll does instead of observers.
   const measure = useCallback(() => {
     const container = containerRef.current;
-    const article = articleRef.current;
+    const content = contentRef.current;
 
-    if (container === null || article === null) return;
+    if (container === null || content === null) return;
 
     const nodes = Array.from(container.querySelectorAll<HTMLElement>("div[data-block]"));
 
-    blocksRef.current = { nodes, tops: nodes.map((node) => topIn(article, node)) };
+    blocksRef.current = { nodes, tops: nodes.map((node) => topIn(content, node)) };
   }, []);
 
   // The window's blocks are measured as they mount, and the top block is held in place, both before paint.
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
     const container = containerRef.current;
+    const content = contentRef.current;
     const before = blocksRef.current;
     const at = anchor === null ? -1 : before.nodes.indexOf(anchor.element as HTMLElement);
     const heldTop = at === -1 ? null : (before.tops[at] ?? null);
 
     measure();
 
-    if (anchor === null || container === null || heldTop === null) return;
+    if (anchor === null || container === null || content === null || heldTop === null) return;
 
     const now = blocksRef.current.nodes.indexOf(anchor.element as HTMLElement);
     const movedTop = now === -1 ? null : (blocksRef.current.tops[now] ?? null);
 
-    if (movedTop !== null) container.scrollTop += movedTop - heldTop;
+    if (movedTop === null) return;
+
+    hold(content, movedTop - heldTop);
+    bake(container, content);
+    if (holdPx !== 0) stillRef.current();
   }, [measure, blockStart, blockEnd]);
 
   // A scroll does a binary search, not observers: WebKit recomputes observers on every frame.
   useEffect(() => {
     const container = containerRef.current;
     const article = articleRef.current;
+    const content = contentRef.current;
 
-    if (container === null || article === null || !fontReady) return;
+    if (container === null || article === null || content === null || !fontReady) return;
 
     // The last block that starts at or above `y`.
     const indexAt = (y: number): number => {
@@ -415,7 +457,11 @@ export const ReaderView = memo(function ReaderView({
     const moveWhenStill = (): void => {
       window.clearTimeout(settle);
       settle = window.setTimeout(() => {
-        if (!isTouching) moveCenter(follow);
+        if (isTouching) return;
+
+        bake(container, content);
+        if (holdPx !== 0) moveWhenStill();
+        moveCenter(follow);
       }, settleMs);
     };
     const onTouch = (event: TouchEvent): void => {
@@ -428,12 +474,12 @@ export const ReaderView = memo(function ReaderView({
       if (nodes.length === 0) return;
 
       const top = container.scrollTop;
-      const topIndex = indexAt(top + topRoomPx + 8);
+      const topIndex = indexAt(top + topRoomPx + 8 - holdPx);
       const node = nodes[topIndex];
       const nodeTop = tops[topIndex];
 
       if (node !== undefined && nodeTop !== undefined) {
-        anchorRef.current = { element: node, offset: nodeTop - top };
+        anchorRef.current = { element: node, offset: nodeTop + holdPx - top };
       }
 
       // The top block brings a resume to the same screen. The book's own last block marks it finished.
@@ -458,7 +504,11 @@ export const ReaderView = memo(function ReaderView({
       const anchor = anchorRef.current;
 
       if (anchor !== null && anchor.element.isConnected) {
-        container.scrollTop = topIn(article, anchor.element) - anchor.offset;
+        hold(
+          content,
+          topIn(content, anchor.element) + holdPx - anchor.offset - container.scrollTop,
+        );
+        if (holdPx !== 0) moveWhenStill();
       }
 
       measure();
@@ -466,6 +516,7 @@ export const ReaderView = memo(function ReaderView({
 
     measure();
     onScroll();
+    stillRef.current = moveWhenStill;
     container.addEventListener("scroll", onScroll, { passive: true });
     container.addEventListener("touchstart", onTouch, { passive: true });
     container.addEventListener("touchend", onTouch, { passive: true });
@@ -494,8 +545,9 @@ export const ReaderView = memo(function ReaderView({
 
       const target = container.querySelector<HTMLElement>(`div[data-block="${index}"]`);
       const article = articleRef.current;
+      const content = contentRef.current;
 
-      if (target === null || article === null) {
+      if (target === null || article === null || content === null) {
         pendingRef.current = index;
         pendingDirection.current = index < positionRef.current ? -1 : 1;
         moveCenter(chapterAt(chunks, index));
@@ -503,7 +555,7 @@ export const ReaderView = memo(function ReaderView({
       }
 
       pendingRef.current = null;
-      slideTo(container, article, placeAt(article, target));
+      slideTo(container, article, placeAt(content, target));
     },
     [chunks, moveCenter],
   );
@@ -512,18 +564,24 @@ export const ReaderView = memo(function ReaderView({
   const drawFind = useCallback((target: FindTarget | null, direction?: 1 | -1) => {
     const container = containerRef.current;
     const article = articleRef.current;
+    const content = contentRef.current;
     const block = container?.querySelector(`div[data-block="${target?.index}"]`);
     const highlights = "highlights" in CSS ? CSS.highlights : null;
 
     highlights?.delete("find");
-    if (container === null || article === null || target === null) return;
+    if (container === null || article === null || content === null || target === null) return;
     if (block === null || block === undefined) return;
 
     const range = rangeOf(block, target.start, target.end);
 
     if (range === null) return;
 
-    slideTo(container, article, topIn(article, range) - container.clientHeight / 3, direction);
+    slideTo(
+      container,
+      article,
+      topIn(content, range) + holdPx - container.clientHeight / 3,
+      direction,
+    );
     highlights?.set("find", new Highlight(range));
   }, []);
 
@@ -532,15 +590,16 @@ export const ReaderView = memo(function ReaderView({
     const pending = pendingRef.current;
     const container = containerRef.current;
     const article = articleRef.current;
+    const content = contentRef.current;
 
-    if (pending === null || container === null || article === null) return;
+    if (pending === null || container === null || article === null || content === null) return;
 
     const target = container.querySelector<HTMLElement>(`div[data-block="${pending}"]`);
 
     if (target === null) return;
 
     pendingRef.current = null;
-    slideTo(container, article, placeAt(article, target), pendingDirection.current);
+    slideTo(container, article, placeAt(content, target), pendingDirection.current);
 
     if (find !== null && find.index === pending) drawFind(find, pendingDirection.current);
   }, [center, find, drawFind]);
@@ -853,7 +912,7 @@ export const ReaderView = memo(function ReaderView({
       {fontReady && (
         <article
           ref={articleRef}
-          className="reader-body mx-auto max-w-prose overflow-x-clip px-6.5 pt-20 pb-[calc(7.5rem+var(--safe-bottom))] text-(--page-ink) md:max-w-[var(--text-width)]"
+          className="reader-body mx-auto max-w-prose overflow-x-clip px-6.5 pb-[calc(7.5rem+var(--safe-bottom))] text-(--page-ink) md:max-w-[var(--text-width)]"
           data-font={settings.font}
           style={
             {
@@ -865,23 +924,29 @@ export const ReaderView = memo(function ReaderView({
             } as CSSProperties
           }
         >
-          {isCoverPage && (
-            <div className="mx-auto max-w-xs">
-              <ReaderImage bookId={bookId} imageId="cover" />
-            </div>
-          )}
-          {shown.map((entry) => (
-            <div key={entry.key} data-block={entry.index} className={`relative ${entry.className}`}>
-              {entry.node}
-              {dotTops.has(entry.index) && (
-                <span
-                  className="note-dot"
-                  style={{ top: dotTops.get(entry.index) }}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-          ))}
+          <div ref={contentRef} className="pt-20">
+            {isCoverPage && (
+              <div className="mx-auto max-w-xs">
+                <ReaderImage bookId={bookId} imageId="cover" />
+              </div>
+            )}
+            {shown.map((entry) => (
+              <div
+                key={entry.key}
+                data-block={entry.index}
+                className={`relative ${entry.className}`}
+              >
+                {entry.node}
+                {dotTops.has(entry.index) && (
+                  <span
+                    className="note-dot"
+                    style={{ top: dotTops.get(entry.index) }}
+                    aria-hidden="true"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </article>
       )}
       {hasSelection && selected === null && (
