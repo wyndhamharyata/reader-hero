@@ -259,6 +259,7 @@ export const ReaderView = memo(function ReaderView({
   } | null>(null);
   const selectedRect = useRef<{ top: number; bottom: number; left: number } | null>(null);
   const openedAt = useRef(0);
+  const focusedNonce = useRef(0);
   const [dotTops, setDotTops] = useState<ReadonlyMap<number, number>>(new Map());
   const moveCenter = useCallback((chapter: number) => {
     if (chapter === centerRef.current) return;
@@ -635,7 +636,7 @@ export const ReaderView = memo(function ReaderView({
 
   // The list's Edit key: open the highlight, after its chapter mounts if it is outside the window.
   useLayoutEffect(() => {
-    if (focusAnnotation === null) return;
+    if (focusAnnotation === null || focusedNonce.current === focusAnnotation.nonce) return;
 
     const annotation = annotations.find((entry) => entry.id === focusAnnotation.id);
 
@@ -650,6 +651,7 @@ export const ReaderView = memo(function ReaderView({
       return;
     }
 
+    focusedNonce.current = focusAnnotation.nonce;
     open(annotation, true);
   }, [focusAnnotation, annotations, goTo, open, blockStart, blockEnd, center]);
 

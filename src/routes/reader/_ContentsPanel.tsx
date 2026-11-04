@@ -219,7 +219,7 @@ export function ContentsPanel({
                         type="button"
                         className="key small square"
                         aria-label="Edit"
-                        onClick={() => dismiss(() => onEdit(annotation))}
+                        onClick={() => onEdit(annotation)}
                       >
                         <PencilIcon className="icon" />
                       </button>

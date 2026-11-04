@@ -514,8 +514,6 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           isShown={showChrome && !isSearching}
           percent={percentLabel}
           ratio={shown / total}
-          highlightCount={annotations.length}
-          onHighlights={() => setPanel({ kind: "contents", tab: "highlights" })}
           onBack={keepFile.back}
           onPanel={(next: ReaderPanel) => {
             if (next === "contents") setPanel({ kind: "contents", tab: "chapters" });
