@@ -196,8 +196,8 @@ export function PencilIcon({ className }: IconProps): ReactElement {
 export function MarkerIcon({ className }: IconProps): ReactElement {
   return (
     <Icon className={className}>
-      <path d="m10.5 4.5 9 9-6.75 6.75H8.25L3 15l7.5-10.5Z" />
-      <path d="M6 20.25h12" />
+      <path d="m9 11-6 6v3h9l3-3" />
+      <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4" />
     </Icon>
   );
 }
