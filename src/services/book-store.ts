@@ -386,6 +386,7 @@ export class BookStore extends Context.Service<
               "figures",
               "pages",
               "summaries",
+              "annotations",
             ],
             "readwrite",
           );
@@ -399,6 +400,7 @@ export class BookStore extends Context.Service<
           await tx.objectStore("figures").delete(id);
           await tx.objectStore("pages").delete(id);
           await tx.objectStore("summaries").delete(id);
+          await tx.objectStore("annotations").delete(IDBKeyRange.bound(`${id}/`, `${id}/\uffff`));
           await tx.done;
         });
         yield* PubSub.publish(updateBus, { kind: "meta", bookId: id });

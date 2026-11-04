@@ -6,6 +6,7 @@ import {
   runApp,
   stopFiber,
   useAiSettings,
+  useAnnotations,
   useAppEffect,
   useFigureJobs,
   useSettings,
@@ -14,6 +15,7 @@ import {
 import { hasConsent } from "@/domain/ai";
 import { BookPrefs, ReaderSettings } from "@/domain/book";
 import { maxMatches, type BlockMatch } from "@/lib/find-text";
+import { takeJumpTarget } from "@/lib/jump-target";
 import { formatPercent } from "@/lib/format";
 import { bookDetails, shelfRecords } from "@/lib/shelf";
 import { holdWakeLock } from "@/lib/wake-lock";
@@ -51,7 +53,7 @@ const SAVE_DELAY_MS = 400;
 
 type OpenPanel =
   | { readonly kind: "none" }
-  | { readonly kind: "contents" }
+  | { readonly kind: "contents"; readonly tab: "chapters" | "highlights" }
   | { readonly kind: "summary"; readonly openAt: number | null }
   | { readonly kind: "look" };
 
@@ -146,6 +148,20 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
   const [showChrome, setChrome] = useState(isFirstOpen);
   const firstTurnHides = useRef(isFirstOpen);
   const [panel, setPanel] = useState<OpenPanel>(noPanel);
+  const annotations = useAnnotations(bookId);
+  // Set by the Contents list, so a highlight opens after its chapter mounts.
+  const [focusAnnotation, setFocusAnnotation] = useState<{
+    readonly id: string;
+    readonly nonce: number;
+  } | null>(null);
+
+  // A library highlight opens the book here, and the reader takes the place once.
+  useEffect(() => {
+    const block = takeJumpTarget(bookId);
+
+    if (block !== null) setJump({ index: block, nonce: Date.now() });
+  }, [bookId]);
+
   const [isMenuOpen, setMenuOpen] = useState(false);
   const [prefChanges, setPrefChanges] = useState<Partial<BookPrefs>>({});
   const [jump, setJump] = useState<JumpRequest | null>(null);
@@ -223,7 +239,7 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
       setFind(null);
       setPageQuery(null);
     },
-    setTocOpen: () => setPanel({ kind: "contents" }),
+    setTocOpen: () => setPanel({ kind: "contents", tab: "chapters" }),
     onBack: keepFile.back,
     isAsking: keepFile.isAsking,
     fontSize: bookSettings.fontSize,
@@ -487,6 +503,8 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
               onCloseSearch={() => setPageQuery(null)}
               onToggleChrome={toggleChrome}
               onPageTurn={hideChrome}
+              annotations={annotations}
+              focusAnnotation={focusAnnotation}
             />
           )}
         </div>
@@ -496,9 +514,11 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           isShown={showChrome && !isSearching}
           percent={percentLabel}
           ratio={shown / total}
+          highlightCount={annotations.length}
+          onHighlights={() => setPanel({ kind: "contents", tab: "highlights" })}
           onBack={keepFile.back}
           onPanel={(next: ReaderPanel) => {
-            if (next === "contents") setPanel({ kind: "contents" });
+            if (next === "contents") setPanel({ kind: "contents", tab: "chapters" });
             if (next === "summary") openSummary(null);
             if (next === "look") setPanel({ kind: "look" });
             // A menu over the page, so a panel open beside it stays open.
@@ -524,6 +544,12 @@ export function ReaderRoute({ bookId }: { bookId: string }) {
           blocks={data.parsed.blocks}
           position={position}
           lines={lines}
+          annotations={annotations}
+          initialTab={panel.tab}
+          onEdit={(annotation) => {
+            setPanel(noPanel);
+            setFocusAnnotation({ id: annotation.id, nonce: Date.now() });
+          }}
           canSearch={data.meta.parseState !== "scanned"}
           isOriginal={showsPages}
           onSelect={selectToc}

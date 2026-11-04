@@ -3,13 +3,17 @@ import { Effect, Stream } from "effect";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
-import { CogIcon, MagnifyingGlassIcon, PlusIcon, XMarkIcon } from "@/components/icons";
+import { CogIcon, MagnifyingGlassIcon, MarkerIcon, PlusIcon, XMarkIcon } from "@/components/icons";
+import type { Annotation } from "@/domain/annotation";
+import { setJumpTarget } from "@/lib/jump-target";
 import { fontFamily, type LibrarySort, type ParseState } from "@/domain/book";
 import {
   forkApp,
   runApp,
   stopFiber,
   useAiSettings,
+  useAllAnnotations,
+  useAnnotationCounts,
   useAppEffect,
   useFigureJobs,
   useSettings,
@@ -45,6 +49,7 @@ import { ProgressPanel } from "./_ProgressPanel";
 import { SearchField } from "./_SearchField";
 import { SeriesSheet } from "./_SeriesSheet";
 import { SettingsSheet } from "./_SettingsSheet";
+import { HighlightsSheet } from "./_HighlightsSheet";
 import { SortMenu } from "./_SortMenu";
 import { useLibraryActions } from "./_use-library-actions";
 import { useSeriesGrouping } from "./_use-series-grouping";
@@ -123,16 +128,20 @@ function LibraryHeader({
   query,
   isBusy,
   isSearchOpen,
+  highlightCount,
   onQuery,
   onSearchOpen,
+  onHighlights,
   onSettings,
   onAdd,
 }: {
   readonly query: string;
   readonly isBusy: boolean;
   readonly isSearchOpen: boolean;
+  readonly highlightCount: number;
   readonly onQuery: (query: string) => void;
   readonly onSearchOpen: (isOpen: boolean) => void;
+  readonly onHighlights: () => void;
   readonly onSettings: () => void;
   readonly onAdd: () => void;
 }): ReactElement {
@@ -142,6 +151,15 @@ function LibraryHeader({
         <h1 className="mr-auto">
           <Logo className="h-10 w-auto" />
         </h1>
+        <button
+          type="button"
+          className="key small"
+          aria-label={`${highlightCount} ${highlightCount === 1 ? "highlight" : "highlights"}`}
+          onClick={onHighlights}
+        >
+          <MarkerIcon className="icon" />
+          <span className="count">{highlightCount > 999 ? "999+" : highlightCount}</span>
+        </button>
         <div className="hidden md:block">
           <SearchField value={query} onChange={onQuery} />
         </div>
@@ -422,6 +440,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const [query, setQuery] = useState("");
   const [isSearchOpen, setSearchOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [highlightsFor, setHighlightsFor] = useState<{ readonly bookId?: string } | null>(null);
   const [licencesOpen, setLicencesOpen] = useState(false);
   const [bookActions, setBookActions] = useState<LibraryCard | null>(null);
   // A null id is a new series from the Book sheet.
@@ -446,6 +465,9 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const parseStates = useRef(new Map<string, ParseState>());
 
   const { books, estimate, reading, series } = loadedLibrary(state);
+  const annotationCounts = useAnnotationCounts();
+  const annotations = useAllAnnotations();
+  const highlightTotal = [...annotationCounts.values()].reduce((sum, count) => sum + count, 0);
 
   useFigureJobs(booksToShow(isHidden, books));
 
@@ -863,6 +885,8 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
       {bookActions !== null && (
         <BookSheet
           card={bookActions}
+          highlightCount={annotationCounts.get(bookActions.book.id) ?? 0}
+          onHighlights={() => setHighlightsFor({ bookId: bookActions.book.id })}
           progress={reading.get(bookActions.book.id) ?? null}
           groups={shelf.series}
           onOpen={isHidden ? undefined : () => openFromShelf(bookActions)}
@@ -883,6 +907,20 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
           onCover={setCover}
           onResetCover={resetCover}
           onClose={() => setBookActions(null)}
+        />
+      )}
+
+      {highlightsFor !== null && (
+        <HighlightsSheet
+          annotations={annotations}
+          books={books}
+          bookId={highlightsFor.bookId}
+          onOpen={(annotation: Annotation) => {
+            setHighlightsFor(null);
+            setJumpTarget(annotation.bookId, annotation.from.block);
+            void navigate(`/book/${annotation.bookId}`);
+          }}
+          onClose={() => setHighlightsFor(null)}
         />
       )}
 
@@ -920,8 +958,10 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
             query={query}
             isBusy={isBusy}
             isSearchOpen={isSearchOpen}
+            highlightCount={highlightTotal}
             onQuery={setQuery}
             onSearchOpen={setSearchOpen}
+            onHighlights={() => setHighlightsFor({})}
             onSettings={() => setSettingsOpen(true)}
             onAdd={pickFiles}
           />

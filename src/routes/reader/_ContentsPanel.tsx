@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { MagnifyingGlassIcon } from "@/components/icons";
+import { MagnifyingGlassIcon, PencilIcon } from "@/components/icons";
 import { Panel } from "@/components/Panel";
+import type { Annotation } from "@/domain/annotation";
 import type { Block, TocEntry } from "@/domain/book";
 import { findInBlocks, maxMatches, snippetOf, type BlockMatch } from "@/lib/find-text";
 import { useBottomSheet } from "@/lib/use-bottom-sheet";
@@ -17,8 +18,11 @@ export function ContentsPanel({
   lines,
   canSearch,
   isOriginal,
+  annotations,
+  initialTab,
   onSelect,
   onLine,
+  onEdit,
   onFind,
   onPageSearch,
   onClose,
@@ -32,7 +36,10 @@ export function ContentsPanel({
   readonly canSearch: boolean;
   // The original pages search page by page, in their own find bar.
   readonly isOriginal: boolean;
+  readonly annotations: ReadonlyArray<Annotation>;
+  readonly initialTab: "chapters" | "highlights";
   readonly onSelect: (blockIndex: number) => void;
+  readonly onEdit: (annotation: Annotation) => void;
   readonly onLine: (blockIndex: number) => void;
   readonly onFind: (query: string, matches: ReadonlyArray<BlockMatch>, at: number) => void;
   readonly onPageSearch: (query: string) => void;
@@ -44,6 +51,7 @@ export function ContentsPanel({
   const { dismiss } = useBottomSheet(true, sheetRef, backdropRef, onClose);
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState("");
+  const [tab, setTab] = useState(initialTab);
   const matches = useMemo(
     () => (isOriginal ? [] : findInBlocks(blocks, searched)),
     [blocks, searched, isOriginal],
@@ -99,6 +107,42 @@ export function ContentsPanel({
     </form>
   ) : undefined;
 
+  const groups: Array<{ title: string; items: Array<Annotation> }> = [];
+
+  for (const annotation of annotations) {
+    const title = toc[entryAt(toc, annotation.from.block)]?.title ?? "";
+    const last = groups.at(-1);
+
+    if (last !== undefined && last.title === title) last.items.push(annotation);
+    else groups.push({ title, items: [annotation] });
+  }
+
+  const tabs = (
+    <>
+      {!isSearching && (
+        <div className="panel-tabs latch-row flex" role="group" aria-label="Show">
+          <button
+            type="button"
+            className="key"
+            aria-pressed={tab === "chapters"}
+            onClick={() => setTab("chapters")}
+          >
+            Chapters
+          </button>
+          <button
+            type="button"
+            className="key"
+            aria-pressed={tab === "highlights"}
+            onClick={() => setTab("highlights")}
+          >
+            Highlights
+          </button>
+        </div>
+      )}
+      {searchField}
+    </>
+  );
+
   return (
     <Panel
       sheetRef={sheetRef}
@@ -106,7 +150,7 @@ export function ContentsPanel({
       label="Contents"
       title="Contents"
       docks
-      tabs={searchField}
+      tabs={tabs}
       onDismiss={() => dismiss()}
     >
       {isSearching ? (
@@ -145,6 +189,47 @@ export function ContentsPanel({
             })}
           </ul>
         </div>
+      ) : tab === "highlights" ? (
+        <ul key="highlights" className="flex flex-col">
+          {annotations.length === 0 && (
+            <li className="py-3 text-(--ink-soft)">No highlights yet</li>
+          )}
+          {groups.map((group) => (
+            <li key={group.title} className="first:-mt-3">
+              {group.title !== "" && <h3 className="section-title">{group.title}</h3>}
+              <ul>
+                {group.items.map((annotation) => (
+                  <li key={annotation.id} className="border-t border-(--line)">
+                    <div className="flex items-start gap-2 py-3">
+                      <button
+                        type="button"
+                        className="block min-w-0 flex-1 text-left"
+                        onClick={() => dismiss(() => onSelect(annotation.from.block))}
+                      >
+                        <span className="line-clamp-3 block border-l-4 border-(--hl) pl-2 font-serif text-[15px] leading-snug">
+                          {annotation.quote.join(" ")}
+                        </span>
+                        {annotation.note !== undefined && (
+                          <span className="mt-1 line-clamp-2 block text-[13.5px] text-(--ink-soft)">
+                            {annotation.note}
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="key small square"
+                        aria-label="Edit"
+                        onClick={() => dismiss(() => onEdit(annotation))}
+                      >
+                        <PencilIcon className="icon" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
       ) : (
         <ul key="chapters" className="flex flex-col">
           {toc.length === 0 && <li className="py-3 text-(--ink-soft)">No contents in this book</li>}

@@ -8,7 +8,13 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { flushSync } from "react-dom";
+import { createPortal } from "react-dom";
+import type { Annotation, AnnotationPoint } from "@/domain/annotation";
 import { fontFamily, type Block, type ParsedBook, type ReaderSettings } from "@/domain/book";
+import { MarkerIcon } from "@/components/icons";
+import { containsPoint, type Anchor } from "@/use-cases/annotations";
+import { NoteCard } from "./_NoteCard";
 import { prefersLessMotion } from "@/lib/open-book";
 import { chapterAt, chapterRange, type Span } from "@/lib/reader-window";
 import { useTapFilter } from "@/lib/use-tap-filter";
@@ -41,6 +47,14 @@ interface Props {
   onToggleChrome: () => void;
   onPageTurn: () => void;
   find: FindTarget | null;
+  // The book's saved highlights, painted as they are stored.
+  annotations: ReadonlyArray<Annotation>;
+  // A highlight the reader just made, already merged with the ones it touched.
+  onHighlight: (anchor: Anchor) => Annotation;
+  onSaveNote: (annotation: Annotation, note: string) => void;
+  onRemoveAnnotation: (annotation: Annotation) => void;
+  // A highlight the Contents list asked to open.
+  focusAnnotation: { readonly id: string; readonly nonce: number } | null;
   // The reader's own picture: it opens the book, above the first block.
   hasCustomCover: boolean;
 }
@@ -96,6 +110,29 @@ function turnPage(container: HTMLElement, direction: 1 | -1): void {
   );
 }
 
+const isBefore = (a: AnnotationPoint, b: AnnotationPoint): boolean =>
+  a.block < b.block || (a.block === b.block && a.offset < b.offset);
+
+// A point in the rendered text to its block and offset, so a DOM change does not lose the selection.
+function pointOf(node: Node, offset: number): AnnotationPoint | null {
+  const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : (node as Element);
+  const block = element?.closest<HTMLElement>("div[data-block]") ?? null;
+
+  if (block === null) return null;
+
+  const index = Number(block.dataset.block);
+  const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+  let seen = 0;
+
+  for (let text = walker.nextNode(); text !== null; text = walker.nextNode()) {
+    if (text === node) return { block: index, offset: seen + offset } as AnnotationPoint;
+
+    seen += text.textContent?.length ?? 0;
+  }
+
+  return { block: index, offset: seen } as AnnotationPoint;
+}
+
 // The text nodes of a block, walked to the match's characters, so the mark spans any bold or link inside.
 function rangeOf(block: Element, start: number, end: number): Range | null {
   const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
@@ -122,6 +159,59 @@ function rangeOf(block: Element, start: number, end: number): Range | null {
   return null;
 }
 
+// The painted ranges of one highlight, cut to the mounted chapters.
+function annotationRanges(
+  container: HTMLElement,
+  parsed: ParsedBook,
+  annotation: Annotation,
+  blockStart: number,
+  blockEnd: number,
+): Array<Range> {
+  const ranges: Array<Range> = [];
+
+  for (
+    let index = Math.max(annotation.from.block, blockStart);
+    index <= Math.min(annotation.to.block, blockEnd - 1);
+    index += 1
+  ) {
+    const block = parsed.blocks[index];
+    const node = container.querySelector<HTMLElement>(`div[data-block="${index}"]`);
+
+    if (block === undefined || node === null || block.kind === "image") continue;
+
+    const start = index === annotation.from.block ? annotation.from.offset : 0;
+    const end = index === annotation.to.block ? annotation.to.offset : block.text.length;
+    const range = rangeOf(node, start, end);
+
+    if (range !== null) ranges.push(range);
+  }
+
+  return ranges;
+}
+
+// The note dot's top, in the starting block's own coordinates.
+function noteDotTop(
+  container: HTMLElement,
+  parsed: ParsedBook,
+  annotation: Annotation,
+  blockStart: number,
+  blockEnd: number,
+): number | null {
+  const index = annotation.from.block;
+
+  if (annotation.note === undefined || index < blockStart || index >= blockEnd) return null;
+
+  const block = parsed.blocks[index];
+  const node = container.querySelector<HTMLElement>(`div[data-block="${index}"]`);
+
+  if (block === undefined || node === null) return null;
+
+  const range = rangeOf(node, annotation.from.offset, annotation.from.offset + 1);
+  const rect = range?.getClientRects()[0];
+
+  return rect === undefined ? null : rect.top - node.getBoundingClientRect().top;
+}
+
 // Memoised so the parent's per-position renders do not re-map every block of the book.
 export const ReaderView = memo(function ReaderView({
   bookId,
@@ -134,6 +224,11 @@ export const ReaderView = memo(function ReaderView({
   onToggleChrome,
   onPageTurn,
   find,
+  annotations,
+  onHighlight,
+  onSaveNote,
+  onRemoveAnnotation,
+  focusAnnotation,
   hasCustomCover,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -155,6 +250,16 @@ export const ReaderView = memo(function ReaderView({
   // The end of the window is only the end of the book when it holds the book's last block.
   const isBookEnd = blockEnd >= parsed.blocks.length;
   const pendingRef = useRef<number | null>(null);
+  // The live selection, kept as block offsets so the DOM can change under it.
+  const anchorRef2 = useRef<Anchor | null>(null);
+  const [hasSelection, setHasSelection] = useState(false);
+  const [selected, setSelected] = useState<{
+    readonly annotation: Annotation;
+    readonly isFocused: boolean;
+  } | null>(null);
+  const selectedRect = useRef<{ top: number; bottom: number; left: number } | null>(null);
+  const openedAt = useRef(0);
+  const [dotTops, setDotTops] = useState<ReadonlyMap<number, number>>(new Map());
   const moveCenter = useCallback((chapter: number) => {
     if (chapter === centerRef.current) return;
 
@@ -400,6 +505,197 @@ export const ReaderView = memo(function ReaderView({
     drawFind(find);
   }, [find, goTo, drawFind]);
 
+  // The first line of a highlight on screen, in client coordinates.
+  const rectOf = useCallback(
+    (annotation: Annotation): { top: number; bottom: number; left: number } | null => {
+      const container = containerRef.current;
+      const node = container?.querySelector<HTMLElement>(
+        `div[data-block="${annotation.from.block}"]`,
+      );
+      const block = parsed.blocks[annotation.from.block];
+
+      if (container === null || node === null || node === undefined || block === undefined) {
+        return null;
+      }
+
+      const end =
+        annotation.to.block === annotation.from.block ? annotation.to.offset : block.text.length;
+      const range = rangeOf(node, annotation.from.offset, end);
+      const rect = range?.getBoundingClientRect();
+
+      return rect === undefined ? null : { top: rect.top, bottom: rect.bottom, left: rect.left };
+    },
+    [parsed],
+  );
+
+  const open = useCallback(
+    (annotation: Annotation, isFocused: boolean) => {
+      selectedRect.current = rectOf(annotation);
+      openedAt.current = containerRef.current?.scrollTop ?? 0;
+      flushSync(() => setSelected({ annotation, isFocused }));
+    },
+    [rectOf],
+  );
+
+  // A selection inside the article, from the first long press to the last handle drag.
+  useEffect(() => {
+    const update = (): void => {
+      const selection = document.getSelection();
+      const article = articleRef.current;
+
+      if (
+        selection === null ||
+        article === null ||
+        selection.rangeCount === 0 ||
+        selection.isCollapsed
+      ) {
+        anchorRef2.current = null;
+        setHasSelection(false);
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+
+      if (!article.contains(range.commonAncestorContainer)) {
+        anchorRef2.current = null;
+        setHasSelection(false);
+        return;
+      }
+
+      const from = pointOf(range.startContainer, range.startOffset);
+      const to = pointOf(range.endContainer, range.endOffset);
+
+      if (from === null || to === null || !isBefore(from, to)) {
+        anchorRef2.current = null;
+        setHasSelection(false);
+        return;
+      }
+
+      anchorRef2.current = { from, to };
+      setHasSelection(true);
+    };
+
+    document.addEventListener("selectionchange", update);
+
+    return () => document.removeEventListener("selectionchange", update);
+  }, []);
+
+  // Saved highlights paint on the page, and a note puts its dot in the margin.
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+
+    if (container === null) return;
+
+    const highlights = "highlights" in CSS ? CSS.highlights : null;
+    const ranges = annotations.flatMap((annotation) =>
+      annotationRanges(container, parsed, annotation, blockStart, blockEnd),
+    );
+
+    if (highlights !== null) {
+      if (ranges.length === 0) highlights.delete("annotation");
+      else highlights.set("annotation", new Highlight(...ranges));
+    }
+
+    const tops = new Map<number, number>();
+
+    for (const annotation of annotations) {
+      const top = noteDotTop(container, parsed, annotation, blockStart, blockEnd);
+
+      if (top !== null) tops.set(annotation.from.block, top);
+    }
+
+    setDotTops(tops);
+  }, [
+    annotations,
+    blockStart,
+    blockEnd,
+    parsed,
+    fontReady,
+    settings.font,
+    settings.fontSize,
+    settings.lineHeight,
+    settings.textAlign,
+    settings.textWidth,
+  ]);
+
+  // A scroll takes the card away, as the reader has moved on from the passage.
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (selected === null || container === null) return;
+
+    const onScroll = (): void => {
+      if (Math.abs(container.scrollTop - openedAt.current) > 40) setSelected(null);
+    };
+
+    container.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => container.removeEventListener("scroll", onScroll);
+  }, [selected]);
+
+  // The list's Edit key: open the highlight, after its chapter mounts if it is outside the window.
+  useLayoutEffect(() => {
+    if (focusAnnotation === null) return;
+
+    const annotation = annotations.find((entry) => entry.id === focusAnnotation.id);
+
+    if (annotation === undefined) return;
+
+    const node = containerRef.current?.querySelector<HTMLElement>(
+      `div[data-block="${annotation.from.block}"]`,
+    );
+
+    if (node === null || node === undefined) {
+      goTo(annotation.from.block);
+      return;
+    }
+
+    open(annotation, true);
+  }, [focusAnnotation, annotations, goTo, open, blockStart, blockEnd, center]);
+
+  // A point inside one of the highlight's drawn lines, not only its text.
+  const hits = useCallback(
+    (annotation: Annotation, x: number, y: number): boolean => {
+      const container = containerRef.current;
+
+      if (container === null) return false;
+
+      for (let index = annotation.from.block; index <= annotation.to.block; index += 1) {
+        const block = parsed.blocks[index];
+        const node = container.querySelector<HTMLElement>(`div[data-block="${index}"]`);
+
+        if (block === undefined || node === null || block.kind === "image") continue;
+
+        const start = index === annotation.from.block ? annotation.from.offset : 0;
+        const end = index === annotation.to.block ? annotation.to.offset : block.text.length;
+        const range = rangeOf(node, start, end);
+        const inside =
+          range !== null &&
+          Array.from(range.getClientRects()).some(
+            (rect) => x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom,
+          );
+
+        if (inside) return true;
+      }
+
+      return false;
+    },
+    [parsed],
+  );
+
+  const makeHighlight = (): void => {
+    const anchor = anchorRef2.current;
+
+    if (anchor === null) return;
+
+    const annotation = onHighlight(anchor);
+
+    document.getSelection()?.removeAllRanges();
+    anchorRef2.current = null;
+    setHasSelection(false);
+    open(annotation, true);
+  };
+
   const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
     const link = target.closest<HTMLAnchorElement>("a[data-link-block]");
@@ -415,6 +711,23 @@ export const ReaderView = memo(function ReaderView({
     if (target.closest("a, button") !== null) return;
     if (!tap.isTap(event)) return;
     if (container === null) return;
+
+    // A tap on a saved highlight opens its note, before any page turn.
+    const caret = document.caretRangeFromPoint?.(event.clientX, event.clientY) ?? null;
+    const point = caret === null ? null : pointOf(caret.startContainer, caret.startOffset);
+    const hit =
+      point === null
+        ? undefined
+        : annotations.find(
+            (annotation) =>
+              containsPoint(annotation, point) && hits(annotation, event.clientX, event.clientY),
+          );
+
+    if (hit !== undefined) {
+      event.preventDefault();
+      open(hit, false);
+      return;
+    }
 
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = (event.clientX - rect.left) / rect.width;
@@ -490,12 +803,42 @@ export const ReaderView = memo(function ReaderView({
             </div>
           )}
           {shown.map((entry) => (
-            <div key={entry.key} data-block={entry.index} className={entry.className}>
+            <div key={entry.key} data-block={entry.index} className={`relative ${entry.className}`}>
               {entry.node}
+              {dotTops.has(entry.index) && (
+                <span
+                  className="note-dot"
+                  style={{ top: dotTops.get(entry.index) }}
+                  aria-hidden="true"
+                />
+              )}
             </div>
           ))}
         </article>
       )}
+      {hasSelection && selected === null && (
+        <button type="button" className="key green highlight-pill" onClick={makeHighlight}>
+          <MarkerIcon className="icon" />
+          Highlight
+        </button>
+      )}
+      {selected !== null &&
+        selectedRect.current !== null &&
+        createPortal(
+          <NoteCard
+            key={selected.annotation.id}
+            annotation={selected.annotation}
+            rect={selectedRect.current}
+            isFocused={selected.isFocused}
+            onSave={(note) => onSaveNote(selected.annotation, note)}
+            onRemove={() => {
+              onRemoveAnnotation(selected.annotation);
+              setSelected(null);
+            }}
+            onClose={() => setSelected(null)}
+          />,
+          document.body,
+        )}
     </div>
   );
 });

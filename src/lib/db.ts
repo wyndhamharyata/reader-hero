@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { AiSettings, GroupedBooks, Summary, UsageTally } from "@/domain/ai";
+import type { Annotation } from "@/domain/annotation";
 import type {
   BookMeta,
   BookPrefs,
@@ -32,10 +33,11 @@ export interface ReaderDb extends DBSchema {
   pages: { key: string; value: StoredPages };
   summaries: { key: string; value: Summary };
   series: { key: string; value: Series };
+  annotations: { key: string; value: Annotation };
 }
 
 const DB_NAME = "reader-hero";
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 export const SETTINGS_KEY = "app";
 export const AI_SETTINGS_KEY = "ai";
 
@@ -80,6 +82,8 @@ async function connect(): Promise<IDBPDatabase<ReaderDb>> {
       if (!next.objectStoreNames.contains("series")) {
         next.createObjectStore("series", { keyPath: "id" });
       }
+
+      if (!next.objectStoreNames.contains("annotations")) next.createObjectStore("annotations");
 
       // Version 6 and 7 stored recaps here. The summary holds the chapter being read instead.
       const raw = next as unknown as IDBDatabase;

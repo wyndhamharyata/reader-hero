@@ -1,5 +1,6 @@
 import { Layer, ManagedRuntime } from "effect";
 import { AiClient } from "@/services/ai-client";
+import { AnnotationStore } from "@/services/annotation-store";
 import { BookStore } from "@/services/book-store";
 import { FigureJobs } from "@/services/figure-jobs";
 import { FigureSlots } from "@/services/figure-slots";
@@ -18,6 +19,7 @@ const aiLayer = Layer.mergeAll(
 
 const appLayer = Layer.mergeAll(
   BookStore.layer,
+  AnnotationStore.layer,
   PdfClient.layer,
   SettingsStore.layer,
   FigureSlots.layer,
@@ -41,5 +43,6 @@ export type AppServices =
   | PageRenderer
   | ServiceWorkerClient
   | SummaryStore
+  | AnnotationStore
   | AiClient
   | SummaryJobs;

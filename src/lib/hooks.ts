@@ -15,6 +15,8 @@ import { FigureJobs } from "@/services/figure-jobs";
 import { SettingsStore } from "@/services/settings-store";
 import { SummaryJobs, type JobState } from "@/services/summary-jobs";
 import { SummaryStore } from "@/services/summary-store";
+import { AnnotationStore } from "@/services/annotation-store";
+import type { Annotation } from "@/domain/annotation";
 import { saveAiSettings } from "@/use-cases/ai-settings";
 import type { SummaryInput, SummaryRun } from "@/use-cases/summary";
 import { watchBookImage } from "@/use-cases/book-image";
@@ -286,6 +288,59 @@ export function useAiSettings(): {
   }, []);
 
   return { ai, putAi };
+}
+
+// The book's highlights, live, so the page paints a save as soon as it is written.
+export function useAnnotations(bookId: string): ReadonlyArray<Annotation> {
+  const [annotations, setAnnotations] = useState<ReadonlyArray<Annotation>>([]);
+
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.flatMap(AnnotationStore, (store) =>
+        store
+          .watch(bookId)
+          .pipe(Stream.runForEach((next) => Effect.sync(() => setAnnotations(next)))),
+      ),
+    );
+
+    return () => stopFiber(fiber);
+  }, [bookId]);
+
+  return annotations;
+}
+
+// Every book's highlights, live, for the library's list.
+export function useAllAnnotations(): ReadonlyArray<Annotation> {
+  const [annotations, setAnnotations] = useState<ReadonlyArray<Annotation>>([]);
+
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.flatMap(AnnotationStore, (store) =>
+        Stream.runForEach(store.watchAll(), (next) => Effect.sync(() => setAnnotations(next))),
+      ),
+    );
+
+    return () => stopFiber(fiber);
+  }, []);
+
+  return annotations;
+}
+
+// Highlights per book, live, for the library's count and cover flags.
+export function useAnnotationCounts(): ReadonlyMap<string, number> {
+  const [counts, setCounts] = useState<ReadonlyMap<string, number>>(new Map());
+
+  useEffect(() => {
+    const fiber = forkApp(
+      Effect.flatMap(AnnotationStore, (store) =>
+        Stream.runForEach(store.watchCounts(), (next) => Effect.sync(() => setCounts(next))),
+      ),
+    );
+
+    return () => stopFiber(fiber);
+  }, []);
+
+  return counts;
 }
 
 // The cache tallies by "provider/model", live, so the sheet's numbers move as requests finish.

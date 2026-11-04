@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { Effect } from "effect";
+import type { Annotation } from "@/domain/annotation";
 import type { BookMeta, ParsedBook, ReaderMode, ReaderSettings } from "@/domain/book";
+import { forkApp } from "@/lib/hooks";
+import {
+  mergeAnchor,
+  removeAnnotation,
+  saveAnnotation,
+  saveNote,
+  type Anchor,
+} from "@/use-cases/annotations";
 import type { Chapter } from "@/use-cases/ai-context";
 import { OriginalView } from "./_OriginalView";
 import { ReaderView, type FindTarget, type JumpRequest } from "./_ReaderView";
@@ -21,6 +31,8 @@ interface Props {
   onCloseSearch: () => void;
   onToggleChrome: () => void;
   onPageTurn: () => void;
+  annotations: ReadonlyArray<Annotation>;
+  focusAnnotation: { readonly id: string; readonly nonce: number } | null;
 }
 
 export function ReaderBody({
@@ -38,7 +50,32 @@ export function ReaderBody({
   onCloseSearch,
   onToggleChrome,
   onPageTurn,
+  annotations,
+  focusAnnotation,
 }: Props): ReactElement {
+  const addHighlight = useCallback(
+    (anchor: Anchor): Annotation => {
+      const { annotation, replaced } = mergeAnchor(meta.id, parsed, annotations, anchor);
+
+      forkApp(
+        saveAnnotation(annotation, replaced).pipe(
+          Effect.catchTag("StorageFailure", () => Effect.void),
+        ),
+      );
+
+      return annotation;
+    },
+    [meta.id, parsed, annotations],
+  );
+  const writeNote = useCallback((annotation: Annotation, note: string): void => {
+    forkApp(saveNote(annotation, note).pipe(Effect.catchTag("StorageFailure", () => Effect.void)));
+  }, []);
+  const remove = useCallback((annotation: Annotation): void => {
+    forkApp(
+      removeAnnotation(annotation).pipe(Effect.catchTag("StorageFailure", () => Effect.void)),
+    );
+  }, []);
+
   const scanned = meta.parseState === "scanned";
   const showOriginal = mode === "original" || scanned;
   // Taken at mount, as the live place would render every block again on each block reached.
@@ -80,6 +117,11 @@ export function ReaderBody({
           onToggleChrome={onToggleChrome}
           onPageTurn={onPageTurn}
           find={find}
+          annotations={annotations}
+          onHighlight={addHighlight}
+          onSaveNote={writeNote}
+          onRemoveAnnotation={remove}
+          focusAnnotation={focusAnnotation}
           hasCustomCover={meta.customCover === true}
         />
       )}

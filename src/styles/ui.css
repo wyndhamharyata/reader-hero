@@ -33,6 +33,7 @@
   --green: oklch(45% 0.1 159);
   --green-deep: oklch(33% 0.08 159);
   --green-wash: oklch(93% 0.035 159);
+  --hl: oklch(89% 0.07 159);
   --key-top: oklch(99.5% calc(0.003 + var(--tint) * 0.012) var(--tint-hue));
   --key-bottom: oklch(93.5% calc(0.007 + var(--tint) * 0.02) var(--tint-hue));
   --key-skirt: oklch(80% calc(0.01 + var(--tint) * 0.02) var(--tint-hue));
@@ -400,6 +401,84 @@
   .switch:disabled {
     cursor: default;
     opacity: 0.45;
+  }
+
+  /* The one action a selection gets, away from the text it is about. */
+  .highlight-pill {
+    position: fixed;
+    right: 16px;
+    bottom: calc(16px + var(--safe-bottom));
+    z-index: 20;
+    animation: pill-in 150ms var(--ease-out);
+  }
+
+  @keyframes pill-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  /* The note card: small, over the page, never a sheet. */
+  .note-card {
+    position: fixed;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(350px, calc(100vw - 24px));
+    padding: 10px;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 12px 28px -8px oklch(0% 0 0 / 0.3);
+  }
+
+  .note-quote {
+    border-left: 4px solid var(--hl);
+    padding-left: 8px;
+    overflow: hidden;
+    font-family: var(--font-serif), serif;
+    font-size: 15px;
+    line-height: 1.35;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .note-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .note-text {
+    flex: 1;
+    min-width: 0;
+    max-height: 4.5em;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: var(--sunk);
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.35;
+    resize: none;
+    field-sizing: content;
+  }
+
+  .note-text:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 1px;
+  }
+
+  /* A note's dot in the right margin, beside the line it starts on. */
+  .note-dot {
+    position: absolute;
+    right: -18px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
   }
 
   /* A native range, so keys and screen readers work. The groove is the track and the thumb a keycap. */
@@ -1973,12 +2052,25 @@
   color: inherit;
 }
 
+::highlight(annotation) {
+  background: var(--hl);
+  color: inherit;
+}
+
 [data-theme="rhdim"] ::highlight(find) {
   background: oklch(78% 0.12 95);
 }
 
+[data-theme="rhdim"] {
+  --hl: oklch(72% 0.09 159);
+}
+
 [data-theme="rhdark"] ::highlight(find) {
   background: oklch(48% 0.1 95);
+}
+
+[data-theme="rhdark"] {
+  --hl: oklch(38% 0.07 159);
 }
 
 @keyframes stripes {

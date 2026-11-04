@@ -1,5 +1,6 @@
 import { Schema } from "effect";
 import { AiSettings, GroupedBooks, Summary, UsageTally } from "@/domain/ai";
+import { Annotation } from "@/domain/annotation";
 import {
   BookMeta,
   BookPrefs,
@@ -25,5 +26,6 @@ export const decodeFigureCheckpoint = Schema.decodeUnknownEffect(FigureCheckpoin
 export const decodeStoredPages = Schema.decodeUnknownEffect(StoredPages);
 export const decodeAiSettings = Schema.decodeUnknownEffect(AiSettings);
 export const decodeSummary = Schema.decodeUnknownEffect(Summary);
+export const decodeAnnotation = Schema.decodeUnknownEffect(Annotation);
 export const decodeGroupedBooks = Schema.decodeUnknownEffect(GroupedBooks);
 export const decodeUsageTally = Schema.decodeUnknownEffect(UsageTally);

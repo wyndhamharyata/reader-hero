@@ -12,6 +12,8 @@ export function BookSheet({
   card,
   progress,
   groups,
+  highlightCount,
+  onHighlights,
   onOpen,
   onFinished,
   onSeries,
@@ -25,6 +27,8 @@ export function BookSheet({
   card: LibraryCard;
   progress: ReadingProgress | null;
   groups: Shelf["series"];
+  highlightCount: number;
+  onHighlights: () => void;
   // Unset over the reader, where the book is already open.
   onOpen: (() => void) | undefined;
   // `place` is the position at the sheet's opening, which Finished turned off goes back to.
@@ -85,6 +89,15 @@ export function BookSheet({
         </button>
       )}
       <div className="rows">
+        {highlightCount > 0 && (
+          <button type="button" className="row-item" onClick={() => dismiss(onHighlights)}>
+            <span className="row-label">Highlights</span>
+            <span className="value">{highlightCount}</span>
+            <span className="chev" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        )}
         <div className="row-item">
           <span className="row-label">Finished</span>
           <Switch

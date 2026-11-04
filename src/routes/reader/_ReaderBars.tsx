@@ -1,5 +1,11 @@
 import type { ReactElement } from "react";
-import { ArrowLeftIcon, DocumentTextIcon, EllipsisIcon, ListBulletIcon } from "@/components/icons";
+import {
+  ArrowLeftIcon,
+  DocumentTextIcon,
+  EllipsisIcon,
+  ListBulletIcon,
+  MarkerIcon,
+} from "@/components/icons";
 
 export type ReaderPanel = "contents" | "summary" | "look" | "more";
 
@@ -28,14 +34,18 @@ export function ReaderBars({
   isShown,
   percent,
   ratio,
+  highlightCount,
   onBack,
+  onHighlights,
   onPanel,
 }: {
   readonly title: string;
   readonly isShown: boolean;
   readonly percent: string;
   readonly ratio: number;
+  readonly highlightCount: number;
   readonly onBack: () => void;
+  readonly onHighlights: () => void;
   readonly onPanel: (panel: ReaderPanel) => void;
 }): ReactElement {
   const hidden = isShown ? "" : " is-hidden";
@@ -86,6 +96,16 @@ export function ReaderBars({
           <span className="min-w-9 text-right text-[13px] text-(--ink-soft) tabular-nums">
             {percent}
           </span>
+          {highlightCount > 0 && (
+            <button
+              type="button"
+              className="key small square"
+              aria-label={`${highlightCount} ${highlightCount === 1 ? "highlight" : "highlights"}`}
+              onClick={onHighlights}
+            >
+              <MarkerIcon className="icon" />
+            </button>
+          )}
         </div>
         <div className="flex justify-between gap-2 md:hidden">
           {tools.map((tool) => (
