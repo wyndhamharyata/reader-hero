@@ -110,6 +110,60 @@ function turnPage(container: HTMLElement, direction: 1 | -1): void {
   );
 }
 
+const slideMs = 200;
+// How far the first run of a jump goes, as a share of the screen, before the rest is placed at once.
+const slideShare = 0.3;
+let slideRun = 0;
+// A run moves the page itself, so the window holds still until the run ends.
+let slideMoving = false;
+
+// A short run the way the place lies, then the place itself, so a jump shows its direction.
+function slideTo(container: HTMLElement, place: () => number, direction?: 1 | -1): void {
+  const maxScroll = container.scrollHeight - container.clientHeight;
+  const to = Math.max(0, Math.min(place(), maxScroll));
+  const runPx = container.clientHeight * slideShare;
+  // A jump from another chapter runs in from a share short of the place, as the page it left is gone.
+  const start = direction === undefined ? container.scrollTop : to - direction * runPx;
+  const from = Math.max(0, Math.min(start, maxScroll));
+  const distance = to - from;
+
+  slideRun += 1;
+  slideMoving = false;
+
+  if (prefersLessMotion() || Math.abs(distance) < 4) {
+    container.scrollTop = to;
+    return;
+  }
+
+  slideMoving = true;
+  container.scrollTop = from;
+
+  const id = slideRun;
+  const run = Math.sign(distance) * Math.min(Math.abs(distance), runPx);
+  const started = performance.now();
+  const step = (now: number): void => {
+    if (id !== slideRun) return;
+
+    const t = Math.min(1, (now - started) / slideMs);
+
+    if (t < 1) {
+      container.scrollTop = from + run * (1 - (1 - t) ** 2);
+      requestAnimationFrame(step);
+      return;
+    }
+
+    // Measured again at the end, as the page above may have changed while the run went on.
+    slideMoving = false;
+    container.scrollTop = place();
+  };
+
+  requestAnimationFrame(step);
+}
+
+// The scrollTop that puts a block at the top of the page, measured when it is wanted.
+const placeAt = (container: HTMLElement, node: HTMLElement) => (): number =>
+  container.scrollTop + node.getBoundingClientRect().top - container.getBoundingClientRect().top;
+
 const isBefore = (a: AnnotationPoint, b: AnnotationPoint): boolean =>
   a.block < b.block || (a.block === b.block && a.offset < b.offset);
 
@@ -250,6 +304,8 @@ export const ReaderView = memo(function ReaderView({
   // The end of the window is only the end of the book when it holds the book's last block.
   const isBookEnd = blockEnd >= parsed.blocks.length;
   const pendingRef = useRef<number | null>(null);
+  // The way a jump out of the window goes, as the window's offsets cannot tell it.
+  const pendingDirection = useRef<1 | -1>(1);
   // The live selection, kept as block offsets so the DOM can change under it.
   const anchorRef2 = useRef<Anchor | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
@@ -396,7 +452,9 @@ export const ReaderView = memo(function ReaderView({
       }
 
       // The window follows the reading place, and turns a page at its own end rather than running out.
-      moveCenter(atEnd && !isLast ? centerRef.current + 1 : chapterAt(chunks, index));
+      if (!slideMoving) {
+        moveCenter(atEnd && !isLast ? centerRef.current + 1 : chapterAt(chunks, index));
+      }
     };
     // Safari has no CSS scroll anchoring: hold the top block in place when content above it resizes.
     const restore = (): void => {
@@ -437,13 +495,13 @@ export const ReaderView = memo(function ReaderView({
 
       if (target === null) {
         pendingRef.current = index;
+        pendingDirection.current = index < positionRef.current ? -1 : 1;
         moveCenter(chapterAt(chunks, index));
         return;
       }
 
       pendingRef.current = null;
-      container.scrollTop +=
-        target.getBoundingClientRect().top - container.getBoundingClientRect().top;
+      slideTo(container, placeAt(container, target));
     },
     [chunks, moveCenter],
   );
@@ -461,9 +519,10 @@ export const ReaderView = memo(function ReaderView({
 
     if (range === null) return;
 
-    const top = range.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    const top = (): number =>
+      range.getBoundingClientRect().top - container.getBoundingClientRect().top;
 
-    container.scrollTop += top - container.clientHeight / 3;
+    slideTo(container, () => container.scrollTop + top() - container.clientHeight / 3);
     highlights?.set("find", new Highlight(range));
   }, []);
 
@@ -479,8 +538,7 @@ export const ReaderView = memo(function ReaderView({
     if (target === null) return;
 
     pendingRef.current = null;
-    container.scrollTop +=
-      target.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    slideTo(container, placeAt(container, target), pendingDirection.current);
 
     if (find !== null && find.index === pending) drawFind(find);
   }, [center, find, drawFind]);
