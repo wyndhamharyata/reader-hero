@@ -21,11 +21,13 @@ export function loadedLibrary(state: AsyncState<LibraryValue, unknown>): Library
   return state.value;
 }
 
+// Figure jobs also wait for an import to end, as both use the one pdf.js worker and a slow phone stalls the import.
 export function booksToShow(
   isHidden: boolean,
+  isImporting: boolean,
   books: ReadonlyArray<BookMeta>,
 ): ReadonlyArray<BookMeta> {
-  return isHidden ? [] : books;
+  return isHidden || isImporting ? [] : books;
 }
 
 export function hiddenClass(isHidden: boolean): string {

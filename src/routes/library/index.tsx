@@ -469,7 +469,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const annotations = useAllAnnotations();
   const highlightTotal = [...annotationCounts.values()].reduce((sum, count) => sum + count, 0);
 
-  useFigureJobs(booksToShow(isHidden, books));
+  useFigureJobs(booksToShow(isHidden, isImporting, books));
 
   const {
     grouping,
