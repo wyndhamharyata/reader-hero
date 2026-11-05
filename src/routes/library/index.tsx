@@ -491,15 +491,17 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   }, [isHidden, reload]);
 
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
-  const bookIds = books.map((book) => book.id).join(" ");
+  const bookIds = booksToShow(isHidden, isImporting, books)
+    .map((book) => book.id)
+    .join(" ");
 
   useEffect(() => {
-    if (isHidden || bookIds === "") return;
+    if (bookIds === "") return;
 
     const fiber = forkApp(ensureCovers(bookIds.split(" ")));
 
     return () => stopFiber(fiber);
-  }, [isHidden, bookIds]);
+  }, [bookIds]);
 
   // A book's text waits for its font, so the reading fonts load with the library.
   useEffect(() => {

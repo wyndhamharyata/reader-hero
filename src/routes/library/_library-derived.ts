@@ -21,7 +21,7 @@ export function loadedLibrary(state: AsyncState<LibraryValue, unknown>): Library
   return state.value;
 }
 
-// Figure jobs also wait for an import to end, as both use the one pdf.js worker and a slow phone stalls the import.
+// Figure and cover jobs also wait for an import to end, as all use the one pdf.js worker and a slow phone stalls the import.
 export function booksToShow(
   isHidden: boolean,
   isImporting: boolean,
