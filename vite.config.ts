@@ -56,6 +56,19 @@ export default defineConfig({
         });
       },
     },
+    {
+      name: "pdfjs-text-in-one-message",
+      // pdf.js sends a page's text 100 items per message. One message per page is fewer worker round trips on a slow phone.
+      transform(code, id) {
+        if (!/pdfjs-dist[\\/]build[\\/]pdf\.mjs$/.test(id.split("?")[0] ?? "")) return null;
+
+        const chunk = "const TEXT_CONTENT_CHUNK_SIZE = 100;";
+
+        if (!code.includes(chunk)) throw new Error("pdf.js changed its text chunk size");
+
+        return code.replace(chunk, "const TEXT_CONTENT_CHUNK_SIZE = 100_000;");
+      },
+    },
     tailwindcss(),
     VitePWA({
       strategies: "injectManifest",
