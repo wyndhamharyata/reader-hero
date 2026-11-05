@@ -1,7 +1,8 @@
-// iOS WebKit has no ImageDecoder, so pdf.js decodes JPEGs in slow pure JS. This prepends a shim built on createImageBitmap.
+// iOS WebKit has no ImageDecoder, so pdf.js decodes JPEGs in slow pure JS. This prepends a shim built on createImageBitmap, and a faster AES.
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { patchAes } from "./aes-patch.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const source = join(root, "node_modules", "pdfjs-dist", "build", "pdf.worker.min.mjs");
@@ -50,5 +51,5 @@ if (typeof self !== "undefined" && typeof self.ImageDecoder === "undefined") {
 `;
 
 mkdirSync(targetDir, { recursive: true });
-writeFileSync(target, shim + readFileSync(source, "utf8"));
+writeFileSync(target, shim + patchAes(readFileSync(source, "utf8")));
 console.log(`patched ${target}`);
