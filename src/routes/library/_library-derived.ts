@@ -30,6 +30,15 @@ export function booksToShow(
   return isHidden || isImporting ? [] : books;
 }
 
+// Covers come before figures, as the shelf shows every cover and a figure only shows in its book.
+export function afterCovers(
+  books: ReadonlyArray<BookMeta>,
+  bookIds: string,
+  coveredIds: string,
+): ReadonlyArray<BookMeta> {
+  return bookIds === coveredIds ? books : [];
+}
+
 export function hiddenClass(isHidden: boolean): string {
   return isHidden ? "invisible" : "";
 }

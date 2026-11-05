@@ -40,7 +40,7 @@ import { BookSheet } from "./_BookSheet";
 import { isBuilding } from "./_BookTile";
 import { ContinueCard } from "./_ContinueCard";
 import { EmptyShelf } from "./_EmptyShelf";
-import { booksToShow, hiddenClass, loadedLibrary } from "./_library-derived";
+import { afterCovers, booksToShow, hiddenClass, loadedLibrary } from "./_library-derived";
 import { LibraryRows, rowKey, shelfRows, type ShelfRow, type TileEvents } from "./_LibraryRows";
 import { LicencesSheet } from "./_LicencesSheet";
 import { Logo } from "./_Logo";
@@ -470,8 +470,6 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const annotations = useAllAnnotations();
   const highlightTotal = [...annotationCounts.values()].reduce((sum, count) => sum + count, 0);
 
-  useFigureJobs(booksToShow(isHidden, isImporting, books));
-
   const {
     grouping,
     retry: retryGrouping,
@@ -492,17 +490,21 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   }, [isHidden, reload]);
 
   // Keyed on the ids, so the frequent meta reloads during parsing do not restart the cover job.
-  const bookIds = booksToShow(isHidden, isImporting, books)
-    .map((book) => book.id)
-    .join(" ");
+  const shown = booksToShow(isHidden, isImporting, books);
+  const bookIds = shown.map((book) => book.id).join(" ");
+  // The ids whose covers are all made. Figure jobs start once they match the shelf.
+  const [coveredIds, setCoveredIds] = useState("");
 
   useEffect(() => {
     if (bookIds === "") return;
 
-    const fiber = forkApp(ensureCovers(bookIds.split(" ")));
+    const done = Effect.sync(() => setCoveredIds(bookIds));
+    const fiber = forkApp(ensureCovers(bookIds.split(" ")).pipe(Effect.andThen(done)));
 
     return () => stopFiber(fiber);
   }, [bookIds]);
+
+  useFigureJobs(afterCovers(shown, bookIds, coveredIds));
 
   // A book's text waits for its font, so the reading fonts load with the library.
   useEffect(() => {
