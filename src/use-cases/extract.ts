@@ -10,6 +10,8 @@ export interface ParseProgress {
   // What `page` counts. A PDF counts pages, an EPUB counts chapters and then images.
   readonly step?: "Chapter" | "Image";
   readonly file?: { readonly index: number; readonly count: number; readonly name: string };
+  // The other files importing at the same time, so each building book shows its own progress.
+  readonly alongside?: ReadonlyArray<ParseProgress>;
 }
 
 export interface PageRead extends ParseProgress {

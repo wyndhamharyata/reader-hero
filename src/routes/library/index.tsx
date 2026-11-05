@@ -875,12 +875,14 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     onToggleSeries: toggleSeries,
     onSeriesActions: setSeriesEdit,
     fillOf: (card) => {
-      const file = progress?.file;
-      const isThisFile = file === undefined || file.name === card.book.fileName;
+      const all = progress === null ? [] : [progress, ...(progress.alongside ?? [])];
+      const own = all.find(
+        (each) => each.file === undefined || each.file.name === card.book.fileName,
+      );
 
-      if (progress === null || !isBuilding(card) || !isThisFile) return 0;
+      if (own === undefined || !isBuilding(card)) return 0;
 
-      return progress.page / Math.max(1, progress.total);
+      return own.page / Math.max(1, own.total);
     },
     freshAt: (id) => fresh.get(id),
   };

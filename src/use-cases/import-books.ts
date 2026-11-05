@@ -43,8 +43,21 @@ export function importBooks(
       failures: ReadonlyArray<string>;
     }): string => [`Added ${added} of ${wanted.length} books.`, ...failures].join("\n");
 
-    // Files running now, by place. The panel follows the earliest, so its bar does not jump between two books.
-    const running = new Set<number>();
+    // Each running file's latest progress, by place. The panel follows the earliest, so its bar does not jump between books.
+    const running = new Map<number, ParseProgress>();
+    // Each update redraws the library, so it shows at most 4 a second. The stall check still counts every page.
+    let shownAt = 0;
+    const show = (): void => {
+      const now = Date.now();
+      const [first, ...alongside] = [...running.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, progress]) => progress);
+
+      if (first === undefined || now - shownAt < 250) return;
+
+      shownAt = now;
+      onProgress({ ...first, alongside });
+    };
     const importOne = (
       file: File,
       index: number,
@@ -80,17 +93,11 @@ export function importBooks(
         }
       });
       const progressFile = { index: position + 1, count: wanted.length, name: file.name };
-      // Each update redraws the library, so it shows at most 4 a second. The stall check still counts every page.
-      let shownAt = 0;
       const work = addBook(file, (progress) => {
         lastProgress = Date.now();
-        if (position !== Math.min(...running) || lastProgress - shownAt < 250) return;
-
-        shownAt = lastProgress;
-        onProgress({ ...progress, file: progressFile });
+        running.set(position, { ...progress, file: progressFile });
+        show();
       });
-
-      running.add(position);
 
       return Effect.raceFirst(work, stalled).pipe(
         Effect.ensuring(Effect.sync(() => running.delete(position))),
