@@ -8,11 +8,11 @@ import {
 } from "@/domain/errors";
 import { describeError } from "@/lib/describe-error";
 import { BookStore } from "@/services/book-store";
-import type { PdfClient } from "@/services/pdf-client";
+import { PDF_READERS, type PdfClient } from "@/services/pdf-client";
 import type { ParseProgress } from "./extract";
 import { addBook } from "./import-book";
 
-// One file at a time, as each import holds a whole book in memory. Each file's book id, in order. A failed one has none.
+// PDF_READERS files at a time, as each import holds a whole book in memory. Each file's book id, in order. A failed one has none.
 export function importBooks(
   files: ReadonlyArray<File>,
   onProgress: (progress: ParseProgress) => void,
@@ -43,6 +43,8 @@ export function importBooks(
       failures: ReadonlyArray<string>;
     }): string => [`Added ${added} of ${wanted.length} books.`, ...failures].join("\n");
 
+    // Files running now, by place. The panel follows the earliest, so its bar does not jump between two books.
+    const running = new Set<number>();
     const importOne = (
       file: File,
       index: number,
@@ -80,10 +82,13 @@ export function importBooks(
       const progressFile = { index: position + 1, count: wanted.length, name: file.name };
       const work = addBook(file, (progress) => {
         lastProgress = Date.now();
-        onProgress({ ...progress, file: progressFile });
+        if (position === Math.min(...running)) onProgress({ ...progress, file: progressFile });
       });
 
+      running.add(position);
+
       return Effect.raceFirst(work, stalled).pipe(
+        Effect.ensuring(Effect.sync(() => running.delete(position))),
         Effect.tap((meta) =>
           Effect.andThen(
             Ref.update(tally, (current) => ({ ...current, added: current.added + 1 })),
@@ -104,7 +109,9 @@ export function importBooks(
 
     yield* Stream.fromIterable(wanted).pipe(
       Stream.zipWithIndex,
-      Stream.mapEffect(([{ file, index }, position]) => importOne(file, index, position)),
+      Stream.mapEffect(([{ file, index }, position]) => importOne(file, index, position), {
+        concurrency: PDF_READERS,
+      }),
       Stream.runDrain,
       Effect.onInterrupt(() =>
         Ref.get(tally).pipe(

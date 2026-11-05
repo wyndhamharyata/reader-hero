@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option, Schema, Stream } from "effect";
+import { Context, Effect, Exit, Layer, Option, Schema, Stream } from "effect";
 import type {
   PDFDocumentLoadingTask,
   PDFDocumentProxy,
@@ -48,17 +48,45 @@ const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
     catch: pdfFailure,
   });
 
-// One pdf.js worker for every load, as the render worker has, not a 1.3 MB script parse per load.
-let sharedWorker: InstanceType<PdfLib["PDFWorker"]> | null = null;
-// When the shared worker last answered any document. A busy worker is slow, a dead one is silent.
-let lastAnswer = 0;
-const answered = (): void => {
-  lastAnswer = Date.now();
+const agent = globalThis.navigator?.userAgent ?? "";
+// Two workers read two books at once on a phone with cores to spare. WebKit keeps one, as it may not run two well.
+const isWebKit = agent.includes("AppleWebKit") && !agent.includes("Chrome/");
+
+export const PDF_READERS =
+  !isWebKit && (globalThis.navigator?.hardwareConcurrency ?? 1) >= 4 ? 2 : 1;
+
+// A pdf.js worker, with its open documents and when it last answered. A busy worker is slow, a dead one is silent.
+export interface PdfReader {
+  readonly worker: InstanceType<PdfLib["PDFWorker"]>;
+  open: number;
+  lastAnswer: number;
+}
+
+let readers: ReadonlyArray<PdfReader> = [];
+const answered = (reader: PdfReader): void => {
+  reader.lastAnswer = Date.now();
 };
-const pdfWorker = (lib: PdfLib): InstanceType<PdfLib["PDFWorker"]> => {
-  if (sharedWorker === null || sharedWorker.destroyed) sharedWorker = new lib.PDFWorker();
-  return sharedWorker;
+
+// A load takes an idle worker, then a new one up to PDF_READERS, then the least busy. Each is a 1.3 MB script parse.
+const pickReader = (lib: PdfLib): PdfReader => {
+  const alive = readers
+    .filter((reader) => !reader.worker.destroyed)
+    .sort((a, b) => a.open - b.open);
+  const least = alive[0];
+
+  if (least !== undefined && (least.open === 0 || alive.length >= PDF_READERS)) {
+    readers = alive;
+    return least;
+  }
+
+  const reader: PdfReader = { worker: new lib.PDFWorker(), open: 0, lastAnswer: 0 };
+
+  readers = [...alive, reader];
+
+  return reader;
 };
+// A book's import and its parse both release the same handle, which counts once.
+const released = new WeakSet<PdfHandle>();
 
 const IMAGE_RENDER_SCALE = 1.5;
 const IMAGE_LOOKUP_TIMEOUT = "15 seconds";
@@ -69,6 +97,7 @@ export interface PdfHandle {
   readonly proxy: PDFDocumentProxy;
   readonly task: PDFDocumentLoadingTask;
   readonly numPages: number;
+  readonly reader: PdfReader;
 }
 
 type OutlineNode = Awaited<ReturnType<PDFDocumentProxy["getOutline"]>>[number];
@@ -352,6 +381,10 @@ export class PdfClient extends Context.Service<
       load: Effect.fn("PdfClient.load")(function* (data: ArrayBuffer) {
         const lib = yield* loadLib();
         const origin = (globalThis as { location?: { origin: string } }).location?.origin ?? "";
+        const reader = pickReader(lib);
+
+        reader.open += 1;
+
         // Without a served wasmUrl, pdf.js falls back to slow pure-JS decoders.
         const task = lib.getDocument({
           data,
@@ -360,16 +393,19 @@ export class PdfClient extends Context.Service<
           iccUrl: `${origin}/icc/`,
           // Set explicitly, so default merging cannot drop Safari's ImageDecoder JPEG fast path.
           isImageDecoderSupported: true,
-          worker: pdfWorker(lib),
+          worker: reader.worker,
         });
         // Given up on, the task is destroyed, so its worker does not run on with the whole file.
         const proxy = yield* Effect.tryPromise({ try: () => task.promise, catch: pdfFailure }).pipe(
           Effect.onInterrupt(() => Effect.sync(() => void task.destroy().catch(() => undefined))),
+          Effect.onExit((exit) =>
+            Exit.isSuccess(exit) ? Effect.void : Effect.sync(() => void (reader.open -= 1)),
+          ),
         );
 
-        answered();
+        answered(reader);
 
-        return { proxy, task, numPages: proxy.numPages };
+        return { proxy, task, numPages: proxy.numPages, reader };
       }),
 
       readPage: Effect.fn("PdfClient.readPage")(function* (handle: PdfHandle, page: number) {
@@ -386,7 +422,7 @@ export class PdfClient extends Context.Service<
           catch: pdfFailure,
         }).pipe(Effect.orElseSucceed(() => []));
 
-        answered();
+        answered(handle.reader);
 
         return {
           ...toPageText(page, content, pageProxy.getViewport({ scale: 1 })),
@@ -403,7 +439,7 @@ export class PdfClient extends Context.Service<
 
         const paints = yield* readBoxes(lib, pageProxy, page);
 
-        answered();
+        answered(handle.reader);
 
         if (paints.length === 0) {
           yield* cleanupPage(pageProxy);
@@ -559,6 +595,11 @@ export class PdfClient extends Context.Service<
 
       // A dead worker never answers, so the wait ends. It shuts down only after 30s silent to every book, as a busy one is slow.
       release: Effect.fn("PdfClient.release")(function* (handle: PdfHandle) {
+        if (released.has(handle)) return;
+
+        released.add(handle);
+        handle.reader.open -= 1;
+
         const destroyed = yield* Effect.tryPromise({
           try: () => handle.task.destroy(),
           catch: pdfFailure,
@@ -567,9 +608,8 @@ export class PdfClient extends Context.Service<
           Effect.orElseSucceed(() => Option.some(undefined)),
         );
 
-        if (Option.isNone(destroyed) && Date.now() - lastAnswer > 30_000) {
-          sharedWorker?.destroy();
-          sharedWorker = null;
+        if (Option.isNone(destroyed) && Date.now() - handle.reader.lastAnswer > 30_000) {
+          handle.reader.worker.destroy();
         }
       }),
 

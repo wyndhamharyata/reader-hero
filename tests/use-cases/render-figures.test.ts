@@ -19,7 +19,12 @@ import { FigureSlots } from "@/services/figure-slots";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { renderFigures } from "@/use-cases/render-figures";
 
-const handle: PdfHandle = { proxy: {} as never, task: {} as never, numPages: 1 };
+const handle: PdfHandle = {
+  proxy: {} as never,
+  task: {} as never,
+  numPages: 1,
+  reader: {} as never,
+};
 
 const placement: ImagePlacement = { id: "1-0", page: 1, x: 100, y: 400, width: 200, height: 100 };
 

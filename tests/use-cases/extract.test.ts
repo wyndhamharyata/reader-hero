@@ -5,7 +5,12 @@ import { PdfFailure } from "@/domain/errors";
 import { PdfClient, type PdfHandle } from "@/services/pdf-client";
 import { assembleExtract, extractPages } from "@/use-cases/extract";
 
-const handle: PdfHandle = { proxy: {} as never, task: {} as never, numPages: 1 };
+const handle: PdfHandle = {
+  proxy: {} as never,
+  task: {} as never,
+  numPages: 1,
+  reader: {} as never,
+};
 
 const item = (): RawTextItem => ({
   str: "a".repeat(200),
