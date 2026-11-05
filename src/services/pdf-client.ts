@@ -9,6 +9,7 @@ import type {
   ImagePlacement,
   OutlineItem,
   PageImage,
+  PageLinkBox,
   PageSize,
   PageText,
   StoredImage,
@@ -359,7 +360,12 @@ export class PdfClient extends Context.Service<
   PdfClient,
   {
     load(data: ArrayBuffer): Effect.Effect<PdfHandle, PdfFailure>;
+    // A page's text without its links, which readLinks reads apart, so an import has fewer worker calls.
     readPage(handle: PdfHandle, page: number): Effect.Effect<PageText, PdfFailure>;
+    readLinks(
+      handle: PdfHandle,
+      page: number,
+    ): Effect.Effect<ReadonlyArray<PageLinkBox>, PdfFailure>;
     readImages(
       handle: PdfHandle,
       page: number,
@@ -417,17 +423,22 @@ export class PdfClient extends Context.Service<
           try: () => pageProxy.getTextContent(),
           catch: pdfFailure,
         });
-        const links = yield* Effect.tryPromise({
-          try: () => readLinkBoxes(handle.proxy, pageProxy),
-          catch: pdfFailure,
-        }).pipe(Effect.orElseSucceed(() => []));
 
         answered(handle.reader);
 
-        return {
-          ...toPageText(page, content, pageProxy.getViewport({ scale: 1 })),
-          links,
-        };
+        return toPageText(page, content, pageProxy.getViewport({ scale: 1 }));
+      }),
+
+      readLinks: Effect.fn("PdfClient.readLinks")(function* (handle: PdfHandle, page: number) {
+        const pageProxy = yield* Effect.tryPromise({
+          try: () => handle.proxy.getPage(page),
+          catch: pdfFailure,
+        });
+
+        return yield* Effect.tryPromise({
+          try: () => readLinkBoxes(handle.proxy, pageProxy),
+          catch: pdfFailure,
+        });
       }),
 
       readImages: Effect.fn("PdfClient.readImages")(function* (handle: PdfHandle, page: number) {

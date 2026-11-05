@@ -30,8 +30,9 @@ const stubLayer = Layer.succeed(
   PdfClient.of({
     load: () => Effect.die("not used"),
     readPage: (_handle, page) => Effect.succeed(pageText(page)),
-    // Parsing must not decode figures. That is the figure job's work.
+    // Parsing must not decode figures or read links. That is the figure job's work.
     readImages: () => Effect.die("readImages called during parsing"),
+    readLinks: () => Effect.die("readLinks called during parsing"),
     pageSize: () => Effect.die("not used"),
     readOutline: () => Effect.succeed([]),
     release: () => Effect.void,
@@ -66,6 +67,7 @@ const failing = (bad: ReadonlySet<number>) =>
           ? Effect.fail(new PdfFailure({ reason: "unknown", message: "bad page" }))
           : Effect.succeed(pageText(page)),
       readImages: () => Effect.die("not used"),
+      readLinks: () => Effect.die("not used"),
       pageSize: () => Effect.die("not used"),
       readOutline: () => Effect.succeed([]),
       release: () => Effect.void,

@@ -1,5 +1,11 @@
 import { Effect, Semaphore, Stream } from "effect";
-import { BookMeta, ParsedBook, type ImagePlacement, type PageImage } from "@/domain/book";
+import {
+  BookMeta,
+  ParsedBook,
+  type ImagePlacement,
+  type PageImage,
+  type PageLinkBox,
+} from "@/domain/book";
 import { StorageFailure } from "@/domain/errors";
 import { assembleBook } from "@/lib/pdf/assemble";
 import { BookStore } from "@/services/book-store";
@@ -30,7 +36,7 @@ export function renderFigures(
       const meta = yield* store.get(bookId);
 
       if (!meta.figuresPending) return;
-      // Figures are encoded in a worker with OffscreenCanvas. A browser without it reads the text only.
+      // shortcut: figures need OffscreenCanvas, and a browser without it also gets no links, as this job reads both. Give links their own pass if that matters.
       if (typeof OffscreenCanvas === "undefined") {
         yield* store.putMeta(new BookMeta({ ...meta, figures: "none" }));
         return;
@@ -103,6 +109,25 @@ export function renderFigures(
             return new ParsedBook({ ...book, figuresThrough: through });
           });
 
+        // Links come with figures, not at import, so a slow phone imports sooner. A link that cannot be read is dropped.
+        const readLinks = (page: number) =>
+          pdf
+            .readLinks(handle, page)
+            .pipe(Effect.orElseSucceed((): ReadonlyArray<PageLinkBox> => []));
+        const withLinks = (page: number, links: ReadonlyArray<PageLinkBox>): void => {
+          const entry = pagesByPage.get(page);
+
+          if (entry !== undefined)
+            pagesByPage.set(page, { ...entry, text: { ...entry.text, links } });
+        };
+
+        // The kept text has no links, so a resumed job reads them again for the pages it finished.
+        yield* Effect.forEach(
+          [...done],
+          (page) => Effect.map(readLinks(page), (links) => withLinks(page, links)),
+          { concurrency: IMAGE_CONCURRENCY, discard: true },
+        );
+
         // A resumed job shows the figures it already stored before it looks for more.
         if (stored.length > 0) yield* store.putParsed(bookId, yield* assemble());
 
@@ -136,6 +161,8 @@ export function renderFigures(
                 if (entry !== undefined) {
                   pagesByPage.set(page, { text: entry.text, images: images.map(placement) });
                 }
+
+                withLinks(page, yield* readLinks(page));
 
                 done.add(page);
                 // Its own small record, so each page saves cheaply: iOS interrupts this job often.

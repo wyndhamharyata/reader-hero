@@ -59,6 +59,7 @@ interface Harness {
     parsedWrites: number;
     checkpoint: number[];
     renders: number;
+    linkReads: number;
   };
   readonly layer: Layer.Layer<BookStore | PdfClient | FigureSlots>;
 }
@@ -80,6 +81,7 @@ function harness(figures: FigureState): Harness {
     parsedWrites: 0,
     checkpoint: [],
     renders: 0,
+    linkReads: 0,
   };
 
   const bookStore = Layer.succeed(
@@ -149,6 +151,11 @@ function harness(figures: FigureState): Harness {
           return [pageImage];
         }),
       pageSize: () => Effect.die("not used"),
+      readLinks: () =>
+        Effect.sync(() => {
+          state.linkReads += 1;
+          return [];
+        }),
       readOutline: () => Effect.succeed([]),
       release: () => Effect.void,
       thumbnail: () => Effect.succeed(null),
@@ -169,6 +176,8 @@ describe("renderFigures", () => {
     expect(state.images[0]?.id).toBe("1-0");
     expect(state.parsed?.blocks.some((block) => block.imageId === "1-0")).toBe(true);
     expect(state.meta.figures).toBe("ready");
+    // The import skips links, so the job reads each page's.
+    expect(state.linkReads).toBe(1);
   });
 
   it("given a restarted job, resumes after the stored pages and keeps their figures", async () => {
@@ -184,6 +193,8 @@ describe("renderFigures", () => {
     expect(state.renders).toBe(0);
     expect(state.parsed?.blocks.some((block) => block.imageId === "1-0")).toBe(true);
     expect(state.parsed?.figuresThrough).toBe(1);
+    // The kept text has no links, so the finished page's are read again.
+    expect(state.linkReads).toBe(1);
   });
 
   it("given a finished page, moves the checkpoint without rewriting the book", async () => {
