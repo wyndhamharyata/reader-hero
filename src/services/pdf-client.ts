@@ -50,6 +50,11 @@ const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
 
 // One pdf.js worker for every load, as the render worker has, not a 1.3 MB script parse per load.
 let sharedWorker: InstanceType<PdfLib["PDFWorker"]> | null = null;
+// When the shared worker last answered any document. A busy worker is slow, a dead one is silent.
+let lastAnswer = 0;
+const answered = (): void => {
+  lastAnswer = Date.now();
+};
 const pdfWorker = (lib: PdfLib): InstanceType<PdfLib["PDFWorker"]> => {
   if (sharedWorker === null || sharedWorker.destroyed) sharedWorker = new lib.PDFWorker();
   return sharedWorker;
@@ -362,6 +367,8 @@ export class PdfClient extends Context.Service<
           Effect.onInterrupt(() => Effect.sync(() => void task.destroy().catch(() => undefined))),
         );
 
+        answered();
+
         return { proxy, task, numPages: proxy.numPages };
       }),
 
@@ -379,6 +386,8 @@ export class PdfClient extends Context.Service<
           catch: pdfFailure,
         }).pipe(Effect.orElseSucceed(() => []));
 
+        answered();
+
         return {
           ...toPageText(page, content, pageProxy.getViewport({ scale: 1 })),
           links,
@@ -393,6 +402,8 @@ export class PdfClient extends Context.Service<
         });
 
         const paints = yield* readBoxes(lib, pageProxy, page);
+
+        answered();
 
         if (paints.length === 0) {
           yield* cleanupPage(pageProxy);
@@ -546,7 +557,7 @@ export class PdfClient extends Context.Service<
         return yield* walk(raw, 0);
       }),
 
-      // A worker lost to memory pressure never answers, so the wait ends and the stall check cannot hang.
+      // A dead worker never answers, so the wait ends. It shuts down only after 30s silent to every book, as a busy one is slow.
       release: Effect.fn("PdfClient.release")(function* (handle: PdfHandle) {
         const destroyed = yield* Effect.tryPromise({
           try: () => handle.task.destroy(),
@@ -556,7 +567,7 @@ export class PdfClient extends Context.Service<
           Effect.orElseSucceed(() => Option.some(undefined)),
         );
 
-        if (Option.isNone(destroyed)) {
+        if (Option.isNone(destroyed) && Date.now() - lastAnswer > 30_000) {
           sharedWorker?.destroy();
           sharedWorker = null;
         }
