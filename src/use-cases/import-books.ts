@@ -80,9 +80,14 @@ export function importBooks(
         }
       });
       const progressFile = { index: position + 1, count: wanted.length, name: file.name };
+      // Each update redraws the library, so it shows at most 4 a second. The stall check still counts every page.
+      let shownAt = 0;
       const work = addBook(file, (progress) => {
         lastProgress = Date.now();
-        if (position === Math.min(...running)) onProgress({ ...progress, file: progressFile });
+        if (position !== Math.min(...running) || lastProgress - shownAt < 250) return;
+
+        shownAt = lastProgress;
+        onProgress({ ...progress, file: progressFile });
       });
 
       running.add(position);
