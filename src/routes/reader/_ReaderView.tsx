@@ -18,6 +18,7 @@ import { NoteCard } from "./_NoteCard";
 import { prefersLessMotion } from "@/lib/open-book";
 import { chapterAt, chapterRange, type Span } from "@/lib/reader-window";
 import { useTapFilter } from "@/lib/use-tap-filter";
+import { useVisualBottom } from "@/lib/use-visual-bottom";
 import { MarkedText } from "./_MarkedText";
 import { ReaderImage } from "./_ReaderImage";
 
@@ -328,6 +329,9 @@ export const ReaderView = memo(function ReaderView({
   // The live selection, kept as block offsets so the DOM can change under it.
   const anchorRef2 = useRef<Anchor | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
+  const covered = useVisualBottom(hasSelection);
+  // The tool bar covers the bottom too, so a selection made while it shows would leave the pill behind it.
+  const [barLift, setBarLift] = useState(0);
   const [selected, setSelected] = useState<{
     readonly annotation: Annotation;
     readonly isFocused: boolean;
@@ -336,6 +340,15 @@ export const ReaderView = memo(function ReaderView({
   const openedAt = useRef(0);
   const focusedNonce = useRef(0);
   const [dotTops, setDotTops] = useState<ReadonlyMap<number, number>>(new Map());
+
+  useLayoutEffect(() => {
+    if (!hasSelection) return;
+
+    const bar = document.querySelector<HTMLElement>(".bar.bottombar");
+
+    setBarLift(bar === null || bar.classList.contains("is-hidden") ? 0 : bar.offsetHeight);
+  }, [hasSelection]);
+
   const moveCenter = useCallback((chapter: number) => {
     if (chapter === centerRef.current) return;
 
@@ -898,6 +911,8 @@ export const ReaderView = memo(function ReaderView({
   const hyphens = settings.textAlign === "justify" ? "auto" : undefined;
   // The book's own first page is its cover picture in most EPUBs: the reader's picture takes that place.
   const isCoverPage = hasCustomCover && blockStart === 0 && parsed.blocks[0]?.kind === "image";
+  // Whatever covers the bottom goes under the pill.
+  const lift = Math.max(covered, barLift);
   const shown = isCoverPage ? nodes.slice(1) : nodes;
 
   return (
@@ -950,7 +965,12 @@ export const ReaderView = memo(function ReaderView({
         </article>
       )}
       {hasSelection && selected === null && (
-        <button type="button" className="key green highlight-pill" onClick={makeHighlight}>
+        <button
+          type="button"
+          className="key green highlight-pill"
+          style={lift > 0 ? ({ "--pill-lift": `${lift}px` } as CSSProperties) : undefined}
+          onClick={makeHighlight}
+        >
           <MarkerIcon className="icon" />
           Highlight
         </button>

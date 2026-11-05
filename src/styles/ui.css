@@ -407,7 +407,8 @@
   .highlight-pill {
     position: fixed;
     right: 16px;
-    bottom: calc(16px + var(--safe-bottom));
+    /* Above the keyboard or the tool bar when either covers the bottom. */
+    bottom: calc(16px + var(--pill-lift, var(--safe-bottom)));
     z-index: 20;
     animation: pill-in 150ms var(--ease-out);
   }

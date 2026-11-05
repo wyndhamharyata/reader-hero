@@ -9,6 +9,7 @@ import {
 } from "react";
 import { TrashIcon } from "@/components/icons";
 import type { Annotation } from "@/domain/annotation";
+import { useVisualBottom } from "@/lib/use-visual-bottom";
 
 const SAVE_DELAY_MS = 400;
 // The keyboard takes about this much of the screen, and the card stays above it either way.
@@ -44,6 +45,7 @@ export function NoteCard({
   const noteRef = useRef(note);
   const savedRef = useRef(annotation.note ?? "");
   const timerRef = useRef<number | null>(null);
+  const covered = useVisualBottom(true);
 
   const flush = useCallback(() => {
     if (timerRef.current !== null) {
@@ -96,8 +98,7 @@ export function NoteCard({
 
     if (element === null) return;
 
-    const view = window.visualViewport;
-    const bottom = view === null ? window.innerHeight : view.height + view.offsetTop;
+    const bottom = window.innerHeight - covered;
     const height = element.offsetHeight;
     const width = Math.min(CARD_WIDTH, window.innerWidth - 24);
     const below = rect.bottom + 10;
@@ -105,7 +106,7 @@ export function NoteCard({
     const left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
 
     setStyle({ top, left });
-  }, [rect, note]);
+  }, [rect, note, covered]);
 
   return (
     <div ref={cardRef} className="note-card" role="dialog" aria-label="Highlight" style={style}>
