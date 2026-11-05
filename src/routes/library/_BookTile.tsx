@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactElement } from "react";
+import { useState, type CSSProperties, type ReactElement } from "react";
 import { BookCover } from "@/components/BookCover";
 import { CheckIcon } from "@/components/icons";
 import type { ParseState } from "@/domain/book";
@@ -51,8 +51,11 @@ export function BookTile({
   const { book, status } = card;
   const bookClass = book.format === "epub" ? "book glossy" : "book";
   const caption = captionOf(card, place);
+  // The delay holds from the tile's first draw: a drop that starts later starts at once, not part way through.
+  const [first] = useState(motion);
+  const delayMs = motion?.name === first?.name ? (first?.delayMs ?? 0) : 0;
   const motionStyle: CSSProperties | undefined =
-    motion === null ? undefined : ({ "--delay": `${motion.delayMs}ms` } as CSSProperties);
+    motion === null ? undefined : ({ "--delay": `${delayMs}ms` } as CSSProperties);
 
   return (
     <li data-book-id={book.id} className={motion?.name} style={motionStyle}>

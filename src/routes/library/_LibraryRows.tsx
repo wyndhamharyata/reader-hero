@@ -55,7 +55,7 @@ export interface TileEvents {
   readonly onSeriesActions: (series: SeriesItem) => void;
   // How far the import has read a building book, by its id.
   readonly fillOf: (card: LibraryCard) => number;
-  readonly isFresh: (id: string) => boolean;
+  readonly freshAt: (id: string) => number | undefined;
 }
 
 export function LibraryRows({
@@ -90,7 +90,7 @@ export function LibraryRows({
       fill={events.fillOf(card)}
       motion={
         place === undefined
-          ? motionFor(events.isFresh(card.book.id), isDealing, index)
+          ? motionFor(events.freshAt(card.book.id), isDealing, index)
           : place <= columns
             ? { name: "unpack", delayMs: (place - 1) * unpackStepMs }
             : null
@@ -140,7 +140,7 @@ export function LibraryRows({
                       key={`series:${item.id}`}
                       series={item}
                       isOpen={openSeries.has(item.id)}
-                      motion={motionFor(false, isDealing, index)}
+                      motion={motionFor(undefined, isDealing, index)}
                       onToggle={() => events.onToggleSeries(item.id)}
                       onActions={() => events.onSeriesActions(item)}
                     />
@@ -156,11 +156,12 @@ export function LibraryRows({
 }
 
 function motionFor(
-  isFresh: boolean,
+  freshAt: number | undefined,
   isDealing: boolean,
   index: number,
 ): { readonly name: "drop" | "deal"; readonly delayMs: number } | null {
-  if (isFresh) return { name: "drop", delayMs: 0 };
+  // A negative delay starts the drop part way through, so a tile drawn again in a new row does not replay it.
+  if (freshAt !== undefined) return { name: "drop", delayMs: freshAt - Date.now() };
   if (!isDealing || index < 0) return null;
 
   return { name: "deal", delayMs: Math.min(index, lastDealt) * dealStepMs };

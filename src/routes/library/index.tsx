@@ -454,7 +454,8 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [isDropping, setDropping] = useState(false);
   const [isDealing, setDealing] = useState(true);
-  const [fresh, setFresh] = useState<ReadonlySet<string>>(() => new Set());
+  // When each new book's drop began, so a tile moved to another row goes on with it, not from the start.
+  const [fresh, setFresh] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [isInstallHintShown, setInstallHintShown] = useState(
     () => showInstallHint && !isInstallHintDismissed(),
   );
@@ -577,12 +578,12 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
     });
 
     parseStates.current = new Map(books.map((book) => [book.id, book.parseState]));
-    if (arrived.length > 0) setFresh(new Set(arrived.map((book) => book.id)));
+    if (arrived.length > 0) setFresh(new Map(arrived.map((book) => [book.id, Date.now()])));
   }, [books]);
   useEffect(() => {
     if (fresh.size === 0) return;
 
-    const timer = window.setTimeout(() => setFresh(new Set()), freshMs);
+    const timer = window.setTimeout(() => setFresh(new Map()), freshMs);
 
     return () => window.clearTimeout(timer);
   }, [fresh]);
@@ -879,7 +880,7 @@ export function LibraryRoute({ isHidden }: { isHidden: boolean }): ReactElement 
 
       return progress.page / Math.max(1, progress.total);
     },
-    isFresh: (id) => fresh.has(id),
+    freshAt: (id) => fresh.get(id),
   };
 
   const sheets = (
