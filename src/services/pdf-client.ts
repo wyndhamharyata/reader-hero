@@ -173,10 +173,13 @@ const encodeImage = (
 
     if (width <= 0 || height <= 0) return null;
 
+    // Chromium's ImageDecoder gives pdf.js a VideoFrame, not a bitmap. Both copy to one.
+    const isFrame = typeof VideoFrame !== "undefined" && image.bitmap instanceof VideoFrame;
+
     // pdf.js keeps the original for later paints, so a copy goes to the worker. A transfer would detach it.
-    if (image.bitmap instanceof ImageBitmap) {
+    if (image.bitmap instanceof ImageBitmap || isFrame) {
       const copy = yield* Effect.tryPromise({
-        try: () => createImageBitmap(image.bitmap as ImageBitmap),
+        try: () => createImageBitmap(image.bitmap as ImageBitmap | VideoFrame),
         catch: pdfFailure,
       });
       return yield* encodeInWorker({ width, height, maxDim, source: copy }, [copy]);
