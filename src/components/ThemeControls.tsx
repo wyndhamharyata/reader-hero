@@ -107,10 +107,11 @@ export function ThemeControls({
 
             setWarmth(next);
             window.clearTimeout(rest.current);
-            rest.current = window.setTimeout(
-              () => document.documentElement.style.setProperty("--temperature", String(next)),
-              warmthRestMs,
-            );
+            rest.current = window.setTimeout(() => {
+              document.documentElement.style.setProperty("--temperature", String(next));
+              // iOS can drop the change at the end of a drag, so a rest saves too.
+              onChange({ temperature: next });
+            }, warmthRestMs);
           }}
         />
       </label>

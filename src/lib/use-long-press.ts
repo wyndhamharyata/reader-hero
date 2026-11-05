@@ -3,6 +3,18 @@ import { useRef, type MouseEvent, type PointerEvent } from "react";
 const holdMs = 480;
 const slopPx = 10;
 
+const blockMenu = (event: Event): void => event.preventDefault();
+
+// The sheet a hold opens lies under the finger, so the browser's own hold menu opens on the sheet and not on the tile.
+function blockMenuUntilLift(): void {
+  window.addEventListener("contextmenu", blockMenu, true);
+  window.addEventListener(
+    "pointerup",
+    () => window.removeEventListener("contextmenu", blockMenu, true),
+    { capture: true, once: true },
+  );
+}
+
 // A hold or a right-click, or the menu key, runs `onHold`. The click that follows a hold does nothing.
 export function useLongPress(onHold: () => void): {
   readonly onPointerDown: (event: PointerEvent) => void;
@@ -30,6 +42,7 @@ export function useLongPress(onHold: () => void): {
       cancel();
       timer.current = window.setTimeout(() => {
         wasHeld.current = true;
+        blockMenuUntilLift();
         onHold();
       }, holdMs);
     },

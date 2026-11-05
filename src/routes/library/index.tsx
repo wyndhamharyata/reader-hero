@@ -148,8 +148,9 @@ function LibraryHeader({
   return (
     <>
       <header className="flex items-center gap-2.5 px-4 pt-4.5 pb-2.5 md:px-8 md:pt-6 md:pb-3.5">
-        <h1 className="mr-auto">
-          <Logo className="h-10 w-auto" />
+        {/* The logo gives way first, so the keys beside it always fit a narrow screen. */}
+        <h1 className="min-w-0 flex-1">
+          <Logo className="h-auto w-full max-w-42" />
         </h1>
         <button
           type="button"
