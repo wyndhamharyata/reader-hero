@@ -49,12 +49,8 @@ const loadLib = (): Effect.Effect<PdfLib, PdfFailure> =>
     catch: pdfFailure,
   });
 
-const agent = globalThis.navigator?.userAgent ?? "";
-// Two workers read two books at once on a phone with cores to spare. WebKit keeps one, as it may not run two well.
-const isWebKit = agent.includes("AppleWebKit") && !agent.includes("Chrome/");
-
-export const PDF_READERS =
-  !isWebKit && (globalThis.navigator?.hardwareConcurrency ?? 1) >= 4 ? 2 : 1;
+// Two workers read two books at once on a phone with cores to spare. A third gains nothing on two fast cores.
+export const PDF_READERS = (globalThis.navigator?.hardwareConcurrency ?? 1) >= 4 ? 2 : 1;
 
 // A pdf.js worker, with its open documents and when it last answered. A busy worker is slow, a dead one is silent.
 export interface PdfReader {
