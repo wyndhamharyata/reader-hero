@@ -823,6 +823,15 @@
     will-change: transform;
   }
 
+  /* Chrome on Android paints a sheet again on every frame its select moves, so the select is out while the sheet slides. */
+  .panel select {
+    animation: unmounted 360ms;
+  }
+
+  .panel[data-moving] select {
+    display: none;
+  }
+
   /* Under the spring's overshoot, so no line of the page shows below the sheet. */
   .panel::after {
     content: "";
@@ -2039,6 +2048,13 @@
 @keyframes sheet-up {
   from {
     transform: translateY(100%);
+  }
+}
+
+@keyframes unmounted {
+  from,
+  to {
+    display: none;
   }
 }
 

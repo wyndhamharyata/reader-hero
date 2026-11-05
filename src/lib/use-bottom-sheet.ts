@@ -14,6 +14,8 @@ function slideOut(sheet: HTMLElement, backdrop: HTMLElement | null, done: () => 
 
   const opened = getComputedStyle(sheet).animationName;
 
+  sheet.dataset.moving = "";
+
   sheet.style.transition = `transform ${closeMs}ms ease-in, opacity ${closeMs}ms ease-in`;
 
   if (opened === "dialog-in" || opened === "fade-in") {
@@ -135,6 +137,7 @@ export function useBottomSheet(
         if (mode === "scroll") return;
 
         sheet.style.transition = "none";
+        sheet.dataset.moving = "";
       }
 
       event.preventDefault();
@@ -151,6 +154,7 @@ export function useBottomSheet(
       if (offset < 100 && !flick) {
         sheet.style.transition = "transform 200ms ease-out";
         sheet.style.transform = "";
+        window.setTimeout(() => delete sheet.dataset.moving, 200);
         return;
       }
 
