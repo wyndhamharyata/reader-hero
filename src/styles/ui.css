@@ -138,11 +138,9 @@
     0 8px 24px oklch(0% 0 0 / 0.35);
 }
 
-/* The swatch: a page on the desk. */
+/* The swatch: the dim page itself, as the light and dark swatches show their page. */
 .swatch-dim {
-  background:
-    linear-gradient(oklch(82% 0.006 85), oklch(82% 0.006 85)) center / 62% 72% no-repeat,
-    oklch(24% 0.006 95);
+  background: var(--paper), var(--mottle), oklch(82% 0.007 85);
   color: oklch(18% 0.012 70);
 }
 

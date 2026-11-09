@@ -92,7 +92,7 @@ export function ThemeControls({
         ))}
       </div>
       <label className="mt-4.5 flex items-center gap-3">
-        <span className="w-23 flex-none text-sm font-semibold text-(--ink-soft)">Warmth</span>
+        <span className="w-23 flex-none font-[550]">Warmth</span>
         <input
           ref={slider}
           type="range"

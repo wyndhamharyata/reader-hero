@@ -87,7 +87,7 @@ export function LookPanel({
     >
       <ThemeControls settings={settings} onChange={onChange} />
       <div className="mt-4.5 flex items-center gap-3">
-        <span className="w-23 flex-none text-sm font-semibold text-(--ink-soft)">Size</span>
+        <span className="w-23 flex-none font-[550]">Size</span>
         <Stepper
           value={String(fontSize)}
           less="A−"
@@ -158,7 +158,7 @@ export function LookPanel({
           </div>
           {/* A phone's page is as wide as its screen, so only wider screens choose a width. */}
           <label className="row-item hidden md:flex">
-            <span className="row-label w-24 flex-none">Line width</span>
+            <span className="row-label w-23 flex-none">Line width</span>
             <input
               type="range"
               className="fader"

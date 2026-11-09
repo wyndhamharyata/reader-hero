@@ -154,7 +154,7 @@ function LibraryHeader({
         </h1>
         <button
           type="button"
-          className="key small"
+          className="key"
           aria-label={`${highlightCount} ${highlightCount === 1 ? "highlight" : "highlights"}`}
           onClick={onHighlights}
         >
